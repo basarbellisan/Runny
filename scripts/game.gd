@@ -83,7 +83,9 @@ func _ready() -> void:
 	lower.rock_hit.connect(_on_rock_hit)
 	lower.portal_entered.connect(_on_portal)
 	Tuning.register({"game": self, "car": car, "roads": roads, "lower": lower,
-		"camera": $Camera, "audio": Audio, "trail": car.trail})
+		"camera": $Camera, "audio": Audio, "trail": car.trail, "model": car.model})
+	if _args.has("model"):
+		car.model.variant = int(_args.model)
 	if _args.has("trail"):
 		car.trail.style = int(_args.trail)
 	car.speed = car.start_speed

@@ -31,9 +31,17 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 @export var gravity := 28.0
 ## Yolun kenarından çıkarken verilen küçük yukarı itiş
 @export var launch_velocity := 8.0
-## Yolun kenarını az farkla kaçırıyorsak yola doğru hafif çekim
-@export var landing_assist := 6.0
+## Yolun kenarını az farkla kaçırıyorsak yola doğru hafif çekim (0: kapalı)
+@export var landing_assist := 0.0
 @export var assist_margin := 1.5
+
+@export_group("Tekerler")
+## Bir yanın tekerleri boşluğa çıkınca arabayı o yana çeken kuvvet (m/s²)
+@export var tip_pull := 12.0
+## Boşluktaki her teker için direksiyon tutuşu kaybı (0-1)
+@export var grip_loss := 0.2
+## Süspansiyon: tekerin aşağı sarkabileceği mesafe (m)
+@export var suspension_travel := 0.3
 
 @export_group("Gaz")
 ## Tam gazda hız bu oran kadar artar
@@ -76,6 +84,18 @@ var half_length := 1.8
 var roads: RoadGenerator
 var autopilot: Autopilot
 var trail: CarTrail
+var model: CarModel
+## Tekerlerin yerle teması (sırası: ön sol, ön sağ, arka sol, arka sağ)
+var wheel_contact: Array[bool] = [true, true, true, true]
+var _wheel_ground: Array[float] = [0.0, 0.0, 0.0, 0.0]
+## -1..1: yan yatma (eksi: sol taraf boşta)
+var _tip := 0.0
+## 0..1: ön tekerler boşta
+var _nose := 0.0
+var _bounce := 0.0
+var _bounce_v := 0.0
+var _wheel_spin := 0.0
+var _last_segment: RoadGenerator.Segment
 var air_time := 0.0
 var last_floor_y := 0.0
 var _was_on_floor := true
@@ -105,6 +125,7 @@ func _ready() -> void:
 	_set_wings(false, true)
 	trail = CarTrail.new()
 	add_child(trail)
+	model = $Body/Model
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -179,7 +200,18 @@ func crash(reason: String) -> void:
 
 func _drive(delta: float) -> void:
 	var on_floor := is_on_floor()
+	_sense_wheels()
 	var control := 1.0 if on_floor else air_control
+	if on_floor:
+		# Boşluktaki tekerler: tutuş azalır, araba boş tarafa doğru yatar ve çekilir
+		var left_off := int(not wheel_contact[0]) + int(not wheel_contact[2])
+		var right_off := int(not wheel_contact[1]) + int(not wheel_contact[3])
+		_tip = (right_off - left_off) * 0.5
+		_nose = (int(not wheel_contact[0]) + int(not wheel_contact[1])) * 0.5
+		control *= 1.0 - grip_loss * (left_off + right_off)
+		if _tip != 0.0:
+			velocity.x += _tip * tip_pull * delta + randf_range(-3.0, 3.0) * absf(_tip) * delta
+		_last_segment = roads.segment_under(global_position) if roads else null
 	velocity.x = move_toward(velocity.x, _steer * steer_speed, steer_accel * control * delta)
 	if on_floor:
 		velocity.z = -forward_speed
@@ -199,10 +231,12 @@ func _drive(delta: float) -> void:
 		return
 
 	var now_on_floor := is_on_floor()
-	if _was_on_floor and not now_on_floor and velocity.y <= 0.5:
+	if _was_on_floor and not now_on_floor and velocity.y <= 0.5 and _left_through_end():
+		# Yolun sonundan çıktık: hızla havalan. Yandan kayınca zıplama yok, düşülür.
 		velocity.y = launch_velocity
 		jumped.emit()
 	if not _was_on_floor and now_on_floor:
+		_bounce_v = -minf(1.0 + air_time * 2.5, 3.5)
 		landed.emit(air_time)
 	if now_on_floor:
 		air_time = 0.0
@@ -256,6 +290,7 @@ func _launch(delta: float) -> void:
 
 
 func _back_on_road() -> void:
+	_tip = 0.0
 	last_floor_y = global_position.y
 	_was_on_floor = true
 	_set_mode(Mode.DRIVE)
@@ -320,6 +355,29 @@ func _read_input() -> Vector2:
 	return Vector2(float(right) - float(left), 0.0)
 
 
+## Her tekerin altında yol var mı (ışın ile)
+func _sense_wheels() -> void:
+	if model == null or collision_mask == 0:
+		return
+	var space := get_world_3d().direct_space_state
+	var origin := global_position
+	for i in model.wheels.size():
+		var c: Vector3 = model.wheels[i].contact
+		var q := PhysicsRayQueryParameters3D.create(origin + c + Vector3(0, 0.5, 0),
+			origin + c - Vector3(0, 0.6, 0), _default_mask, [get_rid()])
+		var hit := space.intersect_ray(q)
+		wheel_contact[i] = not hit.is_empty()
+		_wheel_ground[i] = hit.position.y - origin.y if wheel_contact[i] else -INF
+
+
+## Yoldan önden mi (yolun sonu) yoksa yandan mı çıktık
+func _left_through_end() -> bool:
+	if _last_segment == null:
+		return true
+	return global_position.z < _last_segment.z_end + half_length + 0.5 \
+		and absf(global_position.x - _last_segment.x) < _last_segment.width * 0.5
+
+
 func _hit_wall_front() -> bool:
 	for i in get_slide_collision_count():
 		if get_slide_collision(i).get_normal().z > 0.6:
@@ -357,8 +415,42 @@ func _update_visual(delta: float) -> void:
 	var roll := -velocity.x / steer_speed * (0.45 if mode == Mode.FLYING else 0.08)
 	if mode == Mode.FLYING:
 		pitch += sin(Time.get_ticks_msec() * 0.003) * 0.04
+	elif mode == Mode.DRIVE and is_on_floor():
+		# Boştaki tekerler tarafına yatma, yolun sonunda burun düşmesi
+		roll -= _tip * 0.35
+		pitch -= _nose * 0.18
+	elif mode == Mode.FALLING and _tip != 0.0:
+		# Yandan düşerken yuvarlanmaya devam et
+		_tip = clampf(_tip * (1.0 + 2.5 * delta), -3.0, 3.0)
+		roll -= _tip * 0.35
 	var w := 1.0 - exp(-10.0 * delta)
 	_body.rotation = _body.rotation.lerp(Vector3(pitch, yaw, roll), w)
+	# Süspansiyon yaylanması (inişte gövde çöker ve toparlanır)
+	_bounce_v += (-180.0 * _bounce - 14.0 * _bounce_v) * delta
+	_bounce = clampf(_bounce + _bounce_v * delta, -0.28, 0.12)
+	_body.position.y = _bounce
+	_update_wheels(delta)
+
+
+## Teker görseli: dönme, ön tekerde direksiyon, süspansiyonla iniş/kalkış
+func _update_wheels(delta: float) -> void:
+	if model == null:
+		return
+	var grounded := mode == Mode.DRIVE and is_on_floor()
+	for i in model.wheels.size():
+		var wh: Dictionary = model.wheels[i]
+		var r: float = wh.radius
+		var target := r - suspension_travel
+		if grounded and wheel_contact[i]:
+			target = r + clampf(_wheel_ground[i], -suspension_travel, 0.1)
+		var mount: Node3D = wh.mount
+		mount.position.y = lerpf(mount.position.y, target - _bounce, 1.0 - exp(-25.0 * delta))
+		if wh.front:
+			(wh.steer as Node3D).rotation.y = lerpf((wh.steer as Node3D).rotation.y, -_steer * 0.35, 1.0 - exp(-12.0 * delta))
+	if grounded:
+		_wheel_spin += -velocity.z / model.wheels[0].radius * delta
+	for wh in model.wheels:
+		(wh.spin as Node3D).rotation.x = -_wheel_spin
 
 
 ## Kanatları aç/kapa. Kapalıyken kanatlar yukarı katlanmış ve küçülmüş durur.
@@ -395,9 +487,7 @@ func _set_wings(open: bool, instant := false) -> void:
 
 ## Patlama: araba renklerinde küçük parçalar ve turuncu bir parlama
 func _spawn_debris() -> void:
-	var mats: Array[Material] = []
-	for path in ["Body/Chassis", "Body/Cabin", "Body/WheelFL"]:
-		mats.append((get_node(path) as MeshInstance3D).mesh.surface_get_material(0))
+	var mats: Array[Material] = [model.paint_material, model.dark_material, model.tire_material]
 	var origin := global_position + Vector3(0, 0.6, 0)
 	for i in 16:
 		var piece := MeshInstance3D.new()

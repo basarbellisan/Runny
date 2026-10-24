@@ -10,6 +10,10 @@ Godot 4.7 ile `project.godot` dosyasını aç, F5 ile çalıştır.
 - İki parmakla (iki yarıya birden) bas → gaz. Gaz verirken direksiyon çalışmaz.
 - PC: A / D veya ← / → ile yön, W / ↑ / Boşluk ile gaz
 
+Araba tekerlerinden hisseder: bir yanın tekerleri boşluğa çıkınca araba o
+yana yatar, boşluğa doğru çekilir ve tutuşu azalır; ağırlık merkezi kenarı
+geçerse yuvarlanarak düşer. İniş yardımı varsayılan olarak kapalı.
+
 Her yolun sonunda gaz şart: gazsız kalkan araba bir sonraki yolun ön
 yüzüne çakılıp patlar. Yanlış hizalanıp yolun yanından düşersen kanatlar
 açılır ve alt katmana geçersin.
@@ -28,6 +32,9 @@ varsayılandan farklı değerleri tek satırlık metin olarak verir
 - Portala girersen yukarı fırlatılır, arabaya dönüşüp bir yola konarsın
 
 ## Yapı
+- `scripts/car_model.gd` — araba görünümü (3 model: kutu, gezgin, konsept) ve tekerler
+- `scripts/car_trail.gd` — hız izi (3 stil)
+- `tools/showroom.gd` — araba modellerinin vitrin görüntülerini çeker
 - `scripts/car.gd` — araba fiziği ve modları (yol / düşüş / uçuş / portal fırlatması), kanat animasyonu
 - `scripts/road_generator.gd` — prosedürel yol üretimi (her yol ulaşılabilir olacak şekilde hesaplanır)
 - `scripts/lower_layer.gd` — alt katman: kayalar, kristaller, portallar (portal, yukarıdaki bir yola indirecek şekilde yerleştirilir)
