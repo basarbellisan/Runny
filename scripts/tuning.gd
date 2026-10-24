@@ -53,6 +53,7 @@ const PARAMS := [
 	["KAMERA", "camera", "fov_per_speed", "Hızla açı artışı", 0, 1, 0.05],
 	["KAMERA", "camera", "look_ahead", "İleri bakış", 5, 40, 1],
 	["GÖRSEL", "trail", "style", "İz stili (1 ışık, 2 küp, 3 rüzgâr)", 1, 3, 1],
+	["GÖRSEL", "speedo", "style", "Kadran stili (1-10)", 1, 10, 1],
 	["GÖRSEL", "trail", "min_life", "İz boyu: gazsız (sn)", 0, 1, 0.02],
 	["GÖRSEL", "trail", "max_life", "İz boyu: tam gaz (sn)", 0.1, 2, 0.05],
 	["SES", "audio", "music_volume_db", "Müzik (dB)", -40, 0, 1],

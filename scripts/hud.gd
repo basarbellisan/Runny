@@ -15,6 +15,7 @@ var _hint: Label
 var _energy: Control
 var _energy_back: ColorRect
 var _energy_fill: ColorRect
+var speedometer: Speedometer
 var _speedo: Speedometer
 var _speedo_shown := true
 var _hint_tween: Tween
@@ -47,10 +48,11 @@ func _ready() -> void:
 	_speedo.anchor_right = 0.5
 	_speedo.anchor_top = 1.0
 	_speedo.anchor_bottom = 1.0
-	_speedo.offset_left = -80
-	_speedo.offset_right = 80
-	_speedo.offset_top = -200
+	_speedo.offset_left = -110
+	_speedo.offset_right = 110
+	_speedo.offset_top = -230
 	_speedo.offset_bottom = -40
+	speedometer = _speedo
 	set_mood(0.0)
 	hint("SOLA DOKUN      |      SAĞA DOKUN", 3.0)
 

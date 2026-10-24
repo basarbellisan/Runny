@@ -84,7 +84,7 @@ func _ready() -> void:
 	lower.rock_hit.connect(_on_rock_hit)
 	lower.portal_entered.connect(_on_portal)
 	Tuning.register({"game": self, "car": car, "roads": roads, "lower": lower,
-		"camera": $Camera, "audio": Audio, "trail": car.trail})
+		"camera": $Camera, "audio": Audio, "trail": car.trail, "speedo": hud.speedometer})
 	# Garajda seçilen araba
 	car.model.variant = int(_args.get("model", _load_save().get_value("car", "model", 1)))
 	if _args.has("trail"):
