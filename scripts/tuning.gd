@@ -59,6 +59,7 @@ const PARAMS := [
 	["SES", "audio", "music_volume_db", "Müzik (dB)", -40, 0, 1],
 	["SES", "audio", "engine_volume_db", "Motor (dB)", -40, 0, 1],
 	["SES", "audio", "road_volume_db", "Yol (dB)", -40, 0, 1],
+	["SES", "audio", "tire_volume_db", "Lastik (dB)", -40, 0, 1],
 	["SES", "audio", "wind_volume_db", "Rüzgâr (dB)", -40, 0, 1],
 	["SES", "audio", "plane_volume_db", "Uçak (dB)", -40, 0, 1],
 	["SES", "audio", "climb_volume_db", "Yükselme (dB)", -40, 0, 1],

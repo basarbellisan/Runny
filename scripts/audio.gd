@@ -24,7 +24,9 @@ const CRYSTAL_STEPS := [1.0, 1.2, 1.335, 1.498, 1.782, 2.0]
 @export var music_volume_db := -10.0
 @export var sfx_volume_db := -3.0
 @export var engine_volume_db := -9.0
-@export var road_volume_db := -14.0
+@export var road_volume_db := -11.0
+## Direksiyonda lastik sürtünmesi/cıyaklaması
+@export var tire_volume_db := -12.0
 @export var wind_volume_db := -17.0
 ## Uçuş modunda pervane sesi ve yükselirken üstüne binen türbin katmanı
 @export var plane_volume_db := -10.0
@@ -37,8 +39,11 @@ var _road: AudioStreamPlayer
 var _wind: AudioStreamPlayer
 var _plane: AudioStreamPlayer
 var _climb: AudioStreamPlayer
-var _pool: Array[AudioStreamPlayer] = []
-var _pool_index := 0
+## Her efektin kendi oynatıcısı (ses dosyası hazır bekler: gecikme olmaz)
+var _players := {}
+var _tire: AudioStreamPlayer
+var _tire_level := 0.0
+var _last_vx := 0.0
 var _engine_level := 0.0
 var _engine_pitch := 1.0
 var _road_level := 0.0
@@ -62,16 +67,20 @@ func _ready() -> void:
 	_wind = _make_loop(preload("res://audio/loop_wind.ogg"))
 	_plane = _make_loop(preload("res://audio/loop_plane.ogg"))
 	_climb = _make_loop(preload("res://audio/loop_climb.ogg"))
-	for i in 10:
+	_tire = _make_loop(preload("res://audio/loop_tire.ogg"))
+	for key in SFX:
 		var p := AudioStreamPlayer.new()
+		p.stream = SFX[key]
+		p.max_polyphony = 4
 		add_child(p)
-		_pool.append(p)
+		_players[key] = p
+		# Web'de sesi baştan kaydet ki ilk çalışta gecikmesin
+		if AudioServer.has_method("register_stream_as_sample"):
+			AudioServer.call("register_stream_as_sample", SFX[key])
 
 
 func play(sfx: String, volume_db := 0.0, pitch := 1.0) -> void:
-	var p := _pool[_pool_index]
-	_pool_index = (_pool_index + 1) % _pool.size()
-	p.stream = SFX[sfx]
+	var p: AudioStreamPlayer = _players[sfx]
 	p.volume_db = sfx_volume_db + volume_db
 	p.pitch_scale = pitch
 	p.play()
@@ -134,6 +143,19 @@ func update(delta: float, car: Car, mood: float, playing: bool) -> void:
 	_wind.volume_db = wind_volume_db + linear_to_db(maxf(_wind_level, 0.001))
 	_wind.pitch_scale = 0.85 + 0.35 * speed01 + 0.15 * _climb_amount
 	_update_plane(delta, car, speed01, playing)
+	_update_tire(delta, car, speed01, grounded and playing)
+
+
+## Lastik: direksiyonla yana ivmelenince sürtünme/cıyaklama (sert manevrada güçlü)
+func _update_tire(delta: float, car: Car, speed01: float, grounded: bool) -> void:
+	var lateral_accel := absf(car.velocity.x - _last_vx) / maxf(delta, 0.001)
+	_last_vx = car.velocity.x
+	var target := 0.0
+	if grounded:
+		target = clampf(lateral_accel / car.steer_accel, 0.0, 1.0) * (0.5 + 0.5 * speed01)
+	_tire_level = move_toward(_tire_level, target, delta * (14.0 if target > _tire_level else 4.0))
+	_tire.volume_db = tire_volume_db + linear_to_db(maxf(_tire_level, 0.001))
+	_tire.pitch_scale = 0.9 + 0.25 * speed01 + 0.1 * _tire_level
 
 
 ## Uçuş: pervane sesi; yükselirken uçak gibi yavaşça devirlenir, türbin ıslığı biner
@@ -171,12 +193,14 @@ func update_menu(delta: float) -> void:
 	_climb_amount = 0.0
 	_plane.volume_db = -60.0
 	_climb.volume_db = -60.0
+	_tire_level = 0.0
+	_tire.volume_db = -60.0
 
 
 ## Tekerlekler yere değdi: devir bir an düşer (yük bindi)
 func touchdown(strength := 1.0) -> void:
 	_engine_pitch -= 0.12 * strength
-	play("land", -1.0 + 3.0 * (strength - 1.0), randf_range(0.95, 1.05))
+	play("land", 1.0 + 3.0 * (strength - 1.0), randf_range(0.95, 1.05))
 
 
 func _make_loop(stream: AudioStreamOggVorbis) -> AudioStreamPlayer:

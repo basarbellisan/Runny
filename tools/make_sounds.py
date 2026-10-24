@@ -12,6 +12,7 @@ Gerekenler: pip install numpy soundfile
   loop_*.ogg    döngüler: motor, yol (lastik), rüzgâr
   music_*.ogg   iki katmanın müziği (aynı tempo ve akorlar; oyun aralarında geçiş yapar)
 """
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -215,15 +216,31 @@ def loop_road():
 
 
 def sfx_land():
-    """Tekerlekler yere değince: tok darbe + lastik cıyaklaması."""
-    d = 0.4
-    body = sine(glide(115, 48, d, 0.5), d) * env(d, 0.001, 0.07)
-    impact = filt(noise(d), hi=900) * env(d, 0.0005, 0.025)
-    squeal_env = env(d, 0.004, 0.06)
-    squeal = 0.5 * filt(noise(d), lo=1400, hi=3200, order=3) * squeal_env
-    squeal += 0.12 * sine(glide(2100, 1700, d), d) * squeal_env
-    s = body + 0.7 * impact + 0.45 * squeal
+    """Tekerlekler yere değince: tok "tak", süspansiyon "küt"ü ve kısa lastik
+    cıyaklaması. Enerji 200-3000 Hz'de: telefon hoparlöründe de duyulur."""
+    d = 0.45
+    thock = sine(glide(320, 150, d, 0.5), d) * env(d, 0.001, 0.05)
+    body = 0.5 * sine(glide(120, 60, d, 0.5), d) * env(d, 0.001, 0.08)
+    clunk = (sine(700, d) + 0.6 * sine(1150, d)) * env(d, 0.0005, 0.03)
+    impact = filt(noise(d), hi=2500) * env(d, 0.0003, 0.015)
+    chirp_env = env(d, 0.006, 0.07)
+    chirp = filt(noise(d), lo=1500, hi=3500, order=3) * chirp_env
+    chirp += 0.35 * sine(glide(2200, 1800, d), d) * env(d, 0.006, 0.08)
+    s = thock + body + 0.35 * clunk + 0.6 * impact + 0.5 * chirp
     return fade(room(s, 0.06, 0.4), 0.0005, 0.04)
+
+
+def loop_tire():
+    """Direksiyonda lastik sürtünmesi ve cıyaklaması (döngü, 1 sn)."""
+    d = 1.0
+    n = n_of(d)
+    t = np.arange(n) / SR
+    scrub = filt(rng.uniform(-1, 1, n), lo=400, hi=1200, circular=True)
+    scrub *= 0.75 + 0.25 * np.sin(2 * np.pi * 31.0 * t)
+    hiss = filt(rng.uniform(-1, 1, n), lo=1200, hi=3200, circular=True)
+    squeal = np.sin(2 * np.pi * 1900.0 * t + 3.0 * np.sin(2 * np.pi * 6.0 * t))
+    s = 0.6 * normalize(scrub, 1.0) + 0.4 * normalize(hiss, 1.0) + 0.25 * squeal
+    return normalize(s, 0.75)
 
 
 # --------------------------------------------------------------------------
@@ -582,28 +599,27 @@ def sfx_climb():
 
 
 def main():
+    global rng
     OUT.mkdir(exist_ok=True)
-    effects = {
-        "sfx_jump.wav": sfx_jump, "sfx_land.wav": sfx_land, "sfx_perfect.wav": sfx_perfect,
-        "sfx_multiplier.wav": sfx_multiplier, "sfx_return.wav": sfx_return,
-        "sfx_wings.wav": sfx_wings, "sfx_crystal.wav": sfx_crystal, "sfx_portal.wav": sfx_portal,
-        "sfx_fall.wav": sfx_fall, "sfx_explosion.wav": sfx_explosion,
-        "sfx_energy_low.wav": sfx_energy_low, "sfx_game_over.wav": sfx_game_over,
-    }
-    for name, fn in effects.items():
-        write_wav(name, normalize(fn(), 0.8))
-    write_ogg("loop_engine.ogg", loop_engine())
-    write_ogg("loop_road.ogg", loop_road())
-    write_ogg("loop_wind.ogg", loop_wind())
-    print("efektler ve döngüler yazıldı")
-    write_ogg("music_upper.ogg", music_upper())
-    write_ogg("music_lower.ogg", music_lower())
-    print("müzik yazıldı")
-    # Uçak sesleri en sonda üretilir ki önceki seslerin rastgeleliği değişmesin
-    write_ogg("loop_plane.ogg", loop_plane())
-    write_ogg("loop_climb.ogg", loop_climb())
-    write_wav("sfx_climb.wav", normalize(sfx_climb(), 0.8))
-    print("uçak sesleri yazıldı")
+    outputs = [
+        ("sfx_jump.wav", sfx_jump), ("sfx_land.wav", sfx_land), ("sfx_perfect.wav", sfx_perfect),
+        ("sfx_multiplier.wav", sfx_multiplier), ("sfx_return.wav", sfx_return),
+        ("sfx_wings.wav", sfx_wings), ("sfx_crystal.wav", sfx_crystal), ("sfx_portal.wav", sfx_portal),
+        ("sfx_fall.wav", sfx_fall), ("sfx_explosion.wav", sfx_explosion),
+        ("sfx_energy_low.wav", sfx_energy_low), ("sfx_game_over.wav", sfx_game_over),
+        ("sfx_climb.wav", sfx_climb),
+        ("loop_engine.ogg", loop_engine), ("loop_road.ogg", loop_road), ("loop_wind.ogg", loop_wind),
+        ("loop_plane.ogg", loop_plane), ("loop_climb.ogg", loop_climb), ("loop_tire.ogg", loop_tire),
+        ("music_upper.ogg", music_upper), ("music_lower.ogg", music_lower),
+    ]
+    for name, fn in outputs:
+        # Her ses kendi tohumuyla: birini değiştirmek diğerlerini etkilemesin
+        rng = np.random.default_rng(zlib.crc32(name.encode()))
+        if name.endswith(".wav"):
+            write_wav(name, normalize(fn(), 0.8))
+        else:
+            write_ogg(name, fn())
+        print("yazıldı", name)
 
 
 if __name__ == "__main__":

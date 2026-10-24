@@ -15,6 +15,9 @@ class Portal:
 	var clear_y: float     # bu yüksekliğe çıkana kadar yana kayma
 	var node: Node3D
 
+## Kristal toplama mesafesi (yarı genişlik): x kanatlar, y gövde, z araba boyu
+const CRYSTAL_REACH := Vector3(3.2, 1.8, 2.6)
+
 @export var fill_distance := 350.0
 @export var corridor_half_width := 14.0
 ## Portallar arası süre (saniye, o anki hızla)
@@ -38,6 +41,7 @@ var rocks: Array = []      # { x, z, r, node }
 var portals: Array = []    # Portal
 var _items: Array[Node3D] = []
 var _spinners: Array = []  # dönen kristaller
+var _crystals: Array = []
 var _next_row_z := 0.0
 var _next_portal: Portal
 var _rng := RandomNumberGenerator.new()
@@ -103,6 +107,7 @@ func deactivate() -> void:
 			n.queue_free()
 	_items.clear()
 	_spinners.clear()
+	_crystals.clear()
 	rocks.clear()
 	portals.clear()
 	_next_portal = null
@@ -133,8 +138,27 @@ func update(delta: float) -> void:
 	rocks = rocks.filter(func(r): return r.z < limit and is_instance_valid(r.node))
 	portals = portals.filter(func(p): return p.z < limit)
 	_spinners = _spinners.filter(func(n): return is_instance_valid(n))
+	_collect_crystals()
 	for n in _spinners:
 		n.rotate_y(2.0 * delta)
+
+
+## Kristal toplama: fizik çakışmasını beklemeden, kanat genişliğine göre doğrudan
+## kontrol edilir. Böylece kristal kanada değdiği anda toplanır, ses gecikmez.
+func _collect_crystals() -> void:
+	if car.mode != Car.Mode.FLYING:
+		return
+	var pos := car.global_position + Vector3(0, 0.6, 0)
+	for i in range(_crystals.size() - 1, -1, -1):
+		if not is_instance_valid(_crystals[i]):
+			_crystals.remove_at(i)
+			continue
+		var cr: Node3D = _crystals[i]
+		var d := cr.global_position - pos
+		if absf(d.x) < CRYSTAL_REACH.x and absf(d.y) < CRYSTAL_REACH.y and absf(d.z) < CRYSTAL_REACH.z:
+			_crystals.remove_at(i)
+			cr.queue_free()
+			crystal_collected.emit()
 
 
 ## Araba önündeki ilk portal
@@ -253,12 +277,9 @@ func _spawn_crystal(pos: Vector3) -> void:
 	var col := CollisionShape3D.new()
 	col.shape = shape
 	area.add_child(col)
-	area.body_entered.connect(func(body):
-		if body == car and is_instance_valid(area):
-			crystal_collected.emit()
-			area.queue_free())
 	_items.append(area)
 	_spinners.append(area)
+	_crystals.append(area)
 
 
 func _spawn_portal(p: Portal) -> void:
@@ -312,12 +333,6 @@ func _spawn_portal(p: Portal) -> void:
 	root.body_entered.connect(func(body):
 		if body == car:
 			portal_entered.emit(p))
-
-	# Portala giden kristal izi
-	var cx := roads.path_x_at(p.z + 30.0)
-	for k in 4:
-		var t := (k + 1) / 5.0
-		_spawn_crystal(Vector3(lerpf(cx, p.x, t), car.flight_altitude, p.z + 30.0 - t * 25.0))
 
 	p.node = root
 	portals.append(p)
