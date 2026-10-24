@@ -9,14 +9,15 @@ extends Camera3D
 @export var fov_per_speed := 0.35
 
 var _target: Car
-var _base_fov := 0.0
+## Hız eklenmeden önceki görüş açısı
+var base_fov := 0.0
 var _trauma := 0.0
 
 
 func _ready() -> void:
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_target = get_node(target_path)
-	_base_fov = fov
+	base_fov = fov
 	global_position = _target.global_position + offset
 
 
@@ -30,7 +31,7 @@ func _process(delta: float) -> void:
 		var k := follow_y + absf(_target.velocity.y) * 0.15
 		p.y = lerpf(p.y, t.y + offset.y, 1.0 - exp(-k * delta))
 		global_position = p
-		var want_fov := _base_fov + (_target.forward_speed - _target.start_speed) * fov_per_speed
+		var want_fov := base_fov + (_target.forward_speed - _target.start_speed) * fov_per_speed
 		fov = lerpf(fov, want_fov, 1.0 - exp(-2.0 * delta))
 		look_at(Vector3(lerpf(p.x, t.x, 0.6), t.y - 1.0, t.z - look_ahead))
 	else:

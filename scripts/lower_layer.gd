@@ -20,6 +20,10 @@ class Portal:
 ## Portallar arası süre (saniye, o anki hızla)
 @export var portal_interval := Vector2(9.0, 12.0)
 @export var first_portal_time := Vector2(5.0, 7.0)
+## Kaya sırası başına kaya sayısı (en az, en çok)
+@export var rocks_per_row := Vector2(1, 3)
+## Kaya sıraları arası süre (saniye, o anki hızla)
+@export var row_interval := Vector2(0.7, 1.0)
 ## Portaldan yukarıdaki yola iniş süresi (yaklaşık)
 @export var launch_time := 3.0
 
@@ -112,8 +116,8 @@ func update(delta: float) -> void:
 			_next_portal = _plan_portal(_next_portal.z - interval)
 			continue
 		_spawn_row(_next_row_z)
-		# Sıralar arası süre hızdan bağımsız kalsın (yaklaşık 0.7-1 saniye)
-		_next_row_z -= maxf(26.0, car.speed * _rng.randf_range(0.7, 1.0))
+		# Sıralar arası süre hızdan bağımsız kalsın
+		_next_row_z -= maxf(26.0, car.speed * _rng.randf_range(row_interval.x, maxf(row_interval.x, row_interval.y)))
 
 	var limit := z + 30.0
 	for i in range(_items.size() - 1, -1, -1):
@@ -165,7 +169,7 @@ func _spawn_row(z: float) -> void:
 	var cx := roads.path_x_at(z)
 	var fy := car.flight_altitude
 	var row: Array[Dictionary] = []
-	for i in _rng.randi_range(1, 3):
+	for i in _rng.randi_range(int(rocks_per_row.x), maxi(int(rocks_per_row.x), int(rocks_per_row.y))):
 		var r := _rng.randf_range(2.0, 3.8)
 		var pos := Vector3(
 			cx + _rng.randf_range(-corridor_half_width, corridor_half_width),

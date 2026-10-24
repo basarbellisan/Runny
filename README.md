@@ -14,6 +14,13 @@ Her yolun sonunda gaz şart: gazsız kalkan araba bir sonraki yolun ön
 yüzüne çakılıp patlar. Yanlış hizalanıp yolun yanından düşersen kanatlar
 açılır ve alt katmana geçersin.
 
+## Ayar paneli
+Oyun sırasında sol üst köşeye arka arkaya üç kez dokun (PC'de F1): oyun durur,
+hız, direksiyon, gaz, atlama, yollar, uçuş, puan, kamera ve ses ayarları açılır.
+Değişiklikler hemen uygulanır ve cihazda saklanır. "Kopyala", yalnızca
+varsayılandan farklı değerleri tek satırlık metin olarak verir
+(`AYARLAR car.start_speed=24; ...`). Panelin listesi `scripts/tuning.gd` içinde.
+
 ## Oyun döngüsü
 - Üst katman: yollarda git, üstte kaldıkça çarpan artar (x5'e kadar)
 - Yoldan düşersen kanatlar açılır, alt katmanda uçarsın; çarpan x1'e döner

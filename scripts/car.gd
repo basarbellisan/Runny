@@ -154,6 +154,11 @@ func lose_wings() -> void:
 	_set_mode(Mode.FALLING)
 
 
+## Ekrandaki parmakları unut (ör. ayar paneli kapanınca)
+func clear_touches() -> void:
+	_touches.clear()
+
+
 ## Gaz tam güçteyken eklenen hız (level verilirse o güçteki)
 func boost_extra(level := boost_level) -> float:
 	return minf(speed * boost_bonus, boost_max_extra) * level

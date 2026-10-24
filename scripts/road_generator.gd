@@ -27,6 +27,9 @@ class Segment:
 ## Bu mesafeye (metre) gelince zorluk tavan yapar
 @export var difficulty_distance := 3000.0
 @export_range(0.0, 1.0) var side_road_chance := 0.3
+## Boşluğun, gazsız ulaşılamayan en kısa ile tam gazla ulaşılan en uzun
+## arasındaki yeri (0: az gaz yeter, 1: tam gaz şart)
+@export var gap_difficulty := Vector2(0.1, 0.85)
 
 var car: Car
 var segments: Array[Segment] = []
@@ -195,7 +198,7 @@ func _next_from(prev: Segment) -> Segment:
 		t = _flight_time(dh)
 		min_gap = _min_gap(dh, v, v_boost, car_len)
 		max_gap = car_len + v_boost * t - 2.5
-	var gap := lerpf(min_gap, maxf(max_gap, min_gap), _rng.randf_range(0.1, 0.85))
+	var gap := lerpf(min_gap, maxf(max_gap, min_gap), _rng.randf_range(gap_difficulty.x, maxf(gap_difficulty.x, gap_difficulty.y)))
 
 	var width := _rng.randf_range(
 		lerpf(min_width.y, min_width.x, difficulty),

@@ -3,17 +3,9 @@ extends Node3D
 ## oyun sonu ve yeniden başlatma.
 
 const SAVE_PATH := "user://save.cfg"
-## Üst katmanda bu kadar saniye kalınca çarpan bir artar
-const MULTIPLIER_STEP_TIME := 10.0
-const MAX_MULTIPLIER := 5
 const PERFECT_BONUS := 50
 const CRYSTAL_BONUS := 25
 const MAX_ENERGY := 100.0
-## Uçarken saniyede harcanan kanat enerjisi
-const ENERGY_DRAIN := 6.0
-const CRYSTAL_ENERGY := 15.0
-## Uçarken gaza basılırsa enerji bu kat hızlı harcanır
-const BOOST_DRAIN_FACTOR := 2.5
 ## Oyuncu bu kadar başarılı inişe ulaşana kadar gaz ipucu gösterilir
 const TUTORIAL_LANDINGS := 5
 ## İki katmanı ayıran bulut tabakasının yüksekliği
@@ -50,6 +42,16 @@ const MOODS := {
 	"cloud": ($CloudLayer as MeshInstance3D).mesh.surface_get_material(0),
 }
 
+# Ayar panelinden (Tuning) değiştirilebilen değerler
+## Üst katmanda bu kadar saniye kalınca çarpan bir artar
+var multiplier_step_time := 10.0
+var max_multiplier := 5
+## Uçarken saniyede harcanan kanat enerjisi
+var energy_drain := 6.0
+var crystal_energy := 15.0
+## Uçarken gaza basılırsa enerji bu kat hızlı harcanır
+var boost_drain_factor := 2.5
+
 var score := 0.0
 var multiplier := 1
 var energy := MAX_ENERGY
@@ -80,6 +82,8 @@ func _ready() -> void:
 	lower.crystal_collected.connect(_on_crystal)
 	lower.rock_hit.connect(_on_rock_hit)
 	lower.portal_entered.connect(_on_portal)
+	Tuning.register({"game": self, "car": car, "roads": roads, "lower": lower, "camera": $Camera, "audio": Audio})
+	car.speed = car.start_speed
 	_start_z = car.global_position.z
 	_landings_total = int(_load_save().get_value("tutorial", "landings", 0))
 	roads.start(car, seed_value)
@@ -97,13 +101,13 @@ func _physics_process(delta: float) -> void:
 	match car.mode:
 		Car.Mode.DRIVE:
 			_mult_timer += delta
-			if _mult_timer >= MULTIPLIER_STEP_TIME and multiplier < MAX_MULTIPLIER:
+			if _mult_timer >= multiplier_step_time and multiplier < max_multiplier:
 				_mult_timer = 0.0
 				multiplier += 1
 				hud.popup("x%d" % multiplier)
 				Audio.play("multiplier")
 		Car.Mode.FLYING:
-			energy -= ENERGY_DRAIN * delta * (BOOST_DRAIN_FACTOR if car.boosting else 1.0)
+			energy -= energy_drain * delta * (boost_drain_factor if car.boosting else 1.0)
 			if energy < MAX_ENERGY * 0.3 and not _energy_warned:
 				_energy_warned = true
 				Audio.play("energy_low")
@@ -209,7 +213,7 @@ func _load_save() -> ConfigFile:
 
 
 func _on_crystal() -> void:
-	energy = minf(energy + CRYSTAL_ENERGY, MAX_ENERGY)
+	energy = minf(energy + crystal_energy, MAX_ENERGY)
 	score += CRYSTAL_BONUS
 	_stats.crystals += 1
 	Audio.crystal()

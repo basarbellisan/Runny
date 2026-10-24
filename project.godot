@@ -12,6 +12,7 @@ config/features=PackedStringArray("4.7", "Mobile")
 [autoload]
 
 Audio="*res://scripts/audio.gd"
+Tuning="*res://scripts/tuning.gd"
 
 [display]
 
