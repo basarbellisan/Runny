@@ -49,7 +49,7 @@ var max_multiplier := 5
 ## Uçarken saniyede harcanan kanat enerjisi
 var energy_drain := 6.0
 var crystal_energy := 15.0
-## Uçarken gaza basılırsa enerji bu kat hızlı harcanır
+## Uçarken yükselirken (iki parmak) enerji bu kat hızlı harcanır
 var boost_drain_factor := 2.5
 
 var score := 0.0
@@ -113,7 +113,7 @@ func _physics_process(delta: float) -> void:
 				hud.popup("x%d" % multiplier)
 				Audio.play("multiplier")
 		Car.Mode.FLYING:
-			energy -= energy_drain * delta * (boost_drain_factor if car.boosting else 1.0)
+			energy -= energy_drain * delta * (boost_drain_factor if car.climbing else 1.0)
 			if energy < MAX_ENERGY * 0.3 and not _energy_warned:
 				_energy_warned = true
 				Audio.play("energy_low")
@@ -165,6 +165,7 @@ func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 			hud.show_energy(true)
 			hud.popup("KANATLAR")
 			Audio.play("wings")
+			_flight_hint()
 		Car.Mode.LAUNCH:
 			hud.show_energy(false)
 			hud.popup("YUKARI", true)
@@ -204,6 +205,16 @@ func _to_garage() -> void:
 func _on_exploded() -> void:
 	Audio.play("explosion")
 	$Camera.shake(1.0)
+
+
+## İlk birkaç uçuşta yükselme ipucu
+func _flight_hint() -> void:
+	var cfg := _load_save()
+	var flights := int(cfg.get_value("tutorial", "flights", 0))
+	if flights < 3:
+		hud.hint("İKİ PARMAKLA BAS  ·  YÜKSEL", 2.5)
+		cfg.set_value("tutorial", "flights", flights + 1)
+		cfg.save(SAVE_PATH)
 
 
 ## İlk yolun sonuna yaklaşırken, oyuncu gazı öğrenene kadar ipucu göster

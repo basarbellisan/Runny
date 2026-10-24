@@ -29,7 +29,7 @@ func input() -> Vector2:
 	if car.mode == Car.Mode.FLYING or car.mode == Car.Mode.FALLING:
 		_drive_time = 0.0
 		_diving = false
-		return Vector2(_fly_steer(), 0.0)
+		return Vector2(_fly_steer(), 0.0) if not _should_climb() else Vector2(0.0, 1.0)
 	return _drive_input()
 
 
@@ -91,6 +91,29 @@ func _fly_steer() -> float:
 			best_cost = cost
 			best = cand
 	return _toward(best - pos.x, 0.4)
+
+
+## Hemen önümüzde alçak bir kaya varsa (ve yukarısı boşsa) yüksel
+func _should_climb() -> bool:
+	if not use_boost or car.mode != Car.Mode.FLYING:
+		return false
+	var pos := car.global_position
+	var forward := maxf(-car.velocity.z, 1.0)
+	# Portala yaklaşırken alçakta kal
+	var portal := lower.next_portal(pos.z)
+	if portal != null and pos.z - portal.z < forward * 2.5:
+		return false
+	var low_ahead := false
+	for r in lower.rocks:
+		var d: float = pos.z - r.z
+		if d < 0.0 or d > forward * 0.9:
+			continue
+		var ry: float = r.node.position.y
+		if absf(r.x - pos.x) < r.r + 2.0:
+			if ry > car.flight_altitude + 3.0:
+				return false
+			low_ahead = true
+	return low_ahead
 
 
 func _toward(err: float, dead_zone: float) -> float:

@@ -12,7 +12,7 @@ kaydedilir. Oyun sonunda GARAJ butonu garaja döndürür.
 
 ## Kontroller
 - Mobil: ekranın sol yarısına dokun → sola, sağ yarısına → sağa
-- İki parmakla (iki yarıya birden) bas → gaz. Gaz verirken direksiyon çalışmaz.
+- İki parmakla (iki yarıya birden) bas → yolda gaz, uçarken yükselme. Bu sırada direksiyon çalışmaz.
 - PC: A / D veya ← / → ile yön, W / ↑ / Boşluk ile gaz
 
 Araba tekerlerinden hisseder: bir yanın tekerleri boşluğa çıkınca araba o
@@ -33,7 +33,8 @@ varsayılandan farklı değerleri tek satırlık metin olarak verir
 ## Oyun döngüsü
 - Üst katman: yollarda git, üstte kaldıkça çarpan artar (x5'e kadar)
 - Yoldan düşersen kanatlar açılır, alt katmanda uçarsın; çarpan x1'e döner
-- Alt katmanda kanat enerjisi azalır (gazla daha hızlı); kristaller enerji verir, kayalar öldürür
+- Alt katmanda kanat enerjisi azalır; iki parmakla ~8 m yükselip kayaların üstünden geçilebilir ama
+  enerji 2.5 kat hızlı biter. Bazı kayalar ve kristaller yukarıda. Kristaller enerji verir, kayalar öldürür
 - Portala girersen yukarı fırlatılır, arabaya dönüşüp bir yola konarsın
 
 ## Yapı

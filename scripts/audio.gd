@@ -96,8 +96,8 @@ func update(delta: float, car: Car, mood: float, playing: bool) -> void:
 			pitch_target += 0.3
 			wind_target = 0.9
 		Car.Mode.FLYING:
-			engine_target = 0.45
-			pitch_target += 0.15
+			engine_target = 0.45 + (0.35 if car.climbing else 0.0)
+			pitch_target += 0.15 + (0.3 if car.climbing else 0.0)
 			wind_target = 0.5 + 0.25 * speed01
 		Car.Mode.LAUNCH:
 			engine_target = 0.7

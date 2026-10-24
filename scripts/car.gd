@@ -1,7 +1,8 @@
 class_name Car
 extends CharacterBody3D
 ## Kendiliğinden ileri giden araba. Oyuncu sağ/sol yapar; iki parmakla
-## (iki yarıya birden) basınca gaz verir. Gaz verirken direksiyon çalışmaz.
+## (iki yarıya birden) basınca yolda gaz verir, uçarken yükselir.
+## İki parmakla basarken direksiyon çalışmaz.
 ##
 ## Modlar:
 ##  DRIVE   – üst katmanda yolda (yolun sonunda hızıyla havaya fırlar)
@@ -64,6 +65,10 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 ## Dalış sırasında ileri hız oranı
 @export_range(0.0, 1.0) var dive_forward_scale := 0.4
 @export var flight_steer_accel := 45.0
+## Uçarken iki parmakla uçuş yüksekliğinin en fazla bu kadar üstüne çıkılır (m)
+@export var climb_height := 8.0
+## Yükselme hızı (m/s)
+@export var climb_speed := 9.0
 ## Kanatsız düşerken uçuş yüksekliğinin bu kadar altı: uçurum
 @export var abyss_depth := 30.0
 
@@ -77,6 +82,10 @@ var speed := 0.0
 var boost_level := 0.0
 ## Oyuncu şu an gaza basıyor mu
 var boosting := false
+## Uçarken iki parmak: yükseliyor muyuz
+var climbing: bool:
+	get:
+		return boosting and mode == Mode.FLYING
 var forward_speed: float:
 	get:
 		return speed + boost_extra()
@@ -261,10 +270,13 @@ func _falling(delta: float) -> void:
 
 
 func _flying(delta: float) -> void:
-	var dy := flight_altitude - global_position.y
-	var diving := dy < -3.0
-	velocity.y = move_toward(velocity.y, clampf(dy * 2.0, -dive_speed, 8.0), 40.0 * delta)
-	var forward := speed * dive_forward_scale if diving else forward_speed
+	# İki parmak: yüksel; bırakınca uçuş yüksekliğine süzül
+	var target := flight_altitude + (climb_height if climbing else 0.0)
+	var dy := target - global_position.y
+	# Yukarıdan ilk dalış (alt katmana iniş) sırasında ileri hız düşük
+	var diving := global_position.y > flight_altitude + climb_height + 2.0
+	velocity.y = move_toward(velocity.y, clampf(dy * 2.0, -dive_speed, climb_speed), 40.0 * delta)
+	var forward := speed * dive_forward_scale if diving else speed
 	velocity.z = move_toward(velocity.z, -forward, 20.0 * delta)
 	velocity.x = move_toward(velocity.x, _steer * steer_speed, flight_steer_accel * delta)
 	move_and_slide()
@@ -333,7 +345,7 @@ func _dead_motion(delta: float) -> void:
 func _update_boost(delta: float) -> void:
 	if mode == Mode.DRIVE and not is_on_floor():
 		return
-	if boosting and (mode == Mode.DRIVE or mode == Mode.FLYING):
+	if boosting and mode == Mode.DRIVE:
 		boost_level = minf(boost_level + delta / boost_rise_time, 1.0)
 	else:
 		boost_level = maxf(boost_level - delta / boost_fall_time, 0.0)

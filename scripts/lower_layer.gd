@@ -18,12 +18,16 @@ class Portal:
 @export var fill_distance := 350.0
 @export var corridor_half_width := 14.0
 ## Portallar arası süre (saniye, o anki hızla)
-@export var portal_interval := Vector2(9.0, 12.0)
+@export var portal_interval := Vector2(7.0, 10.0)
 @export var first_portal_time := Vector2(5.0, 7.0)
 ## Kaya sırası başına kaya sayısı (en az, en çok)
 @export var rocks_per_row := Vector2(1, 3)
 ## Kaya sıraları arası süre (saniye, o anki hızla)
 @export var row_interval := Vector2(0.7, 1.0)
+## Kayanın yukarıda (yükselerek kaçılan yükseklikte) süzülme şansı
+@export_range(0.0, 1.0) var high_rock_chance := 0.25
+## Kristal dizisinin yukarıda çıkma şansı
+@export_range(0.0, 1.0) var high_crystal_chance := 0.35
 ## Portaldan yukarıdaki yola iniş süresi (yaklaşık)
 @export var launch_time := 3.0
 
@@ -145,9 +149,16 @@ func next_portal(z: float) -> Portal:
 ## Portal yolların hizasından yana kaydırılır ki araba yükselirken yollara girmesin.
 func _plan_portal(z_desired: float) -> Portal:
 	var v := roads.estimate_speed(car.global_position.z - z_desired)
-	# İnişten sonra hizalanıp gaza basmaya yetecek kadar yol kalsın (~1.8 sn)
+	# İnişten sonra hizalanıp gaza basmaya yetecek kadar yol kalsın. Önce bol
+	# pay (1.8 sn) ara; istenen yerden çok ileride kalıyorsa payı azalt ki
+	# portal enerjinin yetmeyeceği kadar uzağa itilmesin.
 	var v_boost := v + car.boost_extra(1.0)
-	var landing := roads.find_landing(z_desired - v * launch_time, 12.0, v_boost * 1.8 + 10.0)
+	var z_land := z_desired - v * launch_time
+	var landing := {}
+	for run_up in [1.8, 1.3, 0.9]:
+		landing = roads.find_landing(z_land, 12.0, v_boost * run_up + 10.0)
+		if not landing.is_empty() and landing.z > z_land - v * 2.0:
+			break
 	if landing.is_empty():
 		return null
 	var seg: RoadGenerator.Segment = landing.seg
@@ -173,7 +184,7 @@ func _spawn_row(z: float) -> void:
 		var r := _rng.randf_range(2.0, 3.8)
 		var pos := Vector3(
 			cx + _rng.randf_range(-corridor_half_width, corridor_half_width),
-			fy + _rng.randf_range(-1.0, 1.0),
+			fy + (_rng.randf_range(4.5, 8.0) if _rng.randf() < high_rock_chance else _rng.randf_range(-1.0, 1.0)),
 			z + _rng.randf_range(-2.0, 2.0))
 		row.append(_spawn_rock(pos, r))
 
@@ -181,8 +192,10 @@ func _spawn_row(z: float) -> void:
 		for attempt in 5:
 			var x := cx + _rng.randf_range(-10.0, 10.0)
 			if row.all(func(rk): return absf(rk.x - x) > rk.r + 2.0):
+				# Bazı kristal dizileri yukarıda: yükselmenin ödülü
+				var y := fy + (6.5 if _rng.randf() < high_crystal_chance else 0.0)
 				for k in 3:
-					_spawn_crystal(Vector3(x, fy, z - 9.0 - k * 4.0))
+					_spawn_crystal(Vector3(x, y, z - 9.0 - k * 4.0))
 				break
 
 	# Uzakta süzülen kayalar (dekor)
