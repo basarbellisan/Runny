@@ -534,6 +534,53 @@ def music_lower():
     return mixdown(stems, tail=4.0, reverb=(0.22, 1.8))
 
 
+# --------------------------------------------------------------------------
+# Uçak sesleri (uçuş modu)
+# --------------------------------------------------------------------------
+
+def loop_plane():
+    """Pervaneli küçük uçak: yumuşak harmonik uğultu + pervane vuruşu.
+    2 sn'de tam sayıda periyot: döngü kesintisiz, perde pitch_scale ile değişir."""
+    d = 2.0
+    n = n_of(d)
+    t = np.arange(n) / SR
+    f0 = 75.0
+    # Üst harmonikler ağır basar: telefon hoparlöründe de duyulsun
+    drone = sum(a * np.sin(2 * np.pi * f0 * k * t + k) for k, a in
+                [(1, 0.3), (2, 0.5), (3, 0.5), (4, 0.35), (5, 0.25), (6, 0.2), (8, 0.12)])
+    # Pervane kanatlarının havayı dövmesi: 40 Hz'lik "pırr"
+    chop = filt(rng.uniform(-1, 1, n), lo=180, hi=1300, circular=True)
+    chop *= 0.45 + 0.55 * np.abs(np.sin(np.pi * 40.0 * t)) ** 3
+    s = normalize(drone, 1.0) * 0.8 + normalize(chop, 1.0) * 0.4
+    s = filt(s, lo=40, hi=1800, circular=True)
+    return normalize(s, 0.8)
+
+
+def loop_climb():
+    """Yükselirken üstüne binen katman: türbin ıslığı ve hızlı hava akışı."""
+    d = 2.0
+    n = n_of(d)
+    t = np.arange(n) / SR
+    vib = 0.004 * np.sin(2 * np.pi * 5.0 * t)
+    whine = np.sin(2 * np.pi * 1100.0 * t * (1 + vib)) + 0.3 * np.sin(2 * np.pi * 1650.0 * t)
+    air = filt(rng.uniform(-1, 1, n), lo=1500, hi=5000, circular=True)
+    s = normalize(whine, 1.0) * 0.35 + normalize(air, 1.0) * 0.5
+    s += 0.4 * normalize(filt(rng.uniform(-1, 1, n), lo=300, hi=900, circular=True), 1.0)
+    return normalize(s, 0.75)
+
+
+def sfx_climb():
+    """Yükselmeye başlarken: kısa, yükselen hava sesi."""
+    d = 0.9
+    n = n_of(d)
+    ramp = np.linspace(0, 1, n)
+    nz = noise(d)
+    air = filt(nz, lo=300, hi=1200) * (1 - ramp) + filt(nz, lo=1200, hi=4500) * ramp
+    tone = np.sin(phase(glide(260, 780, d, 0.8), d))
+    s = (0.7 * air + 0.25 * tone) * env(d, 0.18, 0.3)
+    return room(fade(s, 0.005, 0.15), 0.12, 0.6)
+
+
 def main():
     OUT.mkdir(exist_ok=True)
     effects = {
@@ -552,6 +599,11 @@ def main():
     write_ogg("music_upper.ogg", music_upper())
     write_ogg("music_lower.ogg", music_lower())
     print("müzik yazıldı")
+    # Uçak sesleri en sonda üretilir ki önceki seslerin rastgeleliği değişmesin
+    write_ogg("loop_plane.ogg", loop_plane())
+    write_ogg("loop_climb.ogg", loop_climb())
+    write_wav("sfx_climb.wav", normalize(sfx_climb(), 0.8))
+    print("uçak sesleri yazıldı")
 
 
 if __name__ == "__main__":

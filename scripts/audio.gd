@@ -16,6 +16,7 @@ const SFX := {
 	"explosion": preload("res://audio/sfx_explosion.wav"),
 	"energy_low": preload("res://audio/sfx_energy_low.wav"),
 	"game_over": preload("res://audio/sfx_game_over.wav"),
+	"climb": preload("res://audio/sfx_climb.wav"),
 }
 ## Art arda toplanan kristaller minör pentatonik dizide yükselir
 const CRYSTAL_STEPS := [1.0, 1.2, 1.335, 1.498, 1.782, 2.0]
@@ -25,18 +26,28 @@ const CRYSTAL_STEPS := [1.0, 1.2, 1.335, 1.498, 1.782, 2.0]
 @export var engine_volume_db := -9.0
 @export var road_volume_db := -14.0
 @export var wind_volume_db := -17.0
+## Uçuş modunda pervane sesi ve yükselirken üstüne binen türbin katmanı
+@export var plane_volume_db := -10.0
+@export var climb_volume_db := -13.0
 
 var _music_upper: AudioStreamPlayer
 var _music_lower: AudioStreamPlayer
 var _engine: AudioStreamPlayer
 var _road: AudioStreamPlayer
 var _wind: AudioStreamPlayer
+var _plane: AudioStreamPlayer
+var _climb: AudioStreamPlayer
 var _pool: Array[AudioStreamPlayer] = []
 var _pool_index := 0
 var _engine_level := 0.0
 var _engine_pitch := 1.0
 var _road_level := 0.0
 var _wind_level := 0.0
+var _plane_level := 0.0
+var _plane_pitch := 0.9
+## 0..1: yükselmenin yumuşatılmış gücü (uçak gaz kolu gibi yavaş açılır)
+var _climb_amount := 0.0
+var _was_climbing := false
 var _music_level := 1.0
 var _crystal_combo := 0
 var _last_crystal_ms := 0
@@ -49,6 +60,8 @@ func _ready() -> void:
 	_engine = _make_loop(preload("res://audio/loop_engine.ogg"))
 	_road = _make_loop(preload("res://audio/loop_road.ogg"))
 	_wind = _make_loop(preload("res://audio/loop_wind.ogg"))
+	_plane = _make_loop(preload("res://audio/loop_plane.ogg"))
+	_climb = _make_loop(preload("res://audio/loop_climb.ogg"))
 	for i in 10:
 		var p := AudioStreamPlayer.new()
 		add_child(p)
@@ -96,9 +109,9 @@ func update(delta: float, car: Car, mood: float, playing: bool) -> void:
 			pitch_target += 0.3
 			wind_target = 0.9
 		Car.Mode.FLYING:
-			engine_target = 0.45 + (0.35 if car.climbing else 0.0)
-			pitch_target += 0.15 + (0.3 if car.climbing else 0.0)
-			wind_target = 0.5 + 0.25 * speed01
+			# Araba motoru susar, yerini uçak sesi alır (aşağıda)
+			engine_target = 0.0
+			wind_target = 0.5 + 0.25 * speed01 + 0.25 * _climb_amount
 		Car.Mode.LAUNCH:
 			engine_target = 0.7
 			pitch_target += 0.45
@@ -119,7 +132,28 @@ func update(delta: float, car: Car, mood: float, playing: bool) -> void:
 	_road.volume_db = road_volume_db + linear_to_db(maxf(_road_level, 0.001))
 	_road.pitch_scale = 0.8 + 0.5 * speed01
 	_wind.volume_db = wind_volume_db + linear_to_db(maxf(_wind_level, 0.001))
-	_wind.pitch_scale = 0.85 + 0.35 * speed01
+	_wind.pitch_scale = 0.85 + 0.35 * speed01 + 0.15 * _climb_amount
+	_update_plane(delta, car, speed01, playing)
+
+
+## Uçuş: pervane sesi; yükselirken uçak gibi yavaşça devirlenir, türbin ıslığı biner
+func _update_plane(delta: float, car: Car, speed01: float, playing: bool) -> void:
+	var flying := car.mode == Car.Mode.FLYING and playing
+	var climbing := car.climbing and playing
+	if climbing and not _was_climbing:
+		play("climb", -3.0)
+	_was_climbing = climbing
+	var climb_target := 1.0 if climbing else 0.0
+	_climb_amount = move_toward(_climb_amount, climb_target,
+		delta * (1.1 if climb_target > _climb_amount else 0.7))
+	_plane_level = move_toward(_plane_level, (0.75 + 0.25 * _climb_amount) if flying else 0.0, delta * 1.5)
+	var pitch_target := 0.9 + 0.15 * speed01 + 0.3 * _climb_amount
+	_plane_pitch = move_toward(_plane_pitch, pitch_target, delta * 0.6)
+	_plane.volume_db = plane_volume_db + linear_to_db(maxf(_plane_level, 0.001))
+	_plane.pitch_scale = _plane_pitch
+	var climb_level := _climb_amount if flying else 0.0
+	_climb.volume_db = climb_volume_db + linear_to_db(maxf(climb_level, 0.001))
+	_climb.pitch_scale = 0.85 + 0.35 * _climb_amount
 
 
 ## Garaj ekranı: sadece üst katman müziği
@@ -133,6 +167,10 @@ func update_menu(delta: float) -> void:
 	_engine.volume_db = engine_volume_db + linear_to_db(maxf(_engine_level, 0.001))
 	_road.volume_db = -60.0
 	_wind.volume_db = wind_volume_db + linear_to_db(maxf(_wind_level, 0.001))
+	_plane_level = 0.0
+	_climb_amount = 0.0
+	_plane.volume_db = -60.0
+	_climb.volume_db = -60.0
 
 
 ## Tekerlekler yere değdi: devir bir an düşer (yük bindi)
