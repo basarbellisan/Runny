@@ -39,7 +39,7 @@ var _rng := RandomNumberGenerator.new()
 var _unit_box := BoxMesh.new()
 var _wall_mats: Array[StandardMaterial3D] = []
 var _asphalt_mat := StandardMaterial3D.new()
-var _line_mat := StandardMaterial3D.new()
+var _line_mat := ShaderMaterial.new()
 
 
 func _ready() -> void:
@@ -50,7 +50,8 @@ func _ready() -> void:
 		_wall_mats.append(m)
 	_asphalt_mat.albedo_color = Palette.ASPHALT
 	_asphalt_mat.roughness = 1.0
-	_line_mat.albedo_color = Palette.SNOW
+	_line_mat.shader = preload("res://shaders/dashed_line.gdshader")
+	_line_mat.set_shader_parameter("color", Palette.SNOW)
 
 
 func start(p_car: Car, seed_value := -1) -> void:

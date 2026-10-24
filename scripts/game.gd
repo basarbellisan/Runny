@@ -82,7 +82,10 @@ func _ready() -> void:
 	lower.crystal_collected.connect(_on_crystal)
 	lower.rock_hit.connect(_on_rock_hit)
 	lower.portal_entered.connect(_on_portal)
-	Tuning.register({"game": self, "car": car, "roads": roads, "lower": lower, "camera": $Camera, "audio": Audio})
+	Tuning.register({"game": self, "car": car, "roads": roads, "lower": lower,
+		"camera": $Camera, "audio": Audio, "trail": car.trail})
+	if _args.has("trail"):
+		car.trail.style = int(_args.trail)
 	car.speed = car.start_speed
 	_start_z = car.global_position.z
 	_landings_total = int(_load_save().get_value("tutorial", "landings", 0))

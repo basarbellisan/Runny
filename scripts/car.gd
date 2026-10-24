@@ -75,6 +75,7 @@ var forward_speed: float:
 var half_length := 1.8
 var roads: RoadGenerator
 var autopilot: Autopilot
+var trail: CarTrail
 var air_time := 0.0
 var last_floor_y := 0.0
 var _was_on_floor := true
@@ -102,6 +103,8 @@ func _ready() -> void:
 	last_floor_y = global_position.y
 	_default_mask = collision_mask
 	_set_wings(false, true)
+	trail = CarTrail.new()
+	add_child(trail)
 
 
 func _unhandled_input(event: InputEvent) -> void:
