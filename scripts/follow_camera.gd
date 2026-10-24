@@ -25,7 +25,9 @@ func _process(delta: float) -> void:
 	if _target.alive:
 		p.z = t.z + offset.z
 		p.x = lerpf(p.x, t.x + offset.x, 1.0 - exp(-follow_x * delta))
-		p.y = lerpf(p.y, t.y + offset.y, 1.0 - exp(-follow_y * delta))
+		# Hızlı yükselip alçalırken (dalış, portal) kamera arabayı kaçırmasın
+		var k := follow_y + absf(_target.velocity.y) * 0.15
+		p.y = lerpf(p.y, t.y + offset.y, 1.0 - exp(-k * delta))
 		global_position = p
 		var want_fov := _base_fov + (_target.speed - _target.start_speed) * fov_per_speed
 		fov = lerpf(fov, want_fov, 1.0 - exp(-2.0 * delta))

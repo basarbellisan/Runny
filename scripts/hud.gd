@@ -7,6 +7,8 @@ var _mult: Label
 var _popup: Label
 var _hint: Label
 var _over: Label
+var _energy: Control
+var _energy_fill: ColorRect
 var _popup_tween: Tween
 
 
@@ -20,6 +22,7 @@ func _ready() -> void:
 	_hint.text = "◀  Sola dokun        Sağa dokun  ▶"
 	_over = _make_label(52, Control.PRESET_CENTER, Vector2.ZERO)
 	_over.visible = false
+	_build_energy_bar()
 	var tw := create_tween()
 	tw.tween_interval(3.0)
 	tw.tween_property(_hint, "modulate:a", 0.0, 1.0)
@@ -38,6 +41,49 @@ func _make_label(size: int, preset: Control.LayoutPreset, offset: Vector2) -> La
 	l.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	l.position += offset
 	return l
+
+
+func _build_energy_bar() -> void:
+	_energy = Control.new()
+	_energy.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_energy)
+	_energy.anchor_left = 0.5
+	_energy.anchor_right = 0.5
+	_energy.offset_left = -190
+	_energy.offset_right = 190
+	_energy.offset_top = 190
+	_energy.offset_bottom = 216
+	var back := ColorRect.new()
+	back.color = Color(0.1, 0.12, 0.2, 0.6)
+	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_energy.add_child(back)
+	back.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_energy_fill = ColorRect.new()
+	_energy_fill.color = Color("5ff5e6")
+	_energy_fill.position = Vector2(4, 4)
+	_energy_fill.size = Vector2(372, 18)
+	_energy_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_energy.add_child(_energy_fill)
+	var label := Label.new()
+	label.text = "KANAT ENERJİSİ"
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 24)
+	label.add_theme_constant_override("outline_size", 5)
+	label.add_theme_color_override("font_outline_color", Color(0.1, 0.12, 0.2, 0.85))
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_energy.add_child(label)
+	label.anchor_right = 1.0
+	label.offset_top = 30
+	_energy.visible = false
+
+
+func show_energy(visible_: bool) -> void:
+	_energy.visible = visible_
+
+
+func set_energy(fraction: float) -> void:
+	_energy_fill.size.x = 372.0 * clampf(fraction, 0.0, 1.0)
+	_energy_fill.color = Color("5ff5e6") if fraction > 0.3 else Color("ff6b6b")
 
 
 func set_score(score: int, multiplier: int) -> void:

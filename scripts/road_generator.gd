@@ -104,9 +104,76 @@ func main_segments_ahead(z: float) -> Array[Segment]:
 	return out
 
 
-func _fill(car_z: float) -> void:
-	while _head.z_end > car_z - view_distance:
+## Yolları en az verilen z'ye kadar üret
+func generate_until(z: float) -> void:
+	while _head.z_end > z:
 		_head = _next_from(_head)
+
+
+## Arabanın dist_ahead metre ileride ulaşacağı tahmini hız
+func estimate_speed(dist_ahead: float) -> float:
+	return clampf(car.speed + car.acceleration * dist_ahead / maxf(car.speed, 1.0),
+		car.start_speed, car.max_speed)
+
+
+## Ana yolun verilen z'deki x konumu (boşluklarda iki yol arası)
+func path_x_at(z: float) -> float:
+	generate_until(z - 1.0)
+	var prev: Segment = null
+	for s in segments:
+		if not s.main:
+			continue
+		if z <= s.z_start and z >= s.z_end:
+			return s.x
+		if z > s.z_start:
+			if prev == null:
+				return s.x
+			return lerpf(prev.x, s.x, inverse_lerp(prev.z_end, s.z_start, z))
+		prev = s
+	return _head.x
+
+
+## z civarında inilebilecek ana yolu bulur. Yolun başından en az margin_start,
+## sonundan en az margin_end içeride kalan bir iniş noktası döndürür:
+## { "seg": Segment, "z": float }
+func find_landing(z: float, margin_start := 12.0, margin_end := 25.0) -> Dictionary:
+	generate_until(z - 250.0)
+	for s in segments:
+		if not s.main:
+			continue
+		var near := s.z_start - margin_start
+		var far := s.z_end + margin_end
+		if near <= far:
+			continue
+		if z <= near and z >= far:
+			return {"seg": s, "z": z}
+		if z > near:
+			return {"seg": s, "z": near}
+	return {}
+
+
+## z_near..z_far arasında, x'in her yoldan en az margin uzakta olup olmadığı
+func is_clear(x: float, z_near: float, z_far: float, margin: float) -> bool:
+	for s in segments:
+		if s.z_end > z_near or s.z_start < z_far:
+			continue
+		if absf(x - s.x) < s.width * 0.5 + margin:
+			return false
+	return true
+
+
+## z_near..z_far arasındaki en yüksek yol üstü
+func max_top_between(z_near: float, z_far: float) -> float:
+	var top := -INF
+	for s in segments:
+		if s.z_end > z_near or s.z_start < z_far:
+			continue
+		top = maxf(top, s.top)
+	return top
+
+
+func _fill(car_z: float) -> void:
+	generate_until(car_z - view_distance)
 
 
 func _next_from(prev: Segment) -> Segment:
@@ -114,8 +181,7 @@ func _next_from(prev: Segment) -> Segment:
 	var travelled := -prev.z_end
 	var difficulty := clampf(travelled / difficulty_distance, 0.0, 1.0)
 	# Araba bu yolun sonuna vardığında ne hızda olacak (tahmini)
-	var v := clampf(car.speed + car.acceleration * dist_ahead / maxf(car.speed, 1.0),
-		car.start_speed, car.max_speed)
+	var v := estimate_speed(dist_ahead)
 
 	# Yükseklik farkı: yukarı çıkış atlama gücüyle sınırlı
 	var max_up := car.launch_velocity * car.launch_velocity / (2.0 * car.gravity) * 0.6
@@ -249,7 +315,7 @@ func _add_decor(seg: Segment) -> void:
 		var cloud := Node3D.new()
 		cloud.position = Vector3(
 			seg.x + _rng.randf_range(-60.0, 60.0),
-			seg.top - _rng.randf_range(22.0, 40.0),
+			seg.top - _rng.randf_range(22.0, 32.0),
 			_rng.randf_range(seg.z_end, seg.z_start))
 		add_child(cloud)
 		for p in _rng.randi_range(3, 6):

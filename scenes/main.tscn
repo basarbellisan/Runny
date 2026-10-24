@@ -1,10 +1,11 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=16 format=3]
 
 [ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
 [ext_resource type="PackedScene" path="res://scenes/car.tscn" id="2_car"]
 [ext_resource type="Script" path="res://scripts/road_generator.gd" id="3_roads"]
 [ext_resource type="Script" path="res://scripts/follow_camera.gd" id="4_cam"]
 [ext_resource type="Script" path="res://scripts/hud.gd" id="5_hud"]
+[ext_resource type="Script" path="res://scripts/lower_layer.gd" id="6_lower"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat"]
 sky_top_color = Color(0.18, 0.42, 0.85, 1)
@@ -32,6 +33,34 @@ fog_sky_affect = 0.0
 fog_height = -30.0
 fog_height_density = 0.03
 
+[sub_resource type="FastNoiseLite" id="CloudNoise"]
+frequency = 0.006
+fractal_octaves = 4
+
+[sub_resource type="Gradient" id="CloudRamp"]
+offsets = PackedFloat32Array(0.45, 0.75)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 0.92)
+
+[sub_resource type="NoiseTexture2D" id="CloudTex"]
+width = 512
+height = 512
+seamless = true
+color_ramp = SubResource("CloudRamp")
+noise = SubResource("CloudNoise")
+
+[sub_resource type="StandardMaterial3D" id="CloudMat"]
+transparency = 1
+cull_mode = 2
+shading_mode = 0
+albedo_texture = SubResource("CloudTex")
+uv1_scale = Vector3(0.006, 0.006, 0.006)
+uv1_triplanar = true
+uv1_world_triplanar = true
+
+[sub_resource type="PlaneMesh" id="CloudPlane"]
+material = SubResource("CloudMat")
+size = Vector2(1400, 1400)
+
 [node name="Main" type="Node3D"]
 script = ExtResource("1_game")
 
@@ -47,6 +76,14 @@ directional_shadow_max_distance = 150.0
 
 [node name="RoadGenerator" type="Node3D" parent="."]
 script = ExtResource("3_roads")
+
+[node name="LowerLayer" type="Node3D" parent="."]
+script = ExtResource("6_lower")
+
+[node name="CloudLayer" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -42, 0)
+cast_shadow = 0
+mesh = SubResource("CloudPlane")
 
 [node name="Car" parent="." instance=ExtResource("2_car")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0)
