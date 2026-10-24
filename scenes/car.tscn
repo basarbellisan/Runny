@@ -4,7 +4,7 @@
 [ext_resource type="Script" path="res://scripts/car_model.gd" id="2_model"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_car"]
-size = Vector3(0.5, 0.8, 3.6)
+size = Vector3(0.5, 0.8, 3.9)
 
 [sub_resource type="StandardMaterial3D" id="Mat_paint"]
 albedo_color = Color(1, 0.353, 0.122, 1)

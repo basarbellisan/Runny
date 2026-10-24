@@ -16,6 +16,8 @@ extends Node3D
 
 ## Her teker: { contact: Vector3 (yerel, y=0), radius, front, mount, steer, spin }
 var wheels: Array[Dictionary] = []
+## Gövde ve tekerlerin yandan en dış noktası (duvar kontrolü için)
+var half_width := 1.0
 var paint_material: StandardMaterial3D
 var dark_material: StandardMaterial3D
 var tire_material: StandardMaterial3D
@@ -52,6 +54,7 @@ func _build() -> void:
 	for c in get_children():
 		c.free()
 	wheels.clear()
+	half_width = 0.0
 	match variant:
 		1:
 			_build_box()
@@ -129,6 +132,7 @@ func _wheels(track: float, base: float, radius: float, width: float, hubs: bool)
 	hub.height = width + 0.02
 	hub.radial_segments = 6
 	hub.rings = 0
+	half_width = maxf(half_width, track + width * 0.5)
 	for z in [-base, base]:
 		for x in [-track, track]:
 			var mount := Node3D.new()

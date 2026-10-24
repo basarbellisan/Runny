@@ -71,6 +71,8 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 @export var climb_speed := 9.0
 ## Kanatsız düşerken uçuş yüksekliğinin bu kadar altı: uçurum
 @export var abyss_depth := 30.0
+## Açık kanatların yandan uzanabildiği mesafe (duvar kontrolü için)
+@export var wing_half_span := 3.6
 
 var mode := Mode.DRIVE
 var alive: bool:
@@ -238,6 +240,8 @@ func _drive(delta: float) -> void:
 	if _hit_wall_front() or -velocity.z < forward_before * 0.5:
 		crash("ÇAKILDIN!")
 		return
+	if _keep_out_of_walls():
+		return
 
 	var now_on_floor := is_on_floor()
 	if _was_on_floor and not now_on_floor and velocity.y <= 0.5 and _left_through_end():
@@ -261,6 +265,7 @@ func _falling(delta: float) -> void:
 	velocity.x = move_toward(velocity.x, _steer * steer_speed, steer_accel * air_control * delta)
 	velocity.z = move_toward(velocity.z, -speed, 25.0 * delta)
 	move_and_slide()
+	_keep_out_of_walls()
 	if is_on_floor():
 		_back_on_road()
 	elif _has_wings and _mode_time >= wing_delay:
@@ -280,6 +285,7 @@ func _flying(delta: float) -> void:
 	velocity.z = move_toward(velocity.z, -forward, 20.0 * delta)
 	velocity.x = move_toward(velocity.x, _steer * steer_speed, flight_steer_accel * delta)
 	move_and_slide()
+	_keep_out_of_walls()
 	if is_on_floor():
 		_back_on_road()
 
@@ -329,16 +335,11 @@ func _die(reason: String) -> void:
 
 
 func _dead_motion(delta: float) -> void:
-	if _debris.is_empty():
-		# Uçuruma düşüş: araba düşmeye devam eder
-		velocity.y -= gravity * delta
-		position += velocity * delta
+	# Patladıysak parçalar kendi fiziğiyle hareket eder; değilse uçuruma düşüş
+	if not _debris.is_empty():
 		return
-	for d in _debris:
-		var n: Node3D = d.node
-		d.vel.y -= gravity * delta
-		n.global_position += d.vel * delta
-		n.rotate(d.axis, d.spin * delta)
+	velocity.y -= gravity * delta
+	position += velocity * delta
 
 
 ## Yerde ve uçarken basılı tuttukça gaz dolar; yoldan havalanınca olduğu gibi kalır
@@ -388,6 +389,52 @@ func _left_through_end() -> bool:
 		return true
 	return global_position.z < _last_segment.z_end + half_length + 0.5 \
 		and absf(global_position.x - _last_segment.x) < _last_segment.width * 0.5
+
+
+## Çarpışma omurgası dar (ağırlık merkezi kuralı için); gövdenin, tekerlerin ve
+## uçarken kanatların duvarlara girmemesini yan ve ön ışınlarla sağlar.
+## Yolda giderken ön köşe bir yolun ön yüzüne girerse çakılır (true döner).
+func _keep_out_of_walls() -> bool:
+	if model == null or collision_mask == 0:
+		return false
+	var space := get_world_3d().direct_space_state
+	var hw := wing_half_span if mode == Mode.FLYING else model.half_width
+	var hl := half_length
+	var pos := global_position
+	var push := 0.0
+	for side in [-1.0, 1.0]:
+		var depth := 0.0
+		for z in [-hl + 0.3, 0.0, hl - 0.3]:
+			for y in [0.3, 0.9]:
+				var from := pos + Vector3(0, y, z)
+				var hit := _ray(space, from, from + Vector3(side * (hw + 0.05), 0, 0))
+				if not hit.is_empty():
+					depth = maxf(depth, hw - absf(hit.position.x - pos.x))
+		if depth > 0.0:
+			push -= side * depth
+			if velocity.x * side > 0.0:
+				velocity.x = 0.0
+	if push != 0.0:
+		global_position.x += push
+
+	var reach := 0.3 + maxf(-velocity.z, 0.0) * get_physics_process_delta_time()
+	for x in [-hw + 0.15, hw - 0.15]:
+		for y in [0.3, 0.9]:
+			var from := pos + Vector3(x, y, -hl + 0.4)
+			var hit := _ray(space, from, from - Vector3(0, 0, 0.4 + reach))
+			if hit.is_empty() or hit.normal.z < 0.6:
+				continue
+			if mode == Mode.DRIVE:
+				crash("ÇAKILDIN!")
+				return true
+			# Düşerken/uçarken: duvarın önünde dur, içine girme
+			velocity.z = maxf(velocity.z, 0.0)
+			global_position.z = maxf(global_position.z, hit.position.z + hl + 0.02)
+	return false
+
+
+func _ray(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3) -> Dictionary:
+	return space.intersect_ray(PhysicsRayQueryParameters3D.create(from, to, _default_mask, [get_rid()]))
 
 
 func _hit_wall_front() -> bool:
@@ -502,20 +549,28 @@ func _spawn_debris() -> void:
 	var mats: Array[Material] = [model.paint_material, model.dark_material, model.tire_material]
 	var origin := global_position + Vector3(0, 0.6, 0)
 	for i in 16:
-		var piece := MeshInstance3D.new()
+		# Gerçek fizik cismi: yollara çarpıp seker, içinden geçmez
+		var piece := RigidBody3D.new()
+		piece.collision_layer = 2
+		piece.collision_mask = _default_mask
+		var size := Vector3(randf_range(0.2, 0.7), randf_range(0.15, 0.5), randf_range(0.2, 0.8))
+		var shape := CollisionShape3D.new()
+		var box_shape := BoxShape3D.new()
+		box_shape.size = size
+		shape.shape = box_shape
+		piece.add_child(shape)
+		var mi := MeshInstance3D.new()
 		var box := BoxMesh.new()
-		box.size = Vector3(randf_range(0.2, 0.7), randf_range(0.15, 0.5), randf_range(0.2, 0.8))
-		piece.mesh = box
-		piece.material_override = mats[i % mats.size()]
+		box.size = size
+		mi.mesh = box
+		mi.material_override = mats[i % mats.size()]
+		piece.add_child(mi)
 		piece.top_level = true
 		add_child(piece)
 		piece.global_position = origin + Vector3(randf_range(-0.8, 0.8), randf_range(-0.3, 0.4), randf_range(-1.5, 1.5))
-		_debris.append({
-			"node": piece,
-			"vel": Vector3(randf_range(-7, 7), randf_range(3, 11), randf_range(-2, 9)),
-			"axis": (Vector3(randf(), randf(), randf()) + Vector3(0.1, 0, 0)).normalized(),
-			"spin": randf_range(4, 12),
-		})
+		piece.linear_velocity = Vector3(randf_range(-7, 7), randf_range(3, 11), randf_range(-2, 9))
+		piece.angular_velocity = Vector3(randf_range(-10, 10), randf_range(-10, 10), randf_range(-10, 10))
+		_debris.append({"node": piece})
 	var flash_mat := StandardMaterial3D.new()
 	flash_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	flash_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
