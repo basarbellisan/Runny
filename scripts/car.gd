@@ -10,6 +10,10 @@ extends CharacterBody3D
 ##  DEAD
 
 signal landed(air_time: float)
+## Yolun sonundan havaya fırladık
+signal jumped
+## Yolun ön yüzüne çarpıp geri sektik
+signal bumped
 signal mode_changed(mode: Mode, previous: Mode)
 signal died(reason: String)
 
@@ -148,12 +152,14 @@ func _drive(delta: float) -> void:
 	if _hit_wall_front():
 		# Yolun ön yüzüne çarptık: geri sekip düşüyoruz
 		velocity = Vector3(velocity.x * 0.3, 3.0, 8.0)
+		bumped.emit()
 		_set_mode(Mode.FALLING)
 		return
 
 	var now_on_floor := is_on_floor()
 	if _was_on_floor and not now_on_floor and velocity.y <= 0.5:
 		velocity.y = launch_velocity
+		jumped.emit()
 	if not _was_on_floor and now_on_floor:
 		landed.emit(air_time)
 	if now_on_floor:

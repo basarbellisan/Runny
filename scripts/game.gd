@@ -48,6 +48,7 @@ var game_over := false
 var _mult_timer := 0.0
 var _over_time := 0.0
 var _mood := -1.0
+var _energy_warned := false
 var _start_z := 0.0
 var _stats := {"falls": 0, "returns": 0, "crystals": 0}
 var _args := {}
@@ -62,6 +63,8 @@ func _ready() -> void:
 	car.landed.connect(_on_landed)
 	car.mode_changed.connect(_on_mode_changed)
 	car.died.connect(_on_game_over)
+	car.jumped.connect(Audio.play.bind("jump", -6.0))
+	car.bumped.connect(Audio.play.bind("crash", -8.0, 1.3))
 	lower.setup(car, roads, seed_value)
 	lower.crystal_collected.connect(_on_crystal)
 	lower.rock_hit.connect(_on_rock_hit)
@@ -86,12 +89,17 @@ func _physics_process(delta: float) -> void:
 				_mult_timer = 0.0
 				multiplier += 1
 				hud.popup("x%d" % multiplier, Color("ffd166"))
+				Audio.play("multiplier")
 		Car.Mode.FLYING:
 			energy -= ENERGY_DRAIN * delta
+			if energy < MAX_ENERGY * 0.3 and not _energy_warned:
+				_energy_warned = true
+				Audio.play("energy_low")
 			if energy <= 0.0:
 				energy = 0.0
 				car.lose_wings()
 				hud.popup("ENERJİ BİTTİ!", Color("ff6b6b"))
+				Audio.play("fall")
 
 	hud.set_score(int(score), multiplier)
 	hud.set_energy(energy / MAX_ENERGY)
@@ -103,6 +111,7 @@ func _process(delta: float) -> void:
 	var m := lerpf(_mood, target, 1.0 - exp(-3.0 * delta))
 	if absf(m - _mood) > 0.003:
 		_apply_mood(m)
+	Audio.update(delta, car, _mood, not game_over)
 	if _args.has("shots"):
 		_capture_shots()
 
@@ -121,6 +130,7 @@ func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 		Car.Mode.FALLING:
 			if previous == Car.Mode.DRIVE:
 				_stats.falls += 1
+				Audio.play("fall", -4.0)
 				if multiplier > 1:
 					hud.popup("x1", Color("ff8f8f"))
 				multiplier = 1
@@ -129,9 +139,11 @@ func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 			lower.activate()
 			hud.show_energy(true)
 			hud.popup("KANATLAR!", Color("8fe9ff"))
+			Audio.play("wings")
 		Car.Mode.LAUNCH:
 			hud.show_energy(false)
 			hud.popup("YUKARI!", Color("ff8fe0"))
+			Audio.play("portal")
 
 
 func _on_landed(air_time: float) -> void:
@@ -139,12 +151,15 @@ func _on_landed(air_time: float) -> void:
 		# Alt katmandan yola döndük
 		lower.deactivate()
 		energy = MAX_ENERGY
+		_energy_warned = false
 		hud.show_energy(false)
+		Audio.play("return")
 		hud.popup("TEKRAR YOLDA!", Color("ffd166"))
 		_stats.returns += 1
 		return
 	if air_time < 0.3:
 		return
+	Audio.play("land", -5.0)
 	var seg := roads.segment_under(car.global_position)
 	if seg == null:
 		return
@@ -152,16 +167,19 @@ func _on_landed(air_time: float) -> void:
 	if off < 0.3:
 		score += PERFECT_BONUS * multiplier
 		hud.popup("PERFECT!", Color("7cf29c"))
+		Audio.play("perfect", -2.0)
 
 
 func _on_crystal() -> void:
 	energy = minf(energy + CRYSTAL_ENERGY, MAX_ENERGY)
 	score += CRYSTAL_BONUS
 	_stats.crystals += 1
+	Audio.crystal()
 
 
 func _on_rock_hit() -> void:
 	if car.mode == Car.Mode.FLYING:
+		Audio.play("crash")
 		car.crash("KAYAYA ÇARPTIN!")
 
 
@@ -181,6 +199,7 @@ func _on_game_over(reason: String) -> void:
 	cfg.set_value("score", "best", best)
 	cfg.save(SAVE_PATH)
 	hud.show_game_over(reason, final, best)
+	get_tree().create_timer(0.6).timeout.connect(Audio.play.bind("game_over"))
 	print("GAME_OVER reason=%s %s" % [reason, _stats_text()])
 	if car.autopilot:
 		print("  car pos=%v vel=%v mode_time=%.2f" % [car.global_position, car.velocity, car._mode_time])
