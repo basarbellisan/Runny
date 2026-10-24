@@ -15,7 +15,8 @@ var _hint: Label
 var _energy: Control
 var _energy_back: ColorRect
 var _energy_fill: ColorRect
-var _boost_fill: ColorRect
+var _speedo: Speedometer
+var _speedo_shown := true
 var _hint_tween: Tween
 var _over: Control
 var _over_bg: ColorRect
@@ -39,17 +40,17 @@ func _ready() -> void:
 	_hint = _make_label(20, Vector2(0, 330), true)
 	_build_energy_bar()
 	_build_game_over()
-	# Gaz göstergesi: ekranın en altında ortadan iki yana açılan ince çizgi
-	_boost_fill = ColorRect.new()
-	_boost_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_boost_fill.color = Palette.ACCENT
-	add_child(_boost_fill)
-	_boost_fill.anchor_left = 0.5
-	_boost_fill.anchor_right = 0.5
-	_boost_fill.anchor_top = 1.0
-	_boost_fill.anchor_bottom = 1.0
-	_boost_fill.offset_top = -6
-	set_boost(0.0)
+	# Hız kadranı: alt ortada, iki başparmağın arasında
+	_speedo = Speedometer.new()
+	add_child(_speedo)
+	_speedo.anchor_left = 0.5
+	_speedo.anchor_right = 0.5
+	_speedo.anchor_top = 1.0
+	_speedo.anchor_bottom = 1.0
+	_speedo.offset_left = -120
+	_speedo.offset_right = 120
+	_speedo.offset_top = -270
+	_speedo.offset_bottom = -30
 	set_mood(0.0)
 	hint("SOLA DOKUN      |      SAĞA DOKUN", 3.0)
 
@@ -164,11 +165,12 @@ func hint(text: String, duration: float) -> void:
 	_hint_tween.tween_property(_hint, "modulate:a", 0.0, 0.8)
 
 
-func set_boost(level: float) -> void:
-	var half := 360.0 * level
-	_boost_fill.offset_left = -half
-	_boost_fill.offset_right = half
-	_boost_fill.visible = level > 0.01
+## Kadran: hız (m/s), gazsız hız, gaz gücü; show=false iken yavaşça kaybolur
+func set_speed(speed: float, base_speed: float, boost: float, show: bool) -> void:
+	_speedo.set_values(speed * 3.6, base_speed * 3.6, boost)
+	if show != _speedo_shown:
+		_speedo_shown = show
+		create_tween().tween_property(_speedo, "modulate:a", 1.0 if show else 0.0, 0.4)
 
 
 func show_energy(visible_: bool) -> void:
