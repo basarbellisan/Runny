@@ -47,10 +47,10 @@ func _ready() -> void:
 	_speedo.anchor_right = 0.5
 	_speedo.anchor_top = 1.0
 	_speedo.anchor_bottom = 1.0
-	_speedo.offset_left = -120
-	_speedo.offset_right = 120
-	_speedo.offset_top = -270
-	_speedo.offset_bottom = -30
+	_speedo.offset_left = -80
+	_speedo.offset_right = 80
+	_speedo.offset_top = -200
+	_speedo.offset_bottom = -40
 	set_mood(0.0)
 	hint("SOLA DOKUN      |      SAĞA DOKUN", 3.0)
 
