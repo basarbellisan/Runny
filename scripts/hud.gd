@@ -1,45 +1,62 @@
 class_name Hud
 extends CanvasLayer
 ## Skor, çarpan, anlık mesajlar ve oyun sonu ekranı.
+## Sade tipografi; yazı rengi katmana göre koyudan açığa geçer.
 
+const BAR_WIDTH := 300.0
+
+var _labels: Array[Label] = []
 var _score: Label
 var _mult: Label
 var _popup: Label
 var _hint: Label
-var _over: Label
 var _energy: Control
+var _energy_back: ColorRect
 var _energy_fill: ColorRect
+var _over: Control
+var _over_bg: ColorRect
+var _over_reason: Label
+var _over_score: Label
+var _over_best: Label
 var _popup_tween: Tween
+var _ink := Palette.INK_DARK
+var _mood := -1.0
+var _energy_fraction := 1.0
+var _spaced: FontVariation
 
 
 func _ready() -> void:
-	_score = _make_label(64, Control.PRESET_CENTER_TOP, Vector2(0, 40))
-	_mult = _make_label(40, Control.PRESET_CENTER_TOP, Vector2(0, 120))
-	_mult.modulate = Color("ffd166")
-	_popup = _make_label(72, Control.PRESET_CENTER, Vector2(0, -260))
+	_spaced = FontVariation.new()
+	_spaced.spacing_glyph = 4
+	_score = _make_label(76, Vector2(0, 56))
+	_mult = _make_label(26, Vector2(0, 150), true)
+	_popup = _make_label(40, Vector2(0, 420), true)
 	_popup.modulate.a = 0.0
-	_hint = _make_label(34, Control.PRESET_CENTER_BOTTOM, Vector2(0, -120))
-	_hint.text = "<  Sola dokun        Sağa dokun  >"
-	_over = _make_label(52, Control.PRESET_CENTER, Vector2.ZERO)
-	_over.visible = false
+	_hint = _make_label(20, Vector2(0, 1130), true)
+	_hint.text = "SOLA DOKUN      |      SAĞA DOKUN"
 	_build_energy_bar()
+	_build_game_over()
+	set_mood(0.0)
 	var tw := create_tween()
 	tw.tween_interval(3.0)
 	tw.tween_property(_hint, "modulate:a", 0.0, 1.0)
 
 
-func _make_label(size: int, preset: Control.LayoutPreset, offset: Vector2) -> Label:
+## Ekranın üstünden y kadar aşağıda, yatayda ortalı yazı
+func _make_label(size: int, at: Vector2, spaced := false, parent: Node = self) -> Label:
 	var l := Label.new()
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	l.add_theme_font_size_override("font_size", size)
-	l.add_theme_constant_override("outline_size", size / 5)
-	l.add_theme_color_override("font_outline_color", Color(0.1, 0.12, 0.2, 0.85))
+	if spaced:
+		l.add_theme_font_override("font", _spaced)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(l)
-	l.set_anchors_and_offsets_preset(preset, Control.PRESET_MODE_MINSIZE)
-	l.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	l.position += offset
+	parent.add_child(l)
+	l.anchor_left = 0.0
+	l.anchor_right = 1.0
+	l.offset_top = at.y - size
+	l.offset_bottom = at.y + size
+	_labels.append(l)
 	return l
 
 
@@ -49,32 +66,56 @@ func _build_energy_bar() -> void:
 	add_child(_energy)
 	_energy.anchor_left = 0.5
 	_energy.anchor_right = 0.5
-	_energy.offset_left = -190
-	_energy.offset_right = 190
-	_energy.offset_top = 190
-	_energy.offset_bottom = 216
-	var back := ColorRect.new()
-	back.color = Color(0.1, 0.12, 0.2, 0.6)
-	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_energy.add_child(back)
-	back.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_energy.offset_left = -BAR_WIDTH * 0.5
+	_energy.offset_right = BAR_WIDTH * 0.5
+	_energy.offset_top = 200
+	_energy.offset_bottom = 204
+	_energy_back = ColorRect.new()
+	_energy_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_energy.add_child(_energy_back)
+	_energy_back.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_energy_fill = ColorRect.new()
-	_energy_fill.color = Color("5ff5e6")
-	_energy_fill.position = Vector2(4, 4)
-	_energy_fill.size = Vector2(372, 18)
 	_energy_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_energy_fill.size = Vector2(BAR_WIDTH, 4)
 	_energy.add_child(_energy_fill)
-	var label := Label.new()
-	label.text = "KANAT ENERJİSİ"
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 24)
-	label.add_theme_constant_override("outline_size", 5)
-	label.add_theme_color_override("font_outline_color", Color(0.1, 0.12, 0.2, 0.85))
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_energy.add_child(label)
-	label.anchor_right = 1.0
-	label.offset_top = 30
+	var label := _make_label(16, Vector2(0, 0), true, _energy)
+	label.text = "ENERJİ"
+	label.offset_top = 14
+	label.offset_bottom = 34
+	label.modulate.a = 0.6
 	_energy.visible = false
+
+
+func _build_game_over() -> void:
+	_over = Control.new()
+	_over.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_over)
+	_over.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_over_bg = ColorRect.new()
+	_over_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_over.add_child(_over_bg)
+	_over_bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_over_reason = _make_label(26, Vector2(0, 480), true, _over)
+	_over_score = _make_label(110, Vector2(0, 600), false, _over)
+	_over_best = _make_label(20, Vector2(0, 700), true, _over)
+	var again := _make_label(18, Vector2(0, 900), true, _over)
+	again.text = "TEKRAR İÇİN DOKUN"
+	again.modulate.a = 0.55
+	_over.visible = false
+
+
+## 0 = üst katman (açık zemin, koyu yazı), 1 = alt katman (koyu zemin, açık yazı)
+func set_mood(m: float) -> void:
+	if absf(m - _mood) < 0.01:
+		return
+	_mood = m
+	_ink = Palette.INK_DARK.lerp(Palette.INK_LIGHT, smoothstep(0.3, 0.7, m))
+	for l in _labels:
+		l.add_theme_color_override("font_color", _ink)
+	_over_reason.add_theme_color_override("font_color", Palette.ACCENT)
+	_energy_back.color = Color(_ink, 0.18)
+	_over_bg.color = Color(Palette.PAPER.lerp(Palette.GRAPHITE, m), 0.88)
+	set_energy(_energy_fraction)
 
 
 func show_energy(visible_: bool) -> void:
@@ -82,30 +123,34 @@ func show_energy(visible_: bool) -> void:
 
 
 func set_energy(fraction: float) -> void:
-	_energy_fill.size.x = 372.0 * clampf(fraction, 0.0, 1.0)
-	_energy_fill.color = Color("5ff5e6") if fraction > 0.3 else Color("ff6b6b")
+	_energy_fraction = fraction
+	_energy_fill.size.x = BAR_WIDTH * clampf(fraction, 0.0, 1.0)
+	_energy_fill.color = _ink if fraction > 0.3 else Palette.ACCENT
 
 
 func set_score(score: int, multiplier: int) -> void:
 	_score.text = str(score)
 	_mult.text = "x%d" % multiplier
+	_mult.modulate.a = 1.0 if multiplier > 1 else 0.45
 
 
-func popup(text: String, color := Color.WHITE) -> void:
+## accent: vurgu rengiyle göster (kritik ya da özel anlar)
+func popup(text: String, accent := false) -> void:
 	_popup.text = text
-	_popup.modulate = color
-	_popup.scale = Vector2(0.6, 0.6)
-	_popup.pivot_offset = _popup.size * 0.5
+	_popup.add_theme_color_override("font_color", Palette.ACCENT if accent else _ink)
+	_popup.modulate.a = 0.0
 	if _popup_tween:
 		_popup_tween.kill()
 	_popup_tween = create_tween()
-	_popup_tween.tween_property(_popup, "scale", Vector2.ONE, 0.15).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	_popup_tween.tween_interval(0.5)
-	_popup_tween.tween_property(_popup, "modulate:a", 0.0, 0.35)
+	_popup_tween.tween_property(_popup, "modulate:a", 1.0, 0.12)
+	_popup_tween.tween_interval(0.6)
+	_popup_tween.tween_property(_popup, "modulate:a", 0.0, 0.3)
 
 
 func show_game_over(reason: String, score: int, best: int) -> void:
-	_over.text = "%s\n\nSkor: %d\nEn iyi: %d\n\nTekrar için dokun" % [reason, score, best]
+	_over_reason.text = reason.trim_suffix("!")
+	_over_score.text = str(score)
+	_over_best.text = "EN İYİ  %d" % best
 	_over.visible = true
 	_over.modulate.a = 0.0
 	create_tween().tween_property(_over, "modulate:a", 1.0, 0.4)

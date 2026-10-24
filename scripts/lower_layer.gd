@@ -51,20 +51,20 @@ func _ready() -> void:
 	crystal.radial_segments = 4
 	crystal.rings = 1
 	_crystal_mesh = _flat_shaded(crystal)
-	for c in [Color("5b4a6b"), Color("6e5872"), Color("4a5470")]:
+	for c in [Palette.SLATE.darkened(0.12), Palette.SLATE, Palette.SLATE.lightened(0.12)]:
 		var m := StandardMaterial3D.new()
 		m.albedo_color = c
 		m.roughness = 1.0
 		_rock_mats.append(m)
-	_crystal_mat.albedo_color = Color("5ff5e6")
+	_crystal_mat.albedo_color = Palette.SNOW
 	_crystal_mat.emission_enabled = true
-	_crystal_mat.emission = Color("2fd8c8")
-	_crystal_mat.emission_energy_multiplier = 1.5
-	_portal_mat.albedo_color = Color("ff5fd2")
+	_crystal_mat.emission = Palette.SNOW
+	_crystal_mat.emission_energy_multiplier = 1.2
+	_portal_mat.albedo_color = Palette.ACCENT
 	_portal_mat.emission_enabled = true
-	_portal_mat.emission = Color("ff4fc8")
+	_portal_mat.emission = Palette.ACCENT
 	_portal_mat.emission_energy_multiplier = 2.0
-	_portal_fill_mat.albedo_color = Color(1.0, 0.55, 0.9, 0.3)
+	_portal_fill_mat.albedo_color = Color(Palette.ACCENT, 0.22)
 	_portal_fill_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_portal_fill_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_portal_fill_mat.cull_mode = BaseMaterial3D.CULL_DISABLED

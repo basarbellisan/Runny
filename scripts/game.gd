@@ -19,15 +19,19 @@ const MOOD_HEIGHTS := Vector2(-22.0, -48.0)
 
 ## Üst ve alt katmanın ortam ayarları: "nesne:özellik" -> [üst, alt]
 const MOODS := {
-	"sky:sky_top_color": [Color(0.18, 0.42, 0.85), Color(0.2, 0.14, 0.4)],
-	"sky:sky_horizon_color": [Color(0.68, 0.84, 0.98), Color(0.98, 0.6, 0.48)],
-	"sky:ground_horizon_color": [Color(0.68, 0.84, 0.98), Color(0.92, 0.52, 0.48)],
-	"sky:ground_bottom_color": [Color(0.1, 0.22, 0.5), Color(0.08, 0.05, 0.18)],
-	"env:fog_light_color": [Color(0.68, 0.83, 0.97), Color(0.86, 0.55, 0.55)],
+	"sky:sky_top_color": [Color("e4e1db"), Color("141518")],
+	"sky:sky_horizon_color": [Palette.PAPER, Color("2c2e33")],
+	"sky:ground_horizon_color": [Palette.PAPER, Color("2c2e33")],
+	"sky:ground_bottom_color": [Color("d6d2ca"), Color("0e0f11")],
+	"env:fog_light_color": [Palette.PAPER, Color("26282c")],
+	"env:fog_density": [0.0028, 0.005],
 	"env:fog_height": [-30.0, -160.0],
-	"env:ambient_light_color": [Color(0.85, 0.9, 1.0), Color(0.95, 0.75, 0.8)],
-	"sun:light_color": [Color(1.0, 0.96, 0.88), Color(1.0, 0.72, 0.55)],
-	"sun:light_energy": [1.25, 1.0],
+	"env:ambient_light_color": [Color("ebe8e2"), Color("8a8f97")],
+	"env:ambient_light_energy": [0.55, 0.95],
+	"sun:light_color": [Color("fffaf2"), Color("dfe4ea")],
+	"sun:light_energy": [1.3, 0.95],
+	# Bulut tabakası: üstten bakınca sise karışır, alttan açık gri bir tavan olur
+	"cloud:albedo_color": [Color(0.97, 0.96, 0.95, 0.35), Color(0.78, 0.77, 0.75, 0.55)],
 }
 
 @onready var car: Car = $Car
@@ -39,6 +43,7 @@ const MOODS := {
 	"sky": ($WorldEnvironment as WorldEnvironment).environment.sky.sky_material,
 	"env": ($WorldEnvironment as WorldEnvironment).environment,
 	"sun": $Sun,
+	"cloud": ($CloudLayer as MeshInstance3D).mesh.surface_get_material(0),
 }
 
 var score := 0.0
@@ -88,7 +93,7 @@ func _physics_process(delta: float) -> void:
 			if _mult_timer >= MULTIPLIER_STEP_TIME and multiplier < MAX_MULTIPLIER:
 				_mult_timer = 0.0
 				multiplier += 1
-				hud.popup("x%d" % multiplier, Color("ffd166"))
+				hud.popup("x%d" % multiplier)
 				Audio.play("multiplier")
 		Car.Mode.FLYING:
 			energy -= ENERGY_DRAIN * delta
@@ -98,7 +103,7 @@ func _physics_process(delta: float) -> void:
 			if energy <= 0.0:
 				energy = 0.0
 				car.lose_wings()
-				hud.popup("ENERJİ BİTTİ!", Color("ff6b6b"))
+				hud.popup("ENERJİ BİTTİ", true)
 				Audio.play("fall")
 
 	hud.set_score(int(score), multiplier)
@@ -119,6 +124,7 @@ func _process(delta: float) -> void:
 ## 0 = üst katman, 1 = alt katman
 func _apply_mood(m: float) -> void:
 	_mood = m
+	hud.set_mood(m)
 	for key: String in MOODS:
 		var parts := key.split(":")
 		var pair: Array = MOODS[key]
@@ -132,17 +138,17 @@ func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 				_stats.falls += 1
 				Audio.play("fall", -4.0)
 				if multiplier > 1:
-					hud.popup("x1", Color("ff8f8f"))
+					hud.popup("x1")
 				multiplier = 1
 				_mult_timer = 0.0
 		Car.Mode.FLYING:
 			lower.activate()
 			hud.show_energy(true)
-			hud.popup("KANATLAR!", Color("8fe9ff"))
+			hud.popup("KANATLAR")
 			Audio.play("wings")
 		Car.Mode.LAUNCH:
 			hud.show_energy(false)
-			hud.popup("YUKARI!", Color("ff8fe0"))
+			hud.popup("YUKARI", true)
 			Audio.play("portal")
 
 
@@ -155,7 +161,7 @@ func _on_landed(air_time: float) -> void:
 		hud.show_energy(false)
 		Audio.play("return")
 		Audio.touchdown(1.3)
-		hud.popup("TEKRAR YOLDA!", Color("ffd166"))
+		hud.popup("TEKRAR YOLDA")
 		_stats.returns += 1
 		return
 	if air_time < 0.3:
@@ -167,7 +173,7 @@ func _on_landed(air_time: float) -> void:
 	var off := absf(car.global_position.x - seg.x) / (seg.width * 0.5)
 	if off < 0.3:
 		score += PERFECT_BONUS * multiplier
-		hud.popup("PERFECT!", Color("7cf29c"))
+		hud.popup("PERFECT", true)
 		Audio.play("perfect", -2.0)
 
 

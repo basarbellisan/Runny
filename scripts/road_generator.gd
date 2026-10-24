@@ -17,10 +17,6 @@ class Segment:
 		return pos.z <= z_start and pos.z >= z_end \
 			and absf(pos.x - x) <= width * 0.5 + margin
 
-const PALETTE: Array[Color] = [
-	Color("f08a6c"), Color("4fb3a9"), Color("9b8fd9"),
-	Color("f2c14e"), Color("5fa8d3"), Color("e86a92"),
-]
 
 @export var view_distance := 450.0
 @export var cleanup_distance := 40.0
@@ -38,28 +34,20 @@ var _head: Segment
 var _decor: Array[Node3D] = []
 var _rng := RandomNumberGenerator.new()
 var _unit_box := BoxMesh.new()
-var _cloud_mesh := SphereMesh.new()
 var _wall_mats: Array[StandardMaterial3D] = []
 var _asphalt_mat := StandardMaterial3D.new()
 var _line_mat := StandardMaterial3D.new()
-var _cloud_mat := StandardMaterial3D.new()
 
 
 func _ready() -> void:
-	for c in PALETTE:
+	for c in Palette.WALLS:
 		var m := StandardMaterial3D.new()
 		m.albedo_color = c
-		m.roughness = 0.9
+		m.roughness = 1.0
 		_wall_mats.append(m)
-	_asphalt_mat.albedo_color = Color("3a3f4b")
+	_asphalt_mat.albedo_color = Palette.ASPHALT
 	_asphalt_mat.roughness = 1.0
-	_line_mat.albedo_color = Color("f6f2e6")
-	_cloud_mat.albedo_color = Color(1, 1, 1)
-	_cloud_mat.roughness = 1.0
-	_cloud_mesh.radial_segments = 7
-	_cloud_mesh.rings = 3
-	_cloud_mesh.radius = 0.5
-	_cloud_mesh.height = 1.0
+	_line_mat.albedo_color = Palette.SNOW
 
 
 func start(p_car: Car, seed_value := -1) -> void:
@@ -297,34 +285,15 @@ func _add_box(parent: Node3D, pos: Vector3, size: Vector3, mat: Material) -> Mes
 	return mi
 
 
-## Uzakta süzülen dekor bloklar ve aşağıda bulutlar
+## Uzakta süzülen ince, uzun monolitler (dekor)
 func _add_decor(seg: Segment) -> void:
-	var count := _rng.randi_range(1, 3)
-	for i in count:
+	for i in _rng.randi_range(0, 2):
 		var side := -1.0 if _rng.randf() < 0.5 else 1.0
-		var size := Vector3(_rng.randf_range(4, 18), _rng.randf_range(6, 40), _rng.randf_range(8, 40))
+		var size := Vector3(_rng.randf_range(3, 8), _rng.randf_range(20, 60), _rng.randf_range(3, 10))
 		var pos := Vector3(
-			seg.x + side * _rng.randf_range(30.0, 110.0),
-			seg.top + _rng.randf_range(-25.0, 15.0),
+			seg.x + side * _rng.randf_range(35.0, 120.0),
+			seg.top + _rng.randf_range(-30.0, 10.0),
 			_rng.randf_range(seg.z_end, seg.z_start))
 		var block := _add_box(self, pos, size, _wall_mats[_rng.randi() % _wall_mats.size()])
 		block.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_decor.append(block)
-
-	if _rng.randf() < 0.7:
-		var cloud := Node3D.new()
-		cloud.position = Vector3(
-			seg.x + _rng.randf_range(-60.0, 60.0),
-			seg.top - _rng.randf_range(22.0, 32.0),
-			_rng.randf_range(seg.z_end, seg.z_start))
-		add_child(cloud)
-		for p in _rng.randi_range(3, 6):
-			var puff := MeshInstance3D.new()
-			puff.mesh = _cloud_mesh
-			puff.material_override = _cloud_mat
-			puff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			var r := _rng.randf_range(5.0, 11.0)
-			puff.scale = Vector3(r * 1.6, r * 0.7, r)
-			puff.position = Vector3(_rng.randf_range(-12, 12), _rng.randf_range(-1.5, 1.5), _rng.randf_range(-10, 10))
-			cloud.add_child(puff)
-		_decor.append(cloud)
