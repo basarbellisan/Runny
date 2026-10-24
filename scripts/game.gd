@@ -154,12 +154,13 @@ func _on_landed(air_time: float) -> void:
 		_energy_warned = false
 		hud.show_energy(false)
 		Audio.play("return")
+		Audio.touchdown(1.3)
 		hud.popup("TEKRAR YOLDA!", Color("ffd166"))
 		_stats.returns += 1
 		return
 	if air_time < 0.3:
 		return
-	Audio.play("land", -5.0)
+	Audio.touchdown(clampf(air_time / 0.8, 0.6, 1.3))
 	var seg := roads.segment_under(car.global_position)
 	if seg == null:
 		return

@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Oyunun tüm seslerini sıfırdan sentezler (yumuşak / tatlı tarz).
+"""Oyunun tüm seslerini sıfırdan sentezler.
+
+Tarz: minimal, teknolojik, İskandinav. Kuru ve net sesler, kısa yankı,
+FM tınıları, minör tonalite, minimal elektronik müzik.
 
 Kullanım:  python3 tools/make_sounds.py
 Gerekenler: pip install numpy soundfile
 
 Çıktılar audio/ klasörüne yazılır:
   sfx_*.wav     kısa efektler (mono, 16 bit)
-  loop_*.ogg    döngü sesleri: motor, rüzgâr
+  loop_*.ogg    döngüler: motor, yol (lastik), rüzgâr
   music_*.ogg   iki katmanın müziği (aynı tempo ve akorlar; oyun aralarında geçiş yapar)
 """
 from pathlib import Path
@@ -16,107 +19,112 @@ import soundfile as sf
 
 SR = 44100
 OUT = Path(__file__).resolve().parent.parent / "audio"
-rng = np.random.default_rng(7)
+rng = np.random.default_rng(3)
 
 
 # --------------------------------------------------------------------------
-# Temel yapı taşları
+# Yapı taşları (hepsi vektörel, hızlı)
 # --------------------------------------------------------------------------
 
 def midi(m):
     return 440.0 * 2.0 ** ((np.asarray(m, dtype=float) - 69.0) / 12.0)
 
 
-def tone(freq, dur):
-    """Frekansı zamanla değişebilen sinüs (freq sabit ya da dizi olabilir)."""
-    n = int(dur * SR)
-    f = np.broadcast_to(np.asarray(freq, dtype=float), (n,)) if np.ndim(freq) == 0 else np.asarray(freq)
-    return np.sin(2 * np.pi * np.cumsum(f) / SR)
+def n_of(dur):
+    return int(round(dur * SR))
+
+
+def phase(freq, dur):
+    n = n_of(dur)
+    f = np.full(n, float(freq)) if np.ndim(freq) == 0 else np.asarray(freq, dtype=float)[:n]
+    return 2 * np.pi * np.cumsum(f) / SR
+
+
+def sine(freq, dur):
+    return np.sin(phase(freq, dur))
 
 
 def glide(f0, f1, dur, curve=1.0):
-    x = np.linspace(0, 1, int(dur * SR)) ** curve
-    return f0 * (f1 / f0) ** x  # logaritmik kayma kulağa daha doğal gelir
+    x = np.linspace(0, 1, n_of(dur)) ** curve
+    return f0 * (f1 / f0) ** x
 
 
-def env(dur, attack=0.005, decay=0.3, sustain=0.0, release=0.0):
-    """Atak + üstel sönüm; sustain>0 ise sönüm o seviyede durur."""
-    n = int(dur * SR)
+def env(dur, attack=0.002, decay=0.1, sustain=0.0, release=0.0):
+    n = n_of(dur)
     t = np.arange(n) / SR
     e = sustain + (1 - sustain) * np.exp(-np.maximum(t - attack, 0) / max(decay, 1e-4))
-    a = int(attack * SR)
+    a = n_of(attack)
     if a > 0:
         e[:a] *= np.linspace(0, 1, a)
-    r = int(release * SR)
+    r = n_of(release)
     if r > 0:
         e[-r:] *= np.linspace(1, 0, r)
     return e
 
 
-def lowpass(x, cutoff):
-    """Tek kutuplu alçak geçiren filtre (cutoff sabit ya da dizi)."""
-    c = np.broadcast_to(np.asarray(cutoff, dtype=float), x.shape)
-    a = 1 - np.exp(-2 * np.pi * c / SR)
-    y = np.empty_like(x)
-    acc = 0.0
-    for i in range(len(x)):
-        acc += a[i] * (x[i] - acc)
-        y[i] = acc
-    return y
-
-
-def highpass(x, cutoff):
-    return x - lowpass(x, cutoff)
-
-
 def noise(dur):
-    return rng.uniform(-1, 1, int(dur * SR))
+    return rng.uniform(-1, 1, n_of(dur))
 
 
-def bell(freq, dur, decay=0.6, bright=1.0):
-    """Yumuşak çan / kalimba tınısı: kısmi sesler farklı hızda söner."""
-    partials = [(1.0, 1.0, 1.0), (2.0, 0.28 * bright, 0.5), (3.01, 0.12 * bright, 0.33), (4.2, 0.05 * bright, 0.22)]
-    out = np.zeros(int(dur * SR))
-    for ratio, amp, dk in partials:
-        out += amp * tone(freq * ratio, dur) * env(dur, 0.003, decay * dk)
-    return out
+def filt(x, lo=None, hi=None, order=2, circular=False):
+    """FFT ile Butterworth benzeri filtre. circular=True döngüleri kesintisiz tutar."""
+    n = len(x)
+    size = n if circular else 1 << (2 * n - 1).bit_length()
+    spec = np.fft.rfft(x, size)
+    f = np.fft.rfftfreq(size, 1 / SR)
+    g = np.ones_like(f)
+    if hi is not None:
+        g /= np.sqrt(1 + (f / hi) ** (2 * order))
+    if lo is not None:
+        with np.errstate(divide="ignore"):
+            g /= np.sqrt(1 + (lo / np.maximum(f, 1e-6)) ** (2 * order))
+    return np.fft.irfft(spec * g, size)[:n]
 
 
-def pluck(freq, dur, decay=0.35):
-    """Marimba benzeri yumuşak tını."""
-    return (tone(freq, dur) + 0.25 * tone(freq * 4.0, dur) * env(dur, 0.002, 0.05)) * env(dur, 0.004, decay)
+def fm(freq, dur, ratio=2.0, index=1.5, index_decay=0.08, amp_decay=0.25, attack=0.002):
+    """İki operatörlü FM: cam gibi, temiz tınılar."""
+    n = n_of(dur)
+    t = np.arange(n) / SR
+    idx = index * np.exp(-t / max(index_decay, 1e-4))
+    s = np.sin(2 * np.pi * freq * t + idx * np.sin(2 * np.pi * freq * ratio * t))
+    return s * env(dur, attack, amp_decay)
 
 
-def place(buf, sig, start):
-    i = int(start * SR)
+def saw_pad(freq, dur, bright=6.0, harmonics=18, detune=0.004):
+    """Toplamalı testere dalga (ses ötesi frekanslar olmadan), yumuşak açılan."""
+    n = n_of(dur)
+    t = np.arange(n) / SR
+    out = np.zeros(n)
+    for voice, d in enumerate((1 - detune, 1 + detune)):
+        f = freq * d
+        for k in range(1, harmonics + 1):
+            if f * k > SR / 2.2:
+                break
+            out += (np.exp(-k / bright) / k) * np.sin(2 * np.pi * f * k * t + voice * k)
+    return out * env(dur, 0.35, 99.0, 1.0, 0.5)
+
+
+def place(buf, sig, start, gain=1.0, pan=0.0):
+    """Mono ya da stereo tampona sinyal ekler. pan: -1 sol, +1 sağ."""
+    i = int(round(start * SR))
     j = min(len(buf), i + len(sig))
-    if j > i:
-        buf[i:j] += sig[: j - i]
+    if j <= i:
+        return
+    s = sig[: j - i] * gain
+    if buf.ndim == 1:
+        buf[i:j] += s
+    else:
+        buf[i:j, 0] += s * np.cos((pan + 1) * np.pi / 4)
+        buf[i:j, 1] += s * np.sin((pan + 1) * np.pi / 4)
 
 
-def normalize(x, peak=0.8):
-    m = np.max(np.abs(x))
-    return x * (peak / m) if m > 0 else x
-
-
-def fade(x, fin=0.003, fout=0.02):
-    x = x.copy()
-    a, b = int(fin * SR), int(fout * SR)
-    if a:
-        x[:a] *= np.linspace(0, 1, a)
-    if b:
-        x[-b:] *= np.linspace(1, 0, b)
-    return x
-
-
-def reverb_ir(seconds=2.2, stereo=True, damp=6000.0):
-    n = int(seconds * SR)
+def room_ir(seconds=0.9, bright=5000.0, decay=4.5, stereo=False):
+    n = n_of(seconds)
     t = np.arange(n) / SR
     chans = []
     for _ in range(2 if stereo else 1):
-        ir = rng.normal(0, 1, n) * np.exp(-t * 3.2)
-        ir = lowpass(ir, damp)
-        ir[: int(0.01 * SR)] *= np.linspace(0, 1, int(0.01 * SR))
+        ir = filt(rng.normal(0, 1, n), hi=bright) * np.exp(-t * decay)
+        ir[: n_of(0.004)] *= np.linspace(0, 1, n_of(0.004))
         chans.append(ir / np.sqrt(np.sum(ir ** 2)))
     return chans
 
@@ -127,21 +135,30 @@ def convolve(x, ir):
     return np.fft.irfft(np.fft.rfft(x, size) * np.fft.rfft(ir, size), size)[:n]
 
 
-def add_reverb(x, wet=0.25, seconds=1.4):
-    ir = reverb_ir(seconds, stereo=False)[0]
-    y = convolve(x, ir)
-    out = np.zeros(len(y))
+def room(x, wet=0.12, seconds=0.6):
+    y = convolve(x, room_ir(seconds)[0])
+    out = y * wet
     out[: len(x)] += x
-    return out + wet * y
+    return out
 
 
-def seamless(x, cross=0.5):
-    """Sonu başına çapraz geçişle bindirerek kesintisiz döngü yapar."""
-    c = int(cross * SR)
-    body = x[:-c].copy()
-    w = np.linspace(0, 1, c)
-    body[:c] = body[:c] * w + x[-c:] * (1 - w)
-    return body
+def fade(x, fin=0.001, fout=0.01):
+    x = x.copy()
+    a, b = n_of(fin), n_of(fout)
+    if a:
+        x[:a] *= np.linspace(0, 1, a)
+    if b:
+        x[-b:] *= np.linspace(1, 0, b)
+    return x
+
+
+def normalize(x, peak=0.8):
+    m = np.max(np.abs(x))
+    return x * (peak / m) if m > 0 else x
+
+
+def click(dur=0.004):
+    return filt(noise(dur), lo=2000) * env(dur, 0.0002, 0.0012)
 
 
 def write_wav(name, x):
@@ -149,251 +166,366 @@ def write_wav(name, x):
 
 
 def write_ogg(name, x):
-    sf.write(OUT / name, np.clip(x, -1, 1), SR, format="OGG", subtype="VORBIS")
+    # libsndfile uzun Vorbis dosyalarını tek seferde yazarken çökebiliyor; parça parça yaz
+    x = np.clip(x, -1, 1)
+    channels = 1 if x.ndim == 1 else x.shape[1]
+    with sf.SoundFile(OUT / name, "w", SR, channels, format="OGG", subtype="VORBIS") as f:
+        for i in range(0, len(x), SR):
+            f.write(x[i:i + SR])
 
 
 # --------------------------------------------------------------------------
-# Efektler
-# --------------------------------------------------------------------------
-
-def sfx_jump():
-    d = 0.22
-    s = tone(glide(380, 760, d, 0.6), d) * env(d, 0.006, 0.09)
-    s += 0.15 * lowpass(noise(d), 2500) * env(d, 0.01, 0.06)
-    return add_reverb(fade(s), 0.15, 0.6)
-
-
-def sfx_land():
-    d = 0.3
-    s = tone(glide(150, 52, d, 0.5), d) * env(d, 0.002, 0.09)
-    s += 0.35 * lowpass(noise(d), 700) * env(d, 0.001, 0.03)
-    return fade(s, 0.001, 0.05)
-
-
-def sfx_perfect():
-    buf = np.zeros(int(1.2 * SR))
-    place(buf, bell(midi(79), 1.0, 0.5), 0.0)
-    place(buf, bell(midi(84), 1.1, 0.6), 0.09)
-    place(buf, 0.5 * bell(midi(88), 1.0, 0.5), 0.18)
-    return add_reverb(buf, 0.25)
-
-
-def sfx_multiplier():
-    buf = np.zeros(int(1.0 * SR))
-    for k, m in enumerate([72, 76, 79, 84]):
-        place(buf, pluck(midi(m), 0.6, 0.25), k * 0.07)
-    return add_reverb(buf, 0.25)
-
-
-def sfx_return():
-    buf = np.zeros(int(1.4 * SR))
-    for k, m in enumerate([72, 76, 79, 84, 88]):
-        place(buf, bell(midi(m), 0.9, 0.45, 0.7), k * 0.075)
-    return add_reverb(buf, 0.3)
-
-
-def sfx_wings():
-    d = 0.7
-    sweep = glide(300, 2200, d, 0.7)
-    n = noise(d)
-    s = 0.6 * lowpass(lowpass(n, sweep) - lowpass(n, sweep * 0.4), 2500) * env(d, 0.08, 0.2)
-    for k, m in enumerate([72, 74, 76, 79, 81, 84]):
-        place(s, 0.35 * pluck(midi(m), 0.5, 0.2), 0.05 + k * 0.045)
-    return add_reverb(fade(s, 0.01, 0.1), 0.3)
-
-
-def sfx_crystal():
-    s = bell(midi(84), 0.6, 0.35, 1.2)
-    return add_reverb(s, 0.2, 0.8)
-
-
-def sfx_portal():
-    d = 1.3
-    s = np.zeros(int(d * SR))
-    for ratio, amp in [(1.0, 1.0), (1.5, 0.5), (2.0, 0.4), (2.997, 0.2)]:
-        f = glide(220 * ratio, 880 * ratio, d, 0.8)
-        trem = 0.75 + 0.25 * np.sin(2 * np.pi * np.linspace(6, 14, len(f)).cumsum() / SR)
-        s += amp * tone(f, d) * trem
-    s *= env(d, 0.25, 0.6)
-    n = noise(d)
-    s += 0.5 * lowpass(n, glide(400, 3000, d)) * env(d, 0.3, 0.4)
-    place(s, 0.6 * bell(midi(91), 0.8, 0.5), 0.75)
-    return add_reverb(fade(s, 0.01, 0.15), 0.35)
-
-
-def sfx_fall():
-    d = 0.7
-    f = glide(760, 330, d, 1.2) * (1 + 0.012 * np.sin(2 * np.pi * 7 * np.arange(int(d * SR)) / SR))
-    s = tone(f, d) * env(d, 0.03, 0.4)
-    return add_reverb(fade(s, 0.01, 0.1), 0.25)
-
-
-def sfx_crash():
-    d = 0.8
-    s = tone(glide(120, 40, d, 0.4), d) * env(d, 0.002, 0.15)
-    s += 0.6 * lowpass(lowpass(noise(d), glide(1400, 220, d)), 1800) * env(d, 0.002, 0.12)
-    s += 0.25 * tone(glide(420, 140, d, 0.8), d) * env(d, 0.01, 0.3)
-    return add_reverb(fade(s, 0.001, 0.1), 0.2)
-
-
-def sfx_energy_low():
-    buf = np.zeros(int(0.5 * SR))
-    for k in range(2):
-        place(buf, tone(midi(81), 0.09) * env(0.09, 0.005, 0.05, 0.6, 0.02), k * 0.14)
-    return add_reverb(buf, 0.15, 0.6)
-
-
-def sfx_game_over():
-    buf = np.zeros(int(2.2 * SR))
-    for k, m in enumerate([79, 76, 72]):
-        place(buf, pluck(midi(m), 0.9, 0.4), k * 0.2)
-    place(buf, 0.6 * bell(midi(67), 1.5, 0.8, 0.5), 0.6)
-    return add_reverb(buf, 0.35)
-
-
-# --------------------------------------------------------------------------
-# Döngüler
+# Araba sesleri
 # --------------------------------------------------------------------------
 
 def loop_engine():
-    # Elektrikli araba gibi yumuşak bir uğultu. 2 sn içinde tam sayıda
-    # periyot olsun ki döngü tıklamasın.
+    """4 silindirli motor: her ateşleme, rezonanslı kısa bir darbe.
+    2 sn'de tam sayıda devir olduğu için döngü kesintisizdir. Devir,
+    oyunda pitch_scale ile değiştirilir."""
+    f0 = 90.0                       # ateşleme frekansı (Hz)
+    period = int(SR / f0)           # 490 örnek
+    cycles = int(2.0 * f0)
+    t = np.arange(period) / SR
+    out = []
+    for k in range(cycles):
+        # Silindirler birbirinden biraz farklı + küçük rastgelelik = canlı motor
+        amp = (1.0, 0.82, 0.93, 0.78)[k % 4] * (1 + 0.08 * rng.standard_normal())
+        res = 380 * (1 + 0.04 * rng.standard_normal())
+        burst = (np.exp(-t * 55) * np.sin(2 * np.pi * res * t) + 0.6 * np.exp(-t * 25) * np.sin(2 * np.pi * 150 * t)
+                 + 0.25 * np.exp(-t * 120) * np.sin(2 * np.pi * 2.4 * res * t))
+        out.append(amp * burst)
+    s = np.concatenate(out)
+    tt = np.arange(len(s)) / SR
+    s += 0.45 * np.sin(2 * np.pi * f0 * tt) + 0.2 * np.sin(2 * np.pi * f0 * 0.5 * tt)
+    s += 0.18 * filt(rng.uniform(-1, 1, len(s)), lo=80, hi=700, circular=True)   # emme/egzoz hışırtısı
+    s = filt(s, lo=35, hi=2200, circular=True)
+    return normalize(s, 0.8)
+
+
+def loop_road():
+    """Lastiklerin yolda yuvarlanma uğultusu."""
     d = 2.0
-    t = np.arange(int(d * SR)) / SR
-    trem = 1 + 0.08 * np.sin(2 * np.pi * 4 * t)
-    s = (np.sin(2 * np.pi * 110 * t) + 0.35 * np.sin(2 * np.pi * 220 * t)
-         + 0.12 * np.sin(2 * np.pi * 330 * t)) * trem
-    hiss = lowpass(lowpass(lowpass(noise(d + 0.5), 350), 350), 350)
-    s += 0.6 * normalize(seamless(hiss, 0.5), 1.0) * 0.25
-    return normalize(s, 0.7)
+    n = n_of(d)
+    t = np.arange(n) / SR
+    rumble = filt(rng.uniform(-1, 1, n), lo=40, hi=260, order=3, circular=True)
+    hiss = filt(rng.uniform(-1, 1, n), lo=900, hi=2600, circular=True)
+    tread = 1 + 0.15 * np.sin(2 * np.pi * 11 * t)  # diş dokusu (2 sn'de tam 22 devir)
+    s = (normalize(rumble, 1.0) + 0.18 * normalize(hiss, 1.0)) * tread
+    return normalize(s, 0.75)
+
+
+def sfx_land():
+    """Tekerlekler yere değince: tok darbe + lastik cıyaklaması."""
+    d = 0.4
+    body = sine(glide(115, 48, d, 0.5), d) * env(d, 0.001, 0.07)
+    impact = filt(noise(d), hi=900) * env(d, 0.0005, 0.025)
+    squeal_env = env(d, 0.004, 0.06)
+    squeal = 0.5 * filt(noise(d), lo=1400, hi=3200, order=3) * squeal_env
+    squeal += 0.12 * sine(glide(2100, 1700, d), d) * squeal_env
+    s = body + 0.7 * impact + 0.45 * squeal
+    return fade(room(s, 0.06, 0.4), 0.0005, 0.04)
+
+
+# --------------------------------------------------------------------------
+# Efektler: arayüz sesleri gibi kısa, temiz, hassas
+# --------------------------------------------------------------------------
+
+def blip(m, dur=0.07, harm=0.2):
+    f = midi(m)
+    return (sine(f, dur) + harm * sine(2 * f, dur)) * env(dur, 0.001, dur * 0.35)
+
+
+def sfx_jump():
+    d = 0.12
+    s = sine(glide(520, 1040, d, 0.7), d) * env(d, 0.001, 0.035) + 0.5 * np.pad(click(), (0, n_of(d) - n_of(0.004)))
+    return room(fade(s), 0.08, 0.4)
+
+
+def sfx_perfect():
+    buf = np.zeros(n_of(0.9))
+    place(buf, fm(midi(81), 0.4, 3.5, 1.8, 0.05, 0.12), 0.0)
+    place(buf, fm(midi(88), 0.5, 3.5, 1.8, 0.05, 0.16), 0.1)
+    return room(buf, 0.15, 0.8)
+
+
+def sfx_multiplier():
+    buf = np.zeros(n_of(0.6))
+    for k, m in enumerate([81, 84, 88]):
+        place(buf, blip(m, 0.07), k * 0.05)
+    return room(buf, 0.1, 0.5)
+
+
+def sfx_return():
+    buf = np.zeros(n_of(1.0))
+    for k, m in enumerate([69, 76, 81, 84, 88]):
+        place(buf, blip(m, 0.08), k * 0.045)
+    for m in (69, 76, 84):
+        place(buf, fm(midi(m), 0.6, 2.0, 1.0, 0.1, 0.25), 0.25, 0.35)
+    return room(buf, 0.15, 0.8)
+
+
+def sfx_wings():
+    """Mekanik açılma: iki servo tıkı, filtreli hava, yükselen sinüs."""
+    d = 0.6
+    buf = np.zeros(n_of(d))
+    for at in (0.0, 0.11, 0.2):
+        place(buf, click(0.006), at, 0.9)
+    n = noise(d)
+    e = env(d, 0.05, 0.12)
+    air = filt(n, lo=400, hi=1200) * np.linspace(1, 0, n_of(d)) + filt(n, lo=1500, hi=4000) * np.linspace(0, 1, n_of(d))
+    buf += 0.35 * air * e
+    buf += 0.35 * np.sin(phase(glide(300, 900, d, 0.6), d) + 0.8 * np.sin(phase(glide(600, 1800, d, 0.6), d))) * env(d, 0.02, 0.15)
+    place(buf, blip(88, 0.08), 0.32, 0.6)
+    return room(fade(buf, 0.001, 0.05), 0.1, 0.5)
+
+
+def sfx_crystal():
+    return room(fm(midi(88), 0.25, 3.0, 1.6, 0.03, 0.06), 0.12, 0.6)
+
+
+def sfx_portal():
+    """Yükselen tını + hava, sonunda 'kilitlenme' sesi."""
+    d = 1.0
+    n = n_of(d)
+    ramp = np.linspace(0, 1, n)
+    nz = noise(d)
+    riser = filt(nz, lo=300, hi=1500) * (1 - ramp) + filt(nz, lo=1500, hi=6000) * ramp
+    s = 0.35 * riser * ramp ** 1.5
+    s += 0.45 * np.sin(phase(glide(160, 1280, d, 1.4), d)) * (0.2 + 0.8 * ramp) * (1 - ramp ** 8)
+    s += 0.2 * np.sin(phase(glide(240, 1920, d, 1.4), d)) * ramp
+    buf = np.zeros(n_of(1.5))
+    place(buf, s, 0.0)
+    place(buf, fm(midi(88), 0.4, 2.0, 2.0, 0.05, 0.12), 0.95)
+    place(buf, sine(glide(90, 45, 0.3), 0.3) * env(0.3, 0.001, 0.08), 0.95, 0.8)
+    return room(buf, 0.12, 0.7)
+
+
+def sfx_fall():
+    """Güç kesilmesi gibi alçalan ton."""
+    d = 0.45
+    f = glide(900, 220, d, 0.8)
+    s = np.sin(phase(f, d) + 0.6 * np.sin(phase(f * 2, d))) * env(d, 0.002, 0.18)
+    return room(fade(s, 0.001, 0.05), 0.1, 0.5)
+
+
+def sfx_crash():
+    """Tok darbe + dijital parazit."""
+    d = 0.5
+    thump = sine(glide(130, 40, d, 0.4), d) * env(d, 0.001, 0.1)
+    raw = noise(d)
+    held = np.repeat(raw[::22], 22)[: n_of(d)]          # örnek-tut: bit kırma etkisi
+    glitch = filt(held, hi=5000) * env(d, 0.001, 0.06)
+    s = thump + 0.5 * glitch + 0.4 * filt(noise(d), hi=1200) * env(d, 0.001, 0.03)
+    return fade(room(s, 0.08, 0.5), 0.0005, 0.05)
+
+
+def sfx_energy_low():
+    buf = np.zeros(n_of(0.4))
+    f = 880.0
+    for k in range(2):
+        b = (sine(f, 0.07) + 0.3 * sine(3 * f, 0.07) + 0.12 * sine(5 * f, 0.07)) * env(0.07, 0.002, 0.05, 0.5, 0.01)
+        place(buf, b, k * 0.12)
+    return room(buf, 0.06, 0.4)
+
+
+def sfx_game_over():
+    buf = np.zeros(n_of(1.6))
+    for k, m in enumerate([81, 76, 69]):
+        place(buf, fm(midi(m), 0.5, 2.0, 0.8, 0.1, 0.18), k * 0.16)
+    place(buf, sine(glide(70, 40, 0.8), 0.8) * env(0.8, 0.002, 0.3), 0.48, 0.7)
+    return room(buf, 0.15, 0.9)
 
 
 def loop_wind():
     d = 6.0
-    n = noise(d + 1.0)
-    t = np.arange(len(n)) / SR
-    cut = 500 + 350 * np.sin(2 * np.pi * t / 3.1) + 200 * np.sin(2 * np.pi * t / 1.7)
-    s = lowpass(lowpass(n, cut), cut * 1.5)
-    return normalize(seamless(s, 1.0), 0.7)
+    n = n_of(d)
+    t = np.arange(n) / SR
+    base = filt(rng.uniform(-1, 1, n), lo=150, hi=900, circular=True)
+    high = filt(rng.uniform(-1, 1, n), lo=1200, hi=3500, circular=True)
+    # Yavaş dalgalanma; periyotlar 6 sn'ye tam bölünür
+    mod = 0.7 + 0.3 * np.sin(2 * np.pi * t / 3.0) * np.sin(2 * np.pi * t / 2.0)
+    s = (normalize(base, 1.0) + 0.25 * normalize(high, 1.0)) * mod
+    return normalize(s, 0.7)
 
 
 # --------------------------------------------------------------------------
-# Müzik: iki katman aynı tempo ve akorları kullanır, oyun aralarında geçiş yapar
+# Müzik: minimal elektronik, La minör, 122 BPM
 # --------------------------------------------------------------------------
 
-BPM = 90
+BPM = 122
 BEAT = 60 / BPM
 BAR = 4 * BEAT
-BARS = 16
+BARS = 32
 LENGTH = BARS * BAR
-#           Fmaj7             G6                Em7               Am7
-CHORDS = [[53, 57, 60, 64], [55, 59, 62, 64], [52, 55, 59, 62], [57, 60, 64, 67]]
-ROOTS = [41, 43, 40, 45]
-PENTA = [72, 74, 76, 79, 81, 84, 86, 88]
-RHYTHMS = [
-    [1, 0, 1, 0, 1, 1, 0, 0],
-    [1, 0, 0, 1, 0, 0, 1, 0],
-    [1, 1, 0, 1, 0, 0, 0, 0],
-    [0, 0, 1, 0, 1, 0, 1, 1],
-    [1, 0, 0, 0, 1, 0, 0, 0],
-]
+# Her akor 2 ölçü: Am(add9) - Fadd9 - Cmaj7 - Gadd9
+CHORDS = [[57, 60, 64, 71], [53, 57, 60, 67], [55, 60, 64, 71], [55, 59, 62, 69]]
+ROOTS = [33, 29, 36, 31]
+ARP = [0, 2, 1, 3, 2, 0, 3, 1, 0, 2, 3, 1, 2, 3, 1, 2]
+# Kısa, akılda kalan motif: (16'lık konum, nota)
+MOTIF = [[(0, 76), (6, 74), (8, 72), (14, 71)],
+         [(0, 72), (6, 71), (8, 69), (12, 67)],
+         [(0, 71), (6, 72), (8, 76), (14, 74)],
+         [(0, 74), (6, 71), (8, 69), (12, 71)]]
 
 
-def pad_voice(freq, dur, warm=1.0):
-    t = np.arange(int(dur * SR)) / SR
-    s = (np.sin(2 * np.pi * freq * t) + np.sin(2 * np.pi * freq * 1.003 * t + 1.0)
-         + 0.3 * warm * np.sin(2 * np.pi * freq * 2 * t))
-    a = env(dur, 0.6, 10.0, 1.0, 0.8)
-    return s * a
+def chord_at(bar):
+    return (bar // 2) % 4
 
 
-def soft_kick():
-    d = 0.35
-    return tone(glide(95, 42, d, 0.4), d) * env(d, 0.002, 0.12)
+def kick():
+    d = 0.3
+    body = sine(glide(160, 46, d, 0.35), d) * env(d, 0.001, 0.13)
+    knock = sine(glide(420, 180, d, 0.5), d) * env(d, 0.001, 0.02)
+    return body + 0.25 * knock + 0.3 * np.pad(click(), (0, n_of(d) - n_of(0.004)))
 
 
-def shaker():
-    d = 0.08
-    return highpass(noise(d), 5000) * env(d, 0.004, 0.025)
+def hat(open_=False):
+    d = 0.18 if open_ else 0.05
+    return filt(noise(d), lo=7000) * env(d, 0.0005, 0.06 if open_ else 0.012)
 
 
-def melody(seed, density=1.0):
-    r = np.random.default_rng(seed)
-    notes = []  # (zaman, midi)
-    idx = 3
-    for bar in range(BARS):
-        rhythm = RHYTHMS[r.integers(len(RHYTHMS))]
-        chord = CHORDS[bar % 4]
-        for slot, hit in enumerate(rhythm):
-            if not hit or r.random() > density:
-                continue
-            idx = int(np.clip(idx + r.integers(-2, 3), 0, len(PENTA) - 1))
-            m = PENTA[idx]
-            # Vuruş başında akora uyan notayı tercih et
-            if slot == 0 and (m % 12) not in [c % 12 for c in chord]:
-                m = min(PENTA, key=lambda p: min(abs(p - c - 12 * k) for c in chord for k in (1, 2)))
-            notes.append((bar * BAR + slot * BEAT / 2, m))
-    return notes
+def rim():
+    d = 0.05
+    return (0.6 * sine(1900, d) + filt(noise(d), lo=1500, hi=5000)) * env(d, 0.0005, 0.008)
 
 
-def render_loop(parts, tail=3.0, wet=0.3):
-    """Parçaları birleştir, yankı ekle, kuyruğu başa sararak kesintisiz döngü yap."""
-    n = int(LENGTH * SR)
-    total = n + int(tail * SR)
-    l = np.zeros(total)
-    r = np.zeros(total)
-    for sig, start, pan in parts:
-        gl, gr = np.cos((pan + 1) * np.pi / 4), np.sin((pan + 1) * np.pi / 4)
-        place(l, sig * gl, start)
-        place(r, sig * gr, start)
-    irl, irr = reverb_ir(2.4)
-    wl = l + wet * convolve(l, irl)[:total]
-    wr = r + wet * convolve(r, irr)[:total]
-    out = np.stack([wl, wr], axis=1)
-    loop = out[:n].copy()
-    loop[: total - n] += out[n:]
-    return normalize(loop, 0.75)
+def bass_note(m, dur=0.22):
+    f = midi(m)
+    # Üst harmonikler, basın telefon hoparlöründe de duyulmasını sağlar
+    return (sine(f, dur) + 0.35 * sine(2 * f, dur) + 0.18 * sine(3 * f, dur) + 0.08 * sine(4 * f, dur)) \
+        * env(dur, 0.003, 0.12, 0.0, 0.02)
+
+
+def sidechain(kick_times, depth=0.6, release=0.12):
+    n = n_of(LENGTH)
+    t = np.arange(n) / SR
+    duck = np.ones(n)
+    for kt in kick_times:
+        i = n_of(kt)
+        j = min(n, i + n_of(release * 5))
+        duck[i:j] = np.minimum(duck[i:j], 1 - depth * np.exp(-(t[i:j] - kt) / release))
+    return duck
+
+
+def ping_pong(x, delay=3 * BEAT / 4, fb=0.35, repeats=4):
+    """Stereo yankı: tekrarlar sağ-sol gider."""
+    d = n_of(delay)
+    out = np.zeros((len(x) + d * repeats, 2))
+    out[: len(x), 0] += x
+    out[: len(x), 1] += x
+    for r in range(1, repeats + 1):
+        ch = r % 2
+        out[d * r: d * r + len(x), ch] += x * fb ** r
+    return out
+
+
+def mixdown(stems, tail=3.0, reverb=(0.18, 1.3)):
+    """Stem'leri topla, oda yankısı ekle, kuyruğu başa sararak kesintisiz döngü yap."""
+    n = n_of(LENGTH)
+    total = n + n_of(tail)
+    mix = np.zeros((total, 2))
+    for s in stems:
+        m = min(total, len(s))
+        mix[:m] += s[:m]
+    wet, secs = reverb
+    irs = room_ir(secs, 6000, 3.0, stereo=True)
+    for ch in range(2):
+        mix[:, ch] += wet * convolve(mix[:, ch], irs[ch])[:total]
+    loop = mix[:n].copy()
+    loop[: total - n] += mix[n:]
+    loop = np.tanh(1.3 * loop / np.max(np.abs(loop))) / np.tanh(1.3)  # hafif doygunluk, toparlar
+    return normalize(loop, 0.85)
 
 
 def music_upper():
-    parts = []
+    total = n_of(LENGTH + 3.0)
+    drums = np.zeros((total, 2))
+    bass = np.zeros((total, 2))
+    pad = np.zeros((total, 2))
+    arp = np.zeros(total)
+    keys = np.zeros((total, 2))
+    kick_times = []
+
     for bar in range(BARS):
-        start = bar * BAR
-        chord = CHORDS[bar % 4]
-        for k, m in enumerate(chord):
-            parts.append((0.22 * pad_voice(midi(m), BAR + 0.8), start, -0.3 + 0.2 * k))
-        root = midi(ROOTS[bar % 4])
-        for beat in (0, 2):
-            parts.append((0.5 * pluck(root, BEAT * 2, 0.5), start + beat * BEAT, 0.0))
-        if bar >= 4:
-            for beat in (0, 2):
-                parts.append((0.45 * soft_kick(), start + beat * BEAT, 0.0))
-            for e in range(8):
-                if e % 2 == 1:
-                    parts.append((0.08 * shaker(), start + e * BEAT / 2, 0.4))
-        if 4 <= bar < 8:
-            # Arpej: akor notaları bir oktav yukarıda
-            for e in range(8):
-                m = chord[[0, 1, 2, 3, 2, 1, 2, 3][e]] + 12
-                parts.append((0.2 * pluck(midi(m), 0.4, 0.2), start + e * BEAT / 2, 0.35))
-    for time, m in melody(11):
-        if time >= 8 * BAR:
-            parts.append((0.32 * pluck(midi(m), 0.7, 0.3), time, -0.25))
-            parts.append((0.08 * bell(midi(m + 12), 0.6, 0.3), time, 0.3))
-    return render_loop(parts, wet=0.28)
+        b0 = bar * BAR
+        c = chord_at(bar)
+        breakdown = 24 <= bar < 28
+        # Davul
+        if not breakdown:
+            for beat in range(4):
+                place(drums, kick(), b0 + beat * BEAT, 0.95)
+                kick_times.append(b0 + beat * BEAT)
+                place(drums, hat(), b0 + (beat + 0.5) * BEAT, 0.32, 0.25)
+                for s16 in (0.25, 0.75):
+                    place(drums, hat(), b0 + (beat + s16) * BEAT, 0.09, -0.3)
+            if bar >= 16:
+                for beat in (1, 3):
+                    place(drums, rim(), b0 + beat * BEAT, 0.28, -0.15)
+                place(drums, hat(True), b0 + 3.5 * BEAT, 0.16, 0.3)
+        elif bar == 27:
+            # Dönüş öncesi kısa yükselen hava
+            riser = filt(noise(BAR), lo=2000) * np.linspace(0, 1, n_of(BAR)) ** 2
+            place(drums, riser, b0, 0.15)
+        # Bas: her vuruşun arasında (offbeat) nabız
+        if not breakdown:
+            for beat in range(4):
+                place(bass, bass_note(ROOTS[c]), b0 + (beat + 0.5) * BEAT, 0.55)
+        # Pad: her akor değişiminde
+        if bar % 2 == 0:
+            bright = 3.0 if bar < 8 else (5.0 if bar < 16 else 7.0)
+            for k, m in enumerate(CHORDS[c]):
+                place(pad, saw_pad(midi(m), 2 * BAR + 0.4, bright), b0, 0.07, -0.5 + k / 3)
+        # Arpej: 16'lıklar, akor notaları bir oktav yukarıda
+        if bar >= 8:
+            idx = 1.2 if bar < 16 else 2.2
+            for s in range(16):
+                m = CHORDS[c][ARP[s]] + 12
+                place(arp, fm(midi(m), 0.2, 2.0, idx, 0.03, 0.07), b0 + s * BEAT / 4, 0.22 if s % 4 == 0 else 0.15)
+        # Motif
+        if bar >= 16 and bar % 2 == 0:
+            for pos, m in MOTIF[c]:
+                place(keys, fm(midi(m), 0.6, 1.0, 1.0, 0.15, 0.3) + 0.2 * fm(midi(m), 0.6, 14.0, 0.6, 0.01, 0.05),
+                      b0 + pos * BEAT / 4, 0.32, 0.15)
+
+    duck = sidechain(kick_times)
+    duck = np.concatenate([duck, np.ones(total - len(duck))])[:, None]
+    echoes = ping_pong(arp)[:total]
+    stems = [drums, bass * duck, pad * duck, echoes * duck[: len(echoes)], keys]
+    return mixdown(stems, reverb=(0.14, 1.1))
 
 
 def music_lower():
-    parts = []
+    """Alt katman: aynı akorlar, davulsuz, daha karanlık ve derin."""
+    total = n_of(LENGTH + 4.0)
+    perc = np.zeros((total, 2))
+    low = np.zeros((total, 2))
+    pad = np.zeros((total, 2))
+    arp = np.zeros(total)
+    keys = np.zeros((total, 2))
+
     for bar in range(BARS):
-        start = bar * BAR
-        chord = CHORDS[bar % 4]
-        for k, m in enumerate(chord):
-            parts.append((0.26 * lowpass(pad_voice(midi(m), BAR + 1.2, 0.5), 1800), start, -0.4 + 0.27 * k))
-        parts.append((0.35 * pad_voice(midi(ROOTS[bar % 4] - 12) * 2, BAR + 0.6, 0.2), start, 0.0))
-    for time, m in melody(23, density=0.45):
-        parts.append((0.18 * bell(midi(m), 1.6, 0.9, 0.6), time, 0.4 if m % 2 else -0.4))
-    return render_loop(parts, tail=4.0, wet=0.5)
+        b0 = bar * BAR
+        c = chord_at(bar)
+        # Kalp atışı gibi derin vuruş (yarım tempo) ve saat tıkırtısı
+        place(perc, sine(glide(70, 40, 0.5), 0.5) * env(0.5, 0.004, 0.18), b0, 0.6)
+        for s in range(16):
+            accent = 0.07 if s % 4 == 2 else 0.035
+            place(perc, filt(noise(0.02), lo=5000, hi=10000) * env(0.02, 0.0003, 0.004), b0 + s * BEAT / 4, accent, 0.6 if s % 2 else -0.6)
+        if bar % 2 == 0:
+            for k, m in enumerate(CHORDS[c]):
+                place(pad, saw_pad(midi(m - 12), 2 * BAR + 0.6, 2.2, 10), b0, 0.09, -0.6 + 0.4 * k)
+            f = midi(ROOTS[c] + 12)
+            sub = (sine(f, 2 * BAR) + 0.15 * sine(2 * f, 2 * BAR)) * env(2 * BAR, 0.3, 99, 1.0, 0.4)
+            place(low, sub, b0, 0.45)
+        # Yavaş, koyu arpej (8'likler)
+        for s in range(8):
+            m = CHORDS[c][ARP[s * 2]]
+            place(arp, fm(midi(m), 0.4, 2.0, 0.6, 0.06, 0.16), b0 + s * BEAT / 2, 0.16)
+        if bar % 4 == 0:
+            place(keys, fm(midi(CHORDS[c][3] + 12), 1.2, 3.5, 1.2, 0.08, 0.5), b0 + 2 * BEAT, 0.12, 0.4)
+
+    stems = [perc, low, pad, ping_pong(arp, BEAT * 0.75, 0.4, 5)[:total], keys]
+    return mixdown(stems, tail=4.0, reverb=(0.22, 1.8))
 
 
 def main():
@@ -407,14 +539,13 @@ def main():
     }
     for name, fn in effects.items():
         write_wav(name, normalize(fn(), 0.8))
-        print("yazıldı", name)
     write_ogg("loop_engine.ogg", loop_engine())
+    write_ogg("loop_road.ogg", loop_road())
     write_ogg("loop_wind.ogg", loop_wind())
-    print("yazıldı döngüler")
+    print("efektler ve döngüler yazıldı")
     write_ogg("music_upper.ogg", music_upper())
-    print("yazıldı music_upper.ogg")
     write_ogg("music_lower.ogg", music_lower())
-    print("yazıldı music_lower.ogg")
+    print("müzik yazıldı")
 
 
 if __name__ == "__main__":
