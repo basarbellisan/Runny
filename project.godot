@@ -6,7 +6,7 @@ config_version=5
 
 config/name="Sky Runner"
 config/description="Havada duran yollarda sonsuz koşu (prototip)"
-run/main_scene="res://scenes/main.tscn"
+run/main_scene="res://scenes/menu.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
 
 [autoload]

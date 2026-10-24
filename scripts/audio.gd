@@ -122,6 +122,19 @@ func update(delta: float, car: Car, mood: float, playing: bool) -> void:
 	_wind.pitch_scale = 0.85 + 0.35 * speed01
 
 
+## Garaj ekranı: sadece üst katman müziği
+func update_menu(delta: float) -> void:
+	_music_level = move_toward(_music_level, 1.0, delta * 0.5)
+	_music_upper.volume_db = music_volume_db + linear_to_db(maxf(_music_level, 0.001))
+	_music_lower.volume_db = -60.0
+	_engine_level = move_toward(_engine_level, 0.0, delta * 3.0)
+	_road_level = 0.0
+	_wind_level = move_toward(_wind_level, 0.0, delta * 1.5)
+	_engine.volume_db = engine_volume_db + linear_to_db(maxf(_engine_level, 0.001))
+	_road.volume_db = -60.0
+	_wind.volume_db = wind_volume_db + linear_to_db(maxf(_wind_level, 0.001))
+
+
 ## Tekerlekler yere değdi: devir bir an düşer (yük bindi)
 func touchdown(strength := 1.0) -> void:
 	_engine_pitch -= 0.12 * strength

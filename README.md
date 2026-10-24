@@ -5,6 +5,11 @@ Havada duran, birbirinden bağımsız duvar-yollar üzerinde sonsuz koşu. Godot
 ## Açmak
 Godot 4.7 ile `project.godot` dosyasını aç, F5 ile çalıştır.
 
+## Garaj
+Oyun garaj ekranıyla açılır: araba modelleri platformlarında döner, sağa/sola
+kaydırarak (ya da oklarla) model seçilir, BAŞLA ile oyun başlar. Seçim
+kaydedilir. Oyun sonunda GARAJ butonu garaja döndürür.
+
 ## Kontroller
 - Mobil: ekranın sol yarısına dokun → sola, sağ yarısına → sağa
 - İki parmakla (iki yarıya birden) bas → gaz. Gaz verirken direksiyon çalışmaz.
@@ -32,6 +37,7 @@ varsayılandan farklı değerleri tek satırlık metin olarak verir
 - Portala girersen yukarı fırlatılır, arabaya dönüşüp bir yola konarsın
 
 ## Yapı
+- `scripts/menu.gd` — garaj (başlangıç ekranı)
 - `scripts/car_model.gd` — araba görünümü (3 model: kutu, gezgin, konsept) ve tekerler
 - `scripts/car_trail.gd` — hız izi (3 stil)
 - `tools/showroom.gd` — araba modellerinin vitrin görüntülerini çeker

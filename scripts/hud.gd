@@ -5,6 +5,8 @@ extends CanvasLayer
 
 const BAR_WIDTH := 300.0
 
+signal garage_pressed
+
 var _labels: Array[Label] = []
 var _score: Label
 var _mult: Label
@@ -111,6 +113,29 @@ func _build_game_over() -> void:
 	var again := _make_label(18, Vector2(0, 900), true, _over)
 	again.text = "TEKRAR İÇİN DOKUN"
 	again.modulate.a = 0.55
+	# Garaja dönüş: butona basmak oyunu yeniden başlatmaz (dokunuşu buton alır)
+	var garage := Button.new()
+	garage.text = "GARAJ"
+	garage.focus_mode = Control.FOCUS_NONE
+	garage.add_theme_font_override("font", _spaced)
+	garage.add_theme_font_size_override("font_size", 22)
+	for state in ["normal", "hover", "pressed", "focus"]:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0, 0, 0, 0)
+		sb.set_border_width_all(2)
+		sb.border_color = Palette.ACCENT
+		sb.set_corner_radius_all(6)
+		garage.add_theme_stylebox_override(state, sb)
+	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		garage.add_theme_color_override(state, Palette.ACCENT)
+	garage.anchor_left = 0.5
+	garage.anchor_right = 0.5
+	garage.offset_left = -130
+	garage.offset_right = 130
+	garage.offset_top = 1010
+	garage.offset_bottom = 1090
+	garage.pressed.connect(func(): garage_pressed.emit())
+	_over.add_child(garage)
 	_over.visible = false
 
 

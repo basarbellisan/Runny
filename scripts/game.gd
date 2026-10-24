@@ -76,6 +76,7 @@ func _ready() -> void:
 	car.landed.connect(_on_landed)
 	car.mode_changed.connect(_on_mode_changed)
 	car.died.connect(_on_game_over)
+	hud.garage_pressed.connect(_to_garage)
 	car.jumped.connect(Audio.play.bind("jump", -6.0))
 	car.exploded.connect(_on_exploded)
 	lower.setup(car, roads, seed_value)
@@ -83,9 +84,9 @@ func _ready() -> void:
 	lower.rock_hit.connect(_on_rock_hit)
 	lower.portal_entered.connect(_on_portal)
 	Tuning.register({"game": self, "car": car, "roads": roads, "lower": lower,
-		"camera": $Camera, "audio": Audio, "trail": car.trail, "model": car.model})
-	if _args.has("model"):
-		car.model.variant = int(_args.model)
+		"camera": $Camera, "audio": Audio, "trail": car.trail})
+	# Garajda seçilen araba
+	car.model.variant = int(_args.get("model", _load_save().get_value("car", "model", 1)))
 	if _args.has("trail"):
 		car.trail.style = int(_args.trail)
 	car.speed = car.start_speed
@@ -194,6 +195,10 @@ func _on_landed(air_time: float) -> void:
 		score += PERFECT_BONUS * multiplier
 		hud.popup("PERFECT", true)
 		Audio.play("perfect", -2.0)
+
+
+func _to_garage() -> void:
+	get_tree().change_scene_to_file("res://scenes/menu.tscn")
 
 
 func _on_exploded() -> void:

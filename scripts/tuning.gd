@@ -48,7 +48,6 @@ const PARAMS := [
 	["KAMERA", "camera", "base_fov", "Görüş açısı", 40, 90, 1],
 	["KAMERA", "camera", "fov_per_speed", "Hızla açı artışı", 0, 1, 0.05],
 	["KAMERA", "camera", "look_ahead", "İleri bakış", 5, 40, 1],
-	["GÖRSEL", "model", "variant", "Araba (1 kutu, 2 gezgin, 3 konsept)", 1, 3, 1],
 	["GÖRSEL", "trail", "style", "İz stili (1 ışık, 2 küp, 3 rüzgâr)", 1, 3, 1],
 	["GÖRSEL", "trail", "min_life", "İz boyu: gazsız (sn)", 0, 1, 0.02],
 	["GÖRSEL", "trail", "max_life", "İz boyu: tam gaz (sn)", 0.1, 2, 0.05],
@@ -90,6 +89,9 @@ func register(targets: Dictionary) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# Panel yalnızca oyun sırasında açılır (garajda değil)
+	if not _targets.has("game") or not is_instance_valid(_targets.game):
+		return
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F1:
 		_set_open(not _root.visible)
 		return
