@@ -153,6 +153,15 @@ def fade(x, fin=0.001, fout=0.01):
     return x
 
 
+def seamless(x, cross=0.4):
+    """Sonu başına çapraz geçişle bindirerek kesintisiz döngü yapar."""
+    c = n_of(cross)
+    body = x[:-c].copy()
+    w = np.linspace(0, 1, c)
+    body[:c] = body[:c] * w + x[-c:] * (1 - w)
+    return body
+
+
 def normalize(x, peak=0.8):
     m = np.max(np.abs(x))
     return x * (peak / m) if m > 0 else x
@@ -216,31 +225,48 @@ def loop_road():
 
 
 def sfx_land():
-    """Tekerlekler yere değince: tok "tak", süspansiyon "küt"ü ve kısa lastik
-    cıyaklaması. Enerji 200-3000 Hz'de: telefon hoparlöründe de duyulur."""
-    d = 0.45
-    thock = sine(glide(320, 150, d, 0.5), d) * env(d, 0.001, 0.05)
-    body = 0.5 * sine(glide(120, 60, d, 0.5), d) * env(d, 0.001, 0.08)
-    clunk = (sine(700, d) + 0.6 * sine(1150, d)) * env(d, 0.0005, 0.03)
-    impact = filt(noise(d), hi=2500) * env(d, 0.0003, 0.015)
-    chirp_env = env(d, 0.006, 0.07)
-    chirp = filt(noise(d), lo=1500, hi=3500, order=3) * chirp_env
-    chirp += 0.35 * sine(glide(2200, 1800, d), d) * env(d, 0.006, 0.08)
-    s = thock + body + 0.35 * clunk + 0.6 * impact + 0.5 * chirp
-    return fade(room(s, 0.06, 0.4), 0.0005, 0.04)
+    """Ağır bir arabanın yola konması: tonal değil, gürültü temelli.
+    Tok gövde darbesi + kirli süspansiyon "küt"ü + lastik "çat"ı + tıkırtılar.
+    Hafif doygunluk ağırlık hissi verir ve basın telefonda da duyulmasını sağlar."""
+    d = 0.7
+    n = n_of(d)
+    thud = normalize(filt(noise(d), lo=35, hi=160, order=3), 1.0) * env(d, 0.002, 0.09)
+    body = filt(noise(d), lo=120, hi=650, order=3) * env(d, 0.001, 0.045)
+    # Süspansiyon: iki bant gürültü, çok kısa ve kirli
+    clunk = (filt(noise(d), lo=380, hi=800, order=2) + 0.7 * filt(noise(d), lo=1100, hi=1800, order=2)) \
+        * env(d, 0.001, 0.028)
+    # Lastiğin yola vuruşu: kısa, geniş bantlı "çat"
+    bark = filt(noise(d), lo=900, hi=3800, order=2) * env(d, 0.002, 0.03)
+    rattle = np.zeros(n)
+    for _ in range(6):
+        place(rattle, click(0.004), rng.uniform(0.04, 0.16), rng.uniform(0.15, 0.45))
+    rattle = filt(rattle, lo=800, hi=5000)
+    s = 0.9 * thud + 1.2 * normalize(body, 1.0) + 0.35 * normalize(clunk, 1.0) \
+        + 0.45 * normalize(bark, 1.0) + 0.4 * rattle
+    s = np.tanh(1.8 * s / np.max(np.abs(s))) / np.tanh(1.8)
+    return fade(room(s, 0.05, 0.35), 0.0005, 0.05)
 
 
 def loop_tire():
-    """Direksiyonda lastik sürtünmesi ve cıyaklaması (döngü, 1 sn)."""
-    d = 1.0
-    n = n_of(d)
-    t = np.arange(n) / SR
-    scrub = filt(rng.uniform(-1, 1, n), lo=400, hi=1200, circular=True)
-    scrub *= 0.75 + 0.25 * np.sin(2 * np.pi * 31.0 * t)
-    hiss = filt(rng.uniform(-1, 1, n), lo=1200, hi=3200, circular=True)
-    squeal = np.sin(2 * np.pi * 1900.0 * t + 3.0 * np.sin(2 * np.pi * 6.0 * t))
-    s = 0.6 * normalize(scrub, 1.0) + 0.4 * normalize(hiss, 1.0) + 0.25 * squeal
-    return normalize(s, 0.75)
+    """Direksiyonda lastik sesi: kauçuğun asfaltta tutunup kayması (stick-slip).
+    Düzensiz aralıklı mikro darbeler (sabit ton yok) + pürüzlü asfalt dokusu."""
+    d = 1.5
+    n = n_of(d + 0.4)
+    out = np.zeros(n)
+    pos = 0.0
+    while pos < n - 40:
+        period = SR / 1150.0 * (1.0 + 0.35 * rng.standard_normal())
+        pos += max(period, 8.0)
+        i = int(pos)
+        k = np.arange(24)
+        out[i:i + 24] += rng.uniform(0.3, 1.0) * np.exp(-k / 4.0)[: n - i]
+    squeal = filt(out, lo=700, hi=3200, order=3)
+    # Asfalt dokusu: genliği rastgele dalgalanan bant gürültüsü
+    grain = filt(rng.uniform(-1, 1, n), hi=35.0)
+    grain = 0.5 + 0.5 * grain / np.max(np.abs(grain))
+    grit = filt(rng.uniform(-1, 1, n), lo=250, hi=2200, order=2) * grain
+    s = 0.65 * normalize(grit, 1.0) + 0.4 * normalize(squeal, 1.0)
+    return normalize(seamless(s, 0.4), 0.75)
 
 
 # --------------------------------------------------------------------------
