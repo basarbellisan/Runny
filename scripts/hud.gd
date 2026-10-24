@@ -19,7 +19,7 @@ func _ready() -> void:
 	_popup = _make_label(72, Control.PRESET_CENTER, Vector2(0, -260))
 	_popup.modulate.a = 0.0
 	_hint = _make_label(34, Control.PRESET_CENTER_BOTTOM, Vector2(0, -120))
-	_hint.text = "◀  Sola dokun        Sağa dokun  ▶"
+	_hint.text = "<  Sola dokun        Sağa dokun  >"
 	_over = _make_label(52, Control.PRESET_CENTER, Vector2.ZERO)
 	_over.visible = false
 	_build_energy_bar()
