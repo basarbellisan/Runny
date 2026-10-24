@@ -12,6 +12,10 @@ const MAX_ENERGY := 100.0
 ## Uçarken saniyede harcanan kanat enerjisi
 const ENERGY_DRAIN := 6.0
 const CRYSTAL_ENERGY := 15.0
+## Uçarken gaza basılırsa enerji bu kat hızlı harcanır
+const BOOST_DRAIN_FACTOR := 2.5
+## Oyuncu bu kadar başarılı inişe ulaşana kadar gaz ipucu gösterilir
+const TUTORIAL_LANDINGS := 5
 ## İki katmanı ayıran bulut tabakasının yüksekliği
 const CLOUD_LAYER_Y := -42.0
 ## Ortam renkleri bu yükseklikler arasında üst katmandan alt katmana geçer
@@ -54,6 +58,8 @@ var _mult_timer := 0.0
 var _over_time := 0.0
 var _mood := -1.0
 var _energy_warned := false
+var _landings_total := 0
+var _hint_shown := false
 var _start_z := 0.0
 var _stats := {"falls": 0, "returns": 0, "crystals": 0}
 var _args := {}
@@ -64,17 +70,18 @@ func _ready() -> void:
 	var seed_value := int(_args.get("seed", "-1"))
 	car.roads = roads
 	if _args.has("autopilot"):
-		car.autopilot = Autopilot.new(car, roads, lower, float(_args.get("dive", "0")))
+		car.autopilot = Autopilot.new(car, roads, lower, float(_args.get("dive", "0")), not _args.has("noboost"))
 	car.landed.connect(_on_landed)
 	car.mode_changed.connect(_on_mode_changed)
 	car.died.connect(_on_game_over)
 	car.jumped.connect(Audio.play.bind("jump", -6.0))
-	car.bumped.connect(Audio.play.bind("crash", -8.0, 1.3))
+	car.exploded.connect(_on_exploded)
 	lower.setup(car, roads, seed_value)
 	lower.crystal_collected.connect(_on_crystal)
 	lower.rock_hit.connect(_on_rock_hit)
 	lower.portal_entered.connect(_on_portal)
 	_start_z = car.global_position.z
+	_landings_total = int(_load_save().get_value("tutorial", "landings", 0))
 	roads.start(car, seed_value)
 	_apply_mood(0.0)
 
@@ -96,7 +103,7 @@ func _physics_process(delta: float) -> void:
 				hud.popup("x%d" % multiplier)
 				Audio.play("multiplier")
 		Car.Mode.FLYING:
-			energy -= ENERGY_DRAIN * delta
+			energy -= ENERGY_DRAIN * delta * (BOOST_DRAIN_FACTOR if car.boosting else 1.0)
 			if energy < MAX_ENERGY * 0.3 and not _energy_warned:
 				_energy_warned = true
 				Audio.play("energy_low")
@@ -108,6 +115,8 @@ func _physics_process(delta: float) -> void:
 
 	hud.set_score(int(score), multiplier)
 	hud.set_energy(energy / MAX_ENERGY)
+	hud.set_boost(car.boost_level)
+	_update_hint()
 	clouds.position = Vector3(car.global_position.x, CLOUD_LAYER_Y, car.global_position.z)
 
 
@@ -166,6 +175,7 @@ func _on_landed(air_time: float) -> void:
 		return
 	if air_time < 0.3:
 		return
+	_landings_total += 1
 	Audio.touchdown(clampf(air_time / 0.8, 0.6, 1.3))
 	var seg := roads.segment_under(car.global_position)
 	if seg == null:
@@ -177,6 +187,27 @@ func _on_landed(air_time: float) -> void:
 		Audio.play("perfect", -2.0)
 
 
+func _on_exploded() -> void:
+	Audio.play("explosion")
+	$Camera.shake(1.0)
+
+
+## İlk yolun sonuna yaklaşırken, oyuncu gazı öğrenene kadar ipucu göster
+func _update_hint() -> void:
+	if _hint_shown or _landings_total >= TUTORIAL_LANDINGS or car.mode != Car.Mode.DRIVE:
+		return
+	var seg := roads.segment_under(car.global_position)
+	if seg and (car.global_position.z - seg.z_end) / car.forward_speed < 2.2:
+		_hint_shown = true
+		hud.hint("İKİ PARMAKLA BAS  ·  GAZ", 2.2)
+
+
+func _load_save() -> ConfigFile:
+	var cfg := ConfigFile.new()
+	cfg.load(SAVE_PATH)
+	return cfg
+
+
 func _on_crystal() -> void:
 	energy = minf(energy + CRYSTAL_ENERGY, MAX_ENERGY)
 	score += CRYSTAL_BONUS
@@ -186,7 +217,6 @@ func _on_crystal() -> void:
 
 func _on_rock_hit() -> void:
 	if car.mode == Car.Mode.FLYING:
-		Audio.play("crash")
 		car.crash("KAYAYA ÇARPTIN!")
 
 
@@ -199,15 +229,15 @@ func _on_game_over(reason: String) -> void:
 	game_over = true
 	hud.show_energy(false)
 	var final := int(score)
-	var best := final
-	var cfg := ConfigFile.new()
-	if cfg.load(SAVE_PATH) == OK:
-		best = maxi(best, int(cfg.get_value("score", "best", 0)))
+	var cfg := _load_save()
+	var best := maxi(final, int(cfg.get_value("score", "best", 0)))
 	cfg.set_value("score", "best", best)
+	cfg.set_value("tutorial", "landings", _landings_total)
 	cfg.save(SAVE_PATH)
-	hud.show_game_over(reason, final, best)
-	get_tree().create_timer(0.6).timeout.connect(Audio.play.bind("game_over"))
-	print("GAME_OVER reason=%s %s" % [reason, _stats_text()])
+	# Patlamanın görülmesi için oyun sonu ekranı biraz gecikmeli gelir
+	get_tree().create_timer(1.0).timeout.connect(hud.show_game_over.bind(reason, final, best))
+	get_tree().create_timer(1.0).timeout.connect(Audio.play.bind("game_over"))
+	print("GAME_OVER reason=%s %s frame=%d" % [reason, _stats_text(), Engine.get_process_frames()])
 	if car.autopilot:
 		print("  car pos=%v vel=%v mode_time=%.2f" % [car.global_position, car.velocity, car._mode_time])
 		for r in lower.rocks:
@@ -216,7 +246,7 @@ func _on_game_over(reason: String) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not game_over or _over_time < 0.8:
+	if not game_over or _over_time < 1.6:
 		return
 	var tapped: bool = event is InputEventScreenTouch and event.pressed
 	var key: bool = event is InputEventKey and event.pressed and not event.echo

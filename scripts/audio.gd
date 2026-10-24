@@ -13,7 +13,7 @@ const SFX := {
 	"crystal": preload("res://audio/sfx_crystal.wav"),
 	"portal": preload("res://audio/sfx_portal.wav"),
 	"fall": preload("res://audio/sfx_fall.wav"),
-	"crash": preload("res://audio/sfx_crash.wav"),
+	"explosion": preload("res://audio/sfx_explosion.wav"),
 	"energy_low": preload("res://audio/sfx_energy_low.wav"),
 	"game_over": preload("res://audio/sfx_game_over.wav"),
 }
@@ -83,11 +83,11 @@ func update(delta: float, car: Car, mood: float, playing: bool) -> void:
 	var grounded := car.mode == Car.Mode.DRIVE and car.is_on_floor()
 	# Motor: hızla devir yükselir; havada tekerler boşta döner, devir fırlar
 	var engine_target := 0.0
-	var pitch_target := 0.75 + 0.6 * speed01
+	var pitch_target := 0.75 + 0.6 * speed01 + 0.35 * car.boost_level
 	var wind_target := 0.0
 	match car.mode:
 		Car.Mode.DRIVE:
-			engine_target = 1.0
+			engine_target = 1.0 + 0.4 * car.boost_level
 			if not grounded:
 				pitch_target += 0.22
 			wind_target = 0.2 + 0.3 * speed01
@@ -108,11 +108,13 @@ func update(delta: float, car: Car, mood: float, playing: bool) -> void:
 		wind_target *= 0.3
 	_engine_level = move_toward(_engine_level, engine_target, delta * 3.0)
 	# Devir yükselişi hızlı, düşüşü daha yavaş: gaz verilmiş gibi
-	var rate := 2.5 if pitch_target > _engine_pitch else 1.2
+	var rate := 3.0 if pitch_target > _engine_pitch else 1.2
 	_engine_pitch = move_toward(_engine_pitch, pitch_target, delta * rate)
 	_road_level = move_toward(_road_level, (0.4 + 0.6 * speed01) if grounded and playing else 0.0, delta * 12.0)
 	_wind_level = move_toward(_wind_level, wind_target, delta * 1.5)
 	_engine.volume_db = engine_volume_db + linear_to_db(maxf(_engine_level, 0.001))
+	# Gazda devir yükselir; sınırı aşmasın
+	_engine_pitch = minf(_engine_pitch, 1.9)
 	_engine.pitch_scale = _engine_pitch
 	_road.volume_db = road_volume_db + linear_to_db(maxf(_road_level, 0.001))
 	_road.pitch_scale = 0.8 + 0.5 * speed01

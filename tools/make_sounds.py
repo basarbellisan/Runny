@@ -308,15 +308,21 @@ def sfx_fall():
     return room(fade(s, 0.001, 0.05), 0.1, 0.5)
 
 
-def sfx_crash():
-    """Tok darbe + dijital parazit."""
-    d = 0.5
-    thump = sine(glide(130, 40, d, 0.4), d) * env(d, 0.001, 0.1)
-    raw = noise(d)
-    held = np.repeat(raw[::22], 22)[: n_of(d)]          # örnek-tut: bit kırma etkisi
-    glitch = filt(held, hi=5000) * env(d, 0.001, 0.06)
-    s = thump + 0.5 * glitch + 0.4 * filt(noise(d), hi=1200) * env(d, 0.001, 0.03)
-    return fade(room(s, 0.08, 0.5), 0.0005, 0.05)
+def sfx_explosion():
+    """Kısa, tok patlama: alt frekans darbesi + kapanan gürültü + çıtırtılar."""
+    d = 1.2
+    n = n_of(d)
+    boom = sine(glide(75, 28, d, 0.5), d) * env(d, 0.002, 0.35)
+    knock = sine(glide(260, 90, d, 0.4), d) * env(d, 0.001, 0.05)
+    roar = filt(noise(d), hi=2500) * env(d, 0.003, 0.18)
+    roar = filt(roar, hi=900) * 0.6 + roar * 0.4
+    crackle = np.zeros(n)
+    for _ in range(40):
+        at = rng.uniform(0.02, 0.7)
+        place(crackle, click(0.005), at, rng.uniform(0.2, 0.7) * (1 - at))
+    held = np.repeat(noise(d)[::18], 18)[:n]               # dijital doku
+    s = boom + 0.4 * knock + 0.7 * roar + 0.5 * crackle + 0.15 * filt(held, hi=4000) * env(d, 0.001, 0.08)
+    return fade(room(s, 0.15, 0.9), 0.0005, 0.1)
 
 
 def sfx_energy_low():
@@ -534,7 +540,7 @@ def main():
         "sfx_jump.wav": sfx_jump, "sfx_land.wav": sfx_land, "sfx_perfect.wav": sfx_perfect,
         "sfx_multiplier.wav": sfx_multiplier, "sfx_return.wav": sfx_return,
         "sfx_wings.wav": sfx_wings, "sfx_crystal.wav": sfx_crystal, "sfx_portal.wav": sfx_portal,
-        "sfx_fall.wav": sfx_fall, "sfx_crash.wav": sfx_crash,
+        "sfx_fall.wav": sfx_fall, "sfx_explosion.wav": sfx_explosion,
         "sfx_energy_low.wav": sfx_energy_low, "sfx_game_over.wav": sfx_game_over,
     }
     for name, fn in effects.items():

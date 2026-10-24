@@ -141,7 +141,9 @@ func next_portal(z: float) -> Portal:
 ## Portal yolların hizasından yana kaydırılır ki araba yükselirken yollara girmesin.
 func _plan_portal(z_desired: float) -> Portal:
 	var v := roads.estimate_speed(car.global_position.z - z_desired)
-	var landing := roads.find_landing(z_desired - v * launch_time)
+	# İnişten sonra hizalanıp gaza basmaya yetecek kadar yol kalsın (~1.8 sn)
+	var v_boost := v + car.boost_extra(1.0)
+	var landing := roads.find_landing(z_desired - v * launch_time, 12.0, v_boost * 1.8 + 10.0)
 	if landing.is_empty():
 		return null
 	var seg: RoadGenerator.Segment = landing.seg

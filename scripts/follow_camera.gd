@@ -10,6 +10,7 @@ extends Camera3D
 
 var _target: Car
 var _base_fov := 0.0
+var _trauma := 0.0
 
 
 func _ready() -> void:
@@ -29,8 +30,17 @@ func _process(delta: float) -> void:
 		var k := follow_y + absf(_target.velocity.y) * 0.15
 		p.y = lerpf(p.y, t.y + offset.y, 1.0 - exp(-k * delta))
 		global_position = p
-		var want_fov := _base_fov + (_target.speed - _target.start_speed) * fov_per_speed
+		var want_fov := _base_fov + (_target.forward_speed - _target.start_speed) * fov_per_speed
 		fov = lerpf(fov, want_fov, 1.0 - exp(-2.0 * delta))
 		look_at(Vector3(lerpf(p.x, t.x, 0.6), t.y - 1.0, t.z - look_ahead))
 	else:
 		look_at(t)
+	# Sarsıntı: hızla söner
+	_trauma = maxf(_trauma - delta * 1.8, 0.0)
+	var k := _trauma * _trauma
+	h_offset = randf_range(-1.0, 1.0) * 0.6 * k
+	v_offset = randf_range(-1.0, 1.0) * 0.6 * k
+
+
+func shake(amount: float) -> void:
+	_trauma = clampf(_trauma + amount, 0.0, 1.0)

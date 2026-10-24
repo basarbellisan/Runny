@@ -1,6 +1,7 @@
 class_name Car
 extends CharacterBody3D
-## Kendiliğinden ileri giden araba. Oyuncu sadece sağ/sol yapar.
+## Kendiliğinden ileri giden araba. Oyuncu sağ/sol yapar; iki parmakla
+## (iki yarıya birden) basınca gaz verir. Gaz verirken direksiyon çalışmaz.
 ##
 ## Modlar:
 ##  DRIVE   – üst katmanda yolda (yolun sonunda hızıyla havaya fırlar)
@@ -12,8 +13,8 @@ extends CharacterBody3D
 signal landed(air_time: float)
 ## Yolun sonundan havaya fırladık
 signal jumped
-## Yolun ön yüzüne çarpıp geri sektik
-signal bumped
+## Bir yere çarpıp patladık
+signal exploded
 signal mode_changed(mode: Mode, previous: Mode)
 signal died(reason: String)
 
@@ -34,6 +35,15 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 @export var landing_assist := 6.0
 @export var assist_margin := 1.5
 
+@export_group("Gaz")
+## Tam gazda hız bu oran kadar artar
+@export var boost_bonus := 0.6
+## Gazın ekleyebileceği en fazla hız (m/s)
+@export var boost_max_extra := 20.0
+## Gazın tam güce çıkma ve sönme süreleri (sn)
+@export var boost_rise_time := 0.7
+@export var boost_fall_time := 1.2
+
 @export_group("Uçuş")
 ## Alt katmanın uçuş yüksekliği
 @export var flight_altitude := -55.0
@@ -53,7 +63,15 @@ var mode := Mode.DRIVE
 var alive: bool:
 	get:
 		return mode != Mode.DEAD
+## Temel hız (zamanla artar). Gerçek ileri hız için forward_speed
 var speed := 0.0
+## 0-1: gazın şu anki gücü
+var boost_level := 0.0
+## Oyuncu şu an gaza basıyor mu
+var boosting := false
+var forward_speed: float:
+	get:
+		return speed + boost_extra()
 var half_length := 1.8
 var roads: RoadGenerator
 var autopilot: Autopilot
@@ -62,7 +80,8 @@ var last_floor_y := 0.0
 var _was_on_floor := true
 var _mode_time := 0.0
 var _has_wings := true
-var _tumble := false
+var _steer := 0.0
+var _debris: Array[Dictionary] = []
 var _launch_target := Vector3.ZERO
 var _launch_clear_y := 0.0
 var _default_mask := 1
@@ -101,6 +120,10 @@ func _physics_process(delta: float) -> void:
 		return
 	_mode_time += delta
 	speed = minf(speed + acceleration * delta, max_speed)
+	var input := autopilot.input() if autopilot else _read_input()
+	_steer = input.x
+	boosting = input.y > 0.5
+	_update_boost(delta)
 	match mode:
 		Mode.DRIVE:
 			_drive(delta)
@@ -131,29 +154,40 @@ func lose_wings() -> void:
 	_set_mode(Mode.FALLING)
 
 
+## Gaz tam güçteyken eklenen hız (level verilirse o güçteki)
+func boost_extra(level := boost_level) -> float:
+	return minf(speed * boost_bonus, boost_max_extra) * level
+
+
+## Çarpıp patla: araba parçalara ayrılır, oyun biter
 func crash(reason: String) -> void:
-	_tumble = true
-	velocity = Vector3(velocity.x * 0.2, 4.0, velocity.z * -0.15)
+	if mode == Mode.DEAD:
+		return
+	_spawn_debris()
+	_body.visible = false
+	exploded.emit()
 	_die(reason)
 
 
 func _drive(delta: float) -> void:
 	var on_floor := is_on_floor()
 	var control := 1.0 if on_floor else air_control
-	velocity.x = move_toward(velocity.x, _steer_input() * steer_speed, steer_accel * control * delta)
-	if not on_floor:
+	velocity.x = move_toward(velocity.x, _steer * steer_speed, steer_accel * control * delta)
+	if on_floor:
+		velocity.z = -forward_speed
+	else:
+		# Havada araba kalkıştaki hızıyla uçar
 		velocity.y -= gravity * delta
 		air_time += delta
 		_apply_landing_assist(delta)
-	velocity.z = -speed
 
+	var forward_before := -velocity.z
 	move_and_slide()
 
-	if _hit_wall_front():
-		# Yolun ön yüzüne çarptık: geri sekip düşüyoruz
-		velocity = Vector3(velocity.x * 0.3, 3.0, 8.0)
-		bumped.emit()
-		_set_mode(Mode.FALLING)
+	# Yolun ön yüzüne çakıldık (yeterince gaz verilmedi). İleri hızın aniden
+	# kesilmesi de çarpma sayılır: köşeye değince normal çapraz gelebiliyor.
+	if _hit_wall_front() or -velocity.z < forward_before * 0.5:
+		crash("ÇAKILDIN!")
 		return
 
 	var now_on_floor := is_on_floor()
@@ -173,7 +207,7 @@ func _drive(delta: float) -> void:
 
 func _falling(delta: float) -> void:
 	velocity.y -= gravity * delta
-	velocity.x = move_toward(velocity.x, _steer_input() * steer_speed, steer_accel * air_control * delta)
+	velocity.x = move_toward(velocity.x, _steer * steer_speed, steer_accel * air_control * delta)
 	velocity.z = move_toward(velocity.z, -speed, 25.0 * delta)
 	move_and_slide()
 	if is_on_floor():
@@ -188,9 +222,9 @@ func _flying(delta: float) -> void:
 	var dy := flight_altitude - global_position.y
 	var diving := dy < -3.0
 	velocity.y = move_toward(velocity.y, clampf(dy * 2.0, -dive_speed, 8.0), 40.0 * delta)
-	var forward := speed * (dive_forward_scale if diving else 1.0)
+	var forward := speed * dive_forward_scale if diving else forward_speed
 	velocity.z = move_toward(velocity.z, -forward, 20.0 * delta)
-	velocity.x = move_toward(velocity.x, _steer_input() * steer_speed, flight_steer_accel * delta)
+	velocity.x = move_toward(velocity.x, _steer * steer_speed, flight_steer_accel * delta)
 	move_and_slide()
 	if is_on_floor():
 		_back_on_road()
@@ -240,27 +274,42 @@ func _die(reason: String) -> void:
 
 
 func _dead_motion(delta: float) -> void:
-	velocity.y -= gravity * delta
-	velocity.x = move_toward(velocity.x, 0.0, 5.0 * delta)
-	if _tumble:
-		_body.rotate_x(-4.0 * delta)
-	position += velocity * delta
+	if _debris.is_empty():
+		# Uçuruma düşüş: araba düşmeye devam eder
+		velocity.y -= gravity * delta
+		position += velocity * delta
+		return
+	for d in _debris:
+		var n: Node3D = d.node
+		d.vel.y -= gravity * delta
+		n.global_position += d.vel * delta
+		n.rotate(d.axis, d.spin * delta)
 
 
-func _steer_input() -> float:
-	return autopilot.steer() if autopilot else _read_steer()
+## Yerde ve uçarken basılı tuttukça gaz dolar; yoldan havalanınca olduğu gibi kalır
+func _update_boost(delta: float) -> void:
+	if mode == Mode.DRIVE and not is_on_floor():
+		return
+	if boosting and (mode == Mode.DRIVE or mode == Mode.FLYING):
+		boost_level = minf(boost_level + delta / boost_rise_time, 1.0)
+	else:
+		boost_level = maxf(boost_level - delta / boost_fall_time, 0.0)
 
 
-func _read_steer() -> float:
-	var s := 0.0
-	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
-		s -= 1.0
-	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
-		s += 1.0
+## x: direksiyon (-1..1), y: gaz (0/1). İki yarıya birden basmak = gaz.
+func _read_input() -> Vector2:
+	var left := Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT)
+	var right := Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT)
+	var gas := Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP) or Input.is_key_pressed(KEY_SPACE)
 	var half := get_viewport().get_visible_rect().size.x * 0.5
 	for x in _touches.values():
-		s += -1.0 if x < half else 1.0
-	return clampf(s, -1.0, 1.0)
+		if x < half:
+			left = true
+		else:
+			right = true
+	if gas or (left and right):
+		return Vector2(0.0, 1.0)
+	return Vector2(float(right) - float(left), 0.0)
 
 
 func _hit_wall_front() -> bool:
@@ -279,7 +328,7 @@ func _apply_landing_assist(delta: float) -> void:
 		if s.z_end >= pos.z or s.top >= pos.y - 0.05:
 			continue
 		var t := _time_to_fall_to(s.top)
-		var land := pos + Vector3(velocity.x * t, 0, -speed * t)
+		var land := pos + Vector3(velocity.x * t, 0, velocity.z * t)
 		if land.z > s.z_start or land.z < s.z_end:
 			continue
 		var outside := absf(land.x - s.x) - s.width * 0.5
@@ -334,3 +383,50 @@ func _set_wings(open: bool, instant := false) -> void:
 		_wing_tween.chain().tween_callback(func():
 			for n: Node3D in targets:
 				n.visible = false)
+
+
+## Patlama: araba renklerinde küçük parçalar ve turuncu bir parlama
+func _spawn_debris() -> void:
+	var mats: Array[Material] = []
+	for path in ["Body/Chassis", "Body/Cabin", "Body/WheelFL"]:
+		mats.append((get_node(path) as MeshInstance3D).mesh.surface_get_material(0))
+	var origin := global_position + Vector3(0, 0.6, 0)
+	for i in 16:
+		var piece := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(randf_range(0.2, 0.7), randf_range(0.15, 0.5), randf_range(0.2, 0.8))
+		piece.mesh = box
+		piece.material_override = mats[i % mats.size()]
+		piece.top_level = true
+		add_child(piece)
+		piece.global_position = origin + Vector3(randf_range(-0.8, 0.8), randf_range(-0.3, 0.4), randf_range(-1.5, 1.5))
+		_debris.append({
+			"node": piece,
+			"vel": Vector3(randf_range(-7, 7), randf_range(3, 11), randf_range(-2, 9)),
+			"axis": (Vector3(randf(), randf(), randf()) + Vector3(0.1, 0, 0)).normalized(),
+			"spin": randf_range(4, 12),
+		})
+	var flash_mat := StandardMaterial3D.new()
+	flash_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	flash_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	flash_mat.albedo_color = Color(Palette.ACCENT, 0.9)
+	var flash := MeshInstance3D.new()
+	var ball := SphereMesh.new()
+	ball.radial_segments = 8
+	ball.rings = 4
+	flash.mesh = ball
+	flash.material_override = flash_mat
+	flash.top_level = true
+	add_child(flash)
+	flash.global_position = origin
+	var light := OmniLight3D.new()
+	light.light_color = Palette.ACCENT
+	light.light_energy = 6.0
+	light.omni_range = 14.0
+	light.top_level = true
+	add_child(light)
+	light.global_position = origin + Vector3(0, 1, 0)
+	var tw := create_tween().set_parallel()
+	tw.tween_property(flash, "scale", Vector3.ONE * 7.0, 0.35).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	tw.tween_property(flash_mat, "albedo_color:a", 0.0, 0.35)
+	tw.tween_property(light, "light_energy", 0.0, 0.5)

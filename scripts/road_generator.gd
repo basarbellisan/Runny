@@ -125,18 +125,19 @@ func path_x_at(z: float) -> float:
 ## sonundan en az margin_end içeride kalan bir iniş noktası döndürür:
 ## { "seg": Segment, "z": float }
 func find_landing(z: float, margin_start := 12.0, margin_end := 25.0) -> Dictionary:
-	generate_until(z - 250.0)
-	for s in segments:
-		if not s.main:
-			continue
-		var near := s.z_start - margin_start
-		var far := s.z_end + margin_end
-		if near <= far:
-			continue
-		if z <= near and z >= far:
-			return {"seg": s, "z": z}
-		if z > near:
-			return {"seg": s, "z": near}
+	# Uygun yol bulunana kadar ileriye doğru yol üretmeye devam et
+	var horizon := z - 250.0
+	while horizon > z - 2000.0:
+		generate_until(horizon)
+		for s in segments:
+			if not s.main:
+				continue
+			var near := s.z_start - margin_start
+			var far := s.z_end + margin_end
+			if near <= far or far > z:
+				continue
+			return {"seg": s, "z": minf(z, near)}
+		horizon -= 250.0
 	return {}
 
 
@@ -182,20 +183,19 @@ func _next_from(prev: Segment) -> Segment:
 		dh = _rng.randf_range(-3.0, max_up)
 
 	# Araba, arka ucu yoldan çıkınca havalanır; o anda ön ucu kenardan
-	# bir araba boyu ileridedir. Boşluk, ön uç yeni yolun hizasına
-	# vardığında araba yeterince yüksekte olacak ve iniş yolun üstüne
-	# denk gelecek şekilde seçilir.
+	# bir araba boyu ileridedir. Boşluk, gazsız ulaşılamayacak (ön yüze
+	# çakılır) ama tam gazla iniş yolun üstüne denk gelecek şekilde seçilir.
 	var car_len := car.half_length * 2.0
-	var t_rise := _rise_time(dh)
+	var v_boost := v + minf(v * car.boost_bonus, car.boost_max_extra)
 	var t := _flight_time(dh)
-	var min_gap := car_len + 2.0 + (v * t_rise if dh > 0.0 else 0.0)
-	var max_gap := car_len + v * t - 4.0
+	var min_gap := _min_gap(dh, v, v_boost, car_len)
+	var max_gap := car_len + v_boost * t - 2.5
 	if max_gap < min_gap:
 		dh = minf(dh, 0.0)
 		t = _flight_time(dh)
-		min_gap = car_len + 2.0
-		max_gap = car_len + v * t - 4.0
-	var gap := lerpf(min_gap, maxf(max_gap, min_gap), _rng.randf_range(0.1, 0.8))
+		min_gap = _min_gap(dh, v, v_boost, car_len)
+		max_gap = car_len + v_boost * t - 2.5
+	var gap := lerpf(min_gap, maxf(max_gap, min_gap), _rng.randf_range(0.1, 0.85))
 
 	var width := _rng.randf_range(
 		lerpf(min_width.y, min_width.x, difficulty),
@@ -213,6 +213,15 @@ func _next_from(prev: Segment) -> Segment:
 		_add_side_road(seg)
 	_add_decor(seg)
 	return seg
+
+
+## Gazsız ulaşılamayan en kısa boşluk. Yukarı basamakta tam gazla bile
+## ön uç, araba yeterince yükselmeden yolun hizasına varmamalı.
+func _min_gap(dh: float, v: float, v_boost: float, car_len: float) -> float:
+	var gap := car_len + v * _flight_time(dh) + 1.5
+	if dh > 0.0:
+		gap = maxf(gap, car_len + v_boost * _rise_time(dh) + 1.0)
+	return gap
 
 
 ## Kenardan kalkıştan, dh yüksekliğine inene kadar geçen süre

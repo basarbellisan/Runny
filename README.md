@@ -7,12 +7,17 @@ Godot 4.7 ile `project.godot` dosyasını aç, F5 ile çalıştır.
 
 ## Kontroller
 - Mobil: ekranın sol yarısına dokun → sola, sağ yarısına → sağa
-- PC: A / D veya ← / → (fare tıklaması da dokunma gibi çalışır)
+- İki parmakla (iki yarıya birden) bas → gaz. Gaz verirken direksiyon çalışmaz.
+- PC: A / D veya ← / → ile yön, W / ↑ / Boşluk ile gaz
+
+Her yolun sonunda gaz şart: gazsız kalkan araba bir sonraki yolun ön
+yüzüne çakılıp patlar. Yanlış hizalanıp yolun yanından düşersen kanatlar
+açılır ve alt katmana geçersin.
 
 ## Oyun döngüsü
 - Üst katman: yollarda git, üstte kaldıkça çarpan artar (x5'e kadar)
 - Yoldan düşersen kanatlar açılır, alt katmanda uçarsın; çarpan x1'e döner
-- Alt katmanda kanat enerjisi azalır; kristaller enerji verir, kayalar öldürür
+- Alt katmanda kanat enerjisi azalır (gazla daha hızlı); kristaller enerji verir, kayalar öldürür
 - Portala girersen yukarı fırlatılır, arabaya dönüşüp bir yola konarsın
 
 ## Yapı
@@ -35,5 +40,6 @@ godot --headless --path . --export-release "Web" build/web/index.html
 ```
 godot --path . -- --autopilot --seed=42              # otomatik pilot
 godot --path . -- --autopilot --dive=10 --seed=42    # 10 sn'de bir bilerek düşer, portal arar
+godot --path . -- --autopilot --noboost --seed=42    # hiç gaz vermez: ilk boşlukta çakılmalı
 godot --path . -- --shots=120,600 --shot_dir=/tmp    # ekran görüntüsü
 ```
