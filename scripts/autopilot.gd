@@ -13,6 +13,11 @@ var dive_interval := 0.0
 var use_boost := true
 ## Test: çıkmaz yollara bilerek gir (çakılmadan uçuşa düşülmeli)
 var seek_dead_ends := false
+## Test: yan yolları kullan (alçak yola düş, eğik rampaya gir, dönüş rampasıyla dön)
+var seek_side := false
+## Yan yoldan ana yola dönüş sayısı
+var side_trips := 0
+var _on_side := false
 var _drive_time := 0.0
 var _diving := false
 var _dive_dir := 1.0
@@ -51,10 +56,23 @@ func _drive_input() -> Vector2:
 
 	if seek_dead_ends and current != null and current.dead_end:
 		return Vector2.ZERO  # çıkmazda dümdüz git, sonunda düş
+	if seek_side and car.mode == Car.Mode.DRIVE and current != null:
+		var side_input := _side_input(current, pos)
+		if not is_nan(side_input):
+			return Vector2(side_input, 0.0)
 	var target: RoadGenerator.Segment = null
 	if seek_dead_ends:
 		for s in roads.segments:
 			if s.dead_end and s.z_start < pos.z and s.z_start > pos.z - 120.0:
+				target = s
+				break
+	var kicked: RoadGenerator.Segment = car._last_segment
+	if current == null and kicked != null and kicked.ramp and kicked.kick != 0.0:
+		# Eğik rampadan atıldık: rampanın attığı yöndeki yola in (geri dönmeye çalışma)
+		var reach := pos.z - maxf(car.forward_speed, 1.0) * 1.2
+		for s in roads.segments:
+			if not s.ramp and signf(s.x - kicked.x) == signf(kicked.kick) \
+					and absf(s.x - kicked.x) > 1.0 and s.z_start > reach and s.z_end < pos.z:
 				target = s
 				break
 	if target == null and current == null:
@@ -91,10 +109,39 @@ func _drive_input() -> Vector2:
 	var steer := _toward(aim - pos.x, 0.25)
 	if not car.is_on_floor() and car.velocity.y < 0.0:
 		# İnerken: önce gövdeyi düzle (direksiyon yatırır), sonra az az hizalan
-		if absf(car.roll) > 0.15:
+		# (Eğik rampadan kalkınca gövde biraz yatık olur; o kadarı temiz inişe engel değil)
+		if absf(car.roll) > 0.22:
 			return Vector2(clampf(car.roll * 3.0, -1.0, 1.0), 0.0)
 		steer = clampf(steer, -0.3, 0.3)
 	return Vector2(steer, 0.0)
+
+
+## Yan yol testi: yan yoldaysak ortada kal (sonundaki rampa ana yola atar); ana yolda
+## önümüzde yana atan rampa varsa ona gir; yanımızda alçak yol varsa kenardan ona düş.
+## Karışmayacaksa NAN.
+func _side_input(current: RoadGenerator.Segment, pos: Vector3) -> float:
+	if current.ramp:
+		return 0.0
+	if not current.main:
+		if current.side_road:
+			_on_side = true
+			return _toward(current.x - pos.x, 0.3)
+		return NAN
+	if _on_side:
+		side_trips += 1
+		_on_side = false
+	var forward := maxf(car.forward_speed, 1.0)
+	for s in roads.segments:
+		if s.ramp and s.kick != 0.0 and s.z_start < pos.z - 2.0 and s.z_start > pos.z - forward * 2.0 \
+				and s.z_start <= current.z_start and s.z_end >= current.z_end \
+				and absf(s.x - current.x) < current.width * 0.5:
+			return _toward(s.x - pos.x, 0.2)
+	for s in roads.segments:
+		if s.side_road and s.top < current.top - 1.0 \
+				and s.z_start > pos.z - 5.0 and s.z_end < pos.z - forward * 1.5 \
+				and absf(s.x - current.x) < (s.width + current.width) * 0.5 + 2.0:
+			return signf(s.x - pos.x)
+	return NAN
 
 
 ## Önümüzdeki engel/çakıl varsa geçilecek x (yoksa NAN): engelin yanındaki boş

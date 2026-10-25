@@ -88,6 +88,19 @@ Yollar kalıplar hâlinde üretilir, mesafe arttıkça yenileri açılır:
   ve çatallar: geniş bir yoldan iki kol ayrılır. Alçak kol geniş ve kolay; yüksek
   kol rampayla çıkılır, dar ve zor boşlukludur, turuncu çizgilidir. Yüksek kolda
   puan iki kat, bitirince +250 × çarpan. İki kol ileride geniş bir yolda birleşir.
+- 500 m+: yol ağı. Düz yolların bir kısmı uzar ve üstüne yollar eklenir; az
+  başlar, ~4 km'de düz yolların çoğu ağ olur. Ödül yoktur, sadece yol seçimi:
+  - yol üstü rampalar: tam ya da yarım genişlik, kısa ve açık turuncu, oklu
+  - alçak yan yol (3.5–4.5 m aşağıda): ana yolun kenarından düşülür; sonundaki
+    eğik rampa seni ana yola geri atar
+  - yüksek yan yol (2–3 m yukarıda): ana yolun bir yanındaki eğik rampayla
+    çıkılır; sonundaki küçük rampa ana yola indirir
+  - iki yan birden (alçak + yüksek)
+
+  Eğik rampalar (7°) yukarıyla birlikte yana da atar; oklar attığı yönü
+  gösterir. Atış hedef yola yetecek kadardır, havada sağ-sol ile hizalanılır.
+  Rampada roket yanmaz (rampa kendi atar). Kalkışta gövdenin burgu dönüşü
+  söndürülür, araba havada takla atmaz.
 
 Rampanın açısı kalkıştaki dikey hıza eklenir. Her boşluk yine gazsız
 ulaşılamaz, tam gazla ulaşılır. Eğimli yollar inişten sonra hizalanıp gaz
@@ -125,5 +138,6 @@ godot --path . -- --autopilot --seed=42              # otomatik pilot
 godot --path . -- --autopilot --dive=10 --seed=42    # 10 sn'de bir bilerek düşer, portal arar
 godot --path . -- --autopilot --noboost --seed=42    # hiç gaz vermez: ilk boşlukta çakılmalı
 godot --path . -- --autopilot --deadend --seed=42    # çıkmazlara bilerek girer: çakılmadan uçuşa düşmeli
+godot --path . -- --autopilot --side --seed=42       # yan yollara girer (alçağa düşer, eğik rampaya girer), SIDE_TRIPS yazar
 godot --path . -- --shots=120,600 --shot_dir=/tmp    # ekran görüntüsü
 ```

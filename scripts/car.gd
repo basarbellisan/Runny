@@ -377,6 +377,11 @@ func _drive(delta: float) -> void:
 		# Yandan kayınca zıplama yok, düşülür.
 		var slope := _last_segment.slope() if _last_segment else 0.0
 		velocity.y = launch_velocity + forward_speed * slope
+		# Yol üstü eğik rampa yana da atar
+		if _last_segment and _last_segment.ramp:
+			velocity.x += _last_segment.kick
+			# Rampanın burgusu gövdeyi döndürmüş olur; havada takla attırmasın
+			roll_rate *= 0.15
 		jumped.emit()
 	if not _was_on_floor and now_on_floor:
 		if not _touchdown(vy_before):
@@ -527,7 +532,9 @@ func _update_boost(delta: float) -> void:
 	if mode == Mode.DRIVE and not is_on_floor():
 		return
 	var was_burning := burning
-	burning = boosting and mode == Mode.DRIVE and fuel > 0.0
+	# Yol üstü rampalar gaz istemez: üstlerinde roket ateşlenmez
+	var on_ramp := _last_segment != null and _last_segment.ramp
+	burning = boosting and mode == Mode.DRIVE and fuel > 0.0 and not on_ramp
 	if mode == Mode.DRIVE:
 		if burning:
 			fuel = maxf(fuel - delta / boost_burn_time, 0.0)

@@ -81,6 +81,7 @@ func _ready() -> void:
 	if _args.has("autopilot"):
 		car.autopilot = Autopilot.new(car, roads, lower, float(_args.get("dive", "0")), not _args.has("noboost"))
 		car.autopilot.seek_dead_ends = _args.has("deadend")
+		car.autopilot.seek_side = _args.has("side")
 	car.landed.connect(_on_landed)
 	car.mode_changed.connect(_on_mode_changed)
 	car.died.connect(_on_game_over)
@@ -375,3 +376,4 @@ func _exit_tree() -> void:
 		print("ALIVE %s" % _stats_text())
 	if car.autopilot:
 		print("PATTERNS %s %s" % [roads.pattern_counts, roads.stats])
+		print("SIDE_TRIPS %d" % car.autopilot.side_trips)
