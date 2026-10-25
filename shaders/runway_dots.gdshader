@@ -1,24 +1,33 @@
 shader_type spatial;
 render_mode unshaded, shadows_disabled;
-// Pist ışığı noktası (MultiMesh). INSTANCE_CUSTOM.g: yoldaki yeri (0 baş, 1 yolun ucu),
-// .b: uçtaki enine sıra. Bir darbe ışık dizisi boyunca hızla yolun ucuna koşar, döngü.
+// Pist ışığı noktası (MultiMesh). INSTANCE_CUSTOM.g: yoldaki yeri (0 bölgenin başı,
+// 1 yolun ucu). Parlak bir bant (ışıkların ~%20'si) dizi boyunca yolun ucuna akar,
+// döngüyle tekrarlar. Sönükken küçük ve koyu kırmızı, yanarken iki kat büyük ve parlak
+// kırmızı-turuncu (beyaz değil: yanındaki beyaz yol çizgisine karışmasın).
 
-uniform vec4 color : source_color = vec4(1.0, 0.14, 0.08, 1.0);
-uniform float rate = 2.6;
+uniform vec4 color : source_color = vec4(1.0, 0.12, 0.06, 1.0);
+uniform float rate = 1.4;
+uniform float band = 0.3;
+// Oyunun kendi saati (RoadGenerator her karede yazar)
+uniform float t = 0.0;
 
 varying float along;
 
+float lit(float a) {
+	float head = fract(t * rate) * (1.0 + 2.0 * band) - band;
+	return 1.0 - smoothstep(0.0, band, abs(a - head));
+}
+
 void vertex() {
 	along = INSTANCE_CUSTOM.g;
+	VERTEX *= 1.0 + lit(along);
 }
 
-float chase(float a) {
-	float head = fract(TIME * rate) * 1.3;
-	float d = head - a;
-	return d >= 0.0 ? exp(-d * 10.0) : 0.0;
-}
+
 
 void fragment() {
-	float p = chase(along);
-	ALBEDO = mix(color.rgb * 0.85, vec3(1.0, 0.92, 0.88), p * 0.85);
+	float p = lit(along);
+	vec3 off = color.rgb * 0.45;
+	vec3 on = vec3(1.0, 0.32, 0.12);
+	ALBEDO = mix(off, on, p);
 }

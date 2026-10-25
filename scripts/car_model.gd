@@ -173,7 +173,7 @@ func _build_roadster() -> void:
 	for sx in [-1.0, 1.0]:
 		_panel([Vector3(sx * 0.1, 0.58, -2.47), Vector3(sx * 0.36, 0.58, -2.47), Vector3(sx * 0.34, 0.7, -2.47),
 			Vector3(sx * 0.12, 0.7, -2.47)], Vector3.FORWARD, _light)
-	_wheels(1.04, 1.32, 0.57, 0.52, true, 10, 0.6)
+	_wheels(1.0, 1.32, 0.456, 0.42, true, 10, 0.6)
 
 
 ## Düz panel (pencere, lamba): verilen yöne bakan dışbükey çokgen

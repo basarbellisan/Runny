@@ -130,6 +130,8 @@ var _kerb_red := StandardMaterial3D.new()
 var _kerb_white := StandardMaterial3D.new()
 var _runway_mat := ShaderMaterial.new()
 var _runway_halo_mat := ShaderMaterial.new()
+## Pist ışıklarının akış saati: oyunun kare saatiyle ilerler
+var _light_time := 0.0
 var _block_mat := StandardMaterial3D.new()
 var _block_top_mat := StandardMaterial3D.new()
 var _gravel_mat := StandardMaterial3D.new()
@@ -192,6 +194,12 @@ func update(car_pos: Vector3) -> void:
 		if _decor[i].position.z > limit + 60.0:
 			_decor[i].queue_free()
 			_decor.remove_at(i)
+
+
+func _process(delta: float) -> void:
+	_light_time += delta
+	_runway_mat.set_shader_parameter("t", _light_time)
+	_runway_halo_mat.set_shader_parameter("t", _light_time)
 
 
 ## Arabanın altındaki (üstüne konduğu) yol
@@ -763,7 +771,7 @@ func _add_segment(x: float, top: float, top_end: float, width: float, z_start: f
 
 ## Pist ışıkları: yolun son ~1.1 saniyesinde iki kenarda kırmızı yuvarlak ışıklar.
 ## Bölgenin başında seyrek (~5 m), yolun ucuna doğru düzgünce sıklaşır (~1 m).
-## Bir darbe dizi boyunca hızla yolun ucuna koşar ve döngüyle tekrarlar: "şimdi gaz".
+## Parlak bir bant dizi boyunca ~0.6 sn'de yolun ucuna akar ve döngüyle tekrarlar: "şimdi gaz".
 func _add_runway_lights(body: Node3D, s: Segment, slope_len: float) -> void:
 	var v := estimate_speed(car.global_position.z - s.z_end)
 	var zone := clampf(v * lights_time, 18.0, minf(70.0, slope_len * 0.6))
@@ -780,23 +788,25 @@ func _add_runway_lights(body: Node3D, s: Segment, slope_len: float) -> void:
 		mm.use_custom_data = true
 		mm.instance_count = dists.size() * 2
 	var ball := SphereMesh.new()
-	ball.radius = 0.24
-	ball.height = 0.48
+	ball.radius = 0.16
+	ball.height = 0.32
 	ball.radial_segments = 10
 	ball.rings = 5
 	dots.mesh = ball
 	var quad := QuadMesh.new()
-	quad.size = Vector2(2.2, 2.2)
+	quad.size = Vector2(1.9, 1.9)
 	halos.mesh = quad
 	var half := slope_len * 0.5
 	var cos_a := cos(body.rotation.x)
 	var i := 0
-	for dist in dists:
+	for j in dists.size():
+		var dist: float = dists[j]
 		var lz := -half + dist
-		# 0: ışıklı bölgenin başı, 1: yolun ucu (darbe bu yöne koşar)
-		var along := 1.0 - dist / zone
+		# Işığın dizideki sırası: 0 bölgenin başı, 1 yolun ucu. Mesafeye değil sıraya
+		# göre: akan bant her an aynı sayıda ışığı yakar (uçta sıkışıp kalmaz)
+		var along := 1.0 - float(j) / maxf(dists.size() - 1, 1)
 		for sx in [-1.0, 1.0]:
-			var pos := Vector3(sx * (s.width * 0.5 - 0.25), 0.26, lz)
+			var pos := Vector3(sx * (s.width * 0.5 - 0.22), 0.18, lz)
 			for mm in [dots, halos]:
 				mm.set_instance_transform(i, Transform3D(Basis(), pos))
 				mm.set_instance_custom_data(i, Color(body.position.z + lz * cos_a, along, 0, 0))

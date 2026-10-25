@@ -38,8 +38,8 @@ basmazken ~1.6 sn'de dolar (kadranı çevreleyen turuncu halka: tepeden
 saat yönünde dolar, gaza basınca azalır). Gaz havada sönmez ama yolda bırakınca 0.35 sn'de
 söner; bu yüzden erken basan yolun sonuna yakıtsız ve yavaş varır. Doğru an
 yolun son ~1.1 saniyesi: iki kenarda yuvarlak kırmızı pist ışıkları (başta
-seyrek, yolun ucuna doğru sıklaşır; bir darbe ~0.4 sn'de uca koşar, döngüyle
-tekrarlar). Gazlarken direksiyon çalışmaz, o yüzden
+seyrek, yolun ucuna doğru sıklaşır). Işıkların ~%30'unu kaplayan parlak bir bant
+~0.7 sn'de yolun ucuna akar ve döngüyle tekrarlar; yanan ışık iki kat büyür. Gazlarken direksiyon çalışmaz, o yüzden
 ışıklardan önce hizalan.
 
 Her yolun sonunda gaz şart: gazsız kalkan araba bir sonraki yolun ön
@@ -99,7 +99,7 @@ turuncuya çalan duvarlar; yokuş aşağılar biraz daha koyu.
 
 ## Yapı
 - `scripts/menu.gd` — garaj (başlangıç ekranı)
-- `scripts/car_model.gd` — araba görünümü (3 model: kutu, gezgin, konsept) ve tekerler
+- `scripts/car_model.gd` — araba görünümü (4 model: kutu, gezgin, konsept, roadster) ve tekerler
 - `scripts/car_trail.gd` — hız izi (3 stil)
 - `scripts/car_fx.gd` — toz, kıvılcım, roket alevi ve çakıl tozu parçacıkları
 - `shaders/runway_dots.gdshader`, `shaders/runway_halo.gdshader` — pist ışıkları ve parlamaları

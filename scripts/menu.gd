@@ -9,6 +9,7 @@ const MODELS := [
 	["KUTU", "Köşeli ve dengeli"],
 	["GEZGİN", "İri tekerler, geniş iz"],
 	["KONSEPT", "Alçak ve uzun"],
+	["ROADSTER", "Sivri burun, yuvarlak sırt"],
 ]
 ## Platformlar arası mesafe (m)
 const SPACING := 7.0
