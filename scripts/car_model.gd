@@ -118,23 +118,23 @@ func _build_roadster() -> void:
 	# Gövde + burun tek parça: üst çizgi sivri burundan kabine düz bir rampa gibi yükselir,
 	# alt çizgi düz ve yerden yüksek. Yanlar dik, üst kenarlar pahlı.
 	_hull([
-		[-2.4, 0.48, 0.36, 0.38, 0.6],
-		[-1.35, 0.6, 0.46, 0.4, 0.78],
+		[-2.46, 0.54, 0.44, 0.52, 0.82],
+		[-2.3, 0.56, 0.46, 0.38, 0.82],
+		[-1.35, 0.62, 0.5, 0.4, 0.9],
 		[-0.1, 0.74, 0.6, 0.42, 1.0],
 		[1.6, 0.76, 0.62, 0.42, 1.0],
 		[2.02, 0.74, 0.6, 0.44, 0.82],
 	], paint_material, 0.28)
 	# Kabin: ön yüzü (pencere) geriye yatık, tavanı düz, arkası büyük bir kavisle arka uca iner
-	var cabin := [
-		[-0.1, 0.72, 0.6, 0.98, 1.02],
-		[0.04, 0.72, 0.6, 0.98, 1.56],
-		[0.7, 0.72, 0.6, 0.98, 1.6],
-		[1.15, 0.72, 0.58, 0.98, 1.57],
-		[1.5, 0.72, 0.54, 0.98, 1.44],
-		[1.75, 0.72, 0.5, 0.98, 1.22],
-		[1.93, 0.72, 0.47, 0.98, 1.0],
-		[2.02, 0.72, 0.46, 0.84, 0.86],
-	]
+	# Tavan pencerenin üstünden arkaya düz gider, arka tekerin üstünde geniş ve
+	# yumuşak bir yayla aşağı döner (elips çeyreği, sık kesitlerle)
+	var cabin := [[-0.1, 0.72, 0.6, 0.98, 1.02], [0.04, 0.72, 0.6, 0.98, 1.56], [0.75, 0.72, 0.6, 0.98, 1.6]]
+	for k in range(1, 11):
+		var t := k / 10.0 * PI * 0.5
+		var z := 0.75 + 1.22 * sin(t)
+		var y := 0.98 + 0.62 * cos(t)
+		cabin.append([z, 0.72, lerpf(0.6, 0.46, k / 10.0), 0.98, maxf(y, 1.0)])
+	cabin.append([2.02, 0.72, 0.46, 0.84, 0.86])
 	_hull(cabin, paint_material, 0.34)
 	# Siperlik: pencerenin üstünde öne taşan ince tavan
 	_hull([[-0.38, 0.71, 0.69, 1.55, 1.62], [0.72, 0.71, 0.69, 1.58, 1.65]], paint_material, 0.0)
@@ -149,7 +149,7 @@ func _build_roadster() -> void:
 				var t := inverse_lerp(float(cabin[i - 1][0]), float(cabin[i][0]), z)
 				return lerpf(float(cabin[i - 1][4]), float(cabin[i][4]), t) + 0.015
 		return float(cabin[cabin.size() - 1][4])
-	var rows := [[1.25, 0.42], [1.5, 0.39], [1.72, 0.34]]
+	var rows := [[1.2, 0.43], [1.4, 0.41], [1.58, 0.38], [1.72, 0.34]]
 	for i in rows.size() - 1:
 		var z0: float = rows[i][0]
 		var z1: float = rows[i + 1][0]
@@ -165,8 +165,8 @@ func _build_roadster() -> void:
 	_box(Vector3(1.8, 0.05, 0.3), Vector3(0, 0.45, 2.1), dark_material)
 	# Ön farlar: sivri burnun ön yüzünde iki küçük beyaz dörtgen
 	for sx in [-1.0, 1.0]:
-		_panel([Vector3(sx * 0.08, 0.44, -2.41), Vector3(sx * 0.3, 0.44, -2.41), Vector3(sx * 0.28, 0.53, -2.41),
-			Vector3(sx * 0.1, 0.53, -2.41)], Vector3.FORWARD, _light)
+		_panel([Vector3(sx * 0.1, 0.58, -2.47), Vector3(sx * 0.36, 0.58, -2.47), Vector3(sx * 0.34, 0.7, -2.47),
+			Vector3(sx * 0.12, 0.7, -2.47)], Vector3.FORWARD, _light)
 	_wheels(1.04, 1.32, 0.57, 0.52, true, 10, 0.6)
 
 
