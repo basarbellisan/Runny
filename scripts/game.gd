@@ -138,7 +138,7 @@ func _physics_process(delta: float) -> void:
 	hud.set_energy(energy / MAX_ENERGY)
 	var driving := car.mode == Car.Mode.DRIVE
 	hud.set_speed(car.forward_speed * car.surface_drag if driving else -car.velocity.z, car.speed, car.boost_level, driving)
-	hud.set_fuel(car.fuel, car.burning)
+	hud.set_fuel(car.fuel)
 	_update_hint()
 	clouds.position = Vector3(car.global_position.x, CLOUD_LAYER_Y, car.global_position.z)
 

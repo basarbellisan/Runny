@@ -34,8 +34,8 @@ kamera sarsılır.
 
 Gaz bir roket: kısa, çok güçlü (hız 2.3 katına kadar çıkar; ateşlenince
 arka çöker, burun kalkar, kamera açılır). Yakıtı ~1.35 sn yanar, yolda gaza
-basmazken ~1.6 sn'de dolar (kadranın altındaki
-çizgi: turuncu = dolu). Gaz havada sönmez ama yolda bırakınca 0.35 sn'de
+basmazken ~1.6 sn'de dolar (kadranı çevreleyen turuncu halka: tepeden
+saat yönünde dolar, gaza basınca azalır). Gaz havada sönmez ama yolda bırakınca 0.35 sn'de
 söner; bu yüzden erken basan yolun sonuna yakıtsız ve yavaş varır. Doğru an
 yolun son ~0.7 saniyesi: iki kenarda yolun sonuna doğru akan kırmızı pist
 ışıkları ve uçtaki ışık sırası. Gazlarken direksiyon çalışmaz, o yüzden

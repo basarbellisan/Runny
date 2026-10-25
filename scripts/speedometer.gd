@@ -16,6 +16,9 @@ const GREY := Color("8a8d92")
 		style = v
 		queue_redraw()
 
+## Roket yakıtı (0-1): kadranı çevreleyen halka. Tepeden saat yönünde dolar,
+## gaza basınca azalır. İki renk: koyu iz + turuncu dolgu.
+var fuel := 1.0
 var _shown_kmh := 0.0
 var _needle_v := 0.0
 var _kmh := 0.0
@@ -34,6 +37,10 @@ func _ready() -> void:
 ## kmh: gerçek hız (gaz dahil)
 func set_values(kmh: float, _base_kmh: float = 0.0, _boost: float = 0.0) -> void:
 	_kmh = kmh
+
+
+func set_fuel(value: float) -> void:
+	fuel = clampf(value, 0.0, 1.0)
 
 
 ## Test/görsel için: ibreyi beklemeden doğrudan bu hıza getir
@@ -120,6 +127,24 @@ func _draw() -> void:
 			draw_arc(c, 56, deg_to_rad(135), deg_to_rad(135 + 270 * t), 72, orange, 9.0, true)
 			_text(speed, c + Vector2(0, 4), 36, white)
 			_text("KM/SA", c + Vector2(0, 30), 12, Color(white, 0.5))
+	_draw_fuel(c)
+
+
+## Yakıt halkası: yuvarlak kadranlarda çevresinde, köşeli olanlarda altında çubuk
+func _draw_fuel(c: Vector2) -> void:
+	var track := Color(BLACK, 0.3)
+	var ring := {1: [c, 78.0], 2: [c, 78.0], 4: [c, 78.0], 5: [c + Vector2(0, 14), 76.0],
+		7: [c, 80.0], 8: [c, 80.0], 10: [c, 76.0]}
+	if ring.has(style):
+		var center: Vector2 = ring[style][0]
+		var r: float = ring[style][1]
+		draw_arc(center, r, 0.0, TAU, 96, track, 5.0, true)
+		if fuel > 0.002:
+			draw_arc(center, r, -PI * 0.5, -PI * 0.5 + TAU * fuel, 96, Palette.ACCENT, 5.0, true)
+		return
+	var bar := Rect2(c + Vector2(-60, 56), Vector2(120, 5))
+	draw_rect(bar, track)
+	draw_rect(Rect2(bar.position, Vector2(bar.size.x * fuel, bar.size.y)), Palette.ACCENT)
 
 
 ## Çentikli kadran ve ibre. start/sweep derece (0 = saat 3, 180 = saat 9).
