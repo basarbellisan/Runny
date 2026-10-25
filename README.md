@@ -48,7 +48,8 @@ açılır ve alt katmana geçersin. Çıkmaz yollarda pist ışığı yoktur.
 Düz yollarda (350 m'den sonra) sağ-sol oynatan engeller:
 - Beton blok (turuncu üst şeritli): sırayla sağda solda, aralarından geçilir;
   ön yüzüne çarpan patlar
-- Çakıl şeridi (kum rengi, taşlı): üstünde hız ~%35 düşer, direksiyon kayar,
+- Çakıl şeridi (kum rengi, taşlı): üstünde hız ~%45 düşer, tutuş çok azalır, taşlar
+  arabayı sağa sola savurur, çıktıktan sonra da ~0.6 sn sendeler;
   araba sarsılır, taş sesi ve toz. İlk üç seferde "ÇAKIL · YAVAŞLATIR" yazar
 Yolun başı (iniş) ve sonu (pist ışıkları + hizalanma) her zaman boştur.
 

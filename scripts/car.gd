@@ -88,8 +88,11 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 
 @export_group("Zemin")
 ## Çakılda ileri hız bu orana düşer, direksiyon tutuşu bu orana iner
-@export var gravel_speed := 0.65
-@export var gravel_grip := 0.5
+@export var gravel_speed := 0.55
+@export var gravel_grip := 0.3
+## Çakılda arabayı sağa sola savuran itiş (m/s²) ve çakıldan çıkınca süren sendeleme (sn)
+@export var gravel_shove := 30.0
+@export var gravel_after := 0.6
 
 @export_group("Uçuş")
 ## Alt katmanın uçuş yüksekliği
@@ -128,6 +131,10 @@ var fuel := 1.0
 var burning := false
 ## Çakılın üstündeyiz
 var on_gravel := false
+## Çakılın savurması: yavaş değişen yana itiş
+var _gravel_push := 0.0
+var _gravel_push_target := 0.0
+var _gravel_timer := 0.0
 ## Zeminin ileri hıza etkisi (1: asfalt)
 var surface_drag := 1.0
 ## Uçarken iki parmak: yükseliyor muyuz
@@ -294,10 +301,20 @@ func _drive(delta: float) -> void:
 		on_gravel = roads != null and roads.gravel_at(global_position)
 		if on_gravel:
 			control *= gravel_grip
-			velocity.x += randf_range(-1.0, 1.0) * 14.0 * delta
-			# Taşlar gövdeyi sarsar
-			_bounce_v += randf_range(-1.0, 1.0) * 40.0 * delta
-			roll_rate += randf_range(-1.0, 1.0) * 6.0 * delta
+			# Taşlar arabayı sağa sola savurur (her ~0.25 sn yön değişir), gövdeyi sarsar
+			_gravel_timer -= delta
+			if _gravel_timer <= 0.0:
+				_gravel_timer = randf_range(0.15, 0.35)
+				_gravel_push_target = randf_range(-1.0, 1.0) * gravel_shove
+			_bounce_v += randf_range(-1.0, 1.0) * 70.0 * delta
+			roll_rate += randf_range(-1.0, 1.0) * 14.0 * delta
+			# Çakıldan çıkınca da bir süre sendeler
+			_stumble = maxf(_stumble if _stumble_time > 0.0 else 0.0, 0.45)
+			_stumble_time = maxf(_stumble_time, gravel_after)
+		else:
+			_gravel_push_target = 0.0
+		_gravel_push = lerpf(_gravel_push, _gravel_push_target, 1.0 - exp(-8.0 * delta))
+		velocity.x += _gravel_push * delta
 		# Sert inişten sonra araba sendeler: tutuş azalır, gövde yana savrulur
 		if _stumble_time > 0.0:
 			_stumble_time -= delta
@@ -311,7 +328,7 @@ func _drive(delta: float) -> void:
 			_last_segment = under
 	velocity.x = move_toward(velocity.x, _steer * steer_speed, steer_accel * control * delta)
 	surface_drag = move_toward(surface_drag, gravel_speed if on_gravel and on_floor else 1.0,
-		delta * (1.5 if on_gravel else 0.7))
+		delta * (1.5 if on_gravel else 1.4))
 	if on_floor:
 		velocity.z = -forward_speed * surface_drag
 	else:
@@ -631,7 +648,8 @@ func _time_to_fall_to(y: float) -> float:
 func _update_visual(delta: float) -> void:
 	_update_attitude(delta)
 	var forward := maxf(-velocity.z, 1.0)
-	_yaw = lerpf(_yaw, -atan2(velocity.x, forward) * 0.8, 1.0 - exp(-10.0 * delta))
+	# Çakılda savrulurken burun da sağa sola kayar
+	_yaw = lerpf(_yaw, -atan2(velocity.x, forward) * 0.8 - _gravel_push * 0.008, 1.0 - exp(-10.0 * delta))
 	_body.rotation = Vector3(pitch, _yaw, roll)
 	# Süspansiyon yaylanması (inişte gövde çöker ve toparlanır)
 	_bounce_v += (-suspension_stiffness * _bounce - suspension_damping * _bounce_v) * delta

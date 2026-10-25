@@ -762,8 +762,16 @@ func _add_obstacles(s: Segment, v: float) -> void:
 	while z > z_last:
 		var gravel := _rng.randf() < 0.35
 		var depth := _rng.randf_range(10.0, 20.0) if gravel else 1.2
-		if z - depth < z_last:
-			break
+		# Çakıldan sonra sendeleme geçsin, hız toparlansın: ışıklara biraz daha erken biter
+		var end_margin := v * 0.7 if gravel else 0.0
+		if z - depth - end_margin < z_last:
+			if gravel:
+				gravel = false
+				depth = 1.2
+				if z - depth < z_last:
+					break
+			else:
+				break
 		var x0: float
 		var x1: float
 		if not gravel and w >= lane * 2.0 + 1.6 and _rng.randf() < 0.3:
