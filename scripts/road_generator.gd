@@ -463,7 +463,7 @@ func _next_from(prev: Segment) -> Segment:
 	var with_obstacles: bool = plain and travelled > obstacles_from and width >= 5.5 \
 		and _rng.randf() < obstacle_chance * clampf(0.5 + difficulty, 0.0, 1.0)
 	if with_obstacles:
-		length = maxf(length * 2.0, v * 8.0)
+		length = maxf(length * 2.2, v * 9.5)
 
 	# Tam roketle bile yolun üstüne inilsin, yolu aşıp gidilmesin
 	var v_full := v + minf(v * car.boost_bonus, car.boost_max_extra)
@@ -510,7 +510,7 @@ func _next_from(prev: Segment) -> Segment:
 	else:
 		seg = _add_segment(prev.x + dx, top, top + rise, width, z_start, z_start - length, true)
 	if with_obstacles and absf(rise) < 0.01:
-		_add_obstacles(seg, v)
+		_add_obstacles(seg, v, land_far)
 
 	if spec.get("dead_end", false):
 		_add_dead_end(prev, seg, -main_side, v, vy_b)
@@ -813,12 +813,13 @@ func _add_runway_lights(body: Node3D, s: Segment, slope_len: float) -> void:
 ## sağ-sol yapılarak geçilir. Yolun başı (iniş) ve sonu (pist ışıkları + hizalanma)
 ## her zaman boş kalır. Engel: alçak beton blok, ön yüzüne çarpan patlar.
 ## Çakıl: üstünde hız düşer, direksiyon kayar.
-func _add_obstacles(s: Segment, v: float) -> void:
+func _add_obstacles(s: Segment, v: float, land_far := 0.0) -> void:
 	var w := s.width
 	var hw: float = car.model.half_width if car.model else 1.1
 	var lane := maxf(3.4, hw * 2.0 + 1.3)
 	# İnişte roketin hızı hâlâ üstümüzde olabilir: boş bölge gazlı hıza göre
-	var clear_start := _v_boost(v) * 0.9 + 15.0
+	# Tam roketle en uzak iniş noktasından sonra da kaçacak vakit kalsın
+	var clear_start := maxf(_v_boost(v) * 0.9 + 15.0, land_far + _v_boost(v) * 1.1 + 10.0)
 	var clear_end := clampf(v * lights_time, 18.0, 70.0) + v * 1.0
 	var z := s.z_start - clear_start
 	var z_last := s.z_end + clear_end
