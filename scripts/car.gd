@@ -55,7 +55,7 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 @export var nose_drop_accel := 5.0
 ## Roket ateşlenince burun kalkar (G kuvveti): yanarken burun açısı (°) ve ilk vuruş
 @export var boost_squat_deg := 12.0
-@export var boost_kick := 3.0
+@export var boost_kick := 1.4
 
 @export_group("Havada")
 ## Havada direksiyon arabayı o yana yatırır (en fazla bu kadar derece)
@@ -79,7 +79,7 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 ## Gazın ekleyebileceği en fazla hız (m/s)
 @export var boost_max_extra := 45.0
 ## Gazın tam güce çıkma ve sönme süreleri (sn)
-@export var boost_rise_time := 0.15
+@export var boost_rise_time := 0.22
 @export var boost_fall_time := 0.35
 ## Dolu yakıtla gaz bu kadar saniye yanar; erken basan yolun sonuna yakıtsız varır
 @export var boost_burn_time := 1.35
@@ -280,7 +280,9 @@ func clear_touches() -> void:
 
 ## Gaz tam güçteyken eklenen hız (level verilirse o güçteki)
 func boost_extra(level := boost_level) -> float:
-	return minf(speed * boost_bonus, boost_max_extra) * level
+	# Yumuşak giriş: hız birden atmaz, ~0.2 sn'de ivmelenerek tam güce çıkar
+	var eased := level * level * (3.0 - 2.0 * level)
+	return minf(speed * boost_bonus, boost_max_extra) * eased
 
 
 ## Çarpıp patla: araba parçalara ayrılır, oyun biter
@@ -534,7 +536,7 @@ func _update_boost(delta: float) -> void:
 	if burning and not was_burning:
 		# Vum: arka çöker, burun havaya kalkar
 		pitch_rate += boost_kick
-		_bounce_v -= 1.2
+		_bounce_v -= 0.6
 		boosted.emit()
 	if burning:
 		boost_level = minf(boost_level + delta / boost_rise_time, 1.0)
