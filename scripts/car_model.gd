@@ -27,6 +27,7 @@ var tire_material: StandardMaterial3D
 var _glass := StandardMaterial3D.new()
 var _hub := StandardMaterial3D.new()
 var _light := StandardMaterial3D.new()
+var _tail := StandardMaterial3D.new()
 
 
 func _init() -> void:
@@ -46,6 +47,9 @@ func _init() -> void:
 	_light.albedo_color = Color.WHITE
 	_light.emission_enabled = true
 	_light.emission = Color.WHITE
+	_tail.albedo_color = Color("d8322a")
+	_tail.emission_enabled = true
+	_tail.emission = Color("a01e16")
 
 
 func _ready() -> void:
@@ -58,6 +62,7 @@ func _build() -> void:
 	wheels.clear()
 	half_width = 0.0
 	tire_material.albedo_color = Color("1c1d20")
+	paint_material.albedo_color = Palette.ACCENT
 	match variant:
 		1:
 			_build_box()
@@ -108,39 +113,81 @@ func _build_concept() -> void:
 
 
 func _build_roadster() -> void:
-	var r := 0.5
-	# Gövde: önden arkaya kesitler (z, alt yarı genişlik, üst yarı genişlik, alt y, üst y).
-	# Üstte pahlı kenarlar: üst yüz dar, yanlar dikey; burun sivrilip alçalır.
-	var hull := [
-		[-2.05, 0.6, 0.46, 0.36, 0.7],
-		[-1.25, 0.64, 0.5, 0.36, 0.8],
-		[-0.25, 0.8, 0.64, 0.34, 0.98],
-		[1.7, 0.82, 0.66, 0.38, 1.0],
-		[1.95, 0.82, 0.66, 0.42, 0.98],
-	]
-	_hull(hull, paint_material)
-	# Kabin: yanları turuncu, tavandan arkaya kavisle gövdeye iner
+	paint_material.albedo_color = Color("ff6f2e")
+	tire_material.albedo_color = Color("4d4f53")
+	# Gövde + burun tek parça: üst çizgi sivri burundan kabine düz bir rampa gibi yükselir,
+	# alt çizgi düz ve yerden yüksek. Yanlar dik, üst kenarlar pahlı.
 	_hull([
-		[-0.3, 0.66, 0.6, 0.95, 1.41],
-		[0.6, 0.67, 0.6, 0.95, 1.44],
-		[1.0, 0.69, 0.6, 0.95, 1.36],
-		[1.35, 0.71, 0.6, 0.95, 1.2],
-		[1.65, 0.72, 0.6, 0.95, 1.02],
-	], paint_material)
-	# Kokpit açıklığı: kabinin ön yüzünde koyu boşluk (yandan görünmez)
-	_box(Vector3(1.08, 0.4, 0.04), Vector3(0, 1.17, -0.32), _glass)
-	# Siperlik: açıklığın üstünde öne taşan ince tavan
-	_hull([[-0.62, 0.68, 0.64, 1.4, 1.48], [-0.1, 0.68, 0.64, 1.4, 1.5]], paint_material)
-	# Ön farlar ve arkada alçak difüzör plakası
-	_lights(Vector3(0.26, 0.56, -2.06), Vector3(0.2, 0.12, 0.04))
-	_box(Vector3(1.5, 0.06, 0.3), Vector3(0, 0.46, 2.05), paint_material)
-	tire_material.albedo_color = Color("4a4c50")
-	_wheels(1.02, 1.25, r, 0.46, true, 10)
+		[-2.4, 0.48, 0.36, 0.38, 0.6],
+		[-1.35, 0.6, 0.46, 0.4, 0.78],
+		[-0.1, 0.74, 0.6, 0.42, 1.0],
+		[1.6, 0.76, 0.62, 0.42, 1.0],
+		[2.02, 0.74, 0.6, 0.44, 0.82],
+	], paint_material, 0.28)
+	# Kabin: ön yüzü (pencere) geriye yatık, tavanı düz, arkası büyük bir kavisle arka uca iner
+	var cabin := [
+		[-0.1, 0.72, 0.6, 0.98, 1.02],
+		[0.04, 0.72, 0.6, 0.98, 1.56],
+		[0.7, 0.72, 0.6, 0.98, 1.6],
+		[1.15, 0.72, 0.58, 0.98, 1.57],
+		[1.5, 0.72, 0.54, 0.98, 1.44],
+		[1.75, 0.72, 0.5, 0.98, 1.22],
+		[1.93, 0.72, 0.47, 0.98, 1.0],
+		[2.02, 0.72, 0.46, 0.84, 0.86],
+	]
+	_hull(cabin, paint_material, 0.34)
+	# Siperlik: pencerenin üstünde öne taşan ince tavan
+	_hull([[-0.38, 0.71, 0.69, 1.55, 1.62], [0.72, 0.71, 0.69, 1.58, 1.65]], paint_material, 0.0)
+	# Ön pencere: yatık ön yüzde koyu yamuk (kabin yüzünün biraz önünde)
+	var n_front := Vector3(0, 0.25, -1.0).normalized()
+	_panel([Vector3(-0.58, 1.06, -0.1), Vector3(0.58, 1.06, -0.1), Vector3(0.54, 1.52, 0.02),
+		Vector3(-0.54, 1.52, 0.02)], n_front, _glass)
+	# Arka cam: kubbenin sırtında, kavisi izleyerek
+	var top_at := func(z: float) -> float:
+		for i in range(1, cabin.size()):
+			if z <= cabin[i][0]:
+				var t := inverse_lerp(float(cabin[i - 1][0]), float(cabin[i][0]), z)
+				return lerpf(float(cabin[i - 1][4]), float(cabin[i][4]), t) + 0.015
+		return float(cabin[cabin.size() - 1][4])
+	var rows := [[1.25, 0.42], [1.5, 0.39], [1.72, 0.34]]
+	for i in rows.size() - 1:
+		var z0: float = rows[i][0]
+		var z1: float = rows[i + 1][0]
+		var w0: float = rows[i][1]
+		var w1: float = rows[i + 1][1]
+		_panel([Vector3(-w0, top_at.call(z0), z0), Vector3(w0, top_at.call(z0), z0),
+			Vector3(w1, top_at.call(z1), z1), Vector3(-w1, top_at.call(z1), z1)],
+			Vector3(0, 0.7, 0.7).normalized(), _glass)
+	# Arka yüz: iki stop lambası; altta dışa taşan ince plaka
+	for sx in [-1.0, 1.0]:
+		_panel([Vector3(sx * 0.3, 0.58, 2.03), Vector3(sx * 0.6, 0.58, 2.03), Vector3(sx * 0.6, 0.7, 2.03),
+			Vector3(sx * 0.3, 0.7, 2.03)], Vector3.BACK, _tail)
+	_box(Vector3(1.8, 0.05, 0.3), Vector3(0, 0.45, 2.1), dark_material)
+	# Ön farlar: sivri burnun ön yüzünde iki küçük beyaz dörtgen
+	for sx in [-1.0, 1.0]:
+		_panel([Vector3(sx * 0.08, 0.44, -2.41), Vector3(sx * 0.3, 0.44, -2.41), Vector3(sx * 0.28, 0.53, -2.41),
+			Vector3(sx * 0.1, 0.53, -2.41)], Vector3.FORWARD, _light)
+	_wheels(1.04, 1.32, 0.57, 0.52, true, 10, 0.6)
+
+
+## Düz panel (pencere, lamba): verilen yöne bakan dışbükey çokgen
+func _panel(pts: Array, normal: Vector3, mat: Material) -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var mid := Vector3.ZERO
+	for p in pts:
+		mid += p
+	mid /= pts.size()
+	_face(st, pts, mid - normal)
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	add_child(mi)
 
 
 ## Kesitlerden düz yüzlü gövde: her kesit (z, alt yarı genişlik, üst yarı genişlik,
 ## alt y, üst y). Kesitler arası üst, pah, yan ve alt yüzler; iki uç kapalı.
-func _hull(sections: Array, mat: Material) -> void:
+func _hull(sections: Array, mat: Material, chamfer := 0.22) -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var rings: Array = []
@@ -150,7 +197,7 @@ func _hull(sections: Array, mat: Material) -> void:
 		var wt: float = sec[2]
 		var yb: float = sec[3]
 		var yt: float = sec[4]
-		var ych := yt - (yt - yb) * 0.22   # pahın başladığı yükseklik
+		var ych := yt - (yt - yb) * chamfer   # pahın başladığı yükseklik
 		# Kesit çevresi (soldan saat yönünün tersine): alt sol, pah sol, üst sol, üst sağ, pah sağ, alt sağ
 		rings.append([Vector3(-wb, yb, z), Vector3(-wb, ych, z), Vector3(-wt, yt, z),
 			Vector3(wt, yt, z), Vector3(wb, ych, z), Vector3(wb, yb, z)])
@@ -217,7 +264,7 @@ func _lights(pos: Vector3, size: Vector3) -> void:
 
 
 ## Dört teker: mount (süspansiyonla iner/kalkar) > steer (ön tekerde döner) > spin
-func _wheels(track: float, base: float, radius: float, width: float, hubs: bool, hub_segments := 6) -> void:
+func _wheels(track: float, base: float, radius: float, width: float, hubs: bool, hub_segments := 6, hub_ratio := 0.5) -> void:
 	var tire := CylinderMesh.new()
 	tire.top_radius = radius
 	tire.bottom_radius = radius
@@ -225,8 +272,8 @@ func _wheels(track: float, base: float, radius: float, width: float, hubs: bool,
 	tire.radial_segments = 10
 	tire.rings = 0
 	var hub := CylinderMesh.new()
-	hub.top_radius = radius * 0.5
-	hub.bottom_radius = radius * 0.5
+	hub.top_radius = radius * hub_ratio
+	hub.bottom_radius = radius * hub_ratio
 	hub.height = width + 0.02
 	hub.radial_segments = hub_segments
 	hub.rings = 0
