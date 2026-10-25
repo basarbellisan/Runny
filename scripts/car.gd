@@ -473,10 +473,14 @@ func _sense_wheels() -> void:
 		return
 	var space := get_world_3d().direct_space_state
 	var origin := global_position
+	# Yokuşta düz gövde yüzeyin üstünde kalır: ışın eğim kadar uzun olsun
+	var reach := 0.6
+	if _last_segment:
+		reach += absf(_last_segment.slope()) * 2.5
 	for i in model.wheels.size():
 		var c: Vector3 = model.wheels[i].contact
 		var q := PhysicsRayQueryParameters3D.create(origin + c + Vector3(0, 0.5, 0),
-			origin + c - Vector3(0, 0.6, 0), _default_mask, [get_rid()])
+			origin + c - Vector3(0, reach, 0), _default_mask, [get_rid()])
 		var hit := space.intersect_ray(q)
 		wheel_contact[i] = not hit.is_empty()
 		_wheel_ground[i] = hit.position.y - origin.y if wheel_contact[i] else -INF

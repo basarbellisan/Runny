@@ -16,6 +16,7 @@ var seek_dead_ends := false
 var _drive_time := 0.0
 var _diving := false
 var _dive_dir := 1.0
+## Çatalda kol seçimi: çatallar sırayla alçak/yüksek kola gidilir
 
 
 func _init(p_car: Car, p_roads: RoadGenerator, p_lower: LowerLayer, p_dive_interval := 0.0, p_use_boost := true) -> void:
@@ -65,6 +66,10 @@ func _drive_input() -> Vector2:
 	for s in ([] if target else roads.main_segments_ahead(pos.z + 2.0)):
 		if s == current:
 			continue
+		if s.route != 0:
+			# Çatal: bir kol seç, öbür kolun yollarını yok say
+			if s.route != 1 + s.fork_id % 2:
+				continue
 		if s.z_start < pos.z or s.contains(pos):
 			target = s
 			break

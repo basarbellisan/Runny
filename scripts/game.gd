@@ -5,6 +5,8 @@ extends Node3D
 const SAVE_PATH := "user://save.cfg"
 const PERFECT_BONUS := 50
 const CRYSTAL_BONUS := 25
+## Çatalda yüksek yolu bitirince (çarpanla çarpılır)
+const HIGH_ROUTE_BONUS := 250
 const MAX_ENERGY := 100.0
 ## Oyuncu bu kadar başarılı inişe ulaşana kadar gaz ipucu gösterilir
 const TUTORIAL_LANDINGS := 5
@@ -63,7 +65,9 @@ var _energy_warned := false
 var _landings_total := 0
 var _hint_shown := false
 var _start_z := 0.0
-var _stats := {"falls": 0, "returns": 0, "crystals": 0, "clean": 0, "hard": 0}
+## Çatalın yüksek kolundayız (puan iki kat)
+var _on_high_route := false
+var _stats := {"falls": 0, "returns": 0, "crystals": 0, "clean": 0, "hard": 0, "high": 0}
 var _args := {}
 
 
@@ -104,6 +108,7 @@ func _physics_process(delta: float) -> void:
 	roads.update(car.global_position)
 	lower.update(delta)
 	score += maxf(-car.velocity.z, 0.0) * delta * multiplier
+	_update_high_route(delta)
 
 	match car.mode:
 		Car.Mode.DRIVE:
@@ -209,6 +214,28 @@ func _on_landed(air_time: float, quality: float, impact: float) -> void:
 		Audio.play("perfect", -2.0)
 
 
+## Çatalın yüksek (dar, zor) kolu: üstünde puan iki kat, bitirince ödül
+func _update_high_route(delta: float) -> void:
+	if car.mode != Car.Mode.DRIVE or not car.is_on_floor():
+		return
+	var seg := roads.segment_under(car.global_position)
+	if seg == null:
+		return
+	if seg.bonus:
+		score += maxf(-car.velocity.z, 0.0) * delta * multiplier
+		if not _on_high_route:
+			_on_high_route = true
+			_stats.high += 1
+			hud.popup("YÜKSEK YOL  ×2", true)
+			Audio.play("multiplier")
+	elif _on_high_route:
+		_on_high_route = false
+		if seg.route == 0:
+			score += HIGH_ROUTE_BONUS * multiplier
+			hud.popup("+%d" % (HIGH_ROUTE_BONUS * multiplier), true)
+			Audio.play("perfect", -2.0)
+
+
 func _to_garage() -> void:
 	get_tree().change_scene_to_file("res://scenes/menu.tscn")
 
@@ -312,9 +339,9 @@ func _parse_args() -> void:
 
 
 func _stats_text() -> String:
-	return "distance=%.0f score=%d speed=%.1f falls=%d returns=%d crystals=%d landings=%d/%d" % [
+	return "distance=%.0f score=%d speed=%.1f falls=%d returns=%d crystals=%d landings=%d/%d high=%d" % [
 		_start_z - car.position.z, int(score), car.speed,
-		_stats.falls, _stats.returns, _stats.crystals, _stats.clean, _stats.clean + _stats.hard]
+		_stats.falls, _stats.returns, _stats.crystals, _stats.clean, _stats.clean + _stats.hard, _stats.high]
 
 
 func _exit_tree() -> void:

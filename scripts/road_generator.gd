@@ -12,6 +12,8 @@ extends Node3D
 ##  rampa    – kısa rampa: kalkışta yukarı fırlatır, daha yüksek bir yola konulur
 ##  çıkmaz   – yanda alçak, geniş, davetkâr bir yol; devamı yok (uçuşa düşersin).
 ##             Ana yol her zaman yanında devam eder.
+##  çatal    – yol ikiye ayrılır: alçak, geniş, kolay yol ya da rampayla çıkılan
+##             dar, yüksek, zor yol (turuncu çizgili, puanı iki kat). İleride birleşir.
 
 class Segment:
 	var x: float
@@ -22,6 +24,12 @@ class Segment:
 	var z_end: float     # uzak uç (küçük z)
 	var main: bool       # ana yol mu
 	var dead_end := false
+	## Çatalda yüksek (zor) yol: üstünde puan iki kat
+	var bonus := false
+	## Çatal kolu: 0 ortak yol, 1 alçak kol, 2 yüksek kol
+	var route := 0
+	## Hangi çatala ait (kol seçimi için)
+	var fork_id := 0
 	var node: Node3D
 
 	func contains(pos: Vector3, margin := 0.0) -> bool:
@@ -68,6 +76,8 @@ const ZONES: Array[Color] = [
 @export var ramps_from := 800.0
 ## Çıkmaz kalıbının seçilme ağırlığı (diğerleri ~0.5-1)
 @export var dead_end_weight := 0.5
+## Çatal kalıbının seçilme ağırlığı
+@export var fork_weight := 0.6
 @export var max_slope_deg := 18.0
 @export var zone_length := 1000.0
 
@@ -242,6 +252,8 @@ func _plan_pattern(travelled: float, level: float) -> void:
 	if travelled > ramps_from:
 		if not low:
 			options += [["merdiven", 0.5], ["çıkmaz", dead_end_weight]]
+		if not low and not high:
+			options.append(["çatal", fork_weight])
 		if not high:
 			options.append(["rampa", 0.5])
 	var total := 0.0
@@ -278,6 +290,10 @@ func _plan_pattern(travelled: float, level: float) -> void:
 		"çıkmaz":
 			_plan.append({"dead_end": true, "len": 1.4})
 			_plan.append({})
+		"çatal":
+			# Önce geniş bir yol: iki kola da buradan atlanır
+			_plan.append({"width": 1.6, "len": 0.8, "dh": _rng.randf_range(-1.0, 0.0)})
+			_plan.append({"fork": true})
 
 
 func _next_from(prev: Segment) -> Segment:
@@ -287,6 +303,11 @@ func _next_from(prev: Segment) -> Segment:
 	if _plan.is_empty():
 		_plan_pattern(travelled, prev.top_end)
 	var spec: Dictionary = _plan.pop_front()
+	if spec.get("fork", false):
+		var merge := _add_fork(prev)
+		if merge:
+			return merge
+		spec = {}
 
 	# Araba bu yolun sonuna vardığında ne hızda olacak (tahmini)
 	var v := estimate_speed(dist_ahead)
@@ -411,6 +432,122 @@ func _rise_time(dh: float, vy: float) -> float:
 	return (vy - sqrt(maxf(vy * vy - 2.0 * g * dh, 0.0))) / g
 
 
+## Çatal: önceki yolun sonundan iki kol ayrılır, ikisi de dümdüz gider ve
+## ileride geniş bir yolda birleşir (her kolun sonundan dümdüz atlayınca
+## birleşme yoluna inilir). Birleşme yolunu döndürür; yer yoksa null.
+##  alçak kol: iki geniş yol, kolay boşluklar
+##  yüksek kol: rampa, rampadan fırlayıp konulan dar yüksek yol, zor boşluklu
+##              bir dar yol daha. Turuncu çizgili; üstünde puan iki kat.
+func _add_fork(prev: Segment) -> Segment:
+	var v := estimate_speed(car.global_position.z - prev.z_end)
+	var reach := car.steer_speed * _flight_time(-2.0, car.launch_velocity) * car.air_control
+	var off := minf(prev.width * 0.5 + reach * 0.6, 5.5)
+	if off < 4.0 or prev.top_end < MIN_LEVEL + 8.0:
+		return null
+	var low_side := -1.0 if _rng.randf() < 0.5 else 1.0
+	var x_l := prev.x + low_side * off
+	var x_h := prev.x - low_side * off
+
+	# Alçak kol
+	var plan_l: Array[Dictionary] = []
+	var top := prev.top_end
+	var z := prev.z_end
+	var slope := prev.slope()
+	for i in 2:
+		var r := _pick_gap(slope, -_rng.randf_range(2.0, 3.0) if i == 0 else -_rng.randf_range(0.5, 1.5),
+			v, Vector2(0.05, 0.3))
+		top += r.dh
+		var zs: float = z - r.gap
+		var ze := zs - v * _rng.randf_range(1.8, 2.4)
+		plan_l.append({"x": x_l, "top": top, "end": top, "w": _rng.randf_range(7.0, 8.5), "zs": zs, "ze": ze})
+		z = ze
+		slope = 0.0
+
+	# Yüksek kol: rampa
+	var plan_h: Array[Dictionary] = []
+	top = prev.top_end
+	z = prev.z_end
+	var r := _pick_gap(prev.slope(), _rng.randf_range(-1.0, 0.0), v, Vector2(0.2, 0.45))
+	top += r.dh
+	var ramp_len := v * 1.4 + 8.0
+	var rise := minf(ramp_len * tan(deg_to_rad(minf(16.0, max_slope_deg))), 9.0)
+	var zs: float = z - r.gap
+	plan_h.append({"x": x_h, "top": top, "end": top + rise, "w": _rng.randf_range(4.2, 5.0), "zs": zs, "ze": zs - ramp_len})
+	z = zs - ramp_len
+	top += rise
+	slope = rise / ramp_len
+	# Rampadan fırlayıp konulan yüksek dar yol, sonra zor boşluklu bir dar yol daha
+	var vy := car.launch_velocity + v * slope
+	var max_up := vy * vy / (2.0 * car.gravity) * 0.6
+	for i in 2:
+		var dh := max_up * _rng.randf_range(0.5, 0.8) if i == 0 else _rng.randf_range(-1.5, 0.3)
+		r = _pick_gap(slope, dh, v, Vector2(0.15, 0.4) if i == 0 else Vector2(0.45, 0.8))
+		top += r.dh
+		zs = z - r.gap
+		var ze := zs - v * _rng.randf_range(1.5, 1.9)
+		plan_h.append({"x": x_h, "top": top, "end": top, "w": _rng.randf_range(3.3, 4.2), "zs": zs, "ze": ze})
+		z = ze
+		slope = 0.0
+
+	# Birleşme: iki kolun da altında, ikisinin sonundan da dümdüz atlanınca inilen geniş yol
+	var end_l: Dictionary = plan_l.back()
+	var end_h: Dictionary = plan_h.back()
+	var car_len := car.half_length * 2.0
+	var v_boost := v + minf(v * car.boost_bonus, car.boost_max_extra)
+	var m_top := minf(end_l.end, end_h.end) - _rng.randf_range(1.5, 3.0)
+	var g_l := 0.0
+	var g_h := 0.0
+	for attempt in 6:
+		var w_l := _gap_window(m_top - end_l.end, v, v_boost, car.launch_velocity, car.launch_velocity, car_len)
+		var w_h := _gap_window(m_top - end_h.end, v, v_boost, car.launch_velocity, car.launch_velocity, car_len)
+		g_l = lerpf(w_l.x, w_l.y, _rng.randf_range(0.1, 0.3))
+		g_h = lerpf(w_h.x, w_h.y, _rng.randf_range(0.1, 0.3))
+		if w_l.y - w_l.x > 2.0 and w_h.y - w_h.x > 2.0:
+			break
+		m_top -= 1.0
+	m_top = maxf(m_top, MIN_LEVEL)
+	var m_start := minf(end_l.ze - g_l, end_h.ze - g_h)
+	# Erken biten kolun son yolu uzar: iki boşluk da kendi penceresinde kalır
+	end_l.ze = m_start + g_l
+	end_h.ze = m_start + g_h
+
+	var fork_id := int(stats.get("forks", 0)) + 1
+	for p in plan_l:
+		var seg := _add_segment(p.x, p.top, p.end, p.w, p.zs, p.ze, true)
+		seg.route = 1
+		seg.fork_id = fork_id
+	for p in plan_h:
+		var seg := _add_segment(p.x, p.top, p.end, p.w, p.zs, p.ze, true, true)
+		seg.route = 2
+		seg.fork_id = fork_id
+	var m_w := absf(x_l - x_h) + maxf(end_l.w, end_h.w)
+	var merge := _add_segment((x_l + x_h) * 0.5, m_top, m_top, m_w,
+		m_start, m_start - v * _rng.randf_range(2.0, 2.6), true)
+	_add_decor(merge)
+	stats.forks = fork_id
+	return merge
+
+
+## Bir boşluk seç: { gap, dh }. Eğimden sonra pencere yarım gazla hesaplanır
+## ve dar kalırsa yeni yol alçaltılır (_next_from ile aynı kurallar).
+func _pick_gap(slope: float, dh: float, v: float, frac: Vector2) -> Dictionary:
+	var v_boost := v + minf(v * car.boost_bonus, car.boost_max_extra)
+	var sloped := absf(slope) > 0.1
+	var v_reach := lerpf(v, v_boost, 0.5) if sloped else v_boost
+	var vy := car.launch_velocity + v * slope
+	var vy_reach := car.launch_velocity + v_reach * slope
+	var max_up := maxf(vy, 0.0) * maxf(vy, 0.0) / (2.0 * car.gravity) * 0.6
+	dh = minf(dh, max_up)
+	if vy < 2.0:
+		dh = minf(dh, -2.0)
+	var car_len := car.half_length * 2.0
+	var w := _gap_window(dh, v, v_reach, vy, vy_reach, car_len)
+	while w.y - w.x < 3.0 and dh > -8.0:
+		dh -= 1.0
+		w = _gap_window(dh, v, v_reach, vy, vy_reach, car_len)
+	return {"gap": lerpf(w.x, w.y, _rng.randf_range(frac.x, frac.y)), "dh": dh}
+
+
 ## Çıkmaz: ana yolun yanında, daha alçak, geniş ve davetkâr bir yol. Önceki
 ## yolun sonundan ulaşılabilir ama devamı yok; ana yoldan önce biter ki ondan
 ## düşen araba bir sonraki yolun ön yüzüne çakılmasın, uçuşa düşsün.
@@ -454,8 +591,9 @@ func _add_side_road(main_seg: Segment) -> void:
 # Yol yapımı ve renkler
 # --------------------------------------------------------------------------
 
-func _add_segment(x: float, top: float, top_end: float, width: float, z_start: float, z_end: float, is_main: bool) -> Segment:
+func _add_segment(x: float, top: float, top_end: float, width: float, z_start: float, z_end: float, is_main: bool, bonus := false) -> Segment:
 	var s := Segment.new()
+	s.bonus = bonus
 	s.x = x
 	s.top = top
 	s.top_end = top_end
@@ -486,7 +624,7 @@ func _add_segment(x: float, top: float, top_end: float, width: float, z_start: f
 	# Asfalt ve kenar çizgileri; yokuş yukarı rampaların çizgileri turuncu
 	_add_box(body, Vector3(0, -0.04, 0), Vector3(width - 0.3, 0.1, slope_len - 0.3), _asphalt_material(s))
 	var line_x := width * 0.5 - 0.45
-	var line_mat := _ramp_line_mat if rise > 1.0 else _line_mat
+	var line_mat := _ramp_line_mat if rise > 1.0 or bonus else _line_mat
 	for sx in [-1.0, 1.0]:
 		_add_box(body, Vector3(sx * line_x, 0.015, 0), Vector3(0.18, 0.02, slope_len - 0.6), line_mat)
 	if rise > 1.0:

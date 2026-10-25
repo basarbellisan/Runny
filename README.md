@@ -17,7 +17,20 @@ kaydedilir. Oyun sonunda GARAJ butonu garaja döndürür.
 
 Araba tekerlerinden hisseder: bir yanın tekerleri boşluğa çıkınca araba o
 yana yatar, boşluğa doğru çekilir ve tutuşu azalır; ağırlık merkezi kenarı
-geçerse yuvarlanarak düşer. İniş yardımı varsayılan olarak kapalı.
+geçerse (~50°) kenardan devrilip düşer. İniş yardımı varsayılan olarak kapalı.
+
+Havada araba gerçek bir duruşla uçar: yandan düşerken dönmeye devam eder
+(kendini düzeltmez), kanatlar açılınca düzelir. Havada direksiyon arabayı o
+yana yatırır (bırakınca söner); kendiliğinden düzelme çok zayıf. İnişte
+duruş yolla karşılaştırılır:
+- ~12°'den az sapma: temiz iniş (PERFECT ancak temiz inişte)
+- daha fazlası ya da çok yüksekten düşüş: SERT İNİŞ / SENDELEDİN — tutuş
+  azalır, araba yana savrulur, gaz söner
+- yan ya da ters iniş (~75°+): araba patlar (TAKLA ATTIN!)
+
+Süspansiyon belirgin: inişte gövde çöker, yamuk inişte salınır; tekerler yerde
+kalır. İnişte tekerlerden toz, sert inişte ve kenara sürtünürken kıvılcım çıkar,
+kamera sarsılır.
 
 Her yolun sonunda gaz şart: gazsız kalkan araba bir sonraki yolun ön
 yüzüne çakılıp patlar. Yanlış hizalanıp yolun yanından düşersen kanatlar
@@ -43,6 +56,9 @@ Yollar kalıplar hâlinde üretilir, mesafe arttıkça yenileri açılır:
 - 300 m+: yokuşlar (10–15°), vadiler (yokuş aşağı → alçak yol → rampayla yukarı)
 - 800 m+: merdivenler, rampalar (15–18°, kalkışta yukarı fırlatır), çıkmazlar
   (yanda alçak, geniş bir yol; devamı yoktur, uçuşa düşülür — ana yol hep yanında devam eder)
+  ve çatallar: geniş bir yoldan iki kol ayrılır. Alçak kol geniş ve kolay; yüksek
+  kol rampayla çıkılır, dar ve zor boşlukludur, turuncu çizgilidir. Yüksek kolda
+  puan iki kat, bitirince +250 × çarpan. İki kol ileride geniş bir yolda birleşir.
 
 Rampanın açısı kalkıştaki dikey hıza eklenir. Her boşluk yine gazsız
 ulaşılamaz, tam gazla ulaşılır. Eğimli yollar inişten sonra hizalanıp gaz
@@ -56,6 +72,7 @@ turuncuya çalan duvarlar; yokuş aşağılar biraz daha koyu.
 - `scripts/menu.gd` — garaj (başlangıç ekranı)
 - `scripts/car_model.gd` — araba görünümü (3 model: kutu, gezgin, konsept) ve tekerler
 - `scripts/car_trail.gd` — hız izi (3 stil)
+- `scripts/car_fx.gd` — toz ve kıvılcım parçacıkları
 - `tools/showroom.gd` — araba modellerinin vitrin görüntülerini çeker
 - `scripts/car.gd` — araba fiziği ve modları (yol / düşüş / uçuş / portal fırlatması), kanat animasyonu
 - `scripts/road_generator.gd` — prosedürel yol üretimi (her yol ulaşılabilir olacak şekilde hesaplanır)
