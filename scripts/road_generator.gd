@@ -113,7 +113,7 @@ const ZONES: Array[Color] = [
 ## Düz bir yolun engelli olma olasılığı (zorlukla bu değere çıkar)
 @export_range(0.0, 1.0) var obstacle_chance := 1.0
 ## Pist ışıkları: yolun sonundaki ışıklı bölgenin süresi (sn, o anki hızla)
-@export var lights_time := 0.75
+@export var lights_time := 1.1
 @export var max_slope_deg := 18.0
 @export var zone_length := 1000.0
 
@@ -493,7 +493,7 @@ func _next_from(prev: Segment) -> Segment:
 	if banked:
 		# Yatık yol: düz başlar (iniş), bükülür, düzelir; sonu düz (pist ışıkları + roket)
 		var flat_in := 10.0
-		var flat_out := clampf(v * lights_time, 14.0, 48.0) + v * 0.8
+		var flat_out := clampf(v * lights_time, 18.0, 70.0) + v * 0.8
 		length = maxf(length, flat_in + flat_out + v * 3.0)
 		rise = 0.0
 		var a := deg_to_rad(spec.bank)
@@ -761,12 +761,12 @@ func _add_segment(x: float, top: float, top_end: float, width: float, z_start: f
 	return s
 
 
-## Pist ışıkları: yolun son ~0.75 saniyesinde iki kenarda kırmızı yuvarlak ışıklar.
+## Pist ışıkları: yolun son ~1.1 saniyesinde iki kenarda kırmızı yuvarlak ışıklar.
 ## Bölgenin başında seyrek (~5 m), yolun ucuna doğru düzgünce sıklaşır (~1 m).
 ## Bir darbe dizi boyunca hızla yolun ucuna koşar ve döngüyle tekrarlar: "şimdi gaz".
 func _add_runway_lights(body: Node3D, s: Segment, slope_len: float) -> void:
 	var v := estimate_speed(car.global_position.z - s.z_end)
-	var zone := clampf(v * lights_time, 14.0, minf(48.0, slope_len * 0.6))
+	var zone := clampf(v * lights_time, 18.0, minf(70.0, slope_len * 0.6))
 	# Yolun ucundan geriye doğru: aralık uçta 1 m, bölgenin başında 5 m
 	var dists: Array[float] = []
 	var d := 0.6
@@ -819,7 +819,7 @@ func _add_obstacles(s: Segment, v: float) -> void:
 	var lane := maxf(3.4, hw * 2.0 + 1.3)
 	# İnişte roketin hızı hâlâ üstümüzde olabilir: boş bölge gazlı hıza göre
 	var clear_start := _v_boost(v) * 0.9 + 15.0
-	var clear_end := clampf(v * lights_time, 14.0, 48.0) + v * 1.0
+	var clear_end := clampf(v * lights_time, 18.0, 70.0) + v * 1.0
 	var z := s.z_start - clear_start
 	var z_last := s.z_end + clear_end
 	var side := -1.0 if _rng.randf() < 0.5 else 1.0
