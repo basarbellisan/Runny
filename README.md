@@ -57,7 +57,9 @@ Yatık yollar (500 m'den sonra): yol düz başlar, yavaşça sağa ya da sola
 yatar (~11–15°), bir süre öyle gider ve düzelir; bazıları S çizer (önce bir
 yana, sonra öbür yana). Araba alçak tarafa doğru kayar, ters direksiyonla
 yolda tutulur; gövde yolla birlikte yatar, kamera da biraz eşlik eder. İnişte
-açı yolun yatıklığına göre ölçülür. Yatık yolun sonu her zaman düzdür
+açı yolun yatıklığına göre ölçülür. Alçak kenarda kırmızı-beyaz bordür
+vardır: yol hangi yana yatıyorsa o kenarda, yatık bölüm boyunca (S bükülmede
+öbür kenara geçer). Yatık yolun sonu her zaman düzdür
 (pist ışıkları + roket). Yüzey tek parça kıvrılan bir ağ; arabanın çarpışma
 omurgası altı yuvarlak bir kapsül olduğu için yüzeyin kenarlarına takılmaz.
 

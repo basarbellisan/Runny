@@ -126,6 +126,8 @@ var _unit_box := BoxMesh.new()
 var _line_mat := ShaderMaterial.new()
 var _ramp_line_mat := ShaderMaterial.new()
 var _chevron_mat := StandardMaterial3D.new()
+var _kerb_red := StandardMaterial3D.new()
+var _kerb_white := StandardMaterial3D.new()
 var _runway_mat := ShaderMaterial.new()
 var _block_mat := StandardMaterial3D.new()
 var _block_top_mat := StandardMaterial3D.new()
@@ -149,6 +151,10 @@ func _ready() -> void:
 	_ramp_line_mat.set_shader_parameter("color", Palette.ACCENT)
 	_chevron_mat.albedo_color = Palette.ACCENT
 	_chevron_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_kerb_red.albedo_color = Color("e23c30")
+	_kerb_red.roughness = 0.8
+	_kerb_white.albedo_color = Palette.SNOW
+	_kerb_white.roughness = 0.8
 	_runway_mat.shader = preload("res://shaders/runway_lights.gdshader")
 	_block_mat.albedo_color = Palette.GRAPHITE
 	_block_mat.roughness = 0.9
@@ -950,6 +956,36 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 			var c: float = sx * line_x
 			_quad(lines, unused, at.call(c - 0.09, i, 0.04), at.call(c + 0.09, i, 0.04),
 				at.call(c + 0.09, i + 1, 0.04), at.call(c - 0.09, i + 1, 0.04), Vector3.UP)
+	# Alçak kenarda kırmızı-beyaz bordür: yol nereye yatıyorsa o kenarda, yatık
+	# bölüm boyunca (S bükülmede öbür kenara geçer)
+	var kerbs: Array[SurfaceTool] = [SurfaceTool.new(), SurfaceTool.new()]
+	for k in kerbs:
+		k.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var kerb_len := 1.6
+	var kerb_rows := int(length / kerb_len)
+	var any_kerb := [false, false]
+	for j in kerb_rows:
+		var z0 := z_start - j * kerb_len
+		var z1 := z0 - kerb_len
+		var a := s.bank_at((z0 + z1) * 0.5)
+		if absf(a) < deg_to_rad(1.5):
+			continue
+		# a > 0: sağ kenar yukarı, sol kenar aşağı
+		var side := -1.0 if a > 0.0 else 1.0
+		var c := j % 2
+		var p := func(d: float, z: float) -> Vector3:
+			var b := s.bank_at(z)
+			return Vector3(d * cos(b), d * sin(b) + 0.05, z - cz)
+		var outer: float = side * (hw - 0.05)
+		var inner: float = side * (hw - 0.8)
+		_quad(kerbs[c], unused, p.call(outer, z0), p.call(inner, z0), p.call(inner, z1), p.call(outer, z1), Vector3.UP)
+		any_kerb[c] = true
+	for c in 2:
+		if any_kerb[c]:
+			var kmi := MeshInstance3D.new()
+			kmi.mesh = kerbs[c].commit()
+			kmi.material_override = _kerb_red if c == 0 else _kerb_white
+			body.add_child(kmi)
 	var asphalt_mi := MeshInstance3D.new()
 	asphalt_mi.mesh = asphalt.commit()
 	asphalt_mi.material_override = _asphalt_material(s)
