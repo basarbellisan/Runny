@@ -45,9 +45,13 @@ func snap(kmh: float) -> void:
 
 func _process(delta: float) -> void:
 	# İbre: kritik sönümlü yay, gerçek bir ibre gibi hafif gecikmeli
+	# Kare hızı düşse de (takılma) yay patlamasın: küçük adımlarla ilerle
 	var k := 90.0
-	_needle_v += (k * (_kmh - _shown_kmh) - 2.0 * sqrt(k) * _needle_v) * delta
-	_shown_kmh += _needle_v * delta
+	var steps := ceili(minf(delta, 0.25) / 0.016)
+	var dt := minf(delta, 0.25) / maxf(steps, 1)
+	for i in steps:
+		_needle_v += (k * (_kmh - _shown_kmh) - 2.0 * sqrt(k) * _needle_v) * dt
+		_shown_kmh += _needle_v * dt
 	queue_redraw()
 
 

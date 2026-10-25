@@ -56,7 +56,8 @@ Yolun başı (iniş) ve sonu (pist ışıkları + hizalanma) her zaman boştur.
 ## Ayar paneli
 Oyun sırasında sol üst köşeye arka arkaya üç kez dokun (PC'de F1): oyun durur,
 hız, direksiyon, gaz, atlama, yollar, uçuş, puan, kamera ve ses ayarları açılır.
-Değişiklikler hemen uygulanır ve cihazda saklanır. "Kopyala", yalnızca
+Listeyi sağ kenardaki turuncu tutamaklı şeritten kaydır (ayarlara yanlışlıkla
+dokunmamak için). Değişiklikler hemen uygulanır ve cihazda saklanır. "Kopyala", yalnızca
 varsayılandan farklı değerleri tek satırlık metin olarak verir
 (`AYARLAR car.start_speed=24; ...`). Panelin listesi `scripts/tuning.gd` içinde.
 

@@ -101,6 +101,10 @@ var _sliders := {}     # anahtar -> HSlider
 var _value_labels := {}
 var _root: Control
 var _taps := []
+var _scroll: ScrollContainer
+## Sağ kenardaki kaydırma şeridi (ayarlara yanlışlıkla dokunmadan kaydırmak için)
+var _strip: Control
+const STRIP_WIDTH := 84.0
 
 
 func _ready() -> void:
@@ -258,6 +262,37 @@ func _update_label(p: Array) -> void:
 
 # --- Arayüz ---
 
+## Şeridin içindeki tutamak: listenin görünen kısmı (y, yükseklik)
+func _thumb() -> Vector2:
+	var bar := _scroll.get_v_scroll_bar()
+	var total := maxf(bar.max_value, 1.0)
+	var h := _strip.size.y
+	var th := clampf(h * bar.page / total, 60.0, h)
+	var range_ := maxf(bar.max_value - bar.page, 1.0)
+	return Vector2((h - th) * bar.value / range_, th)
+
+
+func _draw_strip() -> void:
+	var w := _strip.size.x
+	_strip.draw_rect(Rect2(Vector2(w * 0.5 - 3, 0), Vector2(6, _strip.size.y)), Color(Palette.INK_LIGHT, 0.12))
+	var t := _thumb()
+	_strip.draw_rect(Rect2(Vector2(w * 0.5 - 14, t.x), Vector2(28, t.y)), Color(Palette.ACCENT, 0.85))
+
+
+## Şeritte sürükle: tutamak parmağı izler (aşağı çek = listede aşağı in)
+func _on_strip_input(event: InputEvent) -> void:
+	var dy := 0.0
+	# Dokunma, fare olayına da çevrilir (emulate_mouse_from_touch): yalnız fareyi dinle ki iki kez kaymasın
+	if event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_LEFT:
+		dy = event.relative.y
+	if dy == 0.0:
+		return
+	var bar := _scroll.get_v_scroll_bar()
+	var t := _thumb()
+	var travel := maxf(_strip.size.y - t.y, 1.0)
+	bar.value = clampf(bar.value + dy * (bar.max_value - bar.page) / travel, 0.0, bar.max_value - bar.page)
+	_strip.accept_event()
+
 func _build_ui() -> void:
 	_root = Control.new()
 	_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -271,8 +306,8 @@ func _build_ui() -> void:
 	var margin := MarginContainer.new()
 	_root.add_child(margin)
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	for side in ["left", "right"]:
-		margin.add_theme_constant_override("margin_" + side, 36)
+	margin.add_theme_constant_override("margin_left", 36)
+	margin.add_theme_constant_override("margin_right", 8)
 	margin.add_theme_constant_override("margin_top", 60)
 	margin.add_theme_constant_override("margin_bottom", 40)
 	var col := VBoxContainer.new()
@@ -280,10 +315,25 @@ func _build_ui() -> void:
 	margin.add_child(col)
 
 	col.add_child(_text("AYARLAR", 34, Palette.INK_LIGHT))
+	# Liste solda, sağda parmak genişliğinde kaydırma şeridi
+	var body := HBoxContainer.new()
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation", 14)
+	col.add_child(body)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	col.add_child(scroll)
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	body.add_child(scroll)
+	_scroll = scroll
+	_strip = Control.new()
+	_strip.custom_minimum_size.x = STRIP_WIDTH
+	_strip.mouse_filter = Control.MOUSE_FILTER_STOP
+	_strip.draw.connect(_draw_strip)
+	_strip.gui_input.connect(_on_strip_input)
+	body.add_child(_strip)
+	scroll.get_v_scroll_bar().value_changed.connect(func(_v): _strip.queue_redraw())
 	var list := VBoxContainer.new()
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list.add_theme_constant_override("separation", 6)
