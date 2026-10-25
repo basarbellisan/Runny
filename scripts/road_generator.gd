@@ -761,21 +761,24 @@ func _add_segment(x: float, top: float, top_end: float, width: float, z_start: f
 	return s
 
 
-## Pist ışıkları: yolun son ~0.75 saniyesinde iki kenarda kırmızı ışıklar, ucunda
-## yol boyunca bir ışık sırası. Darbeler yolun sonuna doğru akar: "şimdi gaz".
+## Pist ışıkları: yolun son ~0.75 saniyesinde iki kenarda kırmızı yuvarlak ışıklar.
+## Bölgenin başında seyrek (~5 m), yolun ucuna doğru düzgünce sıklaşır (~1 m).
+## Bir darbe dizi boyunca hızla yolun ucuna koşar ve döngüyle tekrarlar: "şimdi gaz".
 func _add_runway_lights(body: Node3D, s: Segment, slope_len: float) -> void:
 	var v := estimate_speed(car.global_position.z - s.z_end)
 	var zone := clampf(v * lights_time, 14.0, minf(48.0, slope_len * 0.6))
-	var step := 2.5
-	var per_side := int(zone / step)
-	var across := maxi(int((s.width - 0.6) / 1.0), 2)
-	var count := per_side * 2 + across
+	# Yolun ucundan geriye doğru: aralık uçta 1 m, bölgenin başında 5 m
+	var dists: Array[float] = []
+	var d := 0.6
+	while d < zone:
+		dists.append(d)
+		d += lerpf(1.0, 5.0, d / zone)
 	var dots := MultiMesh.new()
 	var halos := MultiMesh.new()
 	for mm in [dots, halos]:
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		mm.use_custom_data = true
-		mm.instance_count = count
+		mm.instance_count = dists.size() * 2
 	var ball := SphereMesh.new()
 	ball.radius = 0.24
 	ball.height = 0.48
@@ -788,23 +791,16 @@ func _add_runway_lights(body: Node3D, s: Segment, slope_len: float) -> void:
 	var half := slope_len * 0.5
 	var cos_a := cos(body.rotation.x)
 	var i := 0
-	for k in per_side:
-		var lz := -half + 0.8 + k * step
-		# 0: ışıklı bölgenin başı, 1: yolun ucu
-		var along := 1.0 - float(k) / maxf(per_side - 1, 1) * 0.95
+	for dist in dists:
+		var lz := -half + dist
+		# 0: ışıklı bölgenin başı, 1: yolun ucu (darbe bu yöne koşar)
+		var along := 1.0 - dist / zone
 		for sx in [-1.0, 1.0]:
 			var pos := Vector3(sx * (s.width * 0.5 - 0.25), 0.26, lz)
 			for mm in [dots, halos]:
 				mm.set_instance_transform(i, Transform3D(Basis(), pos))
 				mm.set_instance_custom_data(i, Color(body.position.z + lz * cos_a, along, 0, 0))
 			i += 1
-	# Yolun ucunda enine ışık sırası: darbe sona varınca hepsi birden parlar
-	for k in across:
-		var pos := Vector3(lerpf(-s.width * 0.5 + 0.4, s.width * 0.5 - 0.4, k / float(across - 1)), 0.26, -half + 0.35)
-		for mm in [dots, halos]:
-			mm.set_instance_transform(i, Transform3D(Basis(), pos))
-			mm.set_instance_custom_data(i, Color(s.z_end, 1.02, 1, 0))
-		i += 1
 	for pair in [[dots, _runway_mat], [halos, _runway_halo_mat]]:
 		var mi := MultiMeshInstance3D.new()
 		mi.multimesh = pair[0]
