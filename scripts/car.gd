@@ -53,6 +53,9 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 @export var tip_roll_accel := 9.0
 ## Ön tekerler boşta (yolun sonu): burun düşer (rad/sn²)
 @export var nose_drop_accel := 5.0
+## Roket ateşlenince burun kalkar (G kuvveti): yanarken burun açısı (°) ve ilk vuruş
+@export var boost_squat_deg := 12.0
+@export var boost_kick := 3.0
 
 @export_group("Havada")
 ## Havada direksiyon arabayı o yana yatırır (en fazla bu kadar derece)
@@ -72,20 +75,20 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 
 @export_group("Gaz")
 ## Roket gaz: kısa ve çok güçlü. Tam gazda hız bu oran kadar artar
-@export var boost_bonus := 1.0
+@export var boost_bonus := 1.35
 ## Gazın ekleyebileceği en fazla hız (m/s)
-@export var boost_max_extra := 32.0
+@export var boost_max_extra := 45.0
 ## Gazın tam güce çıkma ve sönme süreleri (sn)
 @export var boost_rise_time := 0.15
 @export var boost_fall_time := 0.35
 ## Dolu yakıtla gaz bu kadar saniye yanar; erken basan yolun sonuna yakıtsız varır
-@export var boost_burn_time := 0.9
+@export var boost_burn_time := 1.35
 ## Yolda, gaza basmazken yakıtın boştan dolma süresi (sn)
-@export var boost_recharge_time := 1.4
+@export var boost_recharge_time := 1.6
 
 @export_group("Zemin")
 ## Çakılda ileri hız bu orana düşer, direksiyon tutuşu bu orana iner
-@export var gravel_speed := 0.72
+@export var gravel_speed := 0.65
 @export var gravel_grip := 0.5
 
 @export_group("Uçuş")
@@ -171,6 +174,7 @@ var _steer := 0.0
 var _debris: Array[Dictionary] = []
 var _launch_target := Vector3.ZERO
 var _launch_clear_y := 0.0
+var _launch_vz := 0.0
 var _default_mask := 1
 var _wing_tween: Tween
 var _touches := {}  # dokunma index -> ekran x
@@ -232,8 +236,18 @@ func _physics_process(delta: float) -> void:
 ## Portala girince çağrılır: araba, target noktasındaki yola inecek şekilde fırlatılır.
 ## clear_y'nin üstüne çıkana kadar yana kaymaz (yolların içinden geçmemek için).
 func launch_to(target: Vector3, clear_y: float) -> void:
-	var t := maxf((global_position.z - target.z) / speed, 1.5)
-	velocity = Vector3(0.0, (target.y - global_position.y + 0.5 * gravity * t * t) / t, -speed)
+	var y := global_position.y
+	var dist := global_position.z - target.z
+	var t := maxf(dist / speed, 1.5)
+	var vy := (target.y - y + 0.5 * gravity * t * t) / t
+	# Tepe noktası yolların hizasının epey üstünde olsun ki yana kayacak vakit kalsın
+	# (hedef alçak bir yolsa fırlatma daha dik olur, ileri hız biraz düşer)
+	var apex_min := clear_y + 4.0
+	if y + vy * vy / (2.0 * gravity) < apex_min:
+		vy = sqrt(2.0 * gravity * (apex_min - y))
+		t = (vy + sqrt(maxf(vy * vy - 2.0 * gravity * (target.y - y), 0.0))) / gravity
+	_launch_vz = -dist / t
+	velocity = Vector3(0.0, vy, _launch_vz)
 	_launch_target = target
 	_launch_clear_y = clear_y
 	collision_mask = 0
@@ -281,6 +295,9 @@ func _drive(delta: float) -> void:
 		if on_gravel:
 			control *= gravel_grip
 			velocity.x += randf_range(-1.0, 1.0) * 14.0 * delta
+			# Taşlar gövdeyi sarsar
+			_bounce_v += randf_range(-1.0, 1.0) * 40.0 * delta
+			roll_rate += randf_range(-1.0, 1.0) * 6.0 * delta
 		# Sert inişten sonra araba sendeler: tutuş azalır, gövde yana savrulur
 		if _stumble_time > 0.0:
 			_stumble_time -= delta
@@ -368,7 +385,7 @@ func _flying(delta: float) -> void:
 
 func _launch(delta: float) -> void:
 	velocity.y -= gravity * delta
-	velocity.z = -speed
+	velocity.z = _launch_vz
 	if global_position.y > _launch_clear_y:
 		# Yolların üstüne çıktık: tepe noktasına kadar hedef yolun hizasına kay
 		var t_apex := maxf(velocity.y / gravity, 0.05)
@@ -478,6 +495,9 @@ func _update_boost(delta: float) -> void:
 		elif not boosting:
 			fuel = minf(fuel + delta / boost_recharge_time, 1.0)
 	if burning and not was_burning:
+		# Vum: arka çöker, burun havaya kalkar
+		pitch_rate += boost_kick
+		_bounce_v -= 1.2
 		boosted.emit()
 	if burning:
 		boost_level = minf(boost_level + delta / boost_rise_time, 1.0)
@@ -650,8 +670,10 @@ func _update_attitude(delta: float) -> void:
 		if absf(_tip) < 1.0:
 			roll_acc += k * (lean - roll) - c * roll_rate
 		var pitch_acc := -_nose * nose_drop_accel
+		# Roket yanarken arka çöker, burun kalkık kalır
+		var squat := deg_to_rad(boost_squat_deg) * boost_level if burning else 0.0
 		if _nose < 1.0:
-			pitch_acc += k * (surface - pitch) - c * pitch_rate
+			pitch_acc += k * (surface + squat - pitch) - c * pitch_rate
 		roll_rate += roll_acc * delta
 		pitch_rate += pitch_acc * delta
 		# Ağırlık merkezi kenarı geçti: araba artık yolda tutunamaz, devrilip düşer

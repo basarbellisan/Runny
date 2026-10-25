@@ -90,7 +90,7 @@ const ZONES: Array[Color] = [
 ## Düz yollara engel (çarpınca patlar) ve çakıl (yavaşlatır) bu mesafeden sonra gelir
 @export var obstacles_from := 350.0
 ## Düz bir yolun engelli olma olasılığı (zorlukla bu değere çıkar)
-@export_range(0.0, 1.0) var obstacle_chance := 0.85
+@export_range(0.0, 1.0) var obstacle_chance := 1.0
 ## Pist ışıkları: yolun sonundaki ışıklı bölgenin süresi (sn, o anki hızla)
 @export var lights_time := 0.75
 @export var max_slope_deg := 18.0
@@ -133,9 +133,9 @@ func _ready() -> void:
 	_block_mat.roughness = 0.9
 	_block_top_mat.albedo_color = Palette.ACCENT
 	_block_top_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_gravel_mat.albedo_color = Color("a59f94")
+	_gravel_mat.albedo_color = Color("8a7558")
 	_gravel_mat.roughness = 1.0
-	_stone_mat.albedo_color = Color("c9c3b8")
+	_stone_mat.albedo_color = Color("d6c7a8")
 	_stone_mat.roughness = 1.0
 
 
@@ -284,7 +284,7 @@ func _plan_pattern(travelled: float, level: float) -> void:
 	# Yükseklik sınırlı kalsın: alçaktayken inen, yüksekteyken çıkan kalıp yok
 	var low := level < MAIN_LEVEL - 3.0
 	var high := level > MAIN_LEVEL + 3.0
-	var flat := 1.0 if travelled < slopes_from else (0.7 if travelled < ramps_from else 0.8)
+	var flat := 1.0 if travelled < slopes_from else (0.9 if travelled < ramps_from else 1.1)
 	var options := [["düz", flat]]
 	if travelled > slopes_from:
 		options.append(["eğim", 0.6])
@@ -427,7 +427,13 @@ func _next_from(prev: Segment) -> Segment:
 	var with_obstacles: bool = plain and travelled > obstacles_from and width >= 5.5 \
 		and _rng.randf() < obstacle_chance * clampf(0.5 + difficulty, 0.0, 1.0)
 	if with_obstacles:
-		length = maxf(length * 1.8, v * 6.5)
+		length = maxf(length * 2.0, v * 8.0)
+
+	# Tam roketle bile yolun üstüne inilsin, yolu aşıp gidilmesin
+	var v_full := v + minf(v * car.boost_bonus, car.boost_max_extra)
+	var vy_full := car.launch_velocity + v_full * slope
+	var land_far := car_len + v_full * _flight_time(dh, vy_full) - gap
+	length = maxf(length, land_far + v * 1.2)
 
 	var top := maxf(prev.top_end + dh, MIN_LEVEL)
 	var rise: float = spec.get("rise", 0.0)
@@ -507,7 +513,7 @@ func _add_fork(prev: Segment) -> Segment:
 			v, Vector2(0.05, 0.3))
 		top += r.dh
 		var zs: float = z - r.gap
-		var ze := zs - v * _rng.randf_range(1.8, 2.4)
+		var ze := zs - maxf(v * _rng.randf_range(1.8, 2.4), r.min_len)
 		plan_l.append({"x": x_l, "top": top, "end": top, "w": _rng.randf_range(7.0, 8.5), "zs": zs, "ze": ze})
 		z = ze
 		slope = 0.0
@@ -518,7 +524,7 @@ func _add_fork(prev: Segment) -> Segment:
 	z = prev.z_end
 	var r := _pick_gap(prev.slope(), _rng.randf_range(-1.0, 0.0), v, Vector2(0.2, 0.45))
 	top += r.dh
-	var ramp_len := v * 1.4 + 8.0
+	var ramp_len := maxf(v * 1.4 + 8.0, r.min_len)
 	var rise := minf(ramp_len * tan(deg_to_rad(minf(16.0, max_slope_deg))), 9.0)
 	var zs: float = z - r.gap
 	plan_h.append({"x": x_h, "top": top, "end": top + rise, "w": _rng.randf_range(4.2, 5.0), "zs": zs, "ze": zs - ramp_len})
@@ -533,7 +539,7 @@ func _add_fork(prev: Segment) -> Segment:
 		r = _pick_gap(slope, dh, v, Vector2(0.15, 0.4) if i == 0 else Vector2(0.45, 0.8))
 		top += r.dh
 		zs = z - r.gap
-		var ze := zs - v * _rng.randf_range(1.5, 1.9)
+		var ze := zs - maxf(v * _rng.randf_range(1.5, 1.9), r.min_len)
 		plan_h.append({"x": x_h, "top": top, "end": top, "w": _rng.randf_range(3.3, 4.2), "zs": zs, "ze": ze})
 		z = ze
 		slope = 0.0
@@ -570,8 +576,13 @@ func _add_fork(prev: Segment) -> Segment:
 		seg.route = 2
 		seg.fork_id = fork_id
 	var m_w := absf(x_l - x_h) + maxf(end_l.w, end_h.w)
+	var v_full := v + minf(v * car.boost_bonus, car.boost_max_extra)
+	var m_len := v * _rng.randf_range(2.0, 2.6)
+	for e in [[end_h, g_h], [end_l, g_l]]:
+		var far: float = car_len + v_full * _flight_time(m_top - e[0].end, car.launch_velocity) - e[1]
+		m_len = maxf(m_len, far + v * 1.2)
 	var merge := _add_segment((x_l + x_h) * 0.5, m_top, m_top, m_w,
-		m_start, m_start - v * _rng.randf_range(2.0, 2.6), true)
+		m_start, m_start - m_len, true)
 	_add_decor(merge)
 	stats.forks = fork_id
 	return merge
@@ -594,7 +605,11 @@ func _pick_gap(slope: float, dh: float, v: float, frac: Vector2) -> Dictionary:
 	while w.y - w.x < 3.0 and dh > -8.0:
 		dh -= 1.0
 		w = _gap_window(dh, v, v_reach, vy, vy_reach, car_len)
-	return {"gap": lerpf(w.x, w.y, _rng.randf_range(frac.x, frac.y)), "dh": dh}
+	var gap := lerpf(w.x, w.y, _rng.randf_range(frac.x, frac.y))
+	# Sonraki yolun en az bu kadar uzun olması gerek (tam roketle aşılmasın)
+	var v_full := v + minf(v * car.boost_bonus, car.boost_max_extra)
+	var land_far := car_len + v_full * _flight_time(dh, car.launch_velocity + v_full * slope) - gap
+	return {"gap": gap, "dh": dh, "min_len": land_far + v * 1.2}
 
 
 ## Çıkmaz: ana yolun yanında, daha alçak, geniş ve davetkâr bir yol. Önceki
@@ -772,7 +787,10 @@ func _add_obstacles(s: Segment, v: float) -> void:
 		var center := Vector3((x0 + x1) * 0.5 - s.x, 0.0, z - depth * 0.5 - body.position.z)
 		if gravel:
 			_add_box(body, center + Vector3(0, 0.02, 0), Vector3(x1 - x0, 0.03, depth), _gravel_mat)
-			for k in int((x1 - x0) * depth * 0.2):
+			# Kenarlarında koyu çizgi: "zemin değişiyor"
+			for ez in [0.0, -depth]:
+				_add_box(body, center + Vector3(0, 0.035, depth * 0.5 + ez), Vector3(x1 - x0, 0.02, 0.25), _block_mat)
+			for k in int((x1 - x0) * depth * 0.45):
 				var st := _add_box(body, center + Vector3(_rng.randf_range(-0.5, 0.5) * (x1 - x0 - 0.3), 0.05,
 					_rng.randf_range(-0.5, 0.5) * (depth - 0.3)), Vector3.ONE * _rng.randf_range(0.08, 0.2), _stone_mat)
 				st.rotation.y = _rng.randf() * TAU
@@ -788,7 +806,7 @@ func _add_obstacles(s: Segment, v: float) -> void:
 			block.add_child(col)
 			_add_box(block, Vector3.ZERO, size, _block_mat)
 			_add_box(block, Vector3(0, 0.46, 0), Vector3(size.x, 0.04, size.z), _block_top_mat)
-		z -= depth + v * _rng.randf_range(0.85, 1.2)
+		z -= depth + v * _rng.randf_range(0.65, 0.95)
 
 
 ## Bu noktada çakıl var mı

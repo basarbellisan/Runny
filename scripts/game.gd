@@ -67,6 +67,7 @@ var _hint_shown := false
 var _start_z := 0.0
 ## Çatalın yüksek kolundayız (puan iki kat)
 var _on_high_route := false
+var _was_on_gravel := false
 var _stats := {"falls": 0, "returns": 0, "crystals": 0, "clean": 0, "hard": 0, "high": 0}
 var _args := {}
 
@@ -112,6 +113,7 @@ func _physics_process(delta: float) -> void:
 	lower.update(delta)
 	score += maxf(-car.velocity.z, 0.0) * delta * multiplier
 	_update_high_route(delta)
+	_update_gravel(delta)
 
 	match car.mode:
 		Car.Mode.DRIVE:
@@ -162,6 +164,7 @@ func _apply_mood(m: float) -> void:
 
 
 func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
+	print("MODE %d->%d z=%.0f x=%.1f y=%.1f vz=%.1f energy=%.0f" % [previous, mode, car.position.z, car.position.x, car.position.y, car.velocity.z, energy])
 	match mode:
 		Car.Mode.FALLING:
 			if previous == Car.Mode.DRIVE:
@@ -218,6 +221,20 @@ func _on_landed(air_time: float, quality: float, impact: float) -> void:
 		Audio.play("perfect", -2.0)
 
 
+## Çakıl: kamera hafif titrer; ilk birkaç seferde ne olduğu yazılır
+func _update_gravel(delta: float) -> void:
+	if car.on_gravel and car.is_on_floor():
+		$Camera.shake(delta * 2.2)
+		if not _was_on_gravel:
+			var cfg := _load_save()
+			var seen := int(cfg.get_value("tutorial", "gravel", 0))
+			if seen < 3:
+				hud.popup("ÇAKIL  ·  YAVAŞLATIR")
+				cfg.set_value("tutorial", "gravel", seen + 1)
+				cfg.save(SAVE_PATH)
+	_was_on_gravel = car.on_gravel and car.is_on_floor()
+
+
 ## Çatalın yüksek (dar, zor) kolu: üstünde puan iki kat, bitirince ödül
 func _update_high_route(delta: float) -> void:
 	if car.mode != Car.Mode.DRIVE or not car.is_on_floor():
@@ -247,7 +264,8 @@ func _to_garage() -> void:
 ## Roket ateşlendi: kükreme ve kısa sarsıntı
 func _on_boosted() -> void:
 	Audio.play("boost", -2.0, randf_range(0.97, 1.03))
-	$Camera.shake(0.25)
+	$Camera.shake(0.3)
+	$Camera.fov_kick(9.0)
 
 
 func _on_exploded() -> void:

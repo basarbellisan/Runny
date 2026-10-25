@@ -32,8 +32,9 @@ Süspansiyon belirgin: inişte gövde çöker, yamuk inişte salınır; tekerler
 kalır. İnişte tekerlerden toz, sert inişte ve kenara sürtünürken kıvılcım çıkar,
 kamera sarsılır.
 
-Gaz bir roket: kısa, çok güçlü (hız neredeyse iki katına çıkar). Yakıtı
-~0.9 sn yanar, yolda gaza basmazken ~1.4 sn'de dolar (kadranın altındaki
+Gaz bir roket: kısa, çok güçlü (hız 2.3 katına kadar çıkar; ateşlenince
+arka çöker, burun kalkar, kamera açılır). Yakıtı ~1.35 sn yanar, yolda gaza
+basmazken ~1.6 sn'de dolar (kadranın altındaki
 çizgi: turuncu = dolu). Gaz havada sönmez ama yolda bırakınca 0.35 sn'de
 söner; bu yüzden erken basan yolun sonuna yakıtsız ve yavaş varır. Doğru an
 yolun son ~0.7 saniyesi: iki kenarda yolun sonuna doğru akan kırmızı pist
@@ -47,7 +48,8 @@ açılır ve alt katmana geçersin. Çıkmaz yollarda pist ışığı yoktur.
 Düz yollarda (350 m'den sonra) sağ-sol oynatan engeller:
 - Beton blok (turuncu üst şeritli): sırayla sağda solda, aralarından geçilir;
   ön yüzüne çarpan patlar
-- Çakıl şeridi: üstünde hız ~%28 düşer, direksiyon kayar, taş sesi ve toz
+- Çakıl şeridi (kum rengi, taşlı): üstünde hız ~%35 düşer, direksiyon kayar,
+  araba sarsılır, taş sesi ve toz. İlk üç seferde "ÇAKIL · YAVAŞLATIR" yazar
 Yolun başı (iniş) ve sonu (pist ışıkları + hizalanma) her zaman boştur.
 
 ## Ayar paneli
