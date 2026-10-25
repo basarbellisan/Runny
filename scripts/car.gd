@@ -222,7 +222,10 @@ func _drive(delta: float) -> void:
 		control *= 1.0 - grip_loss * (left_off + right_off)
 		if _tip != 0.0:
 			velocity.x += _tip * tip_pull * delta + randf_range(-3.0, 3.0) * absf(_tip) * delta
-		_last_segment = roads.segment_under(global_position) if roads else null
+		# Son üstünde olunan yol (yolun ucunu geçerken sorgu boş dönebilir; eskisi kalsın)
+		var under: RoadGenerator.Segment = roads.segment_under(global_position) if roads else null
+		if under:
+			_last_segment = under
 	velocity.x = move_toward(velocity.x, _steer * steer_speed, steer_accel * control * delta)
 	if on_floor:
 		velocity.z = -forward_speed
@@ -244,9 +247,11 @@ func _drive(delta: float) -> void:
 		return
 
 	var now_on_floor := is_on_floor()
-	if _was_on_floor and not now_on_floor and velocity.y <= 0.5 and _left_through_end():
-		# Yolun sonundan çıktık: hızla havalan. Yandan kayınca zıplama yok, düşülür.
-		velocity.y = launch_velocity
+	if _was_on_floor and not now_on_floor and _left_through_end():
+		# Yolun sonundan çıktık: hızla havalan, rampanın açısı da dikey hıza eklenir.
+		# Yandan kayınca zıplama yok, düşülür.
+		var slope := _last_segment.slope() if _last_segment else 0.0
+		velocity.y = launch_velocity + forward_speed * slope
 		jumped.emit()
 	if not _was_on_floor and now_on_floor:
 		_bounce_v = -minf(1.0 + air_time * 2.5, 3.5)
@@ -450,9 +455,10 @@ func _apply_landing_assist(delta: float) -> void:
 		return
 	var pos := global_position
 	for s in roads.segments:
-		if s.z_end >= pos.z or s.top >= pos.y - 0.05:
+		var s_top: float = s.top_at(pos.z)
+		if s.z_end >= pos.z or s_top >= pos.y - 0.05:
 			continue
-		var t := _time_to_fall_to(s.top)
+		var t := _time_to_fall_to(s_top)
 		var land := pos + Vector3(velocity.x * t, 0, velocity.z * t)
 		if land.z > s.z_start or land.z < s.z_end:
 			continue
@@ -475,7 +481,9 @@ func _update_visual(delta: float) -> void:
 	if mode == Mode.FLYING:
 		pitch += sin(Time.get_ticks_msec() * 0.003) * 0.04
 	elif mode == Mode.DRIVE and is_on_floor():
-		# Boştaki tekerler tarafına yatma, yolun sonunda burun düşmesi
+		# Yolun eğimi, boştaki tekerler tarafına yatma, yolun sonunda burun düşmesi
+		var n := get_floor_normal()
+		pitch = atan2(n.z, n.y)
 		roll -= _tip * 0.35
 		pitch -= _nose * 0.18
 	elif mode == Mode.FALLING and _tip != 0.0:

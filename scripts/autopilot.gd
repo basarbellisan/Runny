@@ -11,6 +11,8 @@ var roads: RoadGenerator
 var lower: LowerLayer
 var dive_interval := 0.0
 var use_boost := true
+## Test: çıkmaz yollara bilerek gir (çakılmadan uçuşa düşülmeli)
+var seek_dead_ends := false
 var _drive_time := 0.0
 var _diving := false
 var _dive_dir := 1.0
@@ -46,8 +48,15 @@ func _drive_input() -> Vector2:
 		if _diving:
 			return Vector2(_dive_dir, 0.0)
 
+	if seek_dead_ends and current != null and current.dead_end:
+		return Vector2.ZERO  # çıkmazda dümdüz git, sonunda düş
 	var target: RoadGenerator.Segment = null
-	for s in roads.main_segments_ahead(pos.z + 2.0):
+	if seek_dead_ends:
+		for s in roads.segments:
+			if s.dead_end and s.z_start < pos.z and s.z_start > pos.z - 120.0:
+				target = s
+				break
+	for s in ([] if target else roads.main_segments_ahead(pos.z + 2.0)):
 		if s == current:
 			continue
 		if s.z_start < pos.z or s.contains(pos):
@@ -57,11 +66,12 @@ func _drive_input() -> Vector2:
 		return Vector2.ZERO
 	var aim := target.x
 	if current != null:
-		var lim := current.width * 0.5 - 1.2
+		# Tekerler yoldan taşmasın: kenardan tekerlerin dış ucu + pay kadar içeride kal
+		var lim := maxf(current.width * 0.5 - car.model.half_width - 0.5, 0.0)
 		aim = clampf(aim, current.x - lim, current.x + lim)
-		# Yolun sonuna ~1.2 sn kala hizalıysak gaza bas
+		# Yolun sonuna ~1.2 sn kala hizalı ve yana kaymıyorsak gaza bas
 		var time_to_edge := (pos.z - current.z_end) / maxf(car.forward_speed, 1.0)
-		if use_boost and time_to_edge < 1.2 and absf(aim - pos.x) < 1.5:
+		if use_boost and time_to_edge < 1.2 and absf(aim - pos.x) < 0.8 and absf(car.velocity.x) < 2.0:
 			return Vector2(0.0, 1.0)
 	return Vector2(_toward(aim - pos.x, 0.25), 0.0)
 

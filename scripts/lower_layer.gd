@@ -187,11 +187,11 @@ func _plan_portal(z_desired: float) -> Portal:
 		return null
 	var seg: RoadGenerator.Segment = landing.seg
 	var p := Portal.new()
-	p.land = Vector3(seg.x, seg.top, landing.z)
+	p.land = Vector3(seg.x, seg.top_at(landing.z), landing.z)
 	p.z = landing.z + v * launch_time
 	# Yükselirken yolların bulunduğu yükseklik bandından geçtiği bölge
 	var rise_far := p.z - v * 1.8 - 5.0
-	p.clear_y = maxf(roads.max_top_between(p.z + 5.0, rise_far), seg.top) + 2.0
+	p.clear_y = maxf(roads.max_top_between(p.z + 5.0, rise_far), seg.max_top()) + 2.0
 	p.x = seg.x + corridor_half_width + 10.0
 	for offset in [0.0, 8.0, -8.0, 11.0, -11.0, 14.0, -14.0, 18.0, -18.0, 22.0, -22.0, 27.0, -27.0]:
 		if roads.is_clear(seg.x + offset, p.z + 5.0, rise_far, 3.0):

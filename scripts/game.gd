@@ -23,9 +23,9 @@ const MOODS := {
 	"env:fog_density": [0.0028, 0.005],
 	"env:fog_height": [-30.0, -160.0],
 	"env:ambient_light_color": [Color("ebe8e2"), Color("8a8f97")],
-	"env:ambient_light_energy": [0.55, 0.95],
+	"env:ambient_light_energy": [0.6, 0.95],
 	"sun:light_color": [Color("fffaf2"), Color("dfe4ea")],
-	"sun:light_energy": [1.3, 0.95],
+	"sun:light_energy": [1.0, 0.95],
 	# Bulut tabakası: üstten bakınca sise karışır, alttan açık gri bir tavan olur
 	"cloud:albedo_color": [Color(0.97, 0.96, 0.95, 0.35), Color(0.78, 0.77, 0.75, 0.55)],
 }
@@ -73,6 +73,7 @@ func _ready() -> void:
 	car.roads = roads
 	if _args.has("autopilot"):
 		car.autopilot = Autopilot.new(car, roads, lower, float(_args.get("dive", "0")), not _args.has("noboost"))
+		car.autopilot.seek_dead_ends = _args.has("deadend")
 	car.landed.connect(_on_landed)
 	car.mode_changed.connect(_on_mode_changed)
 	car.died.connect(_on_game_over)
@@ -265,7 +266,10 @@ func _on_game_over(reason: String) -> void:
 	get_tree().create_timer(1.0).timeout.connect(Audio.play.bind("game_over"))
 	print("GAME_OVER reason=%s %s frame=%d" % [reason, _stats_text(), Engine.get_process_frames()])
 	if car.autopilot:
-		print("  car pos=%v vel=%v mode_time=%.2f" % [car.global_position, car.velocity, car._mode_time])
+		print("  car pos=%v vel=%v boost=%.2f" % [car.global_position, car.velocity, car.boost_level])
+		for sg in roads.segments:
+			if sg.z_end < car.global_position.z + 200.0 and sg.z_start > car.global_position.z - 60.0:
+				print("  seg main=%s dead=%s x=%.1f w=%.1f top=%.2f->%.2f z=[%.0f..%.0f] slope=%.3f" % [sg.main, sg.dead_end, sg.x, sg.width, sg.top, sg.top_end, sg.z_start, sg.z_end, sg.slope()])
 		for r in lower.rocks:
 			if absf(r.z - car.global_position.z) < 40.0:
 				print("  rock x=%.1f z=%.1f r=%.1f y=%.1f" % [r.x, r.z, r.r, r.node.position.y])
@@ -307,3 +311,5 @@ func _stats_text() -> String:
 func _exit_tree() -> void:
 	if car.autopilot and not game_over:
 		print("ALIVE %s" % _stats_text())
+	if car.autopilot:
+		print("PATTERNS %s %s" % [roads.pattern_counts, roads.stats])

@@ -37,6 +37,18 @@ varsayılandan farklı değerleri tek satırlık metin olarak verir
   enerji 2.5 kat hızlı biter. Bazı kayalar ve kristaller yukarıda. Kristaller enerji verir, kayalar öldürür
 - Portala girersen yukarı fırlatılır, arabaya dönüşüp bir yola konarsın
 
+## Yollar
+Yollar kalıplar hâlinde üretilir, mesafe arttıkça yenileri açılır:
+- 0–1 km: düz yollar
+- 1 km+: hafif yokuşlar, vadiler (yokuş aşağı → alçak yol → rampayla yukarı)
+- 2 km+: merdivenler, rampalar (kalkışta yukarı fırlatır), çıkmazlar
+  (yanda alçak, geniş bir yol; devamı yoktur, uçuşa düşülür — ana yol hep yanında devam eder)
+
+Rampanın açısı kalkıştaki dikey hıza eklenir. Her boşluk yine gazsız
+ulaşılamaz, tam gazla ulaşılır. Renkler: her 1 km'de bir bölge tonu
+(beyaz → adaçayı → buğulu mavi → kum → arduvaz), alçak yollar daha koyu,
+yokuş yukarı rampaların kenar çizgileri turuncu.
+
 ## Yapı
 - `scripts/menu.gd` — garaj (başlangıç ekranı)
 - `scripts/car_model.gd` — araba görünümü (3 model: kutu, gezgin, konsept) ve tekerler
@@ -62,5 +74,6 @@ godot --headless --path . --export-release "Web" build/web/index.html
 godot --path . -- --autopilot --seed=42              # otomatik pilot
 godot --path . -- --autopilot --dive=10 --seed=42    # 10 sn'de bir bilerek düşer, portal arar
 godot --path . -- --autopilot --noboost --seed=42    # hiç gaz vermez: ilk boşlukta çakılmalı
+godot --path . -- --autopilot --deadend --seed=42    # çıkmazlara bilerek girer: çakılmadan uçuşa düşmeli
 godot --path . -- --shots=120,600 --shot_dir=/tmp    # ekran görüntüsü
 ```
