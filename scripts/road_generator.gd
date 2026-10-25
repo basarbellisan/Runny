@@ -112,7 +112,8 @@ const ZONES: Array[Color] = [
 ## Yol ağı (yol üstü rampalar, alçak/yüksek yan yollar, dönüş rampaları) bu mesafeden
 ## sonra gelir; düz uzun bir yolun bu olasılıkla ağ olması, mesafeyle artar (az -> çok)
 @export var network_from := 500.0
-@export var network_chance := Vector2(0.4, 0.95)
+## Yol ağı kalıbının ağırlığı (başta, network_full_at'ta); diğer kalıplar ~0.5-1.1
+@export var network_weight := Vector2(1.0, 2.6)
 @export var network_full_at := 4000.0
 ## Yatık yollar (yana yatıp düzelen) bu mesafeden sonra gelir; ağırlık ve en fazla açı
 @export var banks_from := 500.0
@@ -149,6 +150,7 @@ var _gravel_mat := StandardMaterial3D.new()
 var _stone_mat := StandardMaterial3D.new()
 ## Sıradaki ana yolların tarifi (kalıptan gelir)
 var _plan: Array[Dictionary] = []
+var _recent: Array[String] = []
 ## Çıkmazdan sonra ana yol birkaç yol boyunca o taraftan uzaklaşır
 var _avoid_side := 0.0
 var _avoid_count := 0
@@ -349,18 +351,31 @@ func _plan_pattern(travelled: float, level: float) -> void:
 		options.append(["yatık", bank_weight])
 		if not high:
 			options.append(["rampa", 0.5])
+	if travelled > network_from:
+		var dens := clampf((travelled - network_from) / maxf(network_full_at - network_from, 1.0), 0.0, 1.0)
+		options.append(["ağ", lerpf(network_weight.x, network_weight.y, dens)])
+	# Tekrar yok: son kalıp hiç gelmez, son birkaç kalıbın şansı düşer
 	var total := 0.0
 	for o in options:
+		if not _recent.is_empty() and _recent[-1] == o[0] and options.size() > 1:
+			o[1] = 0.0
+		elif o[0] in _recent:
+			o[1] *= 0.4
 		total += o[1]
 	var pick := _rng.randf() * total
 	var kind: String = options[0][0]
 	for o in options:
 		pick -= o[1]
-		if pick <= 0.0:
+		if pick <= 0.0 and o[1] > 0.0:
 			kind = o[0]
 			break
 	pattern_counts[kind] = int(pattern_counts.get(kind, 0)) + 1
+	_recent.append(kind)
+	if _recent.size() > 3:
+		_recent.pop_front()
 	match kind:
+		"ağ":
+			_plan.append({"network": true})
 		"düz":
 			for i in _rng.randi_range(1, 3):
 				_plan.append({})
@@ -481,14 +496,14 @@ func _next_from(prev: Segment) -> Segment:
 	# Düz, geniş yollar bazen engelli olur: sağ-sol oynanacak yer için uzar
 	var banked: bool = spec.has("bank")
 	var plain: bool = not (banked or spec.has("angle") or spec.has("rise_to") or spec.has("rise") or spec.get("dead_end", false))
-	var network := false
-	if plain and travelled > network_from and width >= 5.5:
-		var dens := clampf((travelled - network_from) / maxf(network_full_at - network_from, 1.0), 0.0, 1.0)
-		network = _rng.randf() < lerpf(network_chance.x, network_chance.y, dens)
+	var network: bool = spec.get("network", false)
+	if network:
+		width = maxf(width, 6.0)
+		length = v * _rng.randf_range(7.5, 10.0)
 	var with_obstacles: bool = plain and not network and travelled > obstacles_from and width >= 5.5 \
 		and _rng.randf() < obstacle_chance * clampf(0.5 + difficulty, 0.0, 1.0)
-	if with_obstacles or network:
-		length = maxf(length * 2.2, v * 9.5)
+	if with_obstacles:
+		length = maxf(length * 2.0, v * _rng.randf_range(6.0, 8.5))
 
 	# Tam roketle bile yolun üstüne inilsin, yolu aşıp gidilmesin
 	var v_full := v + minf(v * car.boost_bonus, car.boost_max_extra)
@@ -844,16 +859,24 @@ func _add_runway_lights(body: Node3D, s: Segment, slope_len: float) -> void:
 ## sağ-sol yapılarak geçilir. Yolun başı (iniş) ve sonu (pist ışıkları + hizalanma)
 ## her zaman boş kalır. Engel: alçak beton blok, ön yüzüne çarpan patlar.
 ## Çakıl: üstünde hız düşer, direksiyon kayar.
+## Yolun başında boş kalacak uzunluk. İnişte roketin hızı hâlâ üstümüzde
+## olabilir: boş bölge gazlı hıza göre; tam roketle en uzak iniş noktasından
+## sonra da kaçacak vakit kalsın.
+func _clear_start(v: float, land_far: float) -> float:
+	return maxf(_v_boost(v) * 0.9 + 15.0, land_far + _v_boost(v) * 0.8 + 8.0)
+
+
 func _add_obstacles(s: Segment, v: float, land_far := 0.0) -> void:
+	var clear_start := _clear_start(v, land_far)
+	var clear_end := clampf(v * lights_time, 18.0, 70.0) + v * 0.9
+	_place_obstacles(s, v, s.z_start - clear_start, s.z_end + clear_end)
+
+
+## z'den z_last'a kadar (ileriye doğru) blok ve çakıl dizer
+func _place_obstacles(s: Segment, v: float, z: float, z_last: float) -> void:
 	var w := s.width
 	var hw: float = car.model.half_width if car.model else 1.1
 	var lane := maxf(3.4, hw * 2.0 + 1.3)
-	# İnişte roketin hızı hâlâ üstümüzde olabilir: boş bölge gazlı hıza göre
-	# Tam roketle en uzak iniş noktasından sonra da kaçacak vakit kalsın
-	var clear_start := maxf(_v_boost(v) * 0.9 + 15.0, land_far + _v_boost(v) * 1.1 + 10.0)
-	var clear_end := clampf(v * lights_time, 18.0, 70.0) + v * 1.0
-	var z := s.z_start - clear_start
-	var z_last := s.z_end + clear_end
 	var side := -1.0 if _rng.randf() < 0.5 else 1.0
 	var body := s.node
 	while z > z_last:
@@ -887,19 +910,12 @@ func _add_obstacles(s: Segment, v: float, land_far := 0.0) -> void:
 				x1 = s.x + w * 0.5
 				x0 = x1 - bw
 			side = -side
-		s.obstacles.append({"x0": x0, "x1": x1, "z0": z, "z1": z - depth, "gravel": gravel})
-		stats["gravel" if gravel else "blocks"] = int(stats.get("gravel" if gravel else "blocks", 0)) + 1
-		var center := Vector3((x0 + x1) * 0.5 - s.x, 0.0, z - depth * 0.5 - body.position.z)
 		if gravel:
-			_add_box(body, center + Vector3(0, 0.02, 0), Vector3(x1 - x0, 0.03, depth), _gravel_mat)
-			# Kenarlarında koyu çizgi: "zemin değişiyor"
-			for ez in [0.0, -depth]:
-				_add_box(body, center + Vector3(0, 0.035, depth * 0.5 + ez), Vector3(x1 - x0, 0.02, 0.25), _block_mat)
-			for k in int((x1 - x0) * depth * 0.45):
-				var st := _add_box(body, center + Vector3(_rng.randf_range(-0.5, 0.5) * (x1 - x0 - 0.3), 0.05,
-					_rng.randf_range(-0.5, 0.5) * (depth - 0.3)), Vector3.ONE * _rng.randf_range(0.08, 0.2), _stone_mat)
-				st.rotation.y = _rng.randf() * TAU
+			_add_gravel(s, x0, x1, z, depth)
 		else:
+			s.obstacles.append({"x0": x0, "x1": x1, "z0": z, "z1": z - depth, "gravel": false})
+			stats.blocks = int(stats.get("blocks", 0)) + 1
+			var center := Vector3((x0 + x1) * 0.5 - s.x, 0.0, z - depth * 0.5 - body.position.z)
 			var size := Vector3(x1 - x0 - 0.1, 0.9, depth)
 			var block := StaticBody3D.new()
 			block.position = center + Vector3(0, 0.45, 0)
@@ -914,48 +930,101 @@ func _add_obstacles(s: Segment, v: float, land_far := 0.0) -> void:
 		z -= depth + v * _rng.randf_range(0.65, 0.95)
 
 
+## Yolda x0..x1 genişliğinde, z'den başlayıp depth boyunca çakıl
+func _add_gravel(s: Segment, x0: float, x1: float, z: float, depth: float) -> void:
+	s.obstacles.append({"x0": x0, "x1": x1, "z0": z, "z1": z - depth, "gravel": true})
+	stats.gravel = int(stats.get("gravel", 0)) + 1
+	var body := s.node
+	var center := Vector3((x0 + x1) * 0.5 - s.x, 0.0, z - depth * 0.5 - body.position.z)
+	_add_box(body, center + Vector3(0, 0.02, 0), Vector3(x1 - x0, 0.03, depth), _gravel_mat)
+	# Kenarlarında koyu çizgi: "zemin değişiyor"
+	for ez in [0.0, -depth]:
+		_add_box(body, center + Vector3(0, 0.035, depth * 0.5 + ez), Vector3(x1 - x0, 0.02, 0.25), _block_mat)
+	for k in int((x1 - x0) * depth * 0.45):
+		var st := _add_box(body, center + Vector3(_rng.randf_range(-0.5, 0.5) * (x1 - x0 - 0.3), 0.05,
+			_rng.randf_range(-0.5, 0.5) * (depth - 0.3)), Vector3.ONE * _rng.randf_range(0.08, 0.2), _stone_mat)
+		st.rotation.y = _rng.randf() * TAU
+
+
 # --------------------------------------------------------------------------
 # Yol ağı: yol üstü rampalar, alçak/yüksek yan yollar ve dönüş rampaları
 # --------------------------------------------------------------------------
 
 ## Uzun düz bir ana yolun üstüne/yanına ağ kurar. Başı (iniş) ve sonu (pist ışıkları
-## + hizalanma) boş kalır; her rampanın fırlattığı yer hıza göre hesaplanır ve iniş
-## yeri ana yolda boştur. Rampalar gaz istemez (üstlerinde gaz çalışmaz).
-##  rampalar – ana yolda 1-2 düz rampa (tam ya da yarım genişlik)
-##  alt yol  – yanda ~4 m alçak yol: kenardan düşülür, sonundaki eğik rampa ana yola atar
-##  üst yol  – ana yolda yana fırlatan eğik rampa yandaki ~2.5 m yüksek yola atar;
-##             onun sonundaki rampa da ana yola geri atar
-##  iki yan  – bir yanda alt yol, öbür yanda üst yol
+## + hizalanma) boş kalır. Arada sırayla 1-4 parça dizilir (aynısı üst üste gelmez),
+## parçaların arasındaki ana yol blok ve çakılla dolar. Her rampanın fırlattığı yer
+## hıza göre hesaplanır ve iniş yeri boştur. Rampalar gaz istemez (üstlerinde gaz çalışmaz).
+##  rampa  – düz rampa (tam ya da yarım genişlik, boyu/yüksekliği değişir); yarımsa
+##           arkasına çakıl gelebilir: üstünden uç ya da çakıldan geç
+##  slalom – sırayla sağda solda küçük yarım rampalar
+##  alt    – yanda alçak yol: kenardan düşülür, sonundaki eğik rampa ana yola atar
+##  üst    – ana yolda yana fırlatan eğik rampa yandaki yüksek yola atar;
+##           onun sonundaki rampa ana yola geri atar
 func _add_network(s: Segment, v: float, land_far: float, travelled: float) -> void:
 	var dens := clampf((travelled - network_from) / maxf(network_full_at - network_from, 1.0), 0.0, 1.0)
-	var z0 := s.z_start - maxf(_v_boost(v) * 0.9 + 15.0, land_far + _v_boost(v) * 1.1 + 10.0)
-	var z_last := s.z_end + clampf(v * lights_time, 18.0, 70.0) + v * 1.2
-	var side := -1.0 if _rng.randf() < 0.5 else 1.0
-	var options := [["rampalar", 0.6], ["alt", 1.0], ["üst", 0.9], ["iki", 0.4 + 0.8 * dens]]
-	var total := 0.0
-	for o in options:
-		total += o[1]
-	var pick := _rng.randf() * total
-	var kind: String = options[0][0]
-	for o in options:
-		pick -= o[1]
-		if pick <= 0.0:
-			kind = o[0]
+	var z0 := s.z_start - _clear_start(v, land_far)
+	var z_last := s.z_end + clampf(v * lights_time, 18.0, 70.0) + v * 1.1
+	# Ana yolda boş kalması gereken aralıklar (rampaya yaklaşma, uçuş, iniş): (yakın z, uzak z)
+	var busy: Array[Vector2] = []
+	var cursor := z0
+	var last := ""
+	var low_side := 0.0
+	# Alçak yol ilk parçaysa ana yolun inişinin yanından erken başlayabilir
+	if _rng.randf() < 0.5:
+		low_side = -1.0 if _rng.randf() < 0.5 else 1.0
+		var end := _net_low(s, low_side, v, s.z_start - 12.0, z_last, busy)
+		if not is_nan(end):
+			last = "alt"
+			cursor = minf(cursor, end)
+			stats["ağ_alt"] = int(stats.get("ağ_alt", 0)) + 1
+	for attempt in 6:
+		if cursor - v * 1.5 < z_last:
 			break
-	stats["ağ_" + kind] = int(stats.get("ağ_" + kind, 0)) + 1
-	var free := z0
-	match kind:
-		"rampalar":
-			free = _net_ramps(s, v, z0, z_last)
-		"alt":
-			free = _net_low(s, side, v, z0, z_last)
-		"üst":
-			free = _net_high(s, side, v, z0, z_last)
-		"iki":
-			free = minf(_net_high(s, side, v, z0, z_last), _net_low(s, -side, v, z0 + 8.0, z_last))
-	# Kalan boş ana yolda yer varsa bir düz rampa daha
-	if free - v * 2.5 > z_last and _rng.randf() < 0.5 + 0.4 * dens:
-		_net_ramps(s, v, free, z_last, 1)
+		var options := [["rampa", 1.0], ["slalom", 0.4 + 0.5 * dens], ["alt", 1.0], ["üst", 0.9]]
+		var total := 0.0
+		for o in options:
+			if o[0] == last:
+				o[1] = 0.0
+			total += o[1]
+		var pick := _rng.randf() * total
+		var kind: String = options[0][0]
+		for o in options:
+			pick -= o[1]
+			if pick <= 0.0 and o[1] > 0.0:
+				kind = o[0]
+				break
+		var side := -1.0 if _rng.randf() < 0.5 else 1.0
+		if kind == "üst" and low_side != 0.0:
+			side = -low_side  # alçak yolun öbür yanında
+		# Parçalar arasında biraz (engelli) düz yol
+		var at := cursor - (v * _rng.randf_range(0.3, 1.2) if last != "" else 0.0)
+		var end := NAN
+		match kind:
+			"rampa":
+				end = _net_ramp(s, v, at, z_last, busy)
+			"slalom":
+				end = _net_slalom(s, v, at, z_last, busy)
+			"alt":
+				end = _net_low(s, side, v, at, z_last, busy)
+				if not is_nan(end):
+					low_side = side
+			"üst":
+				end = _net_high(s, side, v, at, z_last, busy)
+		if is_nan(end):
+			continue
+		stats["ağ_" + kind] = int(stats.get("ağ_" + kind, 0)) + 1
+		last = kind
+		cursor = end
+	# Boş kalan ana yol aralıkları blok ve çakılla dolar
+	busy.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x > b.x)
+	var z := z0
+	var fill := lerpf(0.65, 0.95, dens)
+	var stops := busy.duplicate()
+	stops.append(Vector2(z_last, z_last))
+	for b: Vector2 in stops:
+		if z - b.x > v * 1.1 and _rng.randf() < fill:
+			_place_obstacles(s, v, z, b.x)
+		z = minf(z, b.y)
 
 
 ## Rampadan kalkıp dh (iniş yeri - rampa ucu) yüksekliğine inene kadar gidilen yol
@@ -964,54 +1033,84 @@ func _ramp_flight(v: float, slope: float, dh: float) -> Vector2:
 	return Vector2(car.half_length * 2.0 + v * t, t)
 
 
-## Ana yolda düz rampalar; sonraki boş z'yi döndürür
-func _net_ramps(s: Segment, v: float, z0: float, z_last: float, count := 0) -> float:
-	var n := count if count > 0 else _rng.randi_range(1, 2)
-	var z := z0
+## Ana yolda tek düz rampa; sonraki boş z'yi döndürür (sığmazsa NAN)
+func _net_ramp(s: Segment, v: float, z: float, z_last: float, busy: Array[Vector2]) -> float:
+	var r_len := _rng.randf_range(6.0, 10.0)
+	var r_rise := r_len * _rng.randf_range(0.14, 0.24)
+	var fl := _ramp_flight(v, r_rise / r_len, -r_rise)
+	var end := z - r_len - fl.x - v * 0.9
+	if end < z_last:
+		return NAN
+	var full := _rng.randf() < 0.4
+	var rw := s.width if full else s.width * _rng.randf_range(0.45, 0.6)
+	var sd := -1.0 if _rng.randf() < 0.5 else 1.0
+	var rx := s.x if full else s.x + sd * (s.width - rw) * 0.5
+	_add_ramp(s, rx, rw, z, r_len, r_rise, 0.0, 0.0)
+	busy.append(Vector2(z + v * 0.7, end))
+	if not full and _rng.randf() < 0.6:
+		# Rampanın arkasında, uçuşun altında tam genişlik çakıl
+		var g0 := z - r_len - fl.x * 0.15
+		var depth := fl.x * _rng.randf_range(0.45, 0.65)
+		_add_gravel(s, s.x - s.width * 0.5, s.x + s.width * 0.5, g0, depth)
+	return end
+
+
+## Sırayla sağda solda küçük yarım rampalar
+func _net_slalom(s: Segment, v: float, z: float, z_last: float, busy: Array[Vector2]) -> float:
+	var r_len := 5.0
+	var r_rise := 0.8
+	var fl := _ramp_flight(v, r_rise / r_len, -r_rise)
+	var step := r_len + fl.x + v * _rng.randf_range(0.7, 0.9)
+	var n := _rng.randi_range(3, 4)
+	while n > 1 and z - step * n < z_last:
+		n -= 1
+	if n < 2:
+		return NAN
+	var rw := s.width * 0.5
+	var sd := -1.0 if _rng.randf() < 0.5 else 1.0
+	busy.append(Vector2(z + v * 0.7, z - step * n))
 	for i in n:
-		var r_len := 7.0
-		var r_rise := 1.4
-		var fl := _ramp_flight(v, r_rise / r_len, -r_rise)
-		if z - r_len - fl.x - v * 1.0 < z_last:
-			break
-		var full := _rng.randf() < 0.5
-		var rw := s.width if full else s.width * 0.5
-		var sd := -1.0 if _rng.randf() < 0.5 else 1.0
-		var rx := s.x if full else s.x + sd * (s.width - rw) * 0.5
-		_add_ramp(s, rx, rw, z, r_len, r_rise, 0.0, 0.0)
-		z -= r_len + fl.x + v * 1.0
-	return z
+		_add_ramp(s, s.x + sd * rw * 0.5, rw, z - step * i, r_len, r_rise, 0.0, 0.0)
+		sd = -sd
+	return z - step * n
 
 
-## Alçak yan yol: ana yolun kenarından düşülerek girilir; sonunda ana yola atan eğik rampa
-func _net_low(s: Segment, side: float, v: float, z0: float, z_last: float) -> float:
-	var drop := _rng.randf_range(3.5, 4.5)
-	var w := _rng.randf_range(4.5, 6.0)
-	var x := s.x + side * (s.width * 0.5 + _rng.randf_range(0.6, 1.0) + w * 0.5)
+## Alçak yan yol: ana yolun kenarından düşülerek girilir; sonunda ana yola atan eğik rampa.
+## z0'dan başlar; ana yoldaki dönüş inişinin bittiği z'yi döndürür (sığmazsa NAN).
+func _net_low(s: Segment, side: float, v: float, z0: float, z_last: float, busy: Array[Vector2]) -> float:
+	var drop := _rng.randf_range(3.0, 5.5)
+	var w := _rng.randf_range(4.5, 6.5)
+	var x := s.x + side * (s.width * 0.5 + _rng.randf_range(0.6, 1.2) + w * 0.5)
 	var top := s.top - drop
-	var k_len := 7.0
-	var k_rise := 2.6
+	var k_len := _rng.randf_range(6.0, 8.0)
+	var k_rise := maxf(k_len * _rng.randf_range(0.32, 0.4), 0.0)
 	var fl := _ramp_flight(v, k_rise / k_len, drop - k_rise)
 	var lz0 := z0 + 6.0
-	var lz_end := maxf(lz0 - v * _rng.randf_range(3.0, 4.5), z_last + fl.x)
-	if lz0 - lz_end < v * 2.2:
-		return z0
+	var lz_end := maxf(lz0 - v * _rng.randf_range(1.8, 3.2), z_last + fl.x)
+	if lz0 - lz_end < v * 1.8:
+		return NAN
 	var low := _add_segment(x, top, top, w, lz0, lz_end, false)
 	low.side_road = true
 	# Dönüş rampası yolun tamamını kaplar: yolun sonuna gelen herkes ana yola atılır
-	_add_ramp(low, x, w, lz_end + k_len, k_len, k_rise, 7.0, -side * absf(x - s.x) / fl.y)
+	_add_ramp(low, x, w, lz_end + k_len, k_len, k_rise, _rng.randf_range(5.0, 9.0), -side * absf(x - s.x) / fl.y)
+	# Alçak yolda da engel olabilir (girişte ve rampanın önünde boş)
+	# (Kenardan düşüp inince toparlanacak kadar sonra başlar)
+	if lz0 - lz_end > v * 2.9 and _rng.randf() < 0.6:
+		_place_obstacles(low, v, lz0 - v * 1.9, lz_end + k_len + v * 0.9)
 	stats.side_roads = int(stats.get("side_roads", 0)) + 1
-	return lz_end - fl.x - v * 1.0
+	var end := lz_end - fl.x - v * 0.9
+	busy.append(Vector2(lz_end, end))
+	return end
 
 
 ## Yüksek yan yol: ana yolun yan yarısındaki eğik rampa yukarı ve yana atar; yüksek
 ## yolun sonundaki rampa ana yola geri atar
-func _net_high(s: Segment, side: float, v: float, z0: float, z_last: float) -> float:
-	var h := _rng.randf_range(2.0, 3.0)
-	var rw := s.width * 0.45
+func _net_high(s: Segment, side: float, v: float, z0: float, z_last: float, busy: Array[Vector2]) -> float:
+	var h := _rng.randf_range(1.8, 3.4)
+	var rw := s.width * _rng.randf_range(0.42, 0.55)
 	var rx := s.x + side * (s.width - rw) * 0.5
-	var r_len := 8.0
-	var r_rise := 1.6
+	var r_len := _rng.randf_range(7.0, 9.5)
+	var r_rise := r_len * _rng.randf_range(0.18, 0.24)
 	var fl1 := _ramp_flight(v, r_rise / r_len, h - r_rise)
 	var w := _rng.randf_range(4.5, 5.5)
 	var hx := s.x + side * (s.width * 0.5 + 0.8 + w * 0.5)
@@ -1020,15 +1119,22 @@ func _net_high(s: Segment, side: float, v: float, z0: float, z_last: float) -> f
 	var fl2 := _ramp_flight(v, k_rise / k_len, -(h + k_rise))
 	var r_end := z0 - r_len
 	var hz0 := r_end - fl1.x * 0.45
-	var hz_end := maxf(r_end - fl1.x - v * _rng.randf_range(2.0, 3.5), z_last + fl2.x)
+	var hz_end := maxf(r_end - fl1.x - v * _rng.randf_range(1.4, 2.8), z_last + fl2.x)
 	if hz_end > r_end - fl1.x - v * 1.0:
-		return z0
-	_add_ramp(s, rx, rw, z0, r_len, r_rise, 7.0, side * absf(hx - rx) / fl1.y)
+		return NAN
+	_add_ramp(s, rx, rw, z0, r_len, r_rise, _rng.randf_range(5.0, 9.0), side * absf(hx - rx) / fl1.y)
+	# Rampaya girmeyen de rampanın yanından geçince hemen bloğa çarpmasın
+	busy.append(Vector2(z0 + v * 0.7, r_end - v * 1.1))
 	var high := _add_segment(hx, s.top + h, s.top + h, w, hz0, hz_end, false)
 	high.side_road = true
 	_add_ramp(high, hx, w, hz_end + k_len, k_len, k_rise, 7.0, -side * absf(hx - s.x) / fl2.y)
+	var land := r_end - fl1.x - v * 1.0
+	if land - (hz_end + k_len + v * 0.9) > v * 1.2 and _rng.randf() < 0.5:
+		_place_obstacles(high, v, land, hz_end + k_len + v * 0.9)
 	stats.side_roads = int(stats.get("side_roads", 0)) + 1
-	return hz_end - fl2.x - v * 1.0
+	var end := hz_end - fl2.x - v * 0.9
+	busy.append(Vector2(hz_end, end))
+	return end
 
 
 ## Bir yolun üstüne rampa: yakın ucu yolla aynı hizada, uzak ucu rise kadar yüksek.

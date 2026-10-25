@@ -92,7 +92,10 @@ func _drive_input() -> Vector2:
 			target = s
 			break
 	if target == null:
-		return Vector2.ZERO
+		# Önümüzdeki yol henüz üretilmemiş (uzun yol): bulunduğumuz yolda kal
+		if current == null:
+			return Vector2.ZERO
+		target = current
 	var aim := target.x
 	if current != null:
 		# Tekerler yoldan taşmasın: kenardan tekerlerin dış ucu + pay kadar içeride kal
@@ -125,7 +128,8 @@ func _side_input(current: RoadGenerator.Segment, pos: Vector3) -> float:
 	if not current.main:
 		if current.side_road:
 			_on_side = true
-			return _toward(current.x - pos.x, 0.3)
+			var dodge := _dodge(current, pos)
+			return _toward((current.x if is_nan(dodge) else dodge) - pos.x, 0.3)
 		return NAN
 	if _on_side:
 		side_trips += 1

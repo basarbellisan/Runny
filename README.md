@@ -88,19 +88,25 @@ Yollar kalıplar hâlinde üretilir, mesafe arttıkça yenileri açılır:
   ve çatallar: geniş bir yoldan iki kol ayrılır. Alçak kol geniş ve kolay; yüksek
   kol rampayla çıkılır, dar ve zor boşlukludur, turuncu çizgilidir. Yüksek kolda
   puan iki kat, bitirince +250 × çarpan. İki kol ileride geniş bir yolda birleşir.
-- 500 m+: yol ağı. Düz yolların bir kısmı uzar ve üstüne yollar eklenir; az
-  başlar, ~4 km'de düz yolların çoğu ağ olur. Ödül yoktur, sadece yol seçimi:
-  - yol üstü rampalar: tam ya da yarım genişlik, kısa ve açık turuncu, oklu
-  - alçak yan yol (3.5–4.5 m aşağıda): ana yolun kenarından düşülür; sonundaki
-    eğik rampa seni ana yola geri atar
-  - yüksek yan yol (2–3 m yukarıda): ana yolun bir yanındaki eğik rampayla
+- 500 m+: yol ağı. Kendi kalıbıdır (300–550 m düz yol); az başlar, ~4 km'de en
+  sık gelen kalıp olur. Ödül yoktur, sadece yol seçimi. Üstüne 1-4 parça
+  sırayla dizilir (aynı parça üst üste gelmez), parçaların arası blok ve çakılla dolar:
+  - rampa: tam ya da yarım genişlik, boyu (6–10 m) ve yüksekliği değişir; yarım
+    rampanın arkasına çakıl gelebilir (üstünden uç ya da çakıldan geç)
+  - slalom: sırayla sağda solda 3-4 küçük yarım rampa
+  - alçak yan yol (3–5.5 m aşağıda): ana yolun kenarından düşülür, bazen ağın en
+    başından başlar; üstünde de engel olabilir; sonundaki eğik rampa ana yola atar
+  - yüksek yan yol (1.8–3.4 m yukarıda): ana yolun bir yanındaki eğik rampayla
     çıkılır; sonundaki küçük rampa ana yola indirir
-  - iki yan birden (alçak + yüksek)
 
-  Eğik rampalar (7°) yukarıyla birlikte yana da atar; oklar attığı yönü
+  Eğik rampalar (5–9°) yukarıyla birlikte yana da atar; oklar attığı yönü
   gösterir. Atış hedef yola yetecek kadardır, havada sağ-sol ile hizalanılır.
   Rampada roket yanmaz (rampa kendi atar). Kalkışta gövdenin burgu dönüşü
-  söndürülür, araba havada takla atmaz.
+  söndürülür, araba havada takla atmaz. Rampaya yaklaşma, uçuş ve iniş yerleri
+  hep boştur.
+
+Kalıplar tekrar etmez: bir önceki kalıp hiç gelmez, son üç kalıbın şansı düşer.
+Engelli düz yollar 330–470 m'dir (önceden en az 520 m).
 
 Rampanın açısı kalkıştaki dikey hıza eklenir. Her boşluk yine gazsız
 ulaşılamaz, tam gazla ulaşılır. Eğimli yollar inişten sonra hizalanıp gaz
