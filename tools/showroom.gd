@@ -3,12 +3,15 @@ extends SceneTree
 ## Kullanım: godot --path . --resolution 720x720 --script res://tools/showroom.gd -- --out=/tmp
 
 var _out := "user://"
+var _variants := [1, 2, 3]
 
 
 func _initialize() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--out="):
 			_out = a.trim_prefix("--out=")
+		elif a.begins_with("--variants="):
+			_variants = Array(a.trim_prefix("--variants=").split(",")).map(func(v): return int(v))
 	_shoot.call_deferred()
 
 
@@ -42,12 +45,13 @@ func _shoot() -> void:
 	cam.fov = 32
 	world.add_child(cam)
 	var car_scene: PackedScene = load("res://scenes/car.tscn")
-	for v in [1, 2, 3]:
+	for v in _variants:
 		var car: Car = car_scene.instantiate()
 		world.add_child(car)
 		car.set_physics_process(false)
 		car.model.variant = v
-		for view in [["yan", Vector3(-7.5, 3.2, -6.5)], ["arka", Vector3(0, 4.5, 9.5)]]:
+		for view in [["yan", Vector3(-7.5, 3.2, -6.5)], ["arka", Vector3(0, 4.5, 9.5)],
+				["on", Vector3(-6.0, 2.4, -7.5)], ["profil", Vector3(-10.0, 1.6, 0.0)]]:
 			cam.position = view[1]
 			cam.look_at(Vector3(0, 0.7, 0))
 			for i in 4:
