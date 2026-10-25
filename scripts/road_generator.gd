@@ -45,7 +45,7 @@ const LOW_LEVEL := -9.0
 ## Duvarların dibi bu derinliğin altına inmez (bulut tabakası -42, uçuş -55)
 const WALL_FLOOR := 36.0
 ## Yolların inebileceği en alçak seviye
-const MIN_LEVEL := -15.0
+const MIN_LEVEL := -18.0
 ## Bölge renkleri: her bölge_uzunluğu metrede bir yumuşakça değişir
 const ZONES: Array[Color] = [
 	Color("fbfaf7"), Color("b3c4a5"), Color("a5bccf"), Color("dcc8a6"), Color("9da7b1"),
@@ -64,11 +64,11 @@ const ZONES: Array[Color] = [
 ## arasındaki yeri (0: az gaz yeter, 1: tam gaz şart)
 @export var gap_difficulty := Vector2(0.1, 0.85)
 ## Kalıpların açıldığı mesafeler (m)
-@export var slopes_from := 1000.0
-@export var ramps_from := 2000.0
+@export var slopes_from := 300.0
+@export var ramps_from := 800.0
 ## Çıkmaz kalıbının seçilme ağırlığı (diğerleri ~0.5-1)
 @export var dead_end_weight := 0.5
-@export var max_slope_deg := 11.0
+@export var max_slope_deg := 18.0
 @export var zone_length := 1000.0
 
 var car: Car
@@ -79,6 +79,7 @@ var _rng := RandomNumberGenerator.new()
 var _unit_box := BoxMesh.new()
 var _line_mat := ShaderMaterial.new()
 var _ramp_line_mat := ShaderMaterial.new()
+var _chevron_mat := StandardMaterial3D.new()
 ## Sıradaki ana yolların tarifi (kalıptan gelir)
 var _plan: Array[Dictionary] = []
 ## Çıkmazdan sonra ana yol birkaç yol boyunca o taraftan uzaklaşır
@@ -95,6 +96,8 @@ func _ready() -> void:
 	_line_mat.set_shader_parameter("color", Palette.SNOW)
 	_ramp_line_mat.shader = dashed
 	_ramp_line_mat.set_shader_parameter("color", Palette.ACCENT)
+	_chevron_mat.albedo_color = Palette.ACCENT
+	_chevron_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
 
 func start(p_car: Car, seed_value := -1) -> void:
@@ -126,7 +129,9 @@ func update(car_pos: Vector3) -> void:
 ## Arabanın altındaki (üstüne konduğu) yol
 func segment_under(pos: Vector3) -> Segment:
 	for s in segments:
-		if s.contains(pos, 0.5) and absf(pos.y - s.top_at(pos.z)) < 0.6:
+		# Araba gövdesi yokuşta eğilmez: düz kutu, eğimli yüzeye ön/arka köşesiyle
+		# değer ve merkezi yüzeyin biraz üstünde kalır
+		if s.contains(pos, 0.5) and absf(pos.y - s.top_at(pos.z)) < 0.6 + absf(s.slope()) * 2.2:
 			return s
 	return null
 
@@ -228,7 +233,8 @@ func _plan_pattern(travelled: float, level: float) -> void:
 	# Yükseklik sınırlı kalsın: alçaktayken inen, yüksekteyken çıkan kalıp yok
 	var low := level < MAIN_LEVEL - 3.0
 	var high := level > MAIN_LEVEL + 3.0
-	var options := [["düz", 1.0]]
+	var flat := 1.0 if travelled < slopes_from else (0.6 if travelled < ramps_from else 0.4)
+	var options := [["düz", flat]]
 	if travelled > slopes_from:
 		options.append(["eğim", 0.6])
 		if not low:
@@ -251,22 +257,23 @@ func _plan_pattern(travelled: float, level: float) -> void:
 	pattern_counts[kind] = int(pattern_counts.get(kind, 0)) + 1
 	match kind:
 		"düz":
-			for i in _rng.randi_range(2, 4):
+			for i in _rng.randi_range(1, 3):
 				_plan.append({})
 		"eğim":
 			var dir := -1.0 if _rng.randf() < 0.5 else 1.0
-			_plan.append({"rise": dir * _rng.randf_range(3.0, 6.0), "len": 0.7})
-			_plan.append({})
+			if low: dir = 1.0
+			elif high: dir = -1.0
+			_plan.append({"angle": dir * _rng.randf_range(10.0, 15.0), "len": 0.6})
 		"vadi":
-			_plan.append({"dh": _rng.randf_range(-1.5, -0.5), "rise": -_rng.randf_range(6.0, 9.0), "len": 0.7})
+			_plan.append({"dh": _rng.randf_range(-1.5, -0.5), "angle": -_rng.randf_range(12.0, 16.0), "len": 0.5})
 			_plan.append({"dh": _rng.randf_range(-2.0, -0.5), "width": 1.1})
-			_plan.append({"dh": _rng.randf_range(-0.6, 0.0), "rise_to": MAIN_LEVEL + _rng.randf_range(-1.0, 1.0), "len": 0.8})
+			_plan.append({"dh": _rng.randf_range(-0.6, 0.0), "rise_to": MAIN_LEVEL + _rng.randf_range(-1.0, 1.0), "len": 0.4})
 		"merdiven":
 			for i in _rng.randi_range(2, 3):
 				_plan.append({"dh": -_rng.randf_range(2.5, 3.5)})
-			_plan.append({"dh": _rng.randf_range(-0.6, 0.0), "rise_to": MAIN_LEVEL + _rng.randf_range(-1.0, 1.0), "len": 0.8})
+			_plan.append({"dh": _rng.randf_range(-0.6, 0.0), "rise_to": MAIN_LEVEL + _rng.randf_range(-1.0, 1.0), "len": 0.4})
 		"rampa":
-			_plan.append({"rise": _rng.randf_range(4.0, 6.0), "len": 0.5})
+			_plan.append({"angle": _rng.randf_range(15.0, 18.0), "len": 0.35})
 			_plan.append({"up": true})
 		"çıkmaz":
 			_plan.append({"dead_end": true, "len": 1.4})
@@ -313,12 +320,26 @@ func _next_from(prev: Segment) -> Segment:
 	# bir araba boyu ileridedir. Boşluk, gazsız ulaşılamayacak (ön yüze
 	# çakılır) ama tam gazla iniş yolun üstüne denk gelecek şekilde seçilir.
 	var car_len := car.half_length * 2.0
-	var gaps := _gap_window(dh, v, v_boost, vy, vy_b, car_len)
+	# Kısa, dik bir yolda gaz tam dolmayabilir (tepede araba havalanır,
+	# gaz havada artmaz): eğimli yolun sonrasındaki boşluğu yarım gazla hesapla
+	var sloped := absf(slope) > 0.1
+	var v_reach := lerpf(v, v_boost, 0.5) if sloped else v_boost
+	var vy_reach := car.launch_velocity + v_reach * slope
+	var gaps := _gap_window(dh, v, v_reach, vy, vy_reach, car_len)
 	if gaps.y < gaps.x:
 		dh = minf(dh, -1.0)
-		gaps = _gap_window(dh, v, v_boost, vy, vy_b, car_len)
+		gaps = _gap_window(dh, v, v_reach, vy, vy_reach, car_len)
+	# Eğimden sonra pencere dar kalırsa yeni yolu alçalt: uçuş uzar, pencere açılır
+	while sloped and gaps.y - gaps.x < 4.0 and prev.top_end + dh > MIN_LEVEL + 1.0:
+		dh -= 1.0
+		gaps = _gap_window(dh, v, v_reach, vy, vy_reach, car_len)
+	var hard := gap_difficulty.y if not sloped else lerpf(gap_difficulty.x, gap_difficulty.y, 0.5)
+	# Eğimli yola erken inilsin ki üstünde hizalanıp gaz verecek yol kalsın
+	var angled := spec.has("angle") or spec.has("rise_to")
+	if angled:
+		hard = gap_difficulty.x
 	var gap := lerpf(gaps.x, maxf(gaps.y, gaps.x),
-		_rng.randf_range(gap_difficulty.x, maxf(gap_difficulty.x, gap_difficulty.y)))
+		_rng.randf_range(gap_difficulty.x, maxf(gap_difficulty.x, hard)))
 
 	var width := _rng.randf_range(
 		lerpf(min_width.y, min_width.x, difficulty),
@@ -332,6 +353,8 @@ func _next_from(prev: Segment) -> Segment:
 	if spec.get("dead_end", false):
 		# Çıkmaza yer aç: ana yol bir yana kayar, çıkmaz diğer yanda olur
 		dx = main_side * _rng.randf_range(0.5, 0.8) * max_dx
+	elif angled:
+		dx = _rng.randf_range(-1.0, 1.0) * minf(max_dx, prev.width * 0.3)
 	elif _avoid_count > 0:
 		# Çıkmazın olduğu taraftan uzaklaş: çıkmazdan düşen araba ana yola çarpmasın
 		dx = -_avoid_side * _rng.randf_range(0.0, max_dx)
@@ -340,11 +363,19 @@ func _next_from(prev: Segment) -> Segment:
 
 	var top := maxf(prev.top_end + dh, MIN_LEVEL)
 	var rise: float = spec.get("rise", 0.0)
+	var max_tan := tan(deg_to_rad(max_slope_deg))
+	if spec.has("angle"):
+		# İstenen açıda eğim. Yol, inişten sonra hizalanıp gaz verecek kadar
+		# uzun olmalı (~1.4 sn); yükseklik değişimi 11 m'yi geçerse açı yumuşar.
+		var tn := minf(tan(deg_to_rad(absf(spec.angle))), max_tan)
+		length = maxf(length, v * 1.4 + 8.0)
+		rise = signf(spec.angle) * minf(length * tn, 10.0 if spec.angle > 0.0 else 9.0)
 	if spec.has("rise_to"):
 		rise = spec.rise_to - top
-	rise = maxf(rise, MIN_LEVEL - top)
+		length = maxf(length, v * 1.4 + 8.0)
+	# Yokuş aşağı en dibe kadar inmesin: sonraki boşluk için alçalma payı kalsın
+	rise = clampf(rise, MIN_LEVEL + (4.0 if rise < 0.0 else 0.0) - top, MAIN_LEVEL + 6.0 - top)
 	# Eğim sınırı: gerekirse yolu uzat
-	var max_tan := tan(deg_to_rad(max_slope_deg))
 	length = maxf(length, absf(rise) / max_tan)
 
 	var z_start := prev.z_end - gap
@@ -458,6 +489,8 @@ func _add_segment(x: float, top: float, top_end: float, width: float, z_start: f
 	var line_mat := _ramp_line_mat if rise > 1.0 else _line_mat
 	for sx in [-1.0, 1.0]:
 		_add_box(body, Vector3(sx * line_x, 0.015, 0), Vector3(0.18, 0.02, slope_len - 0.6), line_mat)
+	if rise > 1.0:
+		_add_chevrons(body, width, slope_len)
 
 	s.node = body
 	segments.append(s)
@@ -469,6 +502,20 @@ func _add_segment(x: float, top: float, top_end: float, width: float, z_start: f
 	return s
 
 
+## Rampanın üstüne ileri bakan turuncu oklar (^): "burası seni fırlatır"
+func _add_chevrons(body: Node3D, width: float, slope_len: float) -> void:
+	var arm := minf(width * 0.42, 2.8)
+	var half := deg_to_rad(52.0)
+	var count := clampi(int(slope_len / 8.0), 3, 8)
+	for i in count:
+		var apex_z := -slope_len * 0.5 + slope_len * (i + 0.6) / (count + 0.4)
+		for sx in [-1.0, 1.0]:
+			var d := Vector3(sx * sin(half), 0, cos(half))
+			var mi := _add_box(body, Vector3(0, 0.02, apex_z) + d * arm * 0.5,
+				Vector3(0.6, 0.02, arm), _chevron_mat)
+			mi.rotation.y = atan2(d.x, d.z)
+
+
 ## Bölge rengi (mesafeye göre yumuşak geçiş); alçak yollar daha koyu
 func _wall_material(s: Segment) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
@@ -476,6 +523,13 @@ func _wall_material(s: Segment) -> StandardMaterial3D:
 	var avg := (s.top + s.top_end) * 0.5
 	var low := clampf((MAIN_LEVEL - avg - 2.0) / 7.0, 0.0, 1.0)
 	m.albedo_color = m.albedo_color.darkened(0.28 * low + _rng.randf_range(0.0, 0.05))
+	# Rampalar uzaktan seçilsin: yokuş yukarı duvarlar turuncuya çalar,
+	# yokuş aşağılar biraz koyulaşır (kama biçimi gökyüzünden ayrılsın)
+	var rise := s.top_end - s.top
+	if rise > 1.0:
+		m.albedo_color = m.albedo_color.lerp(Palette.ACCENT, 0.5)
+	elif rise < -1.0:
+		m.albedo_color = m.albedo_color.darkened(0.18)
 	m.roughness = 1.0
 	return m
 

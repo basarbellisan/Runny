@@ -34,7 +34,7 @@ const PARAMS := [
 	["YOLLAR", "roads", "slopes_from", "Eğim ve vadiler başlar (m)", 0, 5000, 100],
 	["YOLLAR", "roads", "ramps_from", "Rampa, merdiven, çıkmaz başlar (m)", 0, 8000, 100],
 	["YOLLAR", "roads", "dead_end_weight", "Çıkmaz sıklığı", 0, 2, 0.1],
-	["YOLLAR", "roads", "max_slope_deg", "En dik eğim (°)", 2, 20, 1],
+	["YOLLAR", "roads", "max_slope_deg", "En dik eğim (°)", 2, 25, 1],
 	["YOLLAR", "roads", "zone_length", "Renk bölgesi uzunluğu (m)", 200, 3000, 100],
 	["UÇUŞ", "game", "energy_drain", "Enerji harcama (sn)", 1, 20, 0.5],
 	["UÇUŞ", "game", "boost_drain_factor", "Yükselirken harcama katı", 1, 5, 0.1],

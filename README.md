@@ -39,15 +39,18 @@ varsayılandan farklı değerleri tek satırlık metin olarak verir
 
 ## Yollar
 Yollar kalıplar hâlinde üretilir, mesafe arttıkça yenileri açılır:
-- 0–1 km: düz yollar
-- 1 km+: hafif yokuşlar, vadiler (yokuş aşağı → alçak yol → rampayla yukarı)
-- 2 km+: merdivenler, rampalar (kalkışta yukarı fırlatır), çıkmazlar
+- 0–300 m: düz yollar
+- 300 m+: yokuşlar (10–15°), vadiler (yokuş aşağı → alçak yol → rampayla yukarı)
+- 800 m+: merdivenler, rampalar (15–18°, kalkışta yukarı fırlatır), çıkmazlar
   (yanda alçak, geniş bir yol; devamı yoktur, uçuşa düşülür — ana yol hep yanında devam eder)
 
 Rampanın açısı kalkıştaki dikey hıza eklenir. Her boşluk yine gazsız
-ulaşılamaz, tam gazla ulaşılır. Renkler: her 1 km'de bir bölge tonu
-(beyaz → adaçayı → buğulu mavi → kum → arduvaz), alçak yollar daha koyu,
-yokuş yukarı rampaların kenar çizgileri turuncu.
+ulaşılamaz, tam gazla ulaşılır. Eğimli yollar inişten sonra hizalanıp gaz
+verecek kadar uzundur (~1.4 sn) ve eğimden sonraki boşluk yarım gazla
+hesaplanır. Renkler: her 1 km'de bir bölge tonu
+(beyaz → adaçayı → buğulu mavi → kum → arduvaz), alçak yollar daha koyu.
+Yokuş yukarı rampalar: turuncu kenar çizgileri, turuncu oklar (^) ve
+turuncuya çalan duvarlar; yokuş aşağılar biraz daha koyu.
 
 ## Yapı
 - `scripts/menu.gd` — garaj (başlangıç ekranı)

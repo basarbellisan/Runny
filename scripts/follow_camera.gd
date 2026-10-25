@@ -5,7 +5,8 @@ extends Camera3D
 @export var offset := Vector3(0.0, 6.0, 10.0)
 @export var look_ahead := 22.0
 @export var follow_x := 7.0
-@export var follow_y := 4.0
+## Yükseklik takibi biraz gecikmeli: rampada araba ekranda yükselir, eğim hissedilir
+@export var follow_y := 2.5
 @export var fov_per_speed := 0.35
 
 var _target: Car
