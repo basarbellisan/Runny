@@ -121,27 +121,33 @@ func _build_roadster() -> void:
 		[-2.46, 0.54, 0.44, 0.52, 0.82],
 		[-2.3, 0.56, 0.46, 0.38, 0.82],
 		[-1.35, 0.62, 0.5, 0.4, 0.9],
-		[-0.1, 0.74, 0.6, 0.42, 1.0],
-		[1.6, 0.76, 0.62, 0.42, 1.0],
-		[2.02, 0.74, 0.6, 0.44, 0.82],
+		[-0.1, 0.75, 0.6, 0.42, 1.0],
+		[1.6, 0.75, 0.6, 0.42, 1.0],
+		[2.02, 0.75, 0.6, 0.44, 0.82],
 	], paint_material, 0.28)
 	# Kabin: ön yüzü (pencere) geriye yatık, tavanı düz, arkası büyük bir kavisle arka uca iner
-	# Tavan pencerenin üstünden arkaya düz gider, arka tekerin üstünde geniş ve
-	# yumuşak bir yayla aşağı döner (elips çeyreği, sık kesitlerle)
-	var cabin := [[-0.1, 0.72, 0.6, 0.98, 1.02], [0.04, 0.72, 0.6, 0.98, 1.56], [0.75, 0.72, 0.6, 0.98, 1.6]]
+	# Kabin ve tavan tek parça: tavan pencerenin üstünden öne taşar (siperlik), arkaya
+	# düz gider ve arka tekerin üstünde yumuşak bir yayla aşağı döner. Kabinin yanı
+	# gövdenin yanıyla aynı düzlemde (kademe yok); omuz pahı her yerde aynı.
+	var hw := 0.75
+	var cabin := [
+		[0.0, hw, 0.6, 0.8, 1.64],       # pencere düzlemi
+		[0.75, hw, 0.6, 0.8, 1.64],
+	]
+	# Siperlik: kabinin öne taşan kısmı; kesiti kabinin omuz eğiminin tam devamı
+	# (1.44'ten 1.64'e 0.75 -> 0.6), yani ayrı bir parça gibi durmaz
+	var visor_w := lerpf(hw, 0.6, (1.55 - 1.44) / 0.2)
+	_hull([[-0.4, visor_w, 0.6, 1.55, 1.64], [0.01, visor_w, 0.6, 1.55, 1.64]], paint_material, 1.0)
 	for k in range(1, 11):
 		var t := k / 10.0 * PI * 0.5
 		var z := 0.75 + 1.22 * sin(t)
-		var y := 0.98 + 0.62 * cos(t)
-		cabin.append([z, 0.72, lerpf(0.6, 0.46, k / 10.0), 0.98, maxf(y, 1.0)])
-	cabin.append([2.02, 0.72, 0.46, 0.84, 0.86])
-	_hull(cabin, paint_material, 0.34)
-	# Siperlik: pencerenin üstünde öne taşan ince tavan
-	_hull([[-0.38, 0.71, 0.69, 1.55, 1.62], [0.72, 0.71, 0.69, 1.58, 1.65]], paint_material, 0.0)
+		var y := 0.98 + 0.66 * cos(t)
+		cabin.append([z, hw, lerpf(0.6, 0.46, k / 10.0), 0.8, maxf(y, 1.0)])
+	cabin.append([2.02, hw, 0.46, 0.8, 0.86])
+	_hull(cabin, paint_material, 0.0, 0.2)
 	# Ön pencere: yatık ön yüzde koyu yamuk (kabin yüzünün biraz önünde)
-	var n_front := Vector3(0, 0.25, -1.0).normalized()
-	_panel([Vector3(-0.58, 1.06, -0.1), Vector3(0.58, 1.06, -0.1), Vector3(0.54, 1.52, 0.02),
-		Vector3(-0.54, 1.52, 0.02)], n_front, _glass)
+	_panel([Vector3(-0.6, 1.06, -0.012), Vector3(0.6, 1.06, -0.012), Vector3(0.56, 1.5, -0.012),
+		Vector3(-0.56, 1.5, -0.012)], Vector3.FORWARD, _glass)
 	# Arka cam: kubbenin sırtında, kavisi izleyerek
 	var top_at := func(z: float) -> float:
 		for i in range(1, cabin.size()):
@@ -187,7 +193,7 @@ func _panel(pts: Array, normal: Vector3, mat: Material) -> void:
 
 ## Kesitlerden düz yüzlü gövde: her kesit (z, alt yarı genişlik, üst yarı genişlik,
 ## alt y, üst y). Kesitler arası üst, pah, yan ve alt yüzler; iki uç kapalı.
-func _hull(sections: Array, mat: Material, chamfer := 0.22) -> void:
+func _hull(sections: Array, mat: Material, chamfer := 0.22, chamfer_abs := -1.0) -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var rings: Array = []
@@ -197,7 +203,10 @@ func _hull(sections: Array, mat: Material, chamfer := 0.22) -> void:
 		var wt: float = sec[2]
 		var yb: float = sec[3]
 		var yt: float = sec[4]
-		var ych := yt - (yt - yb) * chamfer   # pahın başladığı yükseklik
+		# Pahın başladığı yükseklik: ya kesit yüksekliğinin oranı ya da sabit (metre)
+		var ych := yt - (yt - yb) * chamfer
+		if chamfer_abs >= 0.0:
+			ych = yt - minf(chamfer_abs, (yt - yb) * 0.9)
 		# Kesit çevresi (soldan saat yönünün tersine): alt sol, pah sol, üst sol, üst sağ, pah sağ, alt sağ
 		rings.append([Vector3(-wb, yb, z), Vector3(-wb, ych, z), Vector3(-wt, yt, z),
 			Vector3(wt, yt, z), Vector3(wb, ych, z), Vector3(wb, yb, z)])
