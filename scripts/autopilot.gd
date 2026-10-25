@@ -56,6 +56,12 @@ func _drive_input() -> Vector2:
 			if s.dead_end and s.z_start < pos.z and s.z_start > pos.z - 120.0:
 				target = s
 				break
+	if target == null and current == null:
+		# Havadayken tam altımızda bir yol varsa (ör. portaldan sonra yan yol) ona in
+		for s in roads.segments:
+			if s.contains(pos, -0.8) and s.top_at(pos.z) < pos.y + 0.5:
+				target = s
+				break
 	for s in ([] if target else roads.main_segments_ahead(pos.z + 2.0)):
 		if s == current:
 			continue
@@ -73,7 +79,13 @@ func _drive_input() -> Vector2:
 		var time_to_edge := (pos.z - current.z_end) / maxf(car.forward_speed, 1.0)
 		if use_boost and time_to_edge < 1.2 and absf(aim - pos.x) < 0.8 and absf(car.velocity.x) < 2.0:
 			return Vector2(0.0, 1.0)
-	return Vector2(_toward(aim - pos.x, 0.25), 0.0)
+	var steer := _toward(aim - pos.x, 0.25)
+	if not car.is_on_floor() and car.velocity.y < 0.0:
+		# İnerken: önce gövdeyi düzle (direksiyon yatırır), sonra az az hizalan
+		if absf(car.roll) > 0.15:
+			return Vector2(clampf(car.roll * 3.0, -1.0, 1.0), 0.0)
+		steer = clampf(steer, -0.3, 0.3)
+	return Vector2(steer, 0.0)
 
 
 func _fly_steer() -> float:

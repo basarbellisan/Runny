@@ -11,7 +11,8 @@ extends CharacterBody3D
 ##  LAUNCH  – portal bizi yukarı fırlattı, havada arabaya dönüyoruz
 ##  DEAD
 
-signal landed(air_time: float)
+## quality: 0 = temiz iniş, 1 = çok sert/yamuk iniş; impact: dikey çarpma hızı (m/s)
+signal landed(air_time: float, quality: float, impact: float)
 ## Yolun sonundan havaya fırladık
 signal jumped
 ## Bir yere çarpıp patladık
@@ -42,7 +43,30 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 ## Boşluktaki her teker için direksiyon tutuşu kaybı (0-1)
 @export var grip_loss := 0.2
 ## Süspansiyon: tekerin aşağı sarkabileceği mesafe (m)
-@export var suspension_travel := 0.3
+@export var suspension_travel := 0.42
+## Süspansiyon yayı ve sönümü (gövdenin yatma/kalkma salınımı)
+@export var suspension_stiffness := 110.0
+@export var suspension_damping := 8.0
+## Bir yanın iki tekeri boşta: araba kenarın üstünden devrilir (rad/sn²)
+@export var tip_roll_accel := 9.0
+## Ön tekerler boşta (yolun sonu): burun düşer (rad/sn²)
+@export var nose_drop_accel := 5.0
+
+@export_group("Havada")
+## Havada direksiyon arabayı o yana yatırır (en fazla bu kadar derece)
+@export var air_lean_deg := 28.0
+## Direksiyon bırakılınca yatmanın sönme süresi (sn)
+@export var air_lean_time := 0.35
+## Havada kendiliğinden düzelme (1/sn). 0: hiç yardım yok
+@export var air_self_level := 0.35
+
+@export_group("İniş")
+## Bu açıdan (derece) az sapmayla inersen temiz iniş
+@export var clean_landing_deg := 12.0
+## Bu açıdan fazla yan/ters inersen araba patlar
+@export var crash_landing_deg := 75.0
+## Bu dikey hızın üstünde (m/s) düzgün inişte bile sendeleme başlar
+@export var hard_impact := 24.0
 
 @export_group("Gaz")
 ## Tam gazda hız bu oran kadar artar
@@ -105,6 +129,18 @@ var _tip := 0.0
 var _nose := 0.0
 var _bounce := 0.0
 var _bounce_v := 0.0
+## Gövdenin gerçek duruşu (rad): pitch artı = burun yukarı, roll eksi = sağ yan aşağı
+var pitch := 0.0
+var roll := 0.0
+var pitch_rate := 0.0
+var roll_rate := 0.0
+## Havada direksiyonun verdiği yatma (roll'un içinde)
+var _air_lean := 0.0
+## İnişten sonra sendeleme: kalan süre ve şiddet
+var _stumble_time := 0.0
+var _stumble := 0.0
+var _yaw := 0.0
+var fx: CarFx
 var _wheel_spin := 0.0
 var _last_segment: RoadGenerator.Segment
 var air_time := 0.0
@@ -136,6 +172,8 @@ func _ready() -> void:
 	_set_wings(false, true)
 	trail = CarTrail.new()
 	add_child(trail)
+	fx = CarFx.new()
+	add_child(fx)
 	model = $Body/Model
 
 
@@ -220,6 +258,11 @@ func _drive(delta: float) -> void:
 		_tip = (right_off - left_off) * 0.5
 		_nose = (int(not wheel_contact[0]) + int(not wheel_contact[1])) * 0.5
 		control *= 1.0 - grip_loss * (left_off + right_off)
+		# Sert inişten sonra araba sendeler: tutuş azalır, gövde yana savrulur
+		if _stumble_time > 0.0:
+			_stumble_time -= delta
+			control *= 1.0 - 0.8 * _stumble
+			velocity.x += randf_range(-1.0, 1.0) * 18.0 * _stumble * delta
 		if _tip != 0.0:
 			velocity.x += _tip * tip_pull * delta + randf_range(-3.0, 3.0) * absf(_tip) * delta
 		# Son üstünde olunan yol (yolun ucunu geçerken sorgu boş dönebilir; eskisi kalsın)
@@ -236,6 +279,7 @@ func _drive(delta: float) -> void:
 		_apply_landing_assist(delta)
 
 	var forward_before := -velocity.z
+	var vy_before := velocity.y
 	move_and_slide()
 
 	# Yolun ön yüzüne çakıldık (yeterince gaz verilmedi). İleri hızın aniden
@@ -254,8 +298,8 @@ func _drive(delta: float) -> void:
 		velocity.y = launch_velocity + forward_speed * slope
 		jumped.emit()
 	if not _was_on_floor and now_on_floor:
-		_bounce_v = -minf(1.0 + air_time * 2.5, 3.5)
-		landed.emit(air_time)
+		if not _touchdown(vy_before):
+			return
 	if now_on_floor:
 		air_time = 0.0
 		last_floor_y = global_position.y
@@ -269,10 +313,11 @@ func _falling(delta: float) -> void:
 	velocity.y -= gravity * delta
 	velocity.x = move_toward(velocity.x, _steer * steer_speed, steer_accel * air_control * delta)
 	velocity.z = move_toward(velocity.z, -speed, 25.0 * delta)
+	var vy_before := velocity.y
 	move_and_slide()
 	_keep_out_of_walls()
 	if is_on_floor():
-		_back_on_road()
+		_back_on_road(vy_before)
 	elif _has_wings and _mode_time >= wing_delay:
 		_set_mode(Mode.FLYING)
 	elif not _has_wings and global_position.y < flight_altitude - abyss_depth:
@@ -289,10 +334,11 @@ func _flying(delta: float) -> void:
 	var forward := speed * dive_forward_scale if diving else speed
 	velocity.z = move_toward(velocity.z, -forward, 20.0 * delta)
 	velocity.x = move_toward(velocity.x, _steer * steer_speed, flight_steer_accel * delta)
+	var vy_before := velocity.y
 	move_and_slide()
 	_keep_out_of_walls()
 	if is_on_floor():
-		_back_on_road()
+		_back_on_road(vy_before)
 
 
 func _launch(delta: float) -> void:
@@ -312,13 +358,61 @@ func _launch(delta: float) -> void:
 		_set_mode(Mode.DRIVE)
 
 
-func _back_on_road() -> void:
+func _back_on_road(vy_before: float) -> void:
 	_tip = 0.0
 	last_floor_y = global_position.y
 	_was_on_floor = true
 	_set_mode(Mode.DRIVE)
-	landed.emit(air_time)
+	_touchdown(vy_before)
+
+
+## Tekerler yere değdi: duruşa ve çarpma hızına göre iniş kalitesi.
+## Yan ya da ters inersek patlarız (false döner).
+func _touchdown(vy_before: float) -> bool:
+	var impact := maxf(-vy_before, 0.0)
+	var n := get_floor_normal()
+	var surface := atan2(n.z, n.y)
+	var roll_err := absf(wrapf(roll, -PI, PI))
+	var pitch_err := absf(wrapf(pitch - surface, -PI, PI))
+	# Burun/kuyruk sapması yan yatmadan daha az önemli (önce bir aks değer, öbürü iner)
+	var err := rad_to_deg(maxf(roll_err, pitch_err * 0.5))
+	if err > crash_landing_deg:
+		crash("TAKLA ATTIN!" if roll_err > pitch_err else "ÇAKILDIN!")
+		return false
+	var quality := clampf((err - clean_landing_deg) / 40.0, 0.0, 1.0) \
+		+ clampf((impact - hard_impact) / 25.0, 0.0, 0.6)
+	quality = minf(quality, 1.0)
+	# Süspansiyon çöker; yamuk inişte ilk değen yan/aks sert yaylanır
+	_bounce_v = -minf(1.2 + impact * 0.13, 5.0)
+	pitch_rate *= 0.3
+	roll_rate *= 0.3
+	if quality > 0.05:
+		_stumble = quality
+		_stumble_time = 0.35 + 0.9 * quality
+		# İlk değen (alçak) yana doğru savrul
+		var side := -signf(roll) if absf(roll) > 0.05 else (1.0 if randf() < 0.5 else -1.0)
+		velocity.x += side * 5.0 * quality
+		boost_level *= 1.0 - quality
+		roll_rate += -side * 3.0 * quality
+	_landing_fx(impact, quality)
+	landed.emit(air_time, quality, impact)
 	air_time = 0.0
+	return true
+
+
+func _landing_fx(impact: float, quality: float) -> void:
+	if fx == null or model == null:
+		return
+	var strength := clampf(impact / 25.0 + quality, 0.0, 1.5)
+	if strength < 0.15:
+		return
+	var wheels: Array = [2, 3] if quality < 0.3 else [0, 1, 2, 3]
+	for i in wheels:
+		var c: Vector3 = model.wheels[i].contact
+		fx.dust(global_position + Vector3(c.x, 0.1, c.z), strength)
+	# Gövde yere vurdu: kıvılcım
+	if quality > 0.3 or impact > hard_impact + 4.0:
+		fx.sparks(global_position + Vector3(0, 0.15, 0), strength)
 
 
 func _set_mode(m: Mode) -> void:
@@ -474,29 +568,83 @@ func _time_to_fall_to(y: float) -> float:
 
 
 func _update_visual(delta: float) -> void:
+	_update_attitude(delta)
 	var forward := maxf(-velocity.z, 1.0)
-	var yaw := -atan2(velocity.x, forward) * 0.8
-	var pitch := 0.0 if is_on_floor() else atan2(velocity.y, forward) * 0.7
-	var roll := -velocity.x / steer_speed * (0.45 if mode == Mode.FLYING else 0.08)
-	if mode == Mode.FLYING:
-		pitch += sin(Time.get_ticks_msec() * 0.003) * 0.04
-	elif mode == Mode.DRIVE and is_on_floor():
-		# Yolun eğimi, boştaki tekerler tarafına yatma, yolun sonunda burun düşmesi
-		var n := get_floor_normal()
-		pitch = atan2(n.z, n.y)
-		roll -= _tip * 0.35
-		pitch -= _nose * 0.18
-	elif mode == Mode.FALLING and _tip != 0.0:
-		# Yandan düşerken yuvarlanmaya devam et
-		_tip = clampf(_tip * (1.0 + 2.5 * delta), -3.0, 3.0)
-		roll -= _tip * 0.35
-	var w := 1.0 - exp(-10.0 * delta)
-	_body.rotation = _body.rotation.lerp(Vector3(pitch, yaw, roll), w)
+	_yaw = lerpf(_yaw, -atan2(velocity.x, forward) * 0.8, 1.0 - exp(-10.0 * delta))
+	_body.rotation = Vector3(pitch, _yaw, roll)
 	# Süspansiyon yaylanması (inişte gövde çöker ve toparlanır)
-	_bounce_v += (-180.0 * _bounce - 14.0 * _bounce_v) * delta
-	_bounce = clampf(_bounce + _bounce_v * delta, -0.28, 0.12)
+	_bounce_v += (-suspension_stiffness * _bounce - suspension_damping * _bounce_v) * delta
+	_bounce = clampf(_bounce + _bounce_v * delta, -0.42, 0.18)
 	_body.position.y = _bounce
 	_update_wheels(delta)
+	_update_scrape()
+
+
+## Gövdenin duruşu. Yolda: yay-sönümleyici, yolun eğimine oturur; bir yanın
+## tekerleri boşta kalınca kenarın üstünden devrilir. Havada: dönme sürer,
+## direksiyon arabayı yatırır, düzelme zayıftır. Düşerken hiç düzelmez.
+## Kanatlar açılınca (ve portaldan çıkınca) araba kendini düzeltir.
+func _update_attitude(delta: float) -> void:
+	if mode == Mode.FLYING or mode == Mode.LAUNCH:
+		roll = wrapf(roll, -PI, PI)
+		pitch = wrapf(pitch, -PI, PI)
+		var w := 1.0 - exp(-5.0 * delta)
+		var want_roll := -velocity.x / steer_speed * 0.45 if mode == Mode.FLYING else 0.0
+		var want_pitch := sin(Time.get_ticks_msec() * 0.003) * 0.04 if mode == Mode.FLYING else 0.0
+		roll = lerp_angle(roll, want_roll, w)
+		pitch = lerp_angle(pitch, want_pitch, w)
+		roll_rate = 0.0
+		pitch_rate = 0.0
+		_air_lean = 0.0
+		return
+	if mode == Mode.DRIVE and is_on_floor():
+		_air_lean = 0.0
+		var n := get_floor_normal()
+		var surface := atan2(n.z, n.y)
+		var lean := -velocity.x / steer_speed * 0.08
+		var k := suspension_stiffness
+		var c := suspension_damping
+		# Bir yanın iki tekeri de boştaysa yay tutmaz: araba kenardan devrilir
+		var roll_acc := -_tip * tip_roll_accel
+		if absf(_tip) < 1.0:
+			roll_acc += k * (lean - roll) - c * roll_rate
+		var pitch_acc := -_nose * nose_drop_accel
+		if _nose < 1.0:
+			pitch_acc += k * (surface - pitch) - c * pitch_rate
+		roll_rate += roll_acc * delta
+		pitch_rate += pitch_acc * delta
+		# Ağırlık merkezi kenarı geçti: araba artık yolda tutunamaz, devrilip düşer
+		if absf(_tip) >= 1.0 and absf(roll) > deg_to_rad(50.0):
+			velocity.x = signf(_tip) * maxf(absf(velocity.x), 7.0)
+			roll = clampf(roll, -1.3, 1.3)
+	else:
+		# Havada: önceki dönme sürer; direksiyon yatırır, bırakınca yatma söner
+		var lean_target := -_steer * deg_to_rad(air_lean_deg)
+		var new_lean := lerpf(_air_lean, lean_target, 1.0 - exp(-delta / maxf(air_lean_time, 0.01)))
+		roll += new_lean - _air_lean
+		_air_lean = new_lean
+		if mode == Mode.DRIVE:
+			roll = lerp_angle(roll, 0.0, 1.0 - exp(-air_self_level * delta))
+			# Burun: kalkıştaki dönme hava direnciyle söner, araba gidişine hafifçe uyar
+			# (oyuncu burnu kontrol edemediği için burada daha cömertiz)
+			pitch_rate *= exp(-1.5 * delta)
+			var path := atan2(velocity.y, maxf(-velocity.z, 1.0)) * 0.35
+			pitch = lerp_angle(pitch, path, 1.0 - exp(-0.8 * delta))
+	roll_rate = clampf(roll_rate, -9.0, 9.0)
+	pitch_rate = clampf(pitch_rate, -9.0, 9.0)
+	roll += roll_rate * delta
+	pitch += pitch_rate * delta
+
+
+## Bir yan boşluktayken gövde yolun kenarına sürtünür: kıvılcım
+func _update_scrape() -> void:
+	if fx == null:
+		return
+	var on := mode == Mode.DRIVE and is_on_floor() and absf(_tip) >= 0.5 and absf(roll) > 0.15
+	if on:
+		fx.scrape(true, global_position + Vector3(-signf(roll) * 0.6, 0.1, 0.0))
+	else:
+		fx.scrape(false)
 
 
 ## Teker görseli: dönme, ön tekerde direksiyon, süspansiyonla iniş/kalkış
@@ -504,14 +652,23 @@ func _update_wheels(delta: float) -> void:
 	if model == null:
 		return
 	var grounded := mode == Mode.DRIVE and is_on_floor()
+	var surface := 0.0
+	if grounded:
+		var n := get_floor_normal()
+		surface = atan2(n.z, n.y)
 	for i in model.wheels.size():
 		var wh: Dictionary = model.wheels[i]
 		var r: float = wh.radius
 		var target := r - suspension_travel
 		if grounded and wheel_contact[i]:
-			target = r + clampf(_wheel_ground[i], -suspension_travel, 0.1)
+			# Gövde yatınca/burun kalkınca teker yerde kalır: yay uzar ya da kısalır
+			var c: Vector3 = wh.contact
+			var lift := c.x * sin(roll) - c.z * sin(pitch - surface)
+			target = r + clampf(_wheel_ground[i] - lift - _bounce, -suspension_travel, 0.15)
+		else:
+			target -= _bounce
 		var mount: Node3D = wh.mount
-		mount.position.y = lerpf(mount.position.y, target - _bounce, 1.0 - exp(-25.0 * delta))
+		mount.position.y = lerpf(mount.position.y, target, 1.0 - exp(-25.0 * delta))
 		if wh.front:
 			(wh.steer as Node3D).rotation.y = lerpf((wh.steer as Node3D).rotation.y, -_steer * 0.35, 1.0 - exp(-12.0 * delta))
 	if grounded:

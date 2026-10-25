@@ -63,7 +63,7 @@ var _energy_warned := false
 var _landings_total := 0
 var _hint_shown := false
 var _start_z := 0.0
-var _stats := {"falls": 0, "returns": 0, "crystals": 0}
+var _stats := {"falls": 0, "returns": 0, "crystals": 0, "clean": 0, "hard": 0}
 var _args := {}
 
 
@@ -174,7 +174,11 @@ func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 			Audio.play("portal")
 
 
-func _on_landed(air_time: float) -> void:
+func _on_landed(air_time: float, quality: float, impact: float) -> void:
+	# Kamera: çarpma hızı ve yamukluk kadar sarsılır
+	var shake := clampf(impact / 40.0, 0.0, 0.35) + quality * 0.5
+	if shake > 0.08:
+		$Camera.shake(shake)
 	if lower.active:
 		# Alt katmandan yola döndük
 		lower.deactivate()
@@ -189,7 +193,12 @@ func _on_landed(air_time: float) -> void:
 	if air_time < 0.3:
 		return
 	_landings_total += 1
-	Audio.touchdown(clampf(air_time / 0.8, 0.6, 1.3))
+	Audio.touchdown(clampf(air_time / 0.8, 0.6, 1.3) + quality * 0.3)
+	if quality > 0.05:
+		_stats.hard += 1
+		hud.popup("SERT İNİŞ" if quality < 0.5 else "SENDELEDİN")
+		return
+	_stats.clean += 1
 	var seg := roads.segment_under(car.global_position)
 	if seg == null:
 		return
@@ -303,9 +312,9 @@ func _parse_args() -> void:
 
 
 func _stats_text() -> String:
-	return "distance=%.0f score=%d speed=%.1f falls=%d returns=%d crystals=%d" % [
+	return "distance=%.0f score=%d speed=%.1f falls=%d returns=%d crystals=%d landings=%d/%d" % [
 		_start_z - car.position.z, int(score), car.speed,
-		_stats.falls, _stats.returns, _stats.crystals]
+		_stats.falls, _stats.returns, _stats.crystals, _stats.clean, _stats.clean + _stats.hard]
 
 
 func _exit_tree() -> void:

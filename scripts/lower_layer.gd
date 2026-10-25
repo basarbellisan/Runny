@@ -118,7 +118,8 @@ func update(delta: float) -> void:
 		return
 	var z := car.global_position.z
 	while _next_row_z > z - fill_distance:
-		if _next_portal and _next_row_z <= _next_portal.z + 35.0:
+		# Portalın önünde kayasız bir yaklaşma payı: hizalanmaya vakit kalsın
+		if _next_portal and _next_row_z <= _next_portal.z + 55.0:
 			_spawn_portal(_next_portal)
 			_next_row_z = _next_portal.z - 25.0
 			var interval := car.speed * _rng.randf_range(portal_interval.x, portal_interval.y)
