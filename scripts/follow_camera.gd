@@ -8,6 +8,8 @@ extends Camera3D
 ## Yükseklik takibi biraz gecikmeli: rampada araba ekranda yükselir, eğim hissedilir
 @export var follow_y := 2.5
 @export var fov_per_speed := 0.35
+## Kamera yatık yolla birlikte bu oranda yana yatar
+@export var bank_follow := 0.15
 
 var _target: Car
 ## Hız eklenmeden önceki görüş açısı
@@ -15,6 +17,7 @@ var base_fov := 0.0
 var _trauma := 0.0
 ## Roket ateşlenince görüş açısı bir anda açılır, yavaşça geri gelir
 var _fov_kick := 0.0
+var _roll := 0.0
 var _fov_kick_shown := 0.0
 
 
@@ -40,6 +43,8 @@ func _process(delta: float) -> void:
 		fov = lerpf(fov, want_fov, 1.0 - exp(-2.0 * delta)) + (_fov_kick - _fov_kick_shown)
 		_fov_kick_shown = _fov_kick
 		look_at(Vector3(lerpf(p.x, t.x, 0.6), t.y - 1.0, t.z - look_ahead))
+		_roll = lerpf(_roll, _target.surface_roll * bank_follow, 1.0 - exp(-4.0 * delta))
+		rotate_object_local(Vector3(0, 0, 1), _roll)
 	else:
 		look_at(t)
 	# Sarsıntı: hızla söner

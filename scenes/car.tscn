@@ -3,8 +3,9 @@
 [ext_resource type="Script" path="res://scripts/car.gd" id="1_car"]
 [ext_resource type="Script" path="res://scripts/car_model.gd" id="2_model"]
 
-[sub_resource type="BoxShape3D" id="BoxShape3D_car"]
-size = Vector3(0.5, 0.8, 3.9)
+[sub_resource type="CapsuleShape3D" id="BoxShape3D_car"]
+radius = 0.25
+height = 3.9
 
 [sub_resource type="StandardMaterial3D" id="Mat_paint"]
 albedo_color = Color(1, 0.353, 0.122, 1)
@@ -30,7 +31,7 @@ size = Vector3(0.08, 0.7, 0.8)
 script = ExtResource("1_car")
 
 [node name="Collision" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0)
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0.25, 0)
 shape = SubResource("BoxShape3D_car")
 
 [node name="Body" type="Node3D" parent="."]

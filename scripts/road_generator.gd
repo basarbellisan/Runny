@@ -32,6 +32,23 @@ class Segment:
 	var fork_id := 0
 	## Yol üstündeki engeller ve çakıl: { x0, x1, z0 (yakın), z1 (uzak), gravel }
 	var obstacles: Array[Dictionary] = []
+	## Yatık yol: z'ye göre yana yatma açısı (rad, artı = sağ kenar yukarı).
+	## bank_z yakından uzağa sıralı; aradaki geçişler yumuşak (smoothstep).
+	var bank_z := PackedFloat32Array()
+	var bank_a := PackedFloat32Array()
+
+	func bank_at(z: float) -> float:
+		if bank_z.is_empty() or z >= bank_z[0]:
+			return 0.0 if bank_z.is_empty() else bank_a[0]
+		for i in range(1, bank_z.size()):
+			if z >= bank_z[i]:
+				var t := inverse_lerp(bank_z[i - 1], bank_z[i], z)
+				return lerpf(bank_a[i - 1], bank_a[i], smoothstep(0.0, 1.0, t))
+		return bank_a[bank_a.size() - 1]
+
+	## Yüzeyin (x, z)'deki yüksekliği (yatık yolda kenarlar orta çizgiden farklı)
+	func surface_y(px: float, z: float) -> float:
+		return top_at(z) + (px - x) * tan(bank_at(z))
 
 	## z_near..z_far arasında engel/çakıl yok mu
 	func clear_between(z_near: float, z_far: float) -> bool:
@@ -87,6 +104,10 @@ const ZONES: Array[Color] = [
 @export var dead_end_weight := 0.5
 ## Çatal kalıbının seçilme ağırlığı
 @export var fork_weight := 0.6
+## Yatık yollar (yana yatıp düzelen) bu mesafeden sonra gelir; ağırlık ve en fazla açı
+@export var banks_from := 500.0
+@export var bank_weight := 1.0
+@export var max_bank_deg := 15.0
 ## Düz yollara engel (çarpınca patlar) ve çakıl (yavaşlatır) bu mesafeden sonra gelir
 @export var obstacles_from := 350.0
 ## Düz bir yolun engelli olma olasılığı (zorlukla bu değere çıkar)
@@ -170,7 +191,7 @@ func segment_under(pos: Vector3) -> Segment:
 	for s in segments:
 		# Araba gövdesi yokuşta eğilmez: düz kutu, eğimli yüzeye ön/arka köşesiyle
 		# değer ve merkezi yüzeyin biraz üstünde kalır
-		if s.contains(pos, 0.5) and absf(pos.y - s.top_at(pos.z)) < 0.6 + absf(s.slope()) * 2.2:
+		if s.contains(pos, 0.5) and absf(pos.y - s.surface_y(pos.x, pos.z)) < 0.6 + absf(s.slope()) * 2.2:
 			return s
 	return null
 
@@ -295,6 +316,8 @@ func _plan_pattern(travelled: float, level: float) -> void:
 			options += [["merdiven", 0.5], ["çıkmaz", dead_end_weight]]
 		if not low and not high:
 			options.append(["çatal", fork_weight])
+	if travelled > banks_from:
+		options.append(["yatık", bank_weight])
 		if not high:
 			options.append(["rampa", 0.5])
 	var total := 0.0
@@ -331,6 +354,10 @@ func _plan_pattern(travelled: float, level: float) -> void:
 		"çıkmaz":
 			_plan.append({"dead_end": true, "len": 1.4})
 			_plan.append({})
+		"yatık":
+			var dir := -1.0 if _rng.randf() < 0.5 else 1.0
+			_plan.append({"bank": dir * _rng.randf_range(0.75, 1.0) * max_bank_deg,
+				"s_curve": _rng.randf() < 0.4})
 		"çatal":
 			# Önce geniş bir yol: iki kola da buradan atlanır
 			_plan.append({"width": 1.6, "len": 0.8, "dh": _rng.randf_range(-1.0, 0.0)})
@@ -423,7 +450,8 @@ func _next_from(prev: Segment) -> Segment:
 		_avoid_count -= 1
 	var length := _rng.randf_range(40.0, 100.0) * (v / car.start_speed) * float(spec.get("len", 1.0))
 	# Düz, geniş yollar bazen engelli olur: sağ-sol oynanacak yer için uzar
-	var plain: bool = not (spec.has("angle") or spec.has("rise_to") or spec.has("rise") or spec.get("dead_end", false))
+	var banked: bool = spec.has("bank")
+	var plain: bool = not (banked or spec.has("angle") or spec.has("rise_to") or spec.has("rise") or spec.get("dead_end", false))
 	var with_obstacles: bool = plain and travelled > obstacles_from and width >= 5.5 \
 		and _rng.randf() < obstacle_chance * clampf(0.5 + difficulty, 0.0, 1.0)
 	if with_obstacles:
@@ -453,7 +481,26 @@ func _next_from(prev: Segment) -> Segment:
 	length = maxf(length, absf(rise) / max_tan)
 
 	var z_start := prev.z_end - gap
-	var seg := _add_segment(prev.x + dx, top, top + rise, width, z_start, z_start - length, true)
+	var seg: Segment
+	if banked:
+		# Yatık yol: düz başlar (iniş), bükülür, düzelir; sonu düz (pist ışıkları + roket)
+		var flat_in := 10.0
+		var flat_out := clampf(v * lights_time, 14.0, 48.0) + v * 0.8
+		length = maxf(length, flat_in + flat_out + v * 3.0)
+		rise = 0.0
+		var a := deg_to_rad(spec.bank)
+		var t0 := z_start - flat_in
+		var t1 := z_start - length + flat_out
+		var m := t0 - t1
+		var pts: Array = [[z_start, 0.0], [t0, 0.0]]
+		if spec.get("s_curve", false):
+			pts += [[t0 - m * 0.25, a], [t0 - m * 0.4, a], [t0 - m * 0.6, -a], [t0 - m * 0.75, -a]]
+		else:
+			pts += [[t0 - m * 0.3, a], [t0 - m * 0.7, a]]
+		pts += [[t1, 0.0], [z_start - length, 0.0]]
+		seg = _add_banked_segment(prev.x + dx, top, width, z_start, z_start - length, pts)
+	else:
+		seg = _add_segment(prev.x + dx, top, top + rise, width, z_start, z_start - length, true)
 	if with_obstacles and absf(rise) < 0.01:
 		_add_obstacles(seg, v)
 
@@ -826,6 +873,122 @@ func gravel_at(pos: Vector3) -> bool:
 		if o.gravel and pos.z <= o.z0 and pos.z >= o.z1 and pos.x >= o.x0 and pos.x <= o.x1:
 			return true
 	return false
+
+
+## Yatık yol: yüzey boyunca yana yatar (bükülür) ve düzelir. Kutu değil, ızgara
+## hâlinde kurulmuş tek parça bir yüzey; çarpışma da aynı yüzeyden. Orta çizgi
+## düz kalır (yol orta çizgisi etrafında döner), kenarlar iner/kalkar.
+func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_end: float, pts: Array) -> Segment:
+	var s := Segment.new()
+	s.x = x
+	s.top = top
+	s.top_end = top
+	s.width = width
+	s.z_start = z_start
+	s.z_end = z_end
+	s.main = true
+	for p in pts:
+		s.bank_z.append(p[0])
+		s.bank_a.append(p[1])
+	var length := z_start - z_end
+	var depth := clampf(_rng.randf_range(6.0, 28.0), 4.0, top + WALL_FLOOR)
+	var body := StaticBody3D.new()
+	body.position = Vector3(x, top, (z_start + z_end) * 0.5)
+	add_child(body)
+	var cz := body.position.z
+	var rows := maxi(int(length / 2.0), 2)
+	# Yüzey üstünde, orta çizgiden d uzaklıktaki nokta (yerel)
+	var at := func(d: float, i: int, lift: float) -> Vector3:
+		var z := z_start - length * i / rows
+		var a := s.bank_at(z)
+		return Vector3(d * cos(a), d * sin(a) + lift, z - cz)
+	var hw := width * 0.5
+	var wall := SurfaceTool.new()
+	wall.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var faces := PackedVector3Array()
+	for i in rows:
+		var l0: Vector3 = at.call(-hw, i, 0.0)
+		var r0: Vector3 = at.call(hw, i, 0.0)
+		var l1: Vector3 = at.call(-hw, i + 1, 0.0)
+		var r1: Vector3 = at.call(hw, i + 1, 0.0)
+		_quad(wall, faces, l0, r0, r1, l1, Vector3.UP)
+		var lb0 := Vector3(l0.x, -depth, l0.z)
+		var lb1 := Vector3(l1.x, -depth, l1.z)
+		var rb0 := Vector3(r0.x, -depth, r0.z)
+		var rb1 := Vector3(r1.x, -depth, r1.z)
+		_quad(wall, faces, l0, l1, lb1, lb0, Vector3.LEFT)
+		_quad(wall, faces, r0, r1, rb1, rb0, Vector3.RIGHT)
+	# Ön (yakın) ve arka (uzak) yüzler
+	var f_l: Vector3 = at.call(-hw, 0, 0.0)
+	var f_r: Vector3 = at.call(hw, 0, 0.0)
+	_quad(wall, faces, f_l, f_r, Vector3(f_r.x, -depth, f_r.z), Vector3(f_l.x, -depth, f_l.z), Vector3.BACK)
+	var b_l: Vector3 = at.call(-hw, rows, 0.0)
+	var b_r: Vector3 = at.call(hw, rows, 0.0)
+	_quad(wall, faces, b_l, b_r, Vector3(b_r.x, -depth, b_r.z), Vector3(b_l.x, -depth, b_l.z), Vector3.FORWARD)
+	var wall_mi := MeshInstance3D.new()
+	wall_mi.mesh = wall.commit()
+	wall_mi.material_override = _wall_material(s)
+	body.add_child(wall_mi)
+	var shape := ConcavePolygonShape3D.new()
+	shape.backface_collision = true
+	shape.set_faces(faces)
+	var col := CollisionShape3D.new()
+	col.shape = shape
+	body.add_child(col)
+
+	# Asfalt ve kenar çizgileri yüzeyi izler
+	var unused := PackedVector3Array()
+	var asphalt := SurfaceTool.new()
+	asphalt.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var lines := SurfaceTool.new()
+	lines.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var line_x := hw - 0.45
+	for i in rows:
+		_quad(asphalt, unused, at.call(-hw + 0.15, i, 0.02), at.call(hw - 0.15, i, 0.02),
+			at.call(hw - 0.15, i + 1, 0.02), at.call(-hw + 0.15, i + 1, 0.02), Vector3.UP)
+		for sx in [-1.0, 1.0]:
+			var c: float = sx * line_x
+			_quad(lines, unused, at.call(c - 0.09, i, 0.04), at.call(c + 0.09, i, 0.04),
+				at.call(c + 0.09, i + 1, 0.04), at.call(c - 0.09, i + 1, 0.04), Vector3.UP)
+	var asphalt_mi := MeshInstance3D.new()
+	asphalt_mi.mesh = asphalt.commit()
+	asphalt_mi.material_override = _asphalt_material(s)
+	body.add_child(asphalt_mi)
+	var lines_mi := MeshInstance3D.new()
+	lines_mi.mesh = lines.commit()
+	lines_mi.material_override = _line_mat
+	lines_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.add_child(lines_mi)
+	_add_runway_lights(body, s, length)
+
+	s.node = body
+	segments.append(s)
+	stats.min_top = minf(stats.min_top, top)
+	stats.max_top = maxf(stats.max_top, top)
+	stats.banked = int(stats.get("banked", 0)) + 1
+	stats.max_bank_deg = maxf(float(stats.get("max_bank_deg", 0.0)), rad_to_deg(absf(s.bank_a[2])))
+	return s
+
+
+## Dörtgen (a, b, c, d sırayla çevre) iki üçgen: normal "out" yönüne bakacak
+## sırayla eklenir (Godot'da ön yüz saat yönünde). faces'e çarpışma için de yazılır.
+func _quad(st: SurfaceTool, faces: PackedVector3Array, a: Vector3, b: Vector3, c: Vector3, d: Vector3, out: Vector3) -> void:
+	for tri in [[a, b, c], [a, c, d]]:
+		var p0: Vector3 = tri[0]
+		var p1: Vector3 = tri[1]
+		var p2: Vector3 = tri[2]
+		var n := (p1 - p0).cross(p2 - p0)
+		if n.dot(out) > 0.0:
+			var tmp := p1
+			p1 = p2
+			p2 = tmp
+		else:
+			n = -n
+		n = n.normalized()
+		for p in [p0, p1, p2]:
+			st.set_normal(n)
+			st.add_vertex(p)
+			faces.append(p)
 
 
 ## Rampanın üstüne ileri bakan turuncu oklar (^): "burası seni fırlatır"

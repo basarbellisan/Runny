@@ -136,7 +136,9 @@ func _fly_steer() -> float:
 	var best_cost := INF
 	for i in range(-30, 31):
 		var cand := pos.x + i
-		var cost := absf(cand - goal) * 0.1 + absf(cand - pos.x) * 0.02
+		# Portala yaklaşırken hedef ağır basar (kayadan kaçıp portalı kaçırmasın)
+		var near_portal := portal != null and (pos.z - portal.z) < forward * 2.5
+		var cost := absf(cand - goal) * (0.6 if near_portal else 0.1) + absf(cand - pos.x) * 0.02
 		for r in lower.rocks:
 			var d: float = pos.z - r.z
 			if d < 0.0 or d > 60.0:

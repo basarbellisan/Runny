@@ -53,6 +53,14 @@ Düz yollarda (350 m'den sonra) sağ-sol oynatan engeller:
   araba sarsılır, taş sesi ve toz. İlk üç seferde "ÇAKIL · YAVAŞLATIR" yazar
 Yolun başı (iniş) ve sonu (pist ışıkları + hizalanma) her zaman boştur.
 
+Yatık yollar (500 m'den sonra): yol düz başlar, yavaşça sağa ya da sola
+yatar (~11–15°), bir süre öyle gider ve düzelir; bazıları S çizer (önce bir
+yana, sonra öbür yana). Araba alçak tarafa doğru kayar, ters direksiyonla
+yolda tutulur; gövde yolla birlikte yatar, kamera da biraz eşlik eder. İnişte
+açı yolun yatıklığına göre ölçülür. Yatık yolun sonu her zaman düzdür
+(pist ışıkları + roket). Yüzey tek parça kıvrılan bir ağ; arabanın çarpışma
+omurgası altı yuvarlak bir kapsül olduğu için yüzeyin kenarlarına takılmaz.
+
 ## Ayar paneli
 Oyun sırasında sol üst köşeye arka arkaya üç kez dokun (PC'de F1): oyun durur,
 hız, direksiyon, gaz, atlama, yollar, uçuş, puan, kamera ve ses ayarları açılır.

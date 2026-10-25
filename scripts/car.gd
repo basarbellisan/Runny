@@ -93,6 +93,8 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 ## Çakılda arabayı sağa sola savuran itiş (m/s²) ve çakıldan çıkınca süren sendeleme (sn)
 @export var gravel_shove := 30.0
 @export var gravel_after := 0.6
+## Yatık yolda araba alçak tarafa kayar: yatma açısının sinüsü × bu hız (m/s)
+@export var bank_slide := 45.0
 
 @export_group("Uçuş")
 ## Alt katmanın uçuş yüksekliği
@@ -137,6 +139,8 @@ var _gravel_push_target := 0.0
 var _gravel_timer := 0.0
 ## Zeminin ileri hıza etkisi (1: asfalt)
 var surface_drag := 1.0
+## Altımızdaki yolun yana yatıklığı (rad, artı = sağ kenar yukarı)
+var surface_roll := 0.0
 ## Uçarken iki parmak: yükseliyor muyuz
 var climbing: bool:
 	get:
@@ -195,8 +199,10 @@ var _touches := {}  # dokunma index -> ekran x
 func _ready() -> void:
 	speed = start_speed
 	floor_snap_length = 0.4
-	var box := ($Collision as CollisionShape3D).shape as BoxShape3D
-	half_length = box.size.z * 0.5
+	# Omurga: boyuna yatık ince kapsül. Altı yuvarlak olduğu için kıvrılan (yatık)
+	# yol yüzeyinin üçgen kenarlarına takılmaz.
+	var keel := ($Collision as CollisionShape3D).shape as CapsuleShape3D
+	half_length = keel.height * 0.5
 	last_floor_y = global_position.y
 	_default_mask = collision_mask
 	_set_wings(false, true)
@@ -326,7 +332,15 @@ func _drive(delta: float) -> void:
 		var under: RoadGenerator.Segment = roads.segment_under(global_position) if roads else null
 		if under:
 			_last_segment = under
-	velocity.x = move_toward(velocity.x, _steer * steer_speed, steer_accel * control * delta)
+	# Yatık yolda araba kendiliğinden alçak tarafa kayar: ters direksiyonla yolda tut
+	var slide := 0.0
+	if on_floor:
+		var fn := get_floor_normal()
+		surface_roll = atan2(-fn.x, fn.y)
+		slide = fn.x * bank_slide
+	else:
+		surface_roll = 0.0
+	velocity.x = move_toward(velocity.x, _steer * steer_speed + slide, steer_accel * control * delta)
 	surface_drag = move_toward(surface_drag, gravel_speed if on_gravel and on_floor else 1.0,
 		delta * (1.5 if on_gravel else 1.4))
 	if on_floor:
@@ -343,7 +357,13 @@ func _drive(delta: float) -> void:
 
 	# Yolun ön yüzüne çakıldık (yeterince gaz verilmedi). İleri hızın aniden
 	# kesilmesi de çarpma sayılır: köşeye değince normal çapraz gelebiliyor.
-	if _hit_wall_front() or -velocity.z < forward_before * 0.5:
+	# (Yalnız zemine değiyorsak sayılmaz: kıvrılan yatık yol yüzeyinde fizik
+	# motoru bazen bir karelik hızı sıfırlıyor, bir sonraki karede düzeliyor.)
+	var hit_side := false
+	for i in get_slide_collision_count():
+		if absf(get_slide_collision(i).get_normal().y) < 0.7:
+			hit_side = true
+	if _hit_wall_front() or (hit_side and -velocity.z < forward_before * 0.5):
 		crash("ÇAKILDIN!")
 		return
 	if _keep_out_of_walls():
@@ -431,7 +451,7 @@ func _touchdown(vy_before: float) -> bool:
 	var impact := maxf(-vy_before, 0.0)
 	var n := get_floor_normal()
 	var surface := atan2(n.z, n.y)
-	var roll_err := absf(wrapf(roll, -PI, PI))
+	var roll_err := absf(wrapf(roll - atan2(-n.x, n.y), -PI, PI))
 	var pitch_err := absf(wrapf(pitch - surface, -PI, PI))
 	# Burun/kuyruk sapması yan yatmadan daha az önemli (önce bir aks değer, öbürü iner)
 	var err := rad_to_deg(maxf(roll_err, pitch_err * 0.5))
@@ -582,7 +602,7 @@ func _keep_out_of_walls() -> bool:
 	for side in [-1.0, 1.0]:
 		var depth := 0.0
 		for z in [-hl + 0.3, 0.0, hl - 0.3]:
-			for y in [0.3, 0.9]:
+			for y in [0.45, 0.9]:
 				var from := pos + Vector3(0, y, z)
 				var hit := _ray(space, from, from + Vector3(side * (hw + 0.05), 0, 0))
 				if not hit.is_empty():
@@ -616,7 +636,9 @@ func _ray(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3) -> Dicti
 
 func _hit_wall_front() -> bool:
 	for i in get_slide_collision_count():
-		if get_slide_collision(i).get_normal().z > 0.6:
+		var n := get_slide_collision(i).get_normal()
+		# Kenara yukarıdan değmek (normal çoğunlukla yukarı) iniş sayılır, çarpma değil
+		if n.z > 0.6 and n.y < 0.7:
 			return true
 	return false
 
@@ -680,7 +702,8 @@ func _update_attitude(delta: float) -> void:
 		_air_lean = 0.0
 		var n := get_floor_normal()
 		var surface := atan2(n.z, n.y)
-		var lean := -velocity.x / steer_speed * 0.08
+		# Gövde yolun yatıklığına oturur, üstüne direksiyon yatması eklenir
+		var lean := atan2(-n.x, n.y) - velocity.x / steer_speed * 0.08
 		var k := suspension_stiffness
 		var c := suspension_damping
 		# Bir yanın iki tekeri de boştaysa yay tutmaz: araba kenardan devrilir
@@ -733,10 +756,6 @@ func _update_wheels(delta: float) -> void:
 	if model == null:
 		return
 	var grounded := mode == Mode.DRIVE and is_on_floor()
-	var surface := 0.0
-	if grounded:
-		var n := get_floor_normal()
-		surface = atan2(n.z, n.y)
 	for i in model.wheels.size():
 		var wh: Dictionary = model.wheels[i]
 		var r: float = wh.radius
@@ -744,7 +763,7 @@ func _update_wheels(delta: float) -> void:
 		if grounded and wheel_contact[i]:
 			# Gövde yatınca/burun kalkınca teker yerde kalır: yay uzar ya da kısalır
 			var c: Vector3 = wh.contact
-			var lift := c.x * sin(roll) - c.z * sin(pitch - surface)
+			var lift := c.x * sin(roll) - c.z * sin(pitch)
 			target = r + clampf(_wheel_ground[i] - lift - _bounce, -suspension_travel, 0.15)
 		else:
 			target -= _bounce
