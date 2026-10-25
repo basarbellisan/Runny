@@ -261,11 +261,9 @@ func _to_garage() -> void:
 	get_tree().change_scene_to_file("res://scenes/menu.tscn")
 
 
-## Roket ateşlendi: kükreme ve kısa sarsıntı
+## Roket ateşlendi: kükreme (kamera oynamaz)
 func _on_boosted() -> void:
 	Audio.play("boost", -2.0, randf_range(0.97, 1.03))
-	$Camera.shake(0.12)
-	$Camera.fov_kick(7.0)
 
 
 func _on_exploded() -> void:
