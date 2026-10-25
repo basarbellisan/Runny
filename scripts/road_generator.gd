@@ -129,6 +129,7 @@ var _chevron_mat := StandardMaterial3D.new()
 var _kerb_red := StandardMaterial3D.new()
 var _kerb_white := StandardMaterial3D.new()
 var _runway_mat := ShaderMaterial.new()
+var _runway_halo_mat := ShaderMaterial.new()
 var _block_mat := StandardMaterial3D.new()
 var _block_top_mat := StandardMaterial3D.new()
 var _gravel_mat := StandardMaterial3D.new()
@@ -155,7 +156,8 @@ func _ready() -> void:
 	_kerb_red.roughness = 0.8
 	_kerb_white.albedo_color = Palette.SNOW
 	_kerb_white.roughness = 0.8
-	_runway_mat.shader = preload("res://shaders/runway_lights.gdshader")
+	_runway_mat.shader = preload("res://shaders/runway_dots.gdshader")
+	_runway_halo_mat.shader = preload("res://shaders/runway_halo.gdshader")
 	_block_mat.albedo_color = Palette.GRAPHITE
 	_block_mat.roughness = 0.9
 	_block_top_mat.albedo_color = Palette.ACCENT
@@ -764,37 +766,51 @@ func _add_segment(x: float, top: float, top_end: float, width: float, z_start: f
 func _add_runway_lights(body: Node3D, s: Segment, slope_len: float) -> void:
 	var v := estimate_speed(car.global_position.z - s.z_end)
 	var zone := clampf(v * lights_time, 14.0, minf(48.0, slope_len * 0.6))
-	var step := 3.0
+	var step := 2.5
 	var per_side := int(zone / step)
-	var across := maxi(int((s.width - 0.6) / 1.2), 2)
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_custom_data = true
-	mm.instance_count = per_side * 2 + across
-	var box := BoxMesh.new()
-	box.size = Vector3(0.28, 0.14, 0.6)
-	mm.mesh = box
+	var across := maxi(int((s.width - 0.6) / 1.0), 2)
+	var count := per_side * 2 + across
+	var dots := MultiMesh.new()
+	var halos := MultiMesh.new()
+	for mm in [dots, halos]:
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_custom_data = true
+		mm.instance_count = count
+	var ball := SphereMesh.new()
+	ball.radius = 0.24
+	ball.height = 0.48
+	ball.radial_segments = 10
+	ball.rings = 5
+	dots.mesh = ball
+	var quad := QuadMesh.new()
+	quad.size = Vector2(2.2, 2.2)
+	halos.mesh = quad
 	var half := slope_len * 0.5
 	var cos_a := cos(body.rotation.x)
 	var i := 0
 	for k in per_side:
 		var lz := -half + 0.8 + k * step
+		# 0: ışıklı bölgenin başı, 1: yolun ucu
+		var along := 1.0 - float(k) / maxf(per_side - 1, 1) * 0.95
 		for sx in [-1.0, 1.0]:
-			var pos := Vector3(sx * (s.width * 0.5 - 0.18), 0.07, lz)
-			mm.set_instance_transform(i, Transform3D(Basis(), pos))
-			mm.set_instance_custom_data(i, Color(body.position.z + lz * cos_a, 0, 0, 0))
+			var pos := Vector3(sx * (s.width * 0.5 - 0.25), 0.26, lz)
+			for mm in [dots, halos]:
+				mm.set_instance_transform(i, Transform3D(Basis(), pos))
+				mm.set_instance_custom_data(i, Color(body.position.z + lz * cos_a, along, 0, 0))
 			i += 1
-	# Yolun ucunda enine ışık sırası
+	# Yolun ucunda enine ışık sırası: darbe sona varınca hepsi birden parlar
 	for k in across:
-		var pos := Vector3(lerpf(-s.width * 0.5 + 0.5, s.width * 0.5 - 0.5, k / float(across - 1)), 0.07, -half + 0.35)
-		mm.set_instance_transform(i, Transform3D(Basis().scaled(Vector3(2.2, 1.0, 0.5)), pos))
-		mm.set_instance_custom_data(i, Color(s.z_end, 0, 0, 0))
+		var pos := Vector3(lerpf(-s.width * 0.5 + 0.4, s.width * 0.5 - 0.4, k / float(across - 1)), 0.26, -half + 0.35)
+		for mm in [dots, halos]:
+			mm.set_instance_transform(i, Transform3D(Basis(), pos))
+			mm.set_instance_custom_data(i, Color(s.z_end, 1.02, 1, 0))
 		i += 1
-	var mi := MultiMeshInstance3D.new()
-	mi.multimesh = mm
-	mi.material_override = _runway_mat
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	body.add_child(mi)
+	for pair in [[dots, _runway_mat], [halos, _runway_halo_mat]]:
+		var mi := MultiMeshInstance3D.new()
+		mi.multimesh = pair[0]
+		mi.material_override = pair[1]
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		body.add_child(mi)
 
 
 ## Düz bir yola engeller ve çakıl şeritleri: sırayla sağda solda, aralarından
