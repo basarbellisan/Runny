@@ -74,6 +74,8 @@ var _args := {}
 func _ready() -> void:
 	_parse_args()
 	var seed_value := int(_args.get("seed", "-1"))
+	if seed_value >= 0:
+		seed(seed_value)  # testler tekrarlanabilir olsun (sendeleme vb. randf kullanır)
 	car.roads = roads
 	if _args.has("autopilot"):
 		car.autopilot = Autopilot.new(car, roads, lower, float(_args.get("dive", "0")), not _args.has("noboost"))
@@ -84,6 +86,7 @@ func _ready() -> void:
 	hud.garage_pressed.connect(_to_garage)
 	car.jumped.connect(Audio.play.bind("jump", -6.0))
 	car.exploded.connect(_on_exploded)
+	car.boosted.connect(_on_boosted)
 	lower.setup(car, roads, seed_value)
 	lower.crystal_collected.connect(_on_crystal)
 	lower.rock_hit.connect(_on_rock_hit)
@@ -132,7 +135,8 @@ func _physics_process(delta: float) -> void:
 	hud.set_score(int(score), multiplier)
 	hud.set_energy(energy / MAX_ENERGY)
 	var driving := car.mode == Car.Mode.DRIVE
-	hud.set_speed(car.forward_speed if driving else -car.velocity.z, car.speed, car.boost_level, driving)
+	hud.set_speed(car.forward_speed * car.surface_drag if driving else -car.velocity.z, car.speed, car.boost_level, driving)
+	hud.set_fuel(car.fuel, car.burning)
 	_update_hint()
 	clouds.position = Vector3(car.global_position.x, CLOUD_LAYER_Y, car.global_position.z)
 
@@ -240,6 +244,12 @@ func _to_garage() -> void:
 	get_tree().change_scene_to_file("res://scenes/menu.tscn")
 
 
+## Roket ateşlendi: kükreme ve kısa sarsıntı
+func _on_boosted() -> void:
+	Audio.play("boost", -2.0, randf_range(0.97, 1.03))
+	$Camera.shake(0.25)
+
+
 func _on_exploded() -> void:
 	Audio.play("explosion")
 	$Camera.shake(1.0)
@@ -260,9 +270,9 @@ func _update_hint() -> void:
 	if _hint_shown or _landings_total >= TUTORIAL_LANDINGS or car.mode != Car.Mode.DRIVE:
 		return
 	var seg := roads.segment_under(car.global_position)
-	if seg and (car.global_position.z - seg.z_end) / car.forward_speed < 2.2:
+	if seg and (car.global_position.z - seg.z_end) / car.forward_speed < 1.1:
 		_hint_shown = true
-		hud.hint("İKİ PARMAKLA BAS  ·  GAZ", 2.2)
+		hud.hint("KIRMIZI IŞIKLARDA İKİ PARMAK  ·  ROKET", 1.6)
 
 
 func _load_save() -> ConfigFile:

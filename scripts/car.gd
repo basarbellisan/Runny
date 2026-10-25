@@ -17,6 +17,8 @@ signal landed(air_time: float, quality: float, impact: float)
 signal jumped
 ## Bir yere çarpıp patladık
 signal exploded
+## Roket gaz ateşlendi (yakıt varken gaza basıldı)
+signal boosted
 signal mode_changed(mode: Mode, previous: Mode)
 signal died(reason: String)
 
@@ -69,13 +71,22 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 @export var hard_impact := 24.0
 
 @export_group("Gaz")
-## Tam gazda hız bu oran kadar artar
-@export var boost_bonus := 0.6
+## Roket gaz: kısa ve çok güçlü. Tam gazda hız bu oran kadar artar
+@export var boost_bonus := 1.0
 ## Gazın ekleyebileceği en fazla hız (m/s)
-@export var boost_max_extra := 20.0
+@export var boost_max_extra := 32.0
 ## Gazın tam güce çıkma ve sönme süreleri (sn)
-@export var boost_rise_time := 0.7
-@export var boost_fall_time := 1.2
+@export var boost_rise_time := 0.15
+@export var boost_fall_time := 0.35
+## Dolu yakıtla gaz bu kadar saniye yanar; erken basan yolun sonuna yakıtsız varır
+@export var boost_burn_time := 0.9
+## Yolda, gaza basmazken yakıtın boştan dolma süresi (sn)
+@export var boost_recharge_time := 1.4
+
+@export_group("Zemin")
+## Çakılda ileri hız bu orana düşer, direksiyon tutuşu bu orana iner
+@export var gravel_speed := 0.72
+@export var gravel_grip := 0.5
 
 @export_group("Uçuş")
 ## Alt katmanın uçuş yüksekliği
@@ -108,6 +119,14 @@ var speed := 0.0
 var boost_level := 0.0
 ## Oyuncu şu an gaza basıyor mu
 var boosting := false
+## Roket yakıtı (0-1): yolda dolar, gaz yanarken biter
+var fuel := 1.0
+## Roket şu an yanıyor mu
+var burning := false
+## Çakılın üstündeyiz
+var on_gravel := false
+## Zeminin ileri hıza etkisi (1: asfalt)
+var surface_drag := 1.0
 ## Uçarken iki parmak: yükseliyor muyuz
 var climbing: bool:
 	get:
@@ -258,6 +277,10 @@ func _drive(delta: float) -> void:
 		_tip = (right_off - left_off) * 0.5
 		_nose = (int(not wheel_contact[0]) + int(not wheel_contact[1])) * 0.5
 		control *= 1.0 - grip_loss * (left_off + right_off)
+		on_gravel = roads != null and roads.gravel_at(global_position)
+		if on_gravel:
+			control *= gravel_grip
+			velocity.x += randf_range(-1.0, 1.0) * 14.0 * delta
 		# Sert inişten sonra araba sendeler: tutuş azalır, gövde yana savrulur
 		if _stumble_time > 0.0:
 			_stumble_time -= delta
@@ -270,8 +293,10 @@ func _drive(delta: float) -> void:
 		if under:
 			_last_segment = under
 	velocity.x = move_toward(velocity.x, _steer * steer_speed, steer_accel * control * delta)
+	surface_drag = move_toward(surface_drag, gravel_speed if on_gravel and on_floor else 1.0,
+		delta * (1.5 if on_gravel else 0.7))
 	if on_floor:
-		velocity.z = -forward_speed
+		velocity.z = -forward_speed * surface_drag
 	else:
 		# Havada araba kalkıştaki hızıyla uçar
 		velocity.y -= gravity * delta
@@ -445,10 +470,22 @@ func _dead_motion(delta: float) -> void:
 func _update_boost(delta: float) -> void:
 	if mode == Mode.DRIVE and not is_on_floor():
 		return
-	if boosting and mode == Mode.DRIVE:
+	var was_burning := burning
+	burning = boosting and mode == Mode.DRIVE and fuel > 0.0
+	if mode == Mode.DRIVE:
+		if burning:
+			fuel = maxf(fuel - delta / boost_burn_time, 0.0)
+		elif not boosting:
+			fuel = minf(fuel + delta / boost_recharge_time, 1.0)
+	if burning and not was_burning:
+		boosted.emit()
+	if burning:
 		boost_level = minf(boost_level + delta / boost_rise_time, 1.0)
 	else:
 		boost_level = maxf(boost_level - delta / boost_fall_time, 0.0)
+	if fx:
+		fx.flame(burning, global_position + Vector3(0, 0.6, half_length + 0.2), boost_level)
+		fx.gravel(on_gravel and is_on_floor(), global_position + Vector3(0, 0.15, 1.0))
 
 
 ## x: direksiyon (-1..1), y: gaz (0/1). İki yarıya birden basmak = gaz.

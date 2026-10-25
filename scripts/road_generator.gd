@@ -30,6 +30,15 @@ class Segment:
 	var route := 0
 	## Hangi çatala ait (kol seçimi için)
 	var fork_id := 0
+	## Yol üstündeki engeller ve çakıl: { x0, x1, z0 (yakın), z1 (uzak), gravel }
+	var obstacles: Array[Dictionary] = []
+
+	## z_near..z_far arasında engel/çakıl yok mu
+	func clear_between(z_near: float, z_far: float) -> bool:
+		for o in obstacles:
+			if o.z1 < z_near and o.z0 > z_far:
+				return false
+		return true
 	var node: Node3D
 
 	func contains(pos: Vector3, margin := 0.0) -> bool:
@@ -78,6 +87,12 @@ const ZONES: Array[Color] = [
 @export var dead_end_weight := 0.5
 ## Çatal kalıbının seçilme ağırlığı
 @export var fork_weight := 0.6
+## Düz yollara engel (çarpınca patlar) ve çakıl (yavaşlatır) bu mesafeden sonra gelir
+@export var obstacles_from := 350.0
+## Düz bir yolun engelli olma olasılığı (zorlukla bu değere çıkar)
+@export_range(0.0, 1.0) var obstacle_chance := 0.85
+## Pist ışıkları: yolun sonundaki ışıklı bölgenin süresi (sn, o anki hızla)
+@export var lights_time := 0.75
 @export var max_slope_deg := 18.0
 @export var zone_length := 1000.0
 
@@ -90,6 +105,11 @@ var _unit_box := BoxMesh.new()
 var _line_mat := ShaderMaterial.new()
 var _ramp_line_mat := ShaderMaterial.new()
 var _chevron_mat := StandardMaterial3D.new()
+var _runway_mat := ShaderMaterial.new()
+var _block_mat := StandardMaterial3D.new()
+var _block_top_mat := StandardMaterial3D.new()
+var _gravel_mat := StandardMaterial3D.new()
+var _stone_mat := StandardMaterial3D.new()
 ## Sıradaki ana yolların tarifi (kalıptan gelir)
 var _plan: Array[Dictionary] = []
 ## Çıkmazdan sonra ana yol birkaç yol boyunca o taraftan uzaklaşır
@@ -108,6 +128,15 @@ func _ready() -> void:
 	_ramp_line_mat.set_shader_parameter("color", Palette.ACCENT)
 	_chevron_mat.albedo_color = Palette.ACCENT
 	_chevron_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_runway_mat.shader = preload("res://shaders/runway_lights.gdshader")
+	_block_mat.albedo_color = Palette.GRAPHITE
+	_block_mat.roughness = 0.9
+	_block_top_mat.albedo_color = Palette.ACCENT
+	_block_top_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_gravel_mat.albedo_color = Color("a59f94")
+	_gravel_mat.roughness = 1.0
+	_stone_mat.albedo_color = Color("c9c3b8")
+	_stone_mat.roughness = 1.0
 
 
 func start(p_car: Car, seed_value := -1) -> void:
@@ -161,6 +190,11 @@ func generate_until(z: float) -> void:
 		_head = _next_from(_head)
 
 
+## Tam gazın hızı; hesapta %90 gaz alınır (roket bir an erken/geç basılsa da yetsin)
+func _v_boost(v: float) -> float:
+	return v + 0.9 * minf(v * car.boost_bonus, car.boost_max_extra)
+
+
 ## Arabanın dist_ahead metre ileride ulaşacağı tahmini hız
 func estimate_speed(dist_ahead: float) -> float:
 	return clampf(car.speed + car.acceleration * dist_ahead / maxf(car.speed, 1.0),
@@ -199,7 +233,14 @@ func find_landing(z: float, margin_start := 12.0, margin_end := 25.0) -> Diction
 			var far := s.z_end + margin_end
 			if near <= far or far > z:
 				continue
-			return {"seg": s, "z": minf(z, near)}
+			# Engelli yolda: inişten sonra ~45 m boş olan, istenen yere en yakın nokta
+			var want := minf(z, near)
+			for k in 40:
+				var land := want + (k + 1) / 2 * 5.0 * (1.0 if k % 2 == 1 else -1.0)
+				if land > near or land < far:
+					continue
+				if s.clear_between(land + 3.0, land - 45.0):
+					return {"seg": s, "z": land}
 		horizon -= 250.0
 	return {}
 
@@ -243,7 +284,7 @@ func _plan_pattern(travelled: float, level: float) -> void:
 	# Yükseklik sınırlı kalsın: alçaktayken inen, yüksekteyken çıkan kalıp yok
 	var low := level < MAIN_LEVEL - 3.0
 	var high := level > MAIN_LEVEL + 3.0
-	var flat := 1.0 if travelled < slopes_from else (0.6 if travelled < ramps_from else 0.4)
+	var flat := 1.0 if travelled < slopes_from else (0.7 if travelled < ramps_from else 0.8)
 	var options := [["düz", flat]]
 	if travelled > slopes_from:
 		options.append(["eğim", 0.6])
@@ -311,7 +352,7 @@ func _next_from(prev: Segment) -> Segment:
 
 	# Araba bu yolun sonuna vardığında ne hızda olacak (tahmini)
 	var v := estimate_speed(dist_ahead)
-	var v_boost := v + minf(v * car.boost_bonus, car.boost_max_extra)
+	var v_boost := _v_boost(v)
 	# Kalkış: yolun sonundaki küçük zıplama + eğimin verdiği dikey hız
 	var slope := prev.slope()
 	var vy := car.launch_velocity + v * slope
@@ -381,6 +422,12 @@ func _next_from(prev: Segment) -> Segment:
 		dx = -_avoid_side * _rng.randf_range(0.0, max_dx)
 		_avoid_count -= 1
 	var length := _rng.randf_range(40.0, 100.0) * (v / car.start_speed) * float(spec.get("len", 1.0))
+	# Düz, geniş yollar bazen engelli olur: sağ-sol oynanacak yer için uzar
+	var plain: bool = not (spec.has("angle") or spec.has("rise_to") or spec.has("rise") or spec.get("dead_end", false))
+	var with_obstacles: bool = plain and travelled > obstacles_from and width >= 5.5 \
+		and _rng.randf() < obstacle_chance * clampf(0.5 + difficulty, 0.0, 1.0)
+	if with_obstacles:
+		length = maxf(length * 1.8, v * 6.5)
 
 	var top := maxf(prev.top_end + dh, MIN_LEVEL)
 	var rise: float = spec.get("rise", 0.0)
@@ -401,6 +448,8 @@ func _next_from(prev: Segment) -> Segment:
 
 	var z_start := prev.z_end - gap
 	var seg := _add_segment(prev.x + dx, top, top + rise, width, z_start, z_start - length, true)
+	if with_obstacles and absf(rise) < 0.01:
+		_add_obstacles(seg, v)
 
 	if spec.get("dead_end", false):
 		_add_dead_end(prev, seg, -main_side, v, vy_b)
@@ -493,7 +542,7 @@ func _add_fork(prev: Segment) -> Segment:
 	var end_l: Dictionary = plan_l.back()
 	var end_h: Dictionary = plan_h.back()
 	var car_len := car.half_length * 2.0
-	var v_boost := v + minf(v * car.boost_bonus, car.boost_max_extra)
+	var v_boost := _v_boost(v)
 	var m_top := minf(end_l.end, end_h.end) - _rng.randf_range(1.5, 3.0)
 	var g_l := 0.0
 	var g_h := 0.0
@@ -531,7 +580,7 @@ func _add_fork(prev: Segment) -> Segment:
 ## Bir boşluk seç: { gap, dh }. Eğimden sonra pencere yarım gazla hesaplanır
 ## ve dar kalırsa yeni yol alçaltılır (_next_from ile aynı kurallar).
 func _pick_gap(slope: float, dh: float, v: float, frac: Vector2) -> Dictionary:
-	var v_boost := v + minf(v * car.boost_bonus, car.boost_max_extra)
+	var v_boost := _v_boost(v)
 	var sloped := absf(slope) > 0.1
 	var v_reach := lerpf(v, v_boost, 0.5) if sloped else v_boost
 	var vy := car.launch_velocity + v * slope
@@ -629,6 +678,8 @@ func _add_segment(x: float, top: float, top_end: float, width: float, z_start: f
 		_add_box(body, Vector3(sx * line_x, 0.015, 0), Vector3(0.18, 0.02, slope_len - 0.6), line_mat)
 	if rise > 1.0:
 		_add_chevrons(body, width, slope_len)
+	if is_main:
+		_add_runway_lights(body, s, slope_len)
 
 	s.node = body
 	segments.append(s)
@@ -638,6 +689,117 @@ func _add_segment(x: float, top: float, top_end: float, width: float, z_start: f
 	if rise > 1.0:
 		stats.ramps_up += 1
 	return s
+
+
+## Pist ışıkları: yolun son ~0.75 saniyesinde iki kenarda kırmızı ışıklar, ucunda
+## yol boyunca bir ışık sırası. Darbeler yolun sonuna doğru akar: "şimdi gaz".
+func _add_runway_lights(body: Node3D, s: Segment, slope_len: float) -> void:
+	var v := estimate_speed(car.global_position.z - s.z_end)
+	var zone := clampf(v * lights_time, 14.0, minf(48.0, slope_len * 0.6))
+	var step := 3.0
+	var per_side := int(zone / step)
+	var across := maxi(int((s.width - 0.6) / 1.2), 2)
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_custom_data = true
+	mm.instance_count = per_side * 2 + across
+	var box := BoxMesh.new()
+	box.size = Vector3(0.28, 0.14, 0.6)
+	mm.mesh = box
+	var half := slope_len * 0.5
+	var cos_a := cos(body.rotation.x)
+	var i := 0
+	for k in per_side:
+		var lz := -half + 0.8 + k * step
+		for sx in [-1.0, 1.0]:
+			var pos := Vector3(sx * (s.width * 0.5 - 0.18), 0.07, lz)
+			mm.set_instance_transform(i, Transform3D(Basis(), pos))
+			mm.set_instance_custom_data(i, Color(body.position.z + lz * cos_a, 0, 0, 0))
+			i += 1
+	# Yolun ucunda enine ışık sırası
+	for k in across:
+		var pos := Vector3(lerpf(-s.width * 0.5 + 0.5, s.width * 0.5 - 0.5, k / float(across - 1)), 0.07, -half + 0.35)
+		mm.set_instance_transform(i, Transform3D(Basis().scaled(Vector3(2.2, 1.0, 0.5)), pos))
+		mm.set_instance_custom_data(i, Color(s.z_end, 0, 0, 0))
+		i += 1
+	var mi := MultiMeshInstance3D.new()
+	mi.multimesh = mm
+	mi.material_override = _runway_mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.add_child(mi)
+
+
+## Düz bir yola engeller ve çakıl şeritleri: sırayla sağda solda, aralarından
+## sağ-sol yapılarak geçilir. Yolun başı (iniş) ve sonu (pist ışıkları + hizalanma)
+## her zaman boş kalır. Engel: alçak beton blok, ön yüzüne çarpan patlar.
+## Çakıl: üstünde hız düşer, direksiyon kayar.
+func _add_obstacles(s: Segment, v: float) -> void:
+	var w := s.width
+	var hw: float = car.model.half_width if car.model else 1.1
+	var lane := maxf(3.4, hw * 2.0 + 1.3)
+	# İnişte roketin hızı hâlâ üstümüzde olabilir: boş bölge gazlı hıza göre
+	var clear_start := _v_boost(v) * 0.9 + 15.0
+	var clear_end := clampf(v * lights_time, 14.0, 48.0) + v * 1.0
+	var z := s.z_start - clear_start
+	var z_last := s.z_end + clear_end
+	var side := -1.0 if _rng.randf() < 0.5 else 1.0
+	var body := s.node
+	while z > z_last:
+		var gravel := _rng.randf() < 0.35
+		var depth := _rng.randf_range(10.0, 20.0) if gravel else 1.2
+		if z - depth < z_last:
+			break
+		var x0: float
+		var x1: float
+		if not gravel and w >= lane * 2.0 + 1.6 and _rng.randf() < 0.3:
+			# Ortada blok, iki yanda geçit
+			var bw := w - lane * 2.0
+			x0 = s.x - bw * 0.5
+			x1 = s.x + bw * 0.5
+		else:
+			# Bir yanda blok/çakıl, öbür yanda geçit
+			# Bloklar arası sağ-sol kayması bu hızda yetişilebilir kalsın (≤ ~4.5 m)
+			var bw := minf(w - lane, 4.5) if not gravel else minf(w * _rng.randf_range(0.5, 0.6), 4.5)
+			if side < 0.0:
+				x0 = s.x - w * 0.5
+				x1 = x0 + bw
+			else:
+				x1 = s.x + w * 0.5
+				x0 = x1 - bw
+			side = -side
+		s.obstacles.append({"x0": x0, "x1": x1, "z0": z, "z1": z - depth, "gravel": gravel})
+		stats["gravel" if gravel else "blocks"] = int(stats.get("gravel" if gravel else "blocks", 0)) + 1
+		var center := Vector3((x0 + x1) * 0.5 - s.x, 0.0, z - depth * 0.5 - body.position.z)
+		if gravel:
+			_add_box(body, center + Vector3(0, 0.02, 0), Vector3(x1 - x0, 0.03, depth), _gravel_mat)
+			for k in int((x1 - x0) * depth * 0.2):
+				var st := _add_box(body, center + Vector3(_rng.randf_range(-0.5, 0.5) * (x1 - x0 - 0.3), 0.05,
+					_rng.randf_range(-0.5, 0.5) * (depth - 0.3)), Vector3.ONE * _rng.randf_range(0.08, 0.2), _stone_mat)
+				st.rotation.y = _rng.randf() * TAU
+		else:
+			var size := Vector3(x1 - x0 - 0.1, 0.9, depth)
+			var block := StaticBody3D.new()
+			block.position = center + Vector3(0, 0.45, 0)
+			body.add_child(block)
+			var col := CollisionShape3D.new()
+			var shape := BoxShape3D.new()
+			shape.size = size
+			col.shape = shape
+			block.add_child(col)
+			_add_box(block, Vector3.ZERO, size, _block_mat)
+			_add_box(block, Vector3(0, 0.46, 0), Vector3(size.x, 0.04, size.z), _block_top_mat)
+		z -= depth + v * _rng.randf_range(0.85, 1.2)
+
+
+## Bu noktada çakıl var mı
+func gravel_at(pos: Vector3) -> bool:
+	var s := segment_under(pos)
+	if s == null:
+		return false
+	for o in s.obstacles:
+		if o.gravel and pos.z <= o.z0 and pos.z >= o.z1 and pos.x >= o.x0 and pos.x <= o.x1:
+			return true
+	return false
 
 
 ## Rampanın üstüne ileri bakan turuncu oklar (^): "burası seni fırlatır"

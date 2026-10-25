@@ -12,6 +12,7 @@ Gerekenler: pip install numpy soundfile
   loop_*.ogg    döngüler: motor, yol (lastik), rüzgâr
   music_*.ogg   iki katmanın müziği (aynı tempo ve akorlar; oyun aralarında geçiş yapar)
 """
+import sys
 import zlib
 from pathlib import Path
 
@@ -624,6 +625,40 @@ def sfx_climb():
     return room(fade(s, 0.005, 0.15), 0.12, 0.6)
 
 
+def sfx_boost():
+    """Roket ateşlemesi: tok bir vuruş, açılan kükreme (gürültü filtresi yukarı
+    açılır), üstünde kısa bir ıslık; kuyrukta çıtırtılar."""
+    d = 1.1
+    n = n_of(d)
+    ramp = np.linspace(0, 1, n) ** 0.5
+    thump = sine(glide(110, 38, d, 0.4), d) * env(d, 0.001, 0.12)
+    nz = noise(d)
+    low = filt(nz, lo=60, hi=500)
+    high = filt(nz, lo=900, hi=6000)
+    roar = (low * (1 - 0.6 * ramp) + high * (0.25 + 0.75 * ramp)) * env(d, 0.01, 0.45)
+    whistle = np.sin(phase(glide(700, 1900, d, 0.6), d)) * env(d, 0.05, 0.25) * 0.18
+    crackle = np.zeros(n)
+    for _ in range(30):
+        at = rng.uniform(0.05, 0.8)
+        place(crackle, click(0.004), at, rng.uniform(0.1, 0.4) * (1 - at))
+    s = 0.9 * thump + normalize(roar, 1.0) * 0.8 + whistle + 0.35 * crackle
+    return fade(room(s, 0.12, 0.7), 0.0005, 0.2)
+
+
+def loop_gravel():
+    """Çakılda giderken: taşların lastik altında çıtırtısı ve kumlu uğultu."""
+    d = 2.0
+    n = n_of(d)
+    rumble = filt(rng.uniform(-1, 1, n), lo=80, hi=600, circular=True)
+    grit = np.zeros(n)
+    for _ in range(900):
+        at = rng.uniform(0, d - 0.01)
+        place(grit, click(rng.uniform(0.001, 0.004)), at, rng.uniform(0.1, 1.0))
+    grit = filt(grit, lo=800, hi=7000, circular=True)
+    s = normalize(rumble, 1.0) * 0.55 + normalize(grit, 1.0) * 0.6
+    return normalize(s, 0.75)
+
+
 def main():
     global rng
     OUT.mkdir(exist_ok=True)
@@ -633,12 +668,17 @@ def main():
         ("sfx_wings.wav", sfx_wings), ("sfx_crystal.wav", sfx_crystal), ("sfx_portal.wav", sfx_portal),
         ("sfx_fall.wav", sfx_fall), ("sfx_explosion.wav", sfx_explosion),
         ("sfx_energy_low.wav", sfx_energy_low), ("sfx_game_over.wav", sfx_game_over),
-        ("sfx_climb.wav", sfx_climb),
+        ("sfx_climb.wav", sfx_climb), ("sfx_boost.wav", sfx_boost),
         ("loop_engine.ogg", loop_engine), ("loop_road.ogg", loop_road), ("loop_wind.ogg", loop_wind),
         ("loop_plane.ogg", loop_plane), ("loop_climb.ogg", loop_climb), ("loop_tire.ogg", loop_tire),
+        ("loop_gravel.ogg", loop_gravel),
         ("music_upper.ogg", music_upper), ("music_lower.ogg", music_lower),
     ]
+    # İsim verilirse yalnız onlar üretilir: python3 tools/make_sounds.py sfx_boost loop_gravel
+    only = sys.argv[1:]
     for name, fn in outputs:
+        if only and name.split(".")[0] not in only:
+            continue
         # Her ses kendi tohumuyla: birini değiştirmek diğerlerini etkilemesin
         rng = np.random.default_rng(zlib.crc32(name.encode()))
         if name.endswith(".wav"):

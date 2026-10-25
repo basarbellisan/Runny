@@ -32,9 +32,23 @@ Süspansiyon belirgin: inişte gövde çöker, yamuk inişte salınır; tekerler
 kalır. İnişte tekerlerden toz, sert inişte ve kenara sürtünürken kıvılcım çıkar,
 kamera sarsılır.
 
+Gaz bir roket: kısa, çok güçlü (hız neredeyse iki katına çıkar). Yakıtı
+~0.9 sn yanar, yolda gaza basmazken ~1.4 sn'de dolar (kadranın altındaki
+çizgi: turuncu = dolu). Gaz havada sönmez ama yolda bırakınca 0.35 sn'de
+söner; bu yüzden erken basan yolun sonuna yakıtsız ve yavaş varır. Doğru an
+yolun son ~0.7 saniyesi: iki kenarda yolun sonuna doğru akan kırmızı pist
+ışıkları ve uçtaki ışık sırası. Gazlarken direksiyon çalışmaz, o yüzden
+ışıklardan önce hizalan.
+
 Her yolun sonunda gaz şart: gazsız kalkan araba bir sonraki yolun ön
 yüzüne çakılıp patlar. Yanlış hizalanıp yolun yanından düşersen kanatlar
-açılır ve alt katmana geçersin.
+açılır ve alt katmana geçersin. Çıkmaz yollarda pist ışığı yoktur.
+
+Düz yollarda (350 m'den sonra) sağ-sol oynatan engeller:
+- Beton blok (turuncu üst şeritli): sırayla sağda solda, aralarından geçilir;
+  ön yüzüne çarpan patlar
+- Çakıl şeridi: üstünde hız ~%28 düşer, direksiyon kayar, taş sesi ve toz
+Yolun başı (iniş) ve sonu (pist ışıkları + hizalanma) her zaman boştur.
 
 ## Ayar paneli
 Oyun sırasında sol üst köşeye arka arkaya üç kez dokun (PC'de F1): oyun durur,
@@ -72,7 +86,8 @@ turuncuya çalan duvarlar; yokuş aşağılar biraz daha koyu.
 - `scripts/menu.gd` — garaj (başlangıç ekranı)
 - `scripts/car_model.gd` — araba görünümü (3 model: kutu, gezgin, konsept) ve tekerler
 - `scripts/car_trail.gd` — hız izi (3 stil)
-- `scripts/car_fx.gd` — toz ve kıvılcım parçacıkları
+- `scripts/car_fx.gd` — toz, kıvılcım, roket alevi ve çakıl tozu parçacıkları
+- `shaders/runway_lights.gdshader` — yolun sonuna doğru akan pist ışıkları
 - `tools/showroom.gd` — araba modellerinin vitrin görüntülerini çeker
 - `scripts/car.gd` — araba fiziği ve modları (yol / düşüş / uçuş / portal fırlatması), kanat animasyonu
 - `scripts/road_generator.gd` — prosedürel yol üretimi (her yol ulaşılabilir olacak şekilde hesaplanır)

@@ -177,11 +177,11 @@ func _plan_portal(z_desired: float) -> Portal:
 	# İnişten sonra hizalanıp gaza basmaya yetecek kadar yol kalsın. Önce bol
 	# pay (1.8 sn) ara; istenen yerden çok ileride kalıyorsa payı azalt ki
 	# portal enerjinin yetmeyeceği kadar uzağa itilmesin.
-	var v_boost := v + car.boost_extra(1.0)
+	# (Roket gaz yolun son ~0.6 sn'sinde basılır: pay normal hızla hesaplanır)
 	var z_land := z_desired - v * launch_time
 	var landing := {}
 	for run_up in [1.8, 1.3, 0.9]:
-		landing = roads.find_landing(z_land, 12.0, v_boost * run_up + 10.0)
+		landing = roads.find_landing(z_land, 12.0, v * run_up + 10.0)
 		if not landing.is_empty() and landing.z > z_land - v * 2.0:
 			break
 	if landing.is_empty():

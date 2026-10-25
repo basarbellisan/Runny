@@ -80,9 +80,13 @@ func _drive_input() -> Vector2:
 		# Tekerler yoldan taşmasın: kenardan tekerlerin dış ucu + pay kadar içeride kal
 		var lim := maxf(current.width * 0.5 - car.model.half_width - 0.5, 0.0)
 		aim = clampf(aim, current.x - lim, current.x + lim)
-		# Yolun sonuna ~1.2 sn kala hizalı ve yana kaymıyorsak gaza bas
+		var dodge := _dodge(current, pos)
+		if not is_nan(dodge):
+			return Vector2(_toward(dodge - pos.x, 0.2), 0.0)
+		# Roket: yolun sonuna ~0.6 sn kala (pist ışıklarında) hizalıysak gaza bas
 		var time_to_edge := (pos.z - current.z_end) / maxf(car.forward_speed, 1.0)
-		if use_boost and time_to_edge < 1.2 and absf(aim - pos.x) < 0.8 and absf(car.velocity.x) < 2.0:
+		var aligned := absf(aim - pos.x) < 1.0 and absf(car.velocity.x) < 3.0
+		if use_boost and time_to_edge < 0.6 and (aligned or time_to_edge < 0.42):
 			return Vector2(0.0, 1.0)
 	var steer := _toward(aim - pos.x, 0.25)
 	if not car.is_on_floor() and car.velocity.y < 0.0:
@@ -91,6 +95,34 @@ func _drive_input() -> Vector2:
 			return Vector2(clampf(car.roll * 3.0, -1.0, 1.0), 0.0)
 		steer = clampf(steer, -0.3, 0.3)
 	return Vector2(steer, 0.0)
+
+
+## Önümüzdeki engel/çakıl varsa geçilecek x (yoksa NAN): engelin yanındaki boş
+## geçitlerden bize en yakın olanı. Çakıla girmemek tercih edilir ama şart değil.
+func _dodge(seg: RoadGenerator.Segment, pos: Vector3) -> float:
+	var hw := car.model.half_width
+	var look := maxf(car.forward_speed, 1.0) * 1.4
+	var next: Dictionary = {}
+	for o in seg.obstacles:
+		if o.z1 < pos.z + car.half_length and o.z0 > pos.z - look:
+			if next.is_empty() or o.z0 > next.z0:
+				next = o
+	if next.is_empty():
+		return NAN
+	var lo := seg.x - seg.width * 0.5 + hw + 0.3
+	var hi := seg.x + seg.width * 0.5 - hw - 0.3
+	var b0: float = next.x0 - hw - 0.45
+	var b1: float = next.x1 + hw + 0.45
+	var best := NAN
+	for iv in [Vector2(lo, b0), Vector2(b1, hi)]:
+		if iv.y < iv.x:
+			continue
+		var x := clampf(pos.x, iv.x, iv.y)
+		if is_nan(best) or absf(x - pos.x) < absf(best - pos.x):
+			best = x
+	if is_nan(best) and not next.gravel:
+		return (lo + hi) * 0.5
+	return best
 
 
 func _fly_steer() -> float:

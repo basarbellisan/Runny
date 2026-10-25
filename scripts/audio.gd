@@ -17,6 +17,7 @@ const SFX := {
 	"energy_low": preload("res://audio/sfx_energy_low.wav"),
 	"game_over": preload("res://audio/sfx_game_over.wav"),
 	"climb": preload("res://audio/sfx_climb.wav"),
+	"boost": preload("res://audio/sfx_boost.wav"),
 }
 ## Art arda toplanan kristaller minör pentatonik dizide yükselir
 const CRYSTAL_STEPS := [1.0, 1.2, 1.335, 1.498, 1.782, 2.0]
@@ -31,6 +32,8 @@ const CRYSTAL_STEPS := [1.0, 1.2, 1.335, 1.498, 1.782, 2.0]
 ## Uçuş modunda pervane sesi ve yükselirken üstüne binen türbin katmanı
 @export var plane_volume_db := -10.0
 @export var climb_volume_db := -13.0
+## Çakılda taş çıtırtısı
+@export var gravel_volume_db := -8.0
 
 var _music_upper: AudioStreamPlayer
 var _music_lower: AudioStreamPlayer
@@ -42,6 +45,8 @@ var _climb: AudioStreamPlayer
 ## Her efektin kendi oynatıcısı (ses dosyası hazır bekler: gecikme olmaz)
 var _players := {}
 var _tire: AudioStreamPlayer
+var _gravel: AudioStreamPlayer
+var _gravel_level := 0.0
 var _tire_level := 0.0
 var _last_vx := 0.0
 var _engine_level := 0.0
@@ -68,6 +73,7 @@ func _ready() -> void:
 	_plane = _make_loop(preload("res://audio/loop_plane.ogg"))
 	_climb = _make_loop(preload("res://audio/loop_climb.ogg"))
 	_tire = _make_loop(preload("res://audio/loop_tire.ogg"))
+	_gravel = _make_loop(preload("res://audio/loop_gravel.ogg"))
 	for key in SFX:
 		var p := AudioStreamPlayer.new()
 		p.stream = SFX[key]
@@ -144,6 +150,9 @@ func update(delta: float, car: Car, mood: float, playing: bool) -> void:
 	_wind.pitch_scale = 0.85 + 0.35 * speed01 + 0.15 * _climb_amount
 	_update_plane(delta, car, speed01, playing)
 	_update_tire(delta, car, speed01, grounded and playing)
+	_gravel_level = move_toward(_gravel_level, (0.6 + 0.4 * speed01) if car.on_gravel and grounded and playing else 0.0, delta * 10.0)
+	_gravel.volume_db = gravel_volume_db + linear_to_db(maxf(_gravel_level, 0.001))
+	_gravel.pitch_scale = 0.85 + 0.3 * speed01
 
 
 ## Lastik: direksiyonla yana ivmelenince sürtünme/cıyaklama (sert manevrada güçlü)
@@ -195,6 +204,8 @@ func update_menu(delta: float) -> void:
 	_climb.volume_db = -60.0
 	_tire_level = 0.0
 	_tire.volume_db = -60.0
+	_gravel_level = 0.0
+	_gravel.volume_db = -60.0
 
 
 ## Tekerlekler yere değdi: devir bir an düşer (yük bindi)

@@ -18,6 +18,9 @@ var _energy_fill: ColorRect
 var speedometer: Speedometer
 var _speedo: Speedometer
 var _speedo_shown := true
+const FUEL_WIDTH := 100.0
+var _fuel_back: ColorRect
+var _fuel_fill: ColorRect
 var _hint_tween: Tween
 var _over: Control
 var _over_bg: ColorRect
@@ -53,6 +56,18 @@ func _ready() -> void:
 	_speedo.offset_top = -230
 	_speedo.offset_bottom = -40
 	speedometer = _speedo
+	# Roket yakıtı: kadranın altında ince çizgi (dolunca turuncu)
+	_fuel_back = ColorRect.new()
+	_fuel_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fuel_back.color = Color(Palette.GRAPHITE, 0.25)
+	_fuel_back.position = Vector2(60, 186)
+	_fuel_back.size = Vector2(FUEL_WIDTH, 4)
+	_speedo.add_child(_fuel_back)
+	_fuel_fill = ColorRect.new()
+	_fuel_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fuel_fill.position = _fuel_back.position
+	_fuel_fill.size = _fuel_back.size
+	_speedo.add_child(_fuel_fill)
 	set_mood(0.0)
 	hint("SOLA DOKUN      |      SAĞA DOKUN", 3.0)
 
@@ -173,6 +188,17 @@ func set_speed(speed: float, base_speed: float, boost: float, show: bool) -> voi
 	if show != _speedo_shown:
 		_speedo_shown = show
 		create_tween().tween_property(_speedo, "modulate:a", 1.0 if show else 0.0, 0.4)
+
+
+## Roket yakıtı (0-1). Doluyken turuncu, dolarken gri, yanarken beyaz
+func set_fuel(fuel: float, burning: bool) -> void:
+	_fuel_fill.size.x = FUEL_WIDTH * fuel
+	if burning:
+		_fuel_fill.color = Palette.SNOW
+	elif fuel >= 0.999:
+		_fuel_fill.color = Palette.ACCENT
+	else:
+		_fuel_fill.color = Palette.SLATE
 
 
 func show_energy(visible_: bool) -> void:
