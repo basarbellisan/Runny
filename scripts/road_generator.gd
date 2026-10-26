@@ -92,7 +92,7 @@ class Segment:
 
 ## Düz yolların ritmi: her ruh hâlinin süresi (sn, o anki hızla; min, max)
 ## (iniş ve pist ışıkları bölgesinin dışında kalan, olayların dizildiği kısım)
-const MOOD_SECONDS := {"nefes": Vector2(0.0, 0.5), "orta": Vector2(1.6, 2.8), "yoğun": Vector2(2.6, 4.2)}
+const MOOD_SECONDS := {"nefes": Vector2(0.0, 0.5), "orta": Vector2(1.0, 2.0), "yoğun": Vector2(1.8, 3.2)}
 
 ## Ana seviye ve alçak seviye (yol üstü yüksekliği)
 const MAIN_LEVEL := 0.0
@@ -134,7 +134,7 @@ const ZONES: Array[Color] = [
 ## sonra gelir; düz uzun bir yolun bu olasılıkla ağ olması, mesafeyle artar (az -> çok)
 @export var network_from := 0.0
 ## Yol ağı kalıbının ağırlığı (başta, network_full_at'ta); diğer kalıplar ~0.5-1.1
-@export var network_weight := Vector2(0.7, 1.5)
+@export var network_weight := Vector2(1.2, 2.4)
 @export var network_full_at := 4000.0
 ## Yatık yollar (yana yatıp düzelen) bu mesafeden sonra gelir; ağırlık ve en fazla açı
 @export var banks_from := 0.0
@@ -190,6 +190,8 @@ var _pickup_next := 0
 ## Sıradaki ana yolların tarifi (kalıptan gelir)
 var _plan: Array[Dictionary] = []
 var _recent: Array[String] = []
+## Her kalıbın son gelişinden bu yana kaç kalıp geçti
+var _since := {}
 ## Son kullanılan yol içi olaylar (aynısı hemen tekrar gelmesin)
 var _recent_events: Array[String] = []
 var _last_mood := ""
@@ -419,8 +421,7 @@ func _plan_pattern(travelled: float, level: float) -> void:
 	var high := level > MAIN_LEVEL + 3.0
 	# Başta kalıplar kolay hâlleriyle gelir (ease 0 → 1)
 	var ease := clampf(travelled / maxf(ease_distance, 1.0), 0.0, 1.0)
-	# Olaylı düz yollar aksiyonla sıklaşır (diğer kalıpların içi daha boş kalıyor)
-	var options := [["düz", 0.9 * maxf(_act, 1.0)]]
+	var options := [["düz", 0.9]]
 	if travelled >= slopes_from:
 		options.append(["eğim", 0.6])
 		if not low:
@@ -440,7 +441,10 @@ func _plan_pattern(travelled: float, level: float) -> void:
 	if travelled >= network_from:
 		var dens := clampf((travelled - network_from) / maxf(network_full_at - network_from, 1.0), 0.0, 1.0)
 		options.append(["ağ", lerpf(network_weight.x, network_weight.y, dens)])
-	# Tekrar yok: son kalıp hiç gelmez, son birkaç kalıbın şansı düşer
+	# Tekrar yok: son kalıp hiç gelmez, son birkaç kalıbın şansı düşer.
+	# Aç kalma: uzun süredir gelmeyen kalıbın şansı artar (her kalıp düzenli görünsün).
+	for o in options:
+		o[1] *= minf(1.0 + 0.35 * float(_since.get(o[0], 6)), 4.0)
 	var total := 0.0
 	for o in options:
 		if not _recent.is_empty() and _recent[-1] == o[0] and options.size() > 1:
@@ -457,6 +461,9 @@ func _plan_pattern(travelled: float, level: float) -> void:
 			break
 	pattern_counts[kind] = int(pattern_counts.get(kind, 0)) + 1
 	_current_kind = kind
+	for k in _since:
+		_since[k] = int(_since[k]) + 1
+	_since[kind] = 0
 	_recent.append(kind)
 	if _recent.size() > 3:
 		_recent.pop_front()
@@ -464,7 +471,7 @@ func _plan_pattern(travelled: float, level: float) -> void:
 		"ağ":
 			_plan.append({"network": true})
 		"düz":
-			for i in _rng.randi_range(1, 3):
+			for i in _rng.randi_range(1, 2):
 				_plan.append({})
 		"eğim":
 			var dir := -1.0 if _rng.randf() < 0.5 else 1.0
@@ -591,12 +598,16 @@ func _next_from(prev: Segment) -> Segment:
 	if network:
 		width = maxf(width, 6.0)
 		length = _clear_start(v, _land_far_estimate(v, dh, gap, slope)) \
-			+ v * _rng.randf_range(3.5, 5.5) * maxf(1.0, _act * 0.5) + _clear_end(v)
+			+ v * _rng.randf_range(3.5, 5.5) * clampf(_act * 0.5, 1.0, 1.3) + _clear_end(v)
 	elif plain and travelled > obstacles_from:
 		mood = _next_mood(difficulty)
+		# Başka bir kalıbın içindeki düz yol (vadinin dibi, merdiven basamağı...) kısa kalsın:
+		# kalıbın kendisi asıl olay
+		if not spec.is_empty() and mood == "yoğun":
+			mood = "orta"
 		# Aksiyon arttıkça olaylı kısım da uzar: iniş/pist bölgelerine göre payı büyür
 		var content := v * float(MOOD_SECONDS[mood].x + _rng.randf() * (MOOD_SECONDS[mood].y - MOOD_SECONDS[mood].x)) \
-			* float(spec.get("len", 1.0)) * maxf(1.0, _act * 0.5)
+			* float(spec.get("len", 1.0)) * clampf(_act * 0.5, 1.0, 1.3)
 		length = _clear_start(v, _land_far_estimate(v, dh, gap, slope)) + content + _clear_end(v)
 		# Olaylı yol dar olmasın: dar yolda çoğu olay (kapı, zikzak, çakıl şeridi...) seçilemez
 		if mood != "nefes":
@@ -668,7 +679,7 @@ func _next_from(prev: Segment) -> Segment:
 	elif spec.get("dead_end", false):
 		_add_dead_end(prev, seg, -main_side, v, vy_b)
 		_fill_events(seg, v, z_start - _clear_start(v, land_far), seg.z_end + _clear_end(v), "orta")
-	elif mood == "" and _rng.randf() < side_road_chance:
+	elif (mood == "" or seg == first) and _rng.randf() < side_road_chance:
 		_add_side_road(seg)
 	_road_crystals(first, v, travelled)
 	_add_decor(first)
@@ -1711,7 +1722,8 @@ func _add_network(s: Segment, v: float, land_far: float, travelled: float) -> vo
 	for attempt in 10:
 		if cursor - v * 1.5 < z_last:
 			break
-		var options := [["rampa", 1.0], ["slalom", 0.4 + 0.5 * dens], ["alt", 1.0], ["üst", 0.9]]
+		# Yan yollar (alt/üst) ağın asıl seçimi: ağırlıkları yüksek
+		var options := [["rampa", 0.8], ["slalom", 0.4 + 0.4 * dens], ["alt", 1.5], ["üst", 1.4]]
 		var total := 0.0
 		for o in options:
 			if o[0] == last:

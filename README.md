@@ -159,6 +159,11 @@ bununla çarpılır; nefes yollar seyrekleşir. Çarpan mesafeyle büyür (8 km'
 katı) ve olaylı kısım da onunla uzar: ilerledikçe yolda daha çok şey olur. Olaylar
 arası tepki süresi yine de en az ~0.45 sn kalır; çakıldan sonra ~1.15 sn.
 Olaylı yollar en az 6 m (yoğunda 6.6 m) geniştir, yoksa çoğu olay sığmaz.
+Olaylı kısım en fazla 1.3 katına uzar ve başka bir kalıbın içindeki düz yol
+(vadi dibi, merdiven basamağı) "yoğun" olmaz: yollar uzayıp büyük kalıpları
+(ağ, yan yollar, çatal) seyreltmesin. Aç kalma kuralı: uzun süredir gelmeyen
+kalıbın şansı artar (her kalıp düzenli görünür). Yol ağında alçak/yüksek yan yol
+ağırlıkları rampadan yüksektir.
 Çakıl boyları ve tümsekler saniye cinsinden: hızlanınca kısalmazlar. Eğimli
 yollara da olay dizilir. Her yol üretildikten sonra blok sıraları baştan sona
 denetlenir: bir sıranın *her* geçidinden sonrakinin bir geçidine o hızla
@@ -216,5 +221,6 @@ godot --path . -- --autopilot --side --seed=42       # yan yollara girer (alça�
 godot --path . -- --autopilot --nocrystal --seed=42  # hiç kristal almaz: ~1.5 km'de enerjisi bitip düşmeli
 godot --path . -- --autopilot --seed=5 --dump_roads=/tmp/yol.json   # üretilen bütün yolları, engelleri ve kristalleri yazar
 godot --path . -- --nohud --shots=600 --shot_dir=/tmp                 # göstergesiz ekran görüntüsü (tasarım taslakları için)
+godot --headless --path . --fixed-fps 60 --quit-after 14400 -- --autopilot --seed=1 | python3 tools/road_variety.py   # 4 dk: kalıp çeşitliliği (ağ, yan yol, çatal...)
 godot --path . -- --shots=120,600 --shot_dir=/tmp    # ekran görüntüsü
 ```
