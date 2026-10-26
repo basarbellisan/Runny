@@ -19,6 +19,8 @@ signal jumped
 signal exploded
 ## Roket gaz ateşlendi (yakıt varken gaza basıldı)
 signal boosted
+## Enerji yokken gaza basıldı (roket yanmadı)
+signal boost_empty
 signal mode_changed(mode: Mode, previous: Mode)
 signal died(reason: String)
 
@@ -85,6 +87,10 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 @export var boost_burn_time := 1.35
 ## Yolda, gaza basmazken yakıtın boştan dolma süresi (sn)
 @export var boost_recharge_time := 1.6
+## Enerji: roket ve kanatlar bunu harcar, yalnız kristallerden dolar
+@export var max_energy := 100.0
+## Roket yanarken saniyede harcanan enerji
+@export var boost_energy_rate := 45.0
 
 @export_group("Zemin")
 ## Çakılda ileri hız bu orana düşer, direksiyon tutuşu bu orana iner
@@ -127,8 +133,11 @@ var speed := 0.0
 var boost_level := 0.0
 ## Oyuncu şu an gaza basıyor mu
 var boosting := false
-## Roket yakıtı (0-1): yolda dolar, gaz yanarken biter
+## Roket yakıtı (0-1): bir basışta en çok boost_burn_time yanar, bırakınca dolar
 var fuel := 1.0
+## Enerji (0-max_energy): roket ve kanatlar harcar, kristaller doldurur
+var energy := 100.0
+var _empty_signaled := false
 ## Roket şu an yanıyor mu
 var burning := false
 ## Çakılın üstündeyiz
@@ -376,13 +385,18 @@ func _drive(delta: float) -> void:
 		# Yolun sonundan çıktık: hızla havalan, rampanın açısı da dikey hıza eklenir.
 		# Yandan kayınca zıplama yok, düşülür.
 		var slope := _last_segment.slope() if _last_segment else 0.0
-		velocity.y = launch_velocity + forward_speed * slope
-		# Yol üstü eğik rampa yana da atar
-		if _last_segment and _last_segment.ramp:
-			velocity.x += _last_segment.kick
-			# Rampanın burgusu gövdeyi döndürmüş olur; havada takla attırmasın
-			roll_rate *= 0.15
-		jumped.emit()
+		if _last_segment and _last_segment.next_flush:
+			# Yol bitmedi, bitişik parçası var (tümsek tepesi, daralmada boşta kalan kenar):
+			# zıplama yok, yalnız eğimin verdiği hafif sıçrama
+			velocity.y = maxf(velocity.y, forward_speed * slope)
+		else:
+			velocity.y = launch_velocity + forward_speed * slope
+			# Yol üstü eğik rampa yana da atar
+			if _last_segment and _last_segment.ramp:
+				velocity.x += _last_segment.kick
+				# Rampanın burgusu gövdeyi döndürmüş olur; havada takla attırmasın
+				roll_rate *= 0.15
+			jumped.emit()
 	if not _was_on_floor and now_on_floor:
 		if not _touchdown(vy_before):
 			return
@@ -534,12 +548,18 @@ func _update_boost(delta: float) -> void:
 	var was_burning := burning
 	# Yol üstü rampalar gaz istemez: üstlerinde roket ateşlenmez
 	var on_ramp := _last_segment != null and _last_segment.ramp
-	burning = boosting and mode == Mode.DRIVE and fuel > 0.0 and not on_ramp
+	burning = boosting and mode == Mode.DRIVE and fuel > 0.0 and energy > 0.0 and not on_ramp
 	if mode == Mode.DRIVE:
 		if burning:
 			fuel = maxf(fuel - delta / boost_burn_time, 0.0)
+			energy = maxf(energy - boost_energy_rate * delta, 0.0)
 		elif not boosting:
 			fuel = minf(fuel + delta / boost_recharge_time, 1.0)
+		if boosting and energy <= 0.0 and not on_ramp and not _empty_signaled:
+			_empty_signaled = true
+			boost_empty.emit()
+	if not boosting:
+		_empty_signaled = false
 	if burning and not was_burning:
 		# Vum: arka çöker, burun havaya kalkar
 		pitch_rate += boost_kick
@@ -590,6 +610,10 @@ func _sense_wheels() -> void:
 
 
 ## Yoldan önden mi (yolun sonu) yoksa yandan mı çıktık
+func add_energy(amount: float) -> void:
+	energy = clampf(energy + amount, 0.0, max_energy)
+
+
 func _left_through_end() -> bool:
 	if _last_segment == null:
 		return true

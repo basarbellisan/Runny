@@ -17,6 +17,7 @@ var _energy_back: ColorRect
 var _energy_fill: ColorRect
 var speedometer: Speedometer
 var _speedo: Speedometer
+var gauge: EnergyGauge
 var _speedo_shown := true
 
 var _hint_tween: Tween
@@ -42,20 +43,33 @@ func _ready() -> void:
 	_hint = _make_label(20, Vector2(0, 330), true)
 	_build_energy_bar()
 	_build_game_over()
-	# Hız kadranı: alt ortada, iki başparmağın arasında
+	# Hız kadranı solda, enerji deposu sağda (alt köşeler)
 	_speedo = Speedometer.new()
+	_speedo.show_fuel = false
 	add_child(_speedo)
-	_speedo.anchor_left = 0.5
-	_speedo.anchor_right = 0.5
-	_speedo.anchor_top = 1.0
-	_speedo.anchor_bottom = 1.0
-	_speedo.offset_left = -110
-	_speedo.offset_right = 110
-	_speedo.offset_top = -230
-	_speedo.offset_bottom = -40
+	_place_bottom(_speedo, 0.0)
 	speedometer = _speedo
+	gauge = EnergyGauge.new()
+	add_child(gauge)
+	_place_bottom(gauge, 1.0)
 	set_mood(0.0)
 	hint("SOLA DOKUN      |      SAĞA DOKUN", 3.0)
+
+
+## Alt köşeye 220x190'lık gösterge (side 0 sol, 1 sağ), biraz büyütülmüş
+func _place_bottom(c: Control, side: float) -> void:
+	const SCALE := 1.35
+	c.anchor_left = side
+	c.anchor_right = side
+	c.anchor_top = 1.0
+	c.anchor_bottom = 1.0
+	c.size = Vector2(220, 190)
+	c.scale = Vector2.ONE * SCALE
+	var w := 220.0 * SCALE
+	c.offset_left = 4.0 if side == 0.0 else -w - 4.0
+	c.offset_top = -190.0 * SCALE - 20.0
+	c.offset_right = c.offset_left + 220.0
+	c.offset_bottom = c.offset_top + 190.0
 
 
 ## Ekranın üstünden y kadar aşağıda, yatayda ortalı yazı
@@ -174,6 +188,11 @@ func set_speed(speed: float, base_speed: float, boost: float, show: bool) -> voi
 	if show != _speedo_shown:
 		_speedo_shown = show
 		create_tween().tween_property(_speedo, "modulate:a", 1.0 if show else 0.0, 0.4)
+
+
+## Enerji (0-100) sağdaki depoda
+func set_energy_value(v: float, max_v: float) -> void:
+	gauge.set_value(v, max_v)
 
 
 ## Roket yakıtı (0-1): kadranı çevreleyen halka

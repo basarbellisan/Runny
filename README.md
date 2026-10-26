@@ -33,9 +33,10 @@ kalır. İnişte tekerlerden toz, sert inişte ve kenara sürtünürken kıvılc
 kamera sarsılır.
 
 Gaz bir roket: kısa, çok güçlü (hız 2.3 katına kadar çıkar; ateşlenince
-arka çöker, burun kalkar). Yakıtı ~1.35 sn yanar, yolda gaza
-basmazken ~1.6 sn'de dolar (kadranı çevreleyen turuncu halka: tepeden
-saat yönünde dolar, gaza basınca azalır). Gaz havada sönmez ama yolda bırakınca 0.35 sn'de
+arka çöker, burun kalkar). Roket **enerji** yakar (yerde yanarken saniyede 45);
+enerji kendiliğinden dolmaz, yalnız kristallerden gelir. Enerji bitince gaza
+basmak işe yaramaz: gösterge sarsılır, boğuk bir ses çıkar, boşluk aşılamaz.
+Bir basışta roket en çok ~1.35 sn yanar, bırakınca ~1.6 sn'de yeniden basılabilir. Gaz havada sönmez ama yolda bırakınca 0.35 sn'de
 söner; bu yüzden erken basan yolun sonuna yakıtsız ve yavaş varır. Doğru an
 yolun son ~1.1 saniyesi: iki kenarda yuvarlak kırmızı pist ışıkları (başta
 seyrek, yolun ucuna doğru sıklaşır). Işıkların ~%30'unu kaplayan parlak bir bant
@@ -46,13 +47,30 @@ Her yolun sonunda gaz şart: gazsız kalkan araba bir sonraki yolun ön
 yüzüne çakılıp patlar. Yanlış hizalanıp yolun yanından düşersen kanatlar
 açılır ve alt katmana geçersin. Çıkmaz yollarda pist ışığı yoktur.
 
-Düz yollarda (350 m'den sonra) sağ-sol oynatan engeller:
-- Beton blok (turuncu üst şeritli): sırayla sağda solda, aralarından geçilir;
-  ön yüzüne çarpan patlar
-- Çakıl şeridi (kum rengi, taşlı): üstünde hız ~%45 düşer, tutuş çok azalır, taşlar
+Engeller:
+- Beton blok (turuncu üst şeritli): ön yüzüne çarpan patlar
+- Çakıl (kum rengi, taşlı): üstünde hız ~%45 düşer, tutuş çok azalır, taşlar
   arabayı sağa sola savurur, çıktıktan sonra da ~0.6 sn sendeler;
   araba sarsılır, taş sesi ve toz. İlk üç seferde "ÇAKIL · YAVAŞLATIR" yazar
-Yolun başı (iniş) ve sonu (pist ışıkları + hizalanma) her zaman boştur.
+Yolun başı (iniş) ve sonu (pist ışıkları + hizalanma) engelsizdir; oralarda kristal olur.
+
+## Enerji ve kristaller
+Sağ altta enerji deposu (solda hız kadranı): beyaz disk, ortada sayı, çevresinde
+turuncu halka (tepeden saat yönünde dolar). 20'nin altında kırmızı nabız ve
+"KRİSTAL TOPLA!"; kristal alınca üstünde "+8" belirir, halkanın ucu parlar.
+Tek enerji: roket ve kanatlar aynı depodan yer. Düşerken enerji 20'den azsa
+kanatlar için 20 yedek verilir; alt katmandaki kristaller de bu depoyu doldurur.
+Yola dönünce depo dolmaz (ne topladıysan o).
+
+Yoldaki turuncu kristaller (+8) her yol için o yolun sonundaki boşluğa
+gereken enerjinin katı kadar konur: başta 3 katı, 6 km'de 1.6 katı (yeterli
+ama gittikçe zor). Başta çoğu kolay yerdedir (inişten sonra bir çizgi, pist
+ışıklarında ortada bir çizgi), giderek zor yerlere kayar:
+- bloğun kıl payı yanı, kapının geçidi, çakılın içindeki temiz şerit, çakıl tarlası
+- dar parçanın ortası, kaymadan sonraki yeni hat, tümsek tepesinin üstü (havada)
+- boşluğun üstünde, orta karar gazla atlayanın uçuş yayında
+- rampadan kalkışın yayında (yana atan rampada yana da kayar)
+- alçak ve yüksek yan yollarda bol; yatık yolda yüksek kenarda
 
 Yatık yollar: yol düz başlar, yavaşça sağa ya da sola
 yatar (~11–15°), bir süre öyle gider ve düzelir; bazıları S çizer (önce bir
@@ -75,7 +93,7 @@ varsayılandan farklı değerleri tek satırlık metin olarak verir
 ## Oyun döngüsü
 - Üst katman: yollarda git, üstte kaldıkça çarpan artar (x5'e kadar)
 - Yoldan düşersen kanatlar açılır, alt katmanda uçarsın; çarpan x1'e döner
-- Alt katmanda kanat enerjisi azalır; iki parmakla ~8 m yükselip kayaların üstünden geçilebilir ama
+- Alt katmanda enerji (roketle aynı depo) azalır; iki parmakla ~8 m yükselip kayaların üstünden geçilebilir ama
   enerji 2.5 kat hızlı biter. Bazı kayalar ve kristaller yukarıda. Kristaller enerji verir, kayalar öldürür
 - Portala girersen yukarı fırlatılır, arabaya dönüşüp bir yola konarsın
 
@@ -91,8 +109,7 @@ ilk 1.5 km'de (ease_distance) açılar ve yatmalar daha yumuşaktır:
   ve çatallar: geniş bir yoldan iki kol ayrılır. Alçak kol geniş ve kolay; yüksek
   kol rampayla çıkılır, dar ve zor boşlukludur, turuncu çizgilidir. Yüksek kolda
   puan iki kat, bitirince +250 × çarpan. İki kol ileride geniş bir yolda birleşir.
-- yol ağı: kendi kalıbıdır (300–550 m düz yol); az başlar, ~4 km'de en
-  sık gelen kalıp olur. Ödül yoktur, sadece yol seçimi. Üstüne 1-4 parça
+- yol ağı: kendi kalıbıdır (iniş + 3.5–5.5 sn + pist); az başlar, mesafeyle sıklaşır. Ödül yoktur, sadece yol seçimi. Üstüne 1-4 parça
   sırayla dizilir (aynı parça üst üste gelmez), parçaların arası blok ve çakılla dolar:
   - rampa: tam ya da yarım genişlik, boyu (6–10 m) ve yüksekliği değişir; yarım
     rampanın arkasına çakıl gelebilir (üstünden uç ya da çakıldan geç)
@@ -110,6 +127,23 @@ ilk 1.5 km'de (ease_distance) açılar ve yatmalar daha yumuşaktır:
 
 Kalıplar tekrar etmez: bir önceki kalıp hiç gelmez, son üç kalıbın şansı düşer.
 Engelli düz yollar 330–470 m'dir (önceden en az 520 m).
+
+### Yol içi: ritim ve olaylar
+Düz yollar tek bir kutu değil: kendi içinde bitişik parçalara bölünür ve
+üstüne rastgele olaylar dizilir. Her düz yolun bir ruh hâli var: **nefes**
+(kısa, sadece atlama ve kristal), **orta** (2-3 olay), **yoğun** (3-6 olay, sık).
+İki nefes üst üste gelmez; yoğun mesafeyle sıklaşır. Yolun uzunluğu
+"iniş bölgesi + olaylar + pist bölgesi" kadardır (boş uzun yol yok).
+Olaylar (son olay hemen tekrar gelmez, son beşin şansı düşer):
+- tek blok (rastgele yerde), iki blok (düzensiz, arada karşıya geçecek vakit),
+  kapı (bir sıra blok, tek geçit), zikzak (sağ-sol 2-4 sıra)
+- çakıl şeridi (içinde tek temiz şerit), çakıl tarlası (tüm yol), yanda çakıl,
+  blok + çakıl (ortada şerit)
+- daralma, yarık (yolun yarısı yok), kayma (yol basamak gibi yana kayar),
+  genişleme, tümsek (tepede hafif havalanırsın)
+Daralan/kayan parçada boşta kalan kenardan düşülür; bitişik parçalar arasında
+zıplama yok. 10 km'lik ölçümde 2 sn'den uzun "hiçbir şey olmayan" aralıklar
+yolun %45'inden ~%10'una indi (kristaller dahil; `--dump_roads` ile ölçülür).
 
 Rampanın açısı kalkıştaki dikey hıza eklenir. Her boşluk yine gazsız
 ulaşılamaz, tam gazla ulaşılır. Eğimli yollar inişten sonra hizalanıp gaz
@@ -148,5 +182,8 @@ godot --path . -- --autopilot --dive=10 --seed=42    # 10 sn'de bir bilerek dü�
 godot --path . -- --autopilot --noboost --seed=42    # hiç gaz vermez: ilk boşlukta çakılmalı
 godot --path . -- --autopilot --deadend --seed=42    # çıkmazlara bilerek girer: çakılmadan uçuşa düşmeli
 godot --path . -- --autopilot --side --seed=42       # yan yollara girer (alçağa düşer, eğik rampaya girer), SIDE_TRIPS yazar
+godot --path . -- --autopilot --nocrystal --seed=42  # hiç kristal almaz: ~1.5 km'de enerjisi bitip düşmeli
+godot --path . -- --autopilot --seed=5 --dump_roads=/tmp/yol.json   # üretilen bütün yolları, engelleri ve kristalleri yazar
+godot --path . -- --nohud --shots=600 --shot_dir=/tmp                 # göstergesiz ekran görüntüsü (tasarım taslakları için)
 godot --path . -- --shots=120,600 --shot_dir=/tmp    # ekran görüntüsü
 ```

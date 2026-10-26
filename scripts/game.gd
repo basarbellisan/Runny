@@ -51,12 +51,13 @@ var max_multiplier := 5
 ## Uçarken saniyede harcanan kanat enerjisi
 var energy_drain := 6.0
 var crystal_energy := 15.0
+## Enerjisi bitmiş araba düşünce kanatları açmak için bu kadar yedek enerji alır
+var wing_reserve := 20.0
 ## Uçarken yükselirken (iki parmak) enerji bu kat hızlı harcanır
 var boost_drain_factor := 2.5
 
 var score := 0.0
 var multiplier := 1
-var energy := MAX_ENERGY
 var game_over := false
 var _mult_timer := 0.0
 var _over_time := 0.0
@@ -68,7 +69,7 @@ var _start_z := 0.0
 ## Çatalın yüksek kolundayız (puan iki kat)
 var _on_high_route := false
 var _was_on_gravel := false
-var _stats := {"falls": 0, "returns": 0, "crystals": 0, "clean": 0, "hard": 0, "high": 0}
+var _stats := {"falls": 0, "returns": 0, "crystals": 0, "clean": 0, "hard": 0, "high": 0, "empty": 0}
 var _args := {}
 
 
@@ -82,6 +83,7 @@ func _ready() -> void:
 		car.autopilot = Autopilot.new(car, roads, lower, float(_args.get("dive", "0")), not _args.has("noboost"))
 		car.autopilot.seek_dead_ends = _args.has("deadend")
 		car.autopilot.seek_side = _args.has("side")
+		car.autopilot.collect_crystals = not _args.has("nocrystal")
 	car.landed.connect(_on_landed)
 	car.mode_changed.connect(_on_mode_changed)
 	car.died.connect(_on_game_over)
@@ -89,6 +91,7 @@ func _ready() -> void:
 	car.jumped.connect(Audio.play.bind("jump", -6.0))
 	car.exploded.connect(_on_exploded)
 	car.boosted.connect(_on_boosted)
+	car.boost_empty.connect(_on_boost_empty)
 	lower.setup(car, roads, seed_value)
 	lower.crystal_collected.connect(_on_crystal)
 	lower.rock_hit.connect(_on_rock_hit)
@@ -103,6 +106,7 @@ func _ready() -> void:
 	if _args.has("nohud"):
 		hud.visible = false  # tasarım taslakları için temiz arka plan
 	car.speed = car.start_speed
+	car.energy = car.max_energy
 	_start_z = car.global_position.z
 	_landings_total = int(_load_save().get_value("tutorial", "landings", 0))
 	roads.start(car, seed_value)
@@ -118,6 +122,13 @@ func _physics_process(delta: float) -> void:
 	score += maxf(-car.velocity.z, 0.0) * delta * multiplier
 	_update_high_route(delta)
 	_update_gravel(delta)
+	var got := 0 if _args.has("nocrystal") else roads.collect_crystals(car.global_position, car.model.half_width, car.half_length)
+	if got > 0:
+		car.add_energy(got * roads.crystal_value)
+		hud.gauge.gained(got * roads.crystal_value)
+		_stats.crystals += got
+		for i in got:
+			Audio.crystal()
 
 	match car.mode:
 		Car.Mode.DRIVE:
@@ -128,21 +139,22 @@ func _physics_process(delta: float) -> void:
 				hud.popup("x%d" % multiplier)
 				Audio.play("multiplier")
 		Car.Mode.FLYING:
-			energy -= energy_drain * delta * (boost_drain_factor if car.climbing else 1.0)
-			if energy < MAX_ENERGY * 0.3 and not _energy_warned:
-				_energy_warned = true
-				Audio.play("energy_low")
-			if energy <= 0.0:
-				energy = 0.0
+			car.energy -= energy_drain * delta * (boost_drain_factor if car.climbing else 1.0)
+			if car.energy <= 0.0:
+				car.energy = 0.0
 				car.lose_wings()
 				hud.popup("ENERJİ BİTTİ", true)
 				Audio.play("fall")
 
+	if car.energy < EnergyGauge.LOW_AT and not _energy_warned:
+		_energy_warned = true
+		Audio.play("energy_low")
+	elif car.energy > EnergyGauge.LOW_AT + 10.0:
+		_energy_warned = false
 	hud.set_score(int(score), multiplier)
-	hud.set_energy(energy / MAX_ENERGY)
+	hud.set_energy_value(car.energy, car.max_energy)
 	var driving := car.mode == Car.Mode.DRIVE
 	hud.set_speed(car.forward_speed * car.surface_drag if driving else -car.velocity.z, car.speed, car.boost_level, driving)
-	hud.set_fuel(car.fuel)
 	_update_hint()
 	clouds.position = Vector3(car.global_position.x, CLOUD_LAYER_Y, car.global_position.z)
 
@@ -168,7 +180,7 @@ func _apply_mood(m: float) -> void:
 
 
 func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
-	print("MODE %d->%d z=%.0f x=%.1f y=%.1f vz=%.1f energy=%.0f" % [previous, mode, car.position.z, car.position.x, car.position.y, car.velocity.z, energy])
+	print("MODE %d->%d z=%.0f x=%.1f y=%.1f vz=%.1f energy=%.0f" % [previous, mode, car.position.z, car.position.x, car.position.y, car.velocity.z, car.energy])
 	match mode:
 		Car.Mode.FALLING:
 			if previous == Car.Mode.DRIVE:
@@ -180,12 +192,11 @@ func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 				_mult_timer = 0.0
 		Car.Mode.FLYING:
 			lower.activate()
-			hud.show_energy(true)
+			car.energy = maxf(car.energy, wing_reserve)
 			hud.popup("KANATLAR")
 			Audio.play("wings")
 			_flight_hint()
 		Car.Mode.LAUNCH:
-			hud.show_energy(false)
 			hud.popup("YUKARI", true)
 			Audio.play("portal")
 
@@ -198,9 +209,6 @@ func _on_landed(air_time: float, quality: float, impact: float) -> void:
 	if lower.active:
 		# Alt katmandan yola döndük
 		lower.deactivate()
-		energy = MAX_ENERGY
-		_energy_warned = false
-		hud.show_energy(false)
 		Audio.play("return")
 		Audio.touchdown(1.3)
 		hud.popup("TEKRAR YOLDA")
@@ -270,6 +278,13 @@ func _on_boosted() -> void:
 	Audio.play("boost", -2.0, randf_range(0.97, 1.03))
 
 
+## Enerji yokken gaza basıldı: roket yanmaz
+func _on_boost_empty() -> void:
+	_stats.empty += 1
+	hud.gauge.empty()
+	Audio.play("empty")
+
+
 func _on_exploded() -> void:
 	Audio.play("explosion")
 	$Camera.shake(1.0)
@@ -290,7 +305,7 @@ func _update_hint() -> void:
 	if _hint_shown or _landings_total >= TUTORIAL_LANDINGS or car.mode != Car.Mode.DRIVE:
 		return
 	var seg := roads.segment_under(car.global_position)
-	if seg and (car.global_position.z - seg.z_end) / car.forward_speed < 1.1:
+	if seg and (car.global_position.z - seg.road_end_z()) / car.forward_speed < 1.1:
 		_hint_shown = true
 		hud.hint("KIRMIZI IŞIKLARDA İKİ PARMAK  ·  ROKET", 1.6)
 
@@ -302,7 +317,8 @@ func _load_save() -> ConfigFile:
 
 
 func _on_crystal() -> void:
-	energy = minf(energy + crystal_energy, MAX_ENERGY)
+	car.add_energy(crystal_energy)
+	hud.gauge.gained(crystal_energy)
 	score += CRYSTAL_BONUS
 	_stats.crystals += 1
 	Audio.crystal()
@@ -320,7 +336,6 @@ func _on_portal(p: LowerLayer.Portal) -> void:
 
 func _on_game_over(reason: String) -> void:
 	game_over = true
-	hud.show_energy(false)
 	var final := int(score)
 	var cfg := _load_save()
 	var best := maxi(final, int(cfg.get_value("score", "best", 0)))
@@ -336,6 +351,8 @@ func _on_game_over(reason: String) -> void:
 		for sg in roads.segments:
 			if sg.z_end < car.global_position.z + 200.0 and sg.z_start > car.global_position.z - 60.0:
 				print("  seg main=%s dead=%s x=%.1f w=%.1f top=%.2f->%.2f z=[%.0f..%.0f] slope=%.3f" % [sg.main, sg.dead_end, sg.x, sg.width, sg.top, sg.top_end, sg.z_start, sg.z_end, sg.slope()])
+				for o in sg.obstacles:
+					print("    obs x=%.1f..%.1f z=%.0f..%.0f gravel=%s ramp=%s" % [o.x0, o.x1, o.z0, o.z1, o.gravel, o.get("ramp", false)])
 		for r in lower.rocks:
 			if absf(r.z - car.global_position.z) < 40.0:
 				print("  rock x=%.1f z=%.1f r=%.1f y=%.1f" % [r.x, r.z, r.r, r.node.position.y])
@@ -369,9 +386,10 @@ func _parse_args() -> void:
 
 
 func _stats_text() -> String:
-	return "distance=%.0f score=%d speed=%.1f falls=%d returns=%d crystals=%d landings=%d/%d high=%d" % [
+	return "distance=%.0f score=%d speed=%.1f falls=%d returns=%d crystals=%d landings=%d/%d high=%d energy=%d empty=%d" % [
 		_start_z - car.position.z, int(score), car.speed,
-		_stats.falls, _stats.returns, _stats.crystals, _stats.clean, _stats.clean + _stats.hard, _stats.high]
+		_stats.falls, _stats.returns, _stats.crystals, _stats.clean, _stats.clean + _stats.hard, _stats.high,
+		int(car.energy), _stats.empty]
 
 
 func _exit_tree() -> void:
@@ -392,5 +410,6 @@ func _dump_roads(path: String) -> void:
 			"z0": sg.z_start, "z1": sg.z_end, "main": sg.main, "ramp": sg.ramp, "kick": sg.kick,
 			"side": sg.side_road, "dead_end": sg.dead_end, "bank": sg.bank_a.size() > 0 and not sg.ramp,
 			"kind": sg.pattern, "obstacles": sg.obstacles})
+	out.append({"crystal_z": roads.crystal_z_history})
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	f.store_string(JSON.stringify(out))

@@ -378,6 +378,16 @@ def sfx_energy_low():
     return room(buf, 0.06, 0.4)
 
 
+def sfx_empty():
+    """Enerji yokken gaza basıldı: boğuk, alçalan iki tık (motor tutmadı)."""
+    buf = np.zeros(n_of(0.35))
+    for k, f in enumerate([220.0, 165.0]):
+        b = (sine(f, 0.09) + 0.4 * sine(2 * f, 0.09)) * env(0.09, 0.002, 0.06, 0.2, 0.02)
+        b = b + 0.25 * filt(noise(0.09), hi=900.0) * env(0.09, 0.001, 0.03)
+        place(buf, b, k * 0.11)
+    return room(buf, 0.05, 0.3)
+
+
 def sfx_game_over():
     buf = np.zeros(n_of(1.6))
     for k, m in enumerate([81, 76, 69]):
@@ -668,7 +678,7 @@ def main():
         ("sfx_wings.wav", sfx_wings), ("sfx_crystal.wav", sfx_crystal), ("sfx_portal.wav", sfx_portal),
         ("sfx_fall.wav", sfx_fall), ("sfx_explosion.wav", sfx_explosion),
         ("sfx_energy_low.wav", sfx_energy_low), ("sfx_game_over.wav", sfx_game_over),
-        ("sfx_climb.wav", sfx_climb), ("sfx_boost.wav", sfx_boost),
+        ("sfx_climb.wav", sfx_climb), ("sfx_boost.wav", sfx_boost), ("sfx_empty.wav", sfx_empty),
         ("loop_engine.ogg", loop_engine), ("loop_road.ogg", loop_road), ("loop_wind.ogg", loop_wind),
         ("loop_plane.ogg", loop_plane), ("loop_climb.ogg", loop_climb), ("loop_tire.ogg", loop_tire),
         ("loop_gravel.ogg", loop_gravel),

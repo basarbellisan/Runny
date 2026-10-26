@@ -18,6 +18,7 @@ const SFX := {
 	"game_over": preload("res://audio/sfx_game_over.wav"),
 	"climb": preload("res://audio/sfx_climb.wav"),
 	"boost": preload("res://audio/sfx_boost.wav"),
+	"empty": preload("res://audio/sfx_empty.wav"),
 }
 ## Art arda toplanan kristaller minör pentatonik dizide yükselir
 const CRYSTAL_STEPS := [1.0, 1.2, 1.335, 1.498, 1.782, 2.0]

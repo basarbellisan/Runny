@@ -15,6 +15,8 @@ var use_boost := true
 var seek_dead_ends := false
 ## Test: yan yolları kullan (alçak yola düş, eğik rampaya gir, dönüş rampasıyla dön)
 var seek_side := false
+## Test: kristal topla (kapalıyken hiç kristal almaz: enerji bitip düşmeli)
+var collect_crystals := true
 ## Yan yoldan ana yola dönüş sayısı
 var side_trips := 0
 var _on_side := false
@@ -103,13 +105,23 @@ func _drive_input() -> Vector2:
 		aim = clampf(aim, current.x - lim, current.x + lim)
 		var dodge := _dodge(current, pos)
 		if not is_nan(dodge):
-			return Vector2(_toward(dodge - pos.x, 0.2), 0.0)
+			return Vector2(_steer_to(dodge, pos), 0.0)
 		# Roket: yolun sonuna ~0.6 sn kala (pist ışıklarında) hizalıysak gaza bas
-		var time_to_edge := (pos.z - current.z_end) / maxf(car.forward_speed, 1.0)
+		var time_to_edge := (pos.z - current.road_end_z()) / maxf(car.forward_speed, 1.0)
+		# Enerji için: önümüzdeki, yolun üstündeki en yakın kristale doğru (pistte değilsek)
+		var to_joint := (pos.z - current.z_end) / maxf(car.forward_speed, 1.0)
+		if collect_crystals and time_to_edge > 0.9 and (current.next_flush == null or to_joint > 0.9):
+			var cx := _crystal_aim(current, pos, lim)
+			if not is_nan(cx):
+				aim = cx
+		if current.next_flush == target and to_joint < 1.2:
+			# Bitişik parça (daralma, kayma): ona geçmeden hizalan, onun sınırında da kal
+			var lim2 := maxf(target.width * 0.5 - car.model.half_width - 0.5, 0.0)
+			aim = clampf(target.x, maxf(current.x - lim, target.x - lim2), minf(current.x + lim, target.x + lim2))
 		var aligned := absf(aim - pos.x) < 1.0 and absf(car.velocity.x) < 3.0
 		if use_boost and time_to_edge < 0.6 and (aligned or time_to_edge < 0.42):
 			return Vector2(0.0, 1.0)
-	var steer := _toward(aim - pos.x, 0.25)
+	var steer := _steer_to(aim, pos) if current != null else _toward(aim - pos.x, 0.25)
 	if not car.is_on_floor() and car.velocity.y < 0.0:
 		# İnerken: önce gövdeyi düzle (direksiyon yatırır), sonra az az hizalan
 		# (Eğik rampadan kalkınca gövde biraz yatık olur; o kadarı temiz inişe engel değil)
@@ -134,6 +146,9 @@ func _side_input(current: RoadGenerator.Segment, pos: Vector3) -> float:
 	if _on_side:
 		side_trips += 1
 		_on_side = false
+	# Önce engelden kaç (normal sürüş halleder)
+	if not is_nan(_dodge(current, pos)):
+		return NAN
 	var forward := maxf(car.forward_speed, 1.0)
 	for s in roads.segments:
 		if s.ramp and s.kick != 0.0 and s.z_start < pos.z - 2.0 and s.z_start > pos.z - forward * 2.0 \
@@ -148,32 +163,86 @@ func _side_input(current: RoadGenerator.Segment, pos: Vector3) -> float:
 	return NAN
 
 
+## Önümüzdeki ~1 sn içindeki, bu yolun üstündeki (yerden alınabilir) en yakın kristalin x'i
+func _crystal_aim(current: RoadGenerator.Segment, pos: Vector3, lim: float) -> float:
+	var forward := maxf(car.forward_speed, 1.0)
+	var best := NAN
+	var best_z := -INF
+	for p in roads.crystals_ahead(pos, forward * 1.0):
+		if p.y - pos.y > 2.0 or absf(p.x - current.x) > lim + 0.3:
+			continue
+		# Bir saniyede yana ancak bu kadar gidilir
+		if absf(p.x - pos.x) > car.steer_speed * (pos.z - p.z) / forward * 0.8 + 0.6:
+			continue
+		if p.z > best_z:
+			best_z = p.z
+			best = p.x
+	return best
+
+
 ## Önümüzdeki engel/çakıl varsa geçilecek x (yoksa NAN): engelin yanındaki boş
 ## geçitlerden bize en yakın olanı. Çakıla girmemek tercih edilir ama şart değil.
 func _dodge(seg: RoadGenerator.Segment, pos: Vector3) -> float:
 	var hw := car.model.half_width
 	var look := maxf(car.forward_speed, 1.0) * 1.4
-	var next: Dictionary = {}
-	for o in seg.obstacles:
-		if o.z1 < pos.z + car.half_length and o.z0 > pos.z - look:
-			if next.is_empty() or o.z0 > next.z0:
-				next = o
-	if next.is_empty():
+	# Önümüzdeki ilk engel sırası (aynı hizadaki bloklar ve çakıllar birlikte: kapı gibi)
+	var row: Array[Dictionary] = []
+	var on := seg
+	var row_seg := seg
+	while on and on.z_start > pos.z - look:
+		var near_z := -INF
+		for o in on.obstacles:
+			if o.z1 < pos.z + car.half_length and o.z0 > pos.z - look:
+				near_z = maxf(near_z, o.z0)
+		if near_z > -INF:
+			for o in on.obstacles:
+				if o.z1 < pos.z + car.half_length and o.z0 > near_z - 10.0:
+					row.append(o)
+			row_seg = on
+			break
+		on = on.next_flush
+	if row.is_empty():
 		return NAN
-	var lo := seg.x - seg.width * 0.5 + hw + 0.3
-	var hi := seg.x + seg.width * 0.5 - hw - 0.3
-	var b0: float = next.x0 - hw - 0.45
-	var b1: float = next.x1 + hw + 0.45
-	var best := NAN
-	for iv in [Vector2(lo, b0), Vector2(b1, hi)]:
-		if iv.y < iv.x:
-			continue
-		var x := clampf(pos.x, iv.x, iv.y)
-		if is_nan(best) or absf(x - pos.x) < absf(best - pos.x):
-			best = x
-	if is_nan(best) and not next.gravel:
-		return (lo + hi) * 0.5
-	return best
+	var lo := row_seg.x - row_seg.width * 0.5 + hw + 0.3
+	var hi := row_seg.x + row_seg.width * 0.5 - hw - 0.3
+	if row_seg != seg:
+		# Engel ileriki bir parçadaysa aradaki (belki dar) parçalarda da yolda kalmalı:
+		# önce oralardan geç, sonra kaç
+		var mid := seg
+		while mid and mid != row_seg:
+			var mlo := mid.x - mid.width * 0.5 + hw + 0.3
+			var mhi := mid.x + mid.width * 0.5 - hw - 0.3
+			if maxf(lo, mlo) > minf(hi, mhi):
+				return NAN
+			lo = maxf(lo, mlo)
+			hi = minf(hi, mhi)
+			mid = mid.next_flush
+	# Önce bloktan da çakıldan da kaç; olmuyorsa yalnız bloktan
+	for avoid_gravel in [true, false]:
+		var free: Array[Vector2] = [Vector2(lo, hi)]
+		for o in row:
+			if o.gravel and not avoid_gravel:
+				continue
+			var b0: float = o.x0 - hw - 0.45
+			var b1: float = o.x1 + hw + 0.45
+			var next_free: Array[Vector2] = []
+			for iv in free:
+				if b1 <= iv.x or b0 >= iv.y:
+					next_free.append(iv)
+					continue
+				if b0 > iv.x:
+					next_free.append(Vector2(iv.x, b0))
+				if b1 < iv.y:
+					next_free.append(Vector2(b1, iv.y))
+			free = next_free
+		var best := NAN
+		for iv in free:
+			var x := clampf(pos.x, iv.x, iv.y)
+			if is_nan(best) or absf(x - pos.x) < absf(best - pos.x):
+				best = x
+		if not is_nan(best):
+			return best
+	return (lo + hi) * 0.5
 
 
 func _fly_steer() -> float:
@@ -226,6 +295,14 @@ func _should_climb() -> bool:
 				return false
 			low_ahead = true
 	return low_ahead
+
+
+## Yerde: hedefe yaklaştıkça yavaşlayan direksiyon (aşıp yoldan çıkmasın)
+func _steer_to(x: float, pos: Vector3) -> float:
+	var want_vx := clampf((x - pos.x) * 9.0, -car.steer_speed, car.steer_speed)
+	# Yatık yolda araba alçak yana kayar: o kaymayı da karşıla
+	var slide := car.get_floor_normal().x * car.bank_slide if car.is_on_floor() else 0.0
+	return clampf((want_vx - slide) / car.steer_speed + (want_vx - car.velocity.x) * 0.15, -1.0, 1.0)
 
 
 func _toward(err: float, dead_zone: float) -> float:
