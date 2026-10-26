@@ -107,6 +107,7 @@ const PARAMS := [
 	["GÖRSEL", "speedo", "style", "Kadran stili (1-10)", 1, 10, 1],
 	["GÖRSEL", "trail", "min_life", "İz boyu: gazsız (sn)", 0, 1, 0.02],
 	["GÖRSEL", "trail", "max_life", "İz boyu: tam gaz (sn)", 0.1, 2, 0.05],
+	["GÖRSEL", "trail", "boost_width", "İz genişliği: tam gaz (kat)", 1, 8, 0.1],
 	["SES", "audio", "music_volume_db", "Müzik (dB)", -40, 0, 1],
 	["SES", "audio", "engine_volume_db", "Motor (dB)", -40, 0, 1],
 	["SES", "audio", "road_volume_db", "Yol (dB)", -40, 0, 1],
