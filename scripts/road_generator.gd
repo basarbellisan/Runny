@@ -33,6 +33,8 @@ class Segment:
 	## Yol üstündeki engeller ve çakıl: { x0, x1, z0 (yakın), z1 (uzak), gravel }
 	var obstacles: Array[Dictionary] = []
 	## Yol üstü rampa: kalkışta yana bu hızla (m/s) fırlatır (eksi sol)
+	## Hangi kalıptan üretildi (analiz için)
+	var pattern := ""
 	var ramp := false
 	var kick := 0.0
 	## Yol ağının yan yolu (alçak/yüksek): sonunda ana yola dönüş rampası var
@@ -156,6 +158,10 @@ var _stone_mat := StandardMaterial3D.new()
 ## Sıradaki ana yolların tarifi (kalıptan gelir)
 var _plan: Array[Dictionary] = []
 var _recent: Array[String] = []
+## Test/analiz: üretilen her yol burada da tutulur (--dump_roads ile dosyaya yazılır)
+var keep_history := false
+var history: Array[Segment] = []
+var _current_kind := ""
 ## Çıkmazdan sonra ana yol birkaç yol boyunca o taraftan uzaklaşır
 var _avoid_side := 0.0
 var _avoid_count := 0
@@ -379,6 +385,7 @@ func _plan_pattern(travelled: float, level: float) -> void:
 			kind = o[0]
 			break
 	pattern_counts[kind] = int(pattern_counts.get(kind, 0)) + 1
+	_current_kind = kind
 	_recent.append(kind)
 	if _recent.size() > 3:
 		_recent.pop_front()
@@ -806,6 +813,7 @@ func _add_segment(x: float, top: float, top_end: float, width: float, z_start: f
 
 	s.node = body
 	segments.append(s)
+	_remember(s)
 	stats.min_top = minf(stats.min_top, minf(top, top_end))
 	stats.max_top = maxf(stats.max_top, maxf(top, top_end))
 	stats.max_slope_deg = maxf(stats.max_slope_deg, rad_to_deg(absf(body.rotation.x)))
@@ -1224,11 +1232,18 @@ func _add_ramp(host: Segment, x: float, width: float, z_start: float, length: fl
 	s.node = body
 	# Rampa, üstünde durduğu yoldan önce aransın (segment_under ilk eşleşeni döndürür)
 	segments.insert(maxi(segments.find(host), 0), s)
+	_remember(s)
 	# Ana yoldaki rampa: test sürücüsü ve portal inişi için engel gibi işaretli
 	if host.main:
 		host.obstacles.append({"x0": x - hw, "x1": x + hw, "z0": s.z_start, "z1": s.z_end, "gravel": false, "ramp": true})
 	stats.ramps = int(stats.get("ramps", 0)) + 1
 	return s
+
+
+func _remember(s: Segment) -> void:
+	s.pattern = _current_kind
+	if keep_history:
+		history.append(s)
 
 
 ## Bu noktada çakıl var mı
@@ -1360,6 +1375,7 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 
 	s.node = body
 	segments.append(s)
+	_remember(s)
 	stats.min_top = minf(stats.min_top, top)
 	stats.max_top = maxf(stats.max_top, top)
 	stats.banked = int(stats.get("banked", 0)) + 1

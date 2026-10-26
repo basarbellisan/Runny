@@ -99,6 +99,7 @@ func _ready() -> void:
 	car.model.variant = int(_args.get("model", _load_save().get_value("car", "model", 1)))
 	if _args.has("trail"):
 		car.trail.style = int(_args.trail)
+	roads.keep_history = _args.has("dump_roads")
 	if _args.has("nohud"):
 		hud.visible = false  # tasarım taslakları için temiz arka plan
 	car.speed = car.start_speed
@@ -379,3 +380,17 @@ func _exit_tree() -> void:
 	if car.autopilot:
 		print("PATTERNS %s %s" % [roads.pattern_counts, roads.stats])
 		print("SIDE_TRIPS %d" % car.autopilot.side_trips)
+	if _args.has("dump_roads"):
+		_dump_roads(_args.dump_roads)
+
+
+## Test/analiz: üretilen bütün yolları (engeller, rampalar dahil) JSON'a yaz
+func _dump_roads(path: String) -> void:
+	var out := []
+	for sg in roads.history:
+		out.append({"x": sg.x, "w": sg.width, "top": sg.top, "top_end": sg.top_end,
+			"z0": sg.z_start, "z1": sg.z_end, "main": sg.main, "ramp": sg.ramp, "kick": sg.kick,
+			"side": sg.side_road, "dead_end": sg.dead_end, "bank": sg.bank_a.size() > 0 and not sg.ramp,
+			"kind": sg.pattern, "obstacles": sg.obstacles})
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_string(JSON.stringify(out))
