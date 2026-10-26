@@ -341,8 +341,9 @@ func find_landing(z: float, margin_start := 12.0, margin_end := 25.0) -> Diction
 		for s in segments:
 			if not s.main:
 				continue
+			# Bitişik parçaları olan yolda koşu payı yolun gerçek sonuna göre
 			var near := s.z_start - margin_start
-			var far := s.z_end + margin_end
+			var far := maxf(s.z_end, s.road_end_z() + margin_end)
 			if near <= far or far > z:
 				continue
 			# Engelli yolda: inişten sonra ~45 m boş olan, istenen yere en yakın nokta
@@ -351,10 +352,21 @@ func find_landing(z: float, margin_start := 12.0, margin_end := 25.0) -> Diction
 				var land := want + (k + 1) / 2 * 5.0 * (1.0 if k % 2 == 1 else -1.0)
 				if land > near or land < far:
 					continue
-				if s.clear_between(land + 3.0, land - 45.0):
+				if _chain_clear(s, land + 3.0, land - 45.0):
 					return {"seg": s, "z": land}
 		horizon -= 250.0
 	return {}
+
+
+## Yol ve bitişik parçalarında z_near..z_far arası engelsiz mi
+func _chain_clear(s: Segment, z_near: float, z_far: float) -> bool:
+	while s:
+		if not s.clear_between(z_near, z_far):
+			return false
+		if s.z_end < z_far:
+			return true
+		s = s.next_flush
+	return true
 
 
 ## z_near..z_far arasında, x'in her yoldan en az margin uzakta olup olmadığı
@@ -632,12 +644,13 @@ func _next_from(prev: Segment) -> Segment:
 	if first == null:
 		first = seg
 	# Boşluğun üstünde, doğru gazla geçenin yayında kristaller
-	if _rng.randf() < lerpf(0.4, 0.75, difficulty):
+	if _rng.randf() < lerpf(0.4, 0.75, difficulty) * action:
 		_gap_crystals(prev, first.x, top - prev.top_end, gap, v)
 	if network and absf(rise) < 0.01:
 		_add_network(seg, v, land_far, travelled)
 	elif spec.get("dead_end", false):
 		_add_dead_end(prev, seg, -main_side, v, vy_b)
+		_fill_events(seg, v, z_start - _clear_start(v, land_far), seg.z_end + _clear_end(v), "orta")
 	elif mood == "" and _rng.randf() < side_road_chance:
 		_add_side_road(seg)
 	_road_crystals(first, v, travelled)
@@ -757,6 +770,8 @@ func _add_fork(prev: Segment) -> Segment:
 		var seg := _add_segment(p.x, p.top, p.end, p.w, p.zs, p.ze, true)
 		seg.route = 1
 		seg.fork_id = fork_id
+		# Alçak (kolay) kol da boş kalmasın
+		_fill_events(seg, v, p.zs - _v_boost(v) * 0.6 - 10.0, p.ze + _clear_end(v), "yoğun")
 	for p in plan_h:
 		var seg := _add_segment(p.x, p.top, p.end, p.w, p.zs, p.ze, true, true)
 		seg.route = 2
@@ -1007,13 +1022,17 @@ const EVENTS := {
 	"daralma": [0.6, 5.6, true], "yarık": [0.55, 5.6, true], "kayma": [0.75, 4.8, true],
 	"genişleme": [0.3, 0.0, true], "tümsek": [0.45, 0.0, true],
 }
+## Aksiyon çarpanı: yoldaki olay sayısı ve sıklığı, yoğun yolların payı, kristal
+## fırsatları bununla çarpılır (1 = eski yoğunluk). Olaylar arası tepki süresi
+## yine de en az ~0.45 sn kalır.
+@export var action := 2.0
 ## Ruh hâline göre bir yoldaki olay sayısı (en az, en çok)
 const MOOD_EVENTS := {"nefes": Vector2i(0, 1), "orta": Vector2i(2, 3), "yoğun": Vector2i(3, 6)}
 
 
 ## Sıradaki düz yolun ruh hâli. İki nefes üst üste gelmez, yoğun en fazla iki kez.
 func _next_mood(difficulty: float) -> String:
-	var options := [["nefes", 0.7], ["orta", 1.4], ["yoğun", 0.5 + 1.3 * difficulty]]
+	var options := [["nefes", 0.7 / maxf(action, 0.1)], ["orta", 1.4], ["yoğun", (0.5 + 1.3 * difficulty) * action]]
 	var total := 0.0
 	for o in options:
 		if o[0] == _last_mood and (o[0] == "nefes" or _mood_run >= 2):
@@ -1107,7 +1126,7 @@ func _plan_events(z_from: float, z_to: float, w: float, v: float, mood: String, 
 		n_max := -1) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	if n_max < 0:
-		n_max = _rng.randi_range(MOOD_EVENTS[mood].x, MOOD_EVENTS[mood].y)
+		n_max = _rng.randi_range(roundi(MOOD_EVENTS[mood].x * action), roundi(MOOD_EVENTS[mood].y * action))
 	var z := z_from - v * _rng.randf_range(0.0, 0.4)
 	var tries := 0
 	while out.size() < n_max and tries < n_max + 4:
@@ -1123,10 +1142,11 @@ func _plan_events(z_from: float, z_to: float, w: float, v: float, mood: String, 
 		stats["olay_" + kind] = int(stats.get("olay_" + kind, 0)) + 1
 		# Sonraki olaya tepki süresi: yoğunda kısa; çakıldan ve tümsekten sonra toparlanma payı
 		var gap := v * (_rng.randf_range(0.55, 0.75) if mood == "yoğun" else _rng.randf_range(0.7, 1.1))
+		gap = maxf(gap / maxf(action, 0.1), v * 0.45)
 		if kind.contains("çakıl"):
-			gap = maxf(gap, v * 0.75)
+			gap = maxf(gap, v * 0.65)
 		elif kind == "tümsek" or kind == "kayma":
-			gap = maxf(gap, v * 0.6)
+			gap = maxf(gap, v * 0.55)
 		z -= e.len + gap
 	return out
 
@@ -1178,7 +1198,7 @@ func _build_road(x: float, top: float, w: float, z_start: float, length: float, 
 		built.append(sg)
 	# Şekil olaylarında kristal: dar parçanın ortası, kaymadan sonraki yeni hat, tümsek tepesi
 	for e in events:
-		if not EVENTS[e.kind][2] or _rng.randf() > 0.6:
+		if not EVENTS[e.kind][2] or _rng.randf() > 0.6 * action:
 			continue
 		for sg in built:
 			if e.z - 1.0 <= sg.z_start and e.z - 1.0 >= sg.z_end:
@@ -1200,6 +1220,8 @@ func _build_road(x: float, top: float, w: float, z_start: float, length: float, 
 			if e.z <= sg.z_start and e.z - e.len >= sg.z_end:
 				_place_event(sg, e, v)
 				break
+	for sg in built:
+		_validate_rows(sg, v)
 	return built[0]
 
 
@@ -1207,6 +1229,70 @@ func _build_road(x: float, top: float, w: float, z_start: float, length: float, 
 func _fill_events(s: Segment, v: float, z_from: float, z_to: float, mood: String, n_max := -1) -> void:
 	for e in _plan_events(z_from, z_to, s.width, v, mood, false, n_max):
 		_place_event(s, e, v)
+	_validate_rows(s, v)
+
+
+## Blok sıralarını baştan sona dolaşır: bir önceki sıranın geçidinden bu sıranın
+## geçidine o hızla (tepki süresiyle) yetişilemiyorsa bu sıranın blokları kaldırılır.
+## Böylece arka arkaya gelen olaylar hiçbir zaman imkânsız bir dizilim kurmaz.
+func _validate_rows(s: Segment, v: float) -> void:
+	var hw: float = car.model.half_width if car.model else 1.1
+	var lo := s.x - s.width * 0.5 + hw + 0.3
+	var hi := s.x + s.width * 0.5 - hw - 0.3
+	if hi < lo:
+		return
+	var blocks: Array[Dictionary] = []
+	for o in s.obstacles:
+		if not o.gravel and not o.get("ramp", false):
+			blocks.append(o)
+	blocks.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.z0 > b.z0)
+	var reach: Array[Vector2] = [Vector2(lo, hi)]
+	var last_z := s.z_start
+	var i := 0
+	while i < blocks.size():
+		var row: Array[Dictionary] = [blocks[i]]
+		var j := i + 1
+		while j < blocks.size() and blocks[i].z0 - blocks[j].z0 < 1.5:
+			row.append(blocks[j])
+			j += 1
+		i = j
+		# Önceki sıradan bu yana yana ne kadar gidilebilir
+		var dt: float = (last_z - row[0].z0) / maxf(v, 1.0)
+		var grow := car.steer_speed * maxf(dt - 0.25, 0.0) * 0.75
+		var grown: Array[Vector2] = []
+		for iv in reach:
+			grown.append(Vector2(maxf(iv.x - grow, lo), minf(iv.y + grow, hi)))
+		var free: Array[Vector2] = [Vector2(lo, hi)]
+		for o in row:
+			var b0: float = o.x0 - hw - 0.45
+			var b1: float = o.x1 + hw + 0.45
+			var nf: Array[Vector2] = []
+			for iv in free:
+				if b1 <= iv.x or b0 >= iv.y:
+					nf.append(iv)
+					continue
+				if b0 > iv.x:
+					nf.append(Vector2(iv.x, b0))
+				if b1 < iv.y:
+					nf.append(Vector2(b1, iv.y))
+			free = nf
+		var next: Array[Vector2] = []
+		for a in grown:
+			for b in free:
+				var x0 := maxf(a.x, b.x)
+				var x1 := minf(a.y, b.y)
+				if x1 >= x0:
+					next.append(Vector2(x0, x1))
+		if next.is_empty():
+			for o in row:
+				if o.has("node") and is_instance_valid(o.node):
+					o.node.queue_free()
+				s.obstacles.erase(o)
+				stats.removed_rows = int(stats.get("removed_rows", 0)) + 1
+			reach = grown
+			continue
+		reach = next
+		last_z = float(row[0].z1)
 
 
 func _place_event(s: Segment, e: Dictionary, v: float) -> void:
@@ -1216,7 +1302,7 @@ func _place_event(s: Segment, e: Dictionary, v: float) -> void:
 	var hw: float = car.model.half_width if car.model else 1.1
 	var lane := maxf(3.4, hw * 2.0 + 1.3)
 	var z: float = e.z
-	var gems := _rng.randf() < 0.65
+	var gems := _rng.randf() < 0.65 * action
 	match e.kind:
 		"tek_blok":
 			var b := _single_block(s, z, lane)
@@ -1310,6 +1396,7 @@ func _add_block(s: Segment, x0: float, x1: float, z: float, depth: float) -> voi
 	var block := StaticBody3D.new()
 	block.position = center + Vector3(0, 0.45, 0)
 	body.add_child(block)
+	s.obstacles[-1].node = block
 	var col := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
 	shape.size = size
@@ -1460,22 +1547,41 @@ func _road_crystals(first: Segment, v: float, travelled: float) -> void:
 	if easy <= 0:
 		return
 	var last := chain[-1]
-	# İniş çizgisi: inişten sonra, ortadan hafifçe bir yana kayan
+	# İniş bölgesi: engel yok ama seçim var. Ya tek çizgi ya da iki yana ayrılan
+	# iki çizgi (uzaktaki yan bir kristal fazla); bazen bir yanda çakıl.
 	var n_land := ceili(easy * 0.55)
 	var land_z := first.z_start - v * _rng.randf_range(0.3, 0.5)
 	var span := minf(6.0 * n_land, (first.z_start - first.z_end) * 0.5)
-	var xa := first.x + _rng.randf_range(-0.25, 0.25) * first.width
-	var xb := first.x + _rng.randf_range(-0.3, 0.3) * first.width
 	if land_z - span > first.z_end + 2.0:
-		_crystal_line(first, xa, land_z, xb, land_z - span, n_land)
-	# Pist çizgisi: yolun ucuna doğru, ortada (hizalanırken toplanır)
+		if _rng.randf() < 0.35 * action and first.width >= 5.0:
+			var side := -1.0 if _rng.randf() < 0.5 else 1.0
+			var off := first.width * 0.3
+			var n_a := maxi(n_land / 2, 2)
+			_crystal_line(first, first.x, land_z, first.x - side * off, land_z - span, n_a)
+			_crystal_line(first, first.x + side * 0.6, land_z - 4.0, first.x + side * off, land_z - span, n_a + 1)
+		else:
+			var xa := first.x + _rng.randf_range(-0.25, 0.25) * first.width
+			var xb := first.x + _rng.randf_range(-0.3, 0.3) * first.width
+			_crystal_line(first, xa, land_z, xb, land_z - span, n_land)
+		var free := land_z - span - (first.z_start - _clear_start(v, 0.0))
+		if _rng.randf() < 0.18 * action and first.width >= 5.0 and first.obstacles.is_empty() \
+				and land_z - span - first.z_end > 30.0:
+			# Yanda kısa çakıl: inen arabayı öldürmez, yavaşlatır
+			var bw := first.width * _rng.randf_range(0.35, 0.45)
+			var gz := land_z - _rng.randf_range(0.0, span * 0.5)
+			if _rng.randf() < 0.5:
+				_add_gravel(first, first.x - first.width * 0.5, first.x - first.width * 0.5 + bw, gz, 10.0)
+			else:
+				_add_gravel(first, first.x + first.width * 0.5 - bw, first.x + first.width * 0.5, gz, 10.0)
+	# Pist çizgisi: bir yandan başlayıp ortaya iner (hizalanırken toplanır)
 	var n_run := easy - n_land
 	if n_run > 0:
 		var zone := clampf(v * lights_time, 18.0, 70.0)
 		var za := maxf(last.z_end + zone, last.z_end + 6.0 * n_run)
 		za = minf(za, last.z_start - 2.0)
-		var cx := last.x + _rng.randf_range(-0.15, 0.15) * last.width
-		_crystal_line(last, cx, za, cx, last.z_end + 4.0, n_run)
+		var cx := last.x + _rng.randf_range(-0.12, 0.12) * last.width
+		var sx := last.x + (-1.0 if _rng.randf() < 0.5 else 1.0) * last.width * 0.28
+		_crystal_line(last, sx, za, cx, last.z_end + 4.0, n_run)
 
 
 ## Boşluğun üstünde, orta karar gazla atlayanın uçuş yayında kristaller
@@ -1536,9 +1642,8 @@ func _add_network(s: Segment, v: float, land_far: float, travelled: float) -> vo
 		var end := _net_low(s, low_side, v, s.z_start - 12.0, z_last, busy)
 		if not is_nan(end):
 			last = "alt"
-			cursor = minf(cursor, end)
 			stats["ağ_alt"] = int(stats.get("ağ_alt", 0)) + 1
-	for attempt in 6:
+	for attempt in 10:
 		if cursor - v * 1.5 < z_last:
 			break
 		var options := [["rampa", 1.0], ["slalom", 0.4 + 0.5 * dens], ["alt", 1.0], ["üst", 0.9]]
@@ -1572,20 +1677,31 @@ func _add_network(s: Segment, v: float, land_far: float, travelled: float) -> vo
 			"üst":
 				end = _net_high(s, side, v, at, z_last, busy)
 		if is_nan(end):
+			# Sığmadı ya da bir iniş yerine denk geldi: biraz ileriden dene
+			cursor -= v * 0.6
 			continue
 		stats["ağ_" + kind] = int(stats.get("ağ_" + kind, 0)) + 1
 		last = kind
-		cursor = end
+		# Alçak yolun yanındaki ana yol da kullanılabilir (dönüş inişi meşgul işaretli)
+		cursor = minf(cursor - v * _rng.randf_range(1.0, 1.6), end) if kind == "alt" else end
 	# Boş kalan ana yol aralıkları blok ve çakılla dolar
 	busy.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x > b.x)
 	var z := z0
-	var fill := lerpf(0.65, 0.95, dens)
+	var fill := lerpf(0.65, 0.95, dens) * action
 	var stops := busy.duplicate()
 	stops.append(Vector2(z_last, z_last))
 	for b: Vector2 in stops:
 		if z - b.x > v * 0.8 and _rng.randf() < fill:
 			_fill_events(s, v, z, b.x, "yoğun" if _rng.randf() < dens else "orta")
 		z = minf(z, b.y)
+
+
+## Ana yolun [near, far] aralığı başka bir parçanın meşgul aralığıyla çakışmıyor mu
+func _busy_free(busy: Array[Vector2], near: float, far: float) -> bool:
+	for b in busy:
+		if near > b.y and far < b.x:
+			return false
+	return true
 
 
 ## Rampadan kalkıp dh (iniş yeri - rampa ucu) yüksekliğine inene kadar gidilen yol
@@ -1600,7 +1716,7 @@ func _net_ramp(s: Segment, v: float, z: float, z_last: float, busy: Array[Vector
 	var r_rise := r_len * _rng.randf_range(0.14, 0.24)
 	var fl := _ramp_flight(v, r_rise / r_len, -r_rise)
 	var end := z - r_len - fl.x - v * 0.9
-	if end < z_last:
+	if end < z_last or not _busy_free(busy, z + v * 0.7, end):
 		return NAN
 	var full := _rng.randf() < 0.4
 	var rw := s.width if full else s.width * _rng.randf_range(0.45, 0.6)
@@ -1625,7 +1741,7 @@ func _net_slalom(s: Segment, v: float, z: float, z_last: float, busy: Array[Vect
 	var n := _rng.randi_range(3, 4)
 	while n > 1 and z - step * n < z_last:
 		n -= 1
-	if n < 2:
+	if n < 2 or not _busy_free(busy, z + v * 0.7, z - step * n):
 		return NAN
 	var rw := s.width * 0.5
 	var sd := -1.0 if _rng.randf() < 0.5 else 1.0
@@ -1648,8 +1764,12 @@ func _net_low(s: Segment, side: float, v: float, z0: float, z_last: float, busy:
 	var fl := _ramp_flight(v, k_rise / k_len, drop - k_rise)
 	var lz0 := z0 + 6.0
 	var lz_end := maxf(lz0 - v * _rng.randf_range(1.8, 3.2), z_last + fl.x)
-	if lz0 - lz_end < v * 1.8:
+	if lz0 - lz_end < v * 1.8 or not _busy_free(busy, lz_end, lz_end - fl.x - v * 0.9):
 		return NAN
+	for sg in segments:
+		# Aynı yanda başka bir yan yol varsa üst üste binmesin
+		if sg.side_road and signf(sg.x - s.x) == side and sg.z_end < lz0 + 5.0 and sg.z_start > lz_end - 5.0:
+			return NAN
 	var low := _add_segment(x, top, top, w, lz0, lz_end, false)
 	low.side_road = true
 	# Dönüş rampası yolun tamamını kaplar: yolun sonuna gelen herkes ana yola atılır
@@ -1683,8 +1803,12 @@ func _net_high(s: Segment, side: float, v: float, z0: float, z_last: float, busy
 	var r_end := z0 - r_len
 	var hz0 := r_end - fl1.x * 0.45
 	var hz_end := maxf(r_end - fl1.x - v * _rng.randf_range(1.4, 2.8), z_last + fl2.x)
-	if hz_end > r_end - fl1.x - v * 1.0:
+	if hz_end > r_end - fl1.x - v * 1.0 or not _busy_free(busy, z0 + v * 0.7, r_end - v * 1.1) \
+			or not _busy_free(busy, hz_end, hz_end - fl2.x - v * 0.9):
 		return NAN
+	for sg in segments:
+		if sg.side_road and signf(sg.x - s.x) == side and sg.z_end < hz0 + 5.0 and sg.z_start > hz_end - 5.0:
+			return NAN
 	_add_ramp(s, rx, rw, z0, r_len, r_rise, _rng.randf_range(5.0, 9.0), side * absf(hx - rx) / fl1.y)
 	# Rampaya girmeyen de rampanın yanından geçince hemen bloğa çarpmasın
 	busy.append(Vector2(z0 + v * 0.7, r_end - v * 1.1))
@@ -1785,7 +1909,7 @@ func _add_ramp(host: Segment, x: float, width: float, z_start: float, length: fl
 		host.obstacles.append({"x0": x - hw, "x1": x + hw, "z0": s.z_start, "z1": s.z_end, "gravel": false, "ramp": true})
 	stats.ramps = int(stats.get("ramps", 0)) + 1
 	# Rampanın uçuşunda kristal yayı (yana atanda yana da kayar)
-	if _rng.randf() < 0.55:
+	if _rng.randf() < 0.55 * action:
 		_ramp_crystals(s, estimate_speed(car.global_position.z - z_start))
 	return s
 

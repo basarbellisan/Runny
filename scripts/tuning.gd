@@ -59,6 +59,7 @@ const PARAMS := [
 	["YOLLAR", "roads", "max_width:x", "Sonda en geniş", 2, 20, 0.5],
 	["YOLLAR", "roads", "difficulty_distance", "Zorlaşma mesafesi (m)", 500, 10000, 100],
 	["YOLLAR", "roads", "side_road_chance", "Yan yol şansı", 0, 1, 0.05],
+	["YOLLAR", "roads", "action", "Aksiyon çarpanı (olay sıklığı)", 0.5, 4, 0.1],
 	["YOLLAR", "roads", "slopes_from", "Eğim ve vadiler başlar (m)", 0, 5000, 100],
 	["YOLLAR", "roads", "ramps_from", "Rampa ve merdiven başlar (m)", 0, 8000, 50],
 	["YOLLAR", "roads", "advanced_from", "Çıkmaz ve çatal başlar (m)", 0, 8000, 50],

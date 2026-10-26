@@ -142,7 +142,17 @@ Olaylar (son olay hemen tekrar gelmez, son beşin şansı düşer):
 - daralma, yarık (yolun yarısı yok), kayma (yol basamak gibi yana kayar),
   genişleme, tümsek (tepede hafif havalanırsın)
 Daralan/kayan parçada boşta kalan kenardan düşülür; bitişik parçalar arasında
-zıplama yok. 10 km'lik ölçümde 2 sn'den uzun "hiçbir şey olmayan" aralıklar
+zıplama yok.
+
+**Aksiyon çarpanı** (`action`, varsayılan 2, ayar panelinde): olay sayısı ve
+sıklığı, yoğun yolların payı, kristal fırsatları bununla çarpılır; nefes yollar
+seyrekleşir. Olaylar arası tepki süresi yine de en az ~0.45 sn kalır. Her yol
+üretildikten sonra blok sıraları baştan sona denetlenir: bir sıranın geçidinden
+sonrakinin geçidine o hızla yetişilemiyorsa o sıra kaldırılır (imkânsız dizilim yok).
+İniş bölgesi engelsizdir ama seçim vardır: iki yana ayrılan iki kristal çizgisi
+(uzaktaki yanda bir kristal fazla) ya da bir yanda kısa çakıl. Pist çizgisi bir
+yandan başlayıp ortaya iner. Çatalın kolay kolu ve çıkmazın yanındaki ana yol da
+olaylarla dolar; yol ağında parçalar alçak yolun yanındaki ana yola da dizilir. 10 km'lik ölçümde 2 sn'den uzun "hiçbir şey olmayan" aralıklar
 yolun %45'inden ~%10'una indi (kristaller dahil; `--dump_roads` ile ölçülür).
 
 Rampanın açısı kalkıştaki dikey hıza eklenir. Her boşluk yine gazsız

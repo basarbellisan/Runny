@@ -409,7 +409,10 @@ func _dump_roads(path: String) -> void:
 		out.append({"x": sg.x, "w": sg.width, "top": sg.top, "top_end": sg.top_end,
 			"z0": sg.z_start, "z1": sg.z_end, "main": sg.main, "ramp": sg.ramp, "kick": sg.kick,
 			"side": sg.side_road, "dead_end": sg.dead_end, "bank": sg.bank_a.size() > 0 and not sg.ramp,
-			"kind": sg.pattern, "obstacles": sg.obstacles})
+			"kind": sg.pattern, "obstacles": sg.obstacles.map(func(o: Dictionary) -> Dictionary:
+				var c := o.duplicate()
+				c.erase("node")
+				return c)})
 	out.append({"crystal_z": roads.crystal_z_history})
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	f.store_string(JSON.stringify(out))
