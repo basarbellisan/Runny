@@ -37,7 +37,7 @@ arka çöker, burun kalkar). Roket **enerji** yakar (yerde yanarken saniyede 45)
 enerji kendiliğinden dolmaz, yalnız kristallerden gelir. Enerji bitince gaza
 basmak işe yaramaz: gösterge sarsılır, boğuk bir ses çıkar, boşluk aşılamaz.
 Bir basışta roket en çok ~1.35 sn yanar, bırakınca ~1.6 sn'de yeniden basılabilir. Roketin
-alevi yok: gaz verince arka lambalardan çıkan ışık izi uzar ve genişler (boyunca eşit
+alevi yok: gaz verince arka lambalardan çıkan (kristallerin yeşilindeki) ışık izi uzar ve genişler (boyunca eşit
 kalınlıkta, uca doğru incelmez). Gaz havada sönmez ama yolda bırakınca 0.35 sn'de
 söner; bu yüzden erken basan yolun sonuna yakıtsız ve yavaş varır. Doğru an
 yolun son ~1.1 saniyesi: iki kenarda yuvarlak kırmızı pist ışıkları (başta

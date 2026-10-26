@@ -2,7 +2,7 @@ class_name CarTrail
 extends Node3D
 ## Arabanın arkasından çıkan iz: hızı ve gazı görünür kılar.
 ## İz dünyada geride kalır; gaz arttıkça ömrü (dolayısıyla boyu) uzar.
-##  style 1 – ışık izi: arka lambalardan iki ince turuncu şerit
+##  style 1 – ışık izi: arka lambalardan iki ince şerit (kristallerin yeşili)
 ##  style 2 – egzoz küpleri: küçülerek kaybolan low poly küpler
 ##  style 3 – rüzgâr izi: yolun üstünde geniş, yarı saydam beyaz iz
 
@@ -32,7 +32,7 @@ func _ready() -> void:
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	global_transform = Transform3D.IDENTITY
 	car = get_parent()
-	var light := Color(Palette.ACCENT, 0.95)
+	var light := Color(Palette.ENERGY, 0.95)
 	for x in [-0.55, 0.55]:
 		_ribbons.append(_make_ribbon(1, Vector3(x, 0.55, 1.75), 0.16, light))
 	_ribbons.append(_make_ribbon(3, Vector3(0, 0.06, 1.5), 1.7, Color(Palette.SNOW, 0.5)))
@@ -144,7 +144,7 @@ func _update_cubes(delta: float, emitting: bool, l: float) -> void:
 				"v": Vector3(randf_range(-0.8, 0.8), randf_range(0.2, 1.2), randf_range(1.0, 3.0)),
 				"age": 0.0, "life": l * randf_range(1.0, 1.6),
 				"size": randf_range(0.16, 0.3), "spin": randf_range(-6.0, 6.0),
-				"color": Palette.SNOW.lerp(Palette.ACCENT, boost),
+				"color": Palette.SNOW.lerp(Palette.ENERGY, boost),
 			})
 	var mm := _cubes.multimesh
 	var alive_particles: Array[Dictionary] = []
