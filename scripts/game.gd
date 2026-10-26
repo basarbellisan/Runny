@@ -103,12 +103,16 @@ func _ready() -> void:
 	if _args.has("trail"):
 		car.trail.style = int(_args.trail)
 	roads.keep_history = _args.has("dump_roads")
+	if _args.has("crystal_color"):
+		roads.crystal_color = Color(_args.crystal_color)
+	hud.gauge.color = roads.crystal_color
 	if _args.has("nohud"):
 		hud.visible = false  # tasarım taslakları için temiz arka plan
 	car.speed = car.start_speed
 	car.energy = car.max_energy
 	_start_z = car.global_position.z
 	_landings_total = int(_load_save().get_value("tutorial", "landings", 0))
+	roads.set_crystal_color(roads.crystal_color)
 	roads.start(car, seed_value)
 	_apply_mood(0.0)
 
@@ -409,6 +413,7 @@ func _dump_roads(path: String) -> void:
 		out.append({"x": sg.x, "w": sg.width, "top": sg.top, "top_end": sg.top_end,
 			"z0": sg.z_start, "z1": sg.z_end, "main": sg.main, "ramp": sg.ramp, "kick": sg.kick,
 			"side": sg.side_road, "dead_end": sg.dead_end, "bank": sg.bank_a.size() > 0 and not sg.ramp,
+			"events": sg.events_log, "flush": sg.next_flush != null,
 			"kind": sg.pattern, "obstacles": sg.obstacles.map(func(o: Dictionary) -> Dictionary:
 				var c := o.duplicate()
 				c.erase("node")

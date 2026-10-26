@@ -15,3 +15,5 @@ const INK_LIGHT := Color("f2f0eb")  # koyu zeminde yazı
 const ACCENT := Color("ff5a1f")
 
 const WALLS: Array[Color] = [SNOW, MIST, STONE]
+## Enerji kristalleri (yolda ve alt katmanda) ve enerji göstergesi
+const ENERGY := Color("9fe02a")

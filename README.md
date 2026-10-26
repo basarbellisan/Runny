@@ -36,7 +36,9 @@ Gaz bir roket: kısa, çok güçlü (hız 2.3 katına kadar çıkar; ateşleninc
 arka çöker, burun kalkar). Roket **enerji** yakar (yerde yanarken saniyede 45);
 enerji kendiliğinden dolmaz, yalnız kristallerden gelir. Enerji bitince gaza
 basmak işe yaramaz: gösterge sarsılır, boğuk bir ses çıkar, boşluk aşılamaz.
-Bir basışta roket en çok ~1.35 sn yanar, bırakınca ~1.6 sn'de yeniden basılabilir. Gaz havada sönmez ama yolda bırakınca 0.35 sn'de
+Bir basışta roket en çok ~1.35 sn yanar, bırakınca ~1.6 sn'de yeniden basılabilir. Roketin
+alevi yok: gaz verince arka lambalardan çıkan ışık izi uzar ve genişler (boyunca eşit
+kalınlıkta, uca doğru incelmez). Gaz havada sönmez ama yolda bırakınca 0.35 sn'de
 söner; bu yüzden erken basan yolun sonuna yakıtsız ve yavaş varır. Doğru an
 yolun son ~1.1 saniyesi: iki kenarda yuvarlak kırmızı pist ışıkları (başta
 seyrek, yolun ucuna doğru sıklaşır). Işıkların ~%30'unu kaplayan parlak bir bant
@@ -56,13 +58,13 @@ Yolun başı (iniş) ve sonu (pist ışıkları + hizalanma) engelsizdir; oralar
 
 ## Enerji ve kristaller
 Sağ altta enerji deposu (solda hız kadranı): beyaz disk, ortada sayı, çevresinde
-turuncu halka (tepeden saat yönünde dolar). 20'nin altında kırmızı nabız ve
+limon yeşili halka (tepeden saat yönünde dolar). 20'nin altında kırmızı nabız ve
 "KRİSTAL TOPLA!"; kristal alınca üstünde "+8" belirir, halkanın ucu parlar.
 Tek enerji: roket ve kanatlar aynı depodan yer. Düşerken enerji 20'den azsa
 kanatlar için 20 yedek verilir; alt katmandaki kristaller de bu depoyu doldurur.
 Yola dönünce depo dolmaz (ne topladıysan o).
 
-Yoldaki turuncu kristaller (+8) her yol için o yolun sonundaki boşluğa
+Yoldaki limon yeşili kristaller (+8; alt katmandakiler de aynı renk) her yol için o yolun sonundaki boşluğa
 gereken enerjinin katı kadar konur: başta 3 katı, 6 km'de 1.6 katı (yeterli
 ama gittikçe zor). Başta çoğu kolay yerdedir (inişten sonra bir çizgi, pist
 ışıklarında ortada bir çizgi), giderek zor yerlere kayar:
@@ -81,6 +83,13 @@ vardır: yol hangi yana yatıyorsa o kenarda, yatık bölüm boyunca (S bükülm
 öbür kenara geçer). Yatık yolun sonu her zaman düzdür
 (pist ışıkları + roket). Yüzey tek parça kıvrılan bir ağ; arabanın çarpışma
 omurgası altı yuvarlak bir kapsül olduğu için yüzeyin kenarlarına takılmaz.
+
+## Hız
+Temel hız 22 m/s'den (79 km/sa) başlar, her saniye 0.35 m/s artar ve ~94 sn'de
+55 m/s'ye (198 km/sa) varır; sonra durmaz, saniyede 0.08 m/s ile 75 m/s'ye
+(270 km/sa) kadar artmaya devam eder (ayar panelinde "Zamanla hızlanma", "En
+yüksek hız"; sonraki artış `late_acceleration` / `top_speed`). Yollar tahmini
+hıza göre üretilir.
 
 ## Ayar paneli
 Oyun sırasında sol üst köşeye arka arkaya üç kez dokun (PC'de F1): oyun durur,
@@ -145,10 +154,21 @@ Daralan/kayan parçada boşta kalan kenardan düşülür; bitişik parçalar ara
 zıplama yok.
 
 **Aksiyon çarpanı** (`action`, varsayılan 2, ayar panelinde): olay sayısı ve
-sıklığı, yoğun yolların payı, kristal fırsatları bununla çarpılır; nefes yollar
-seyrekleşir. Olaylar arası tepki süresi yine de en az ~0.45 sn kalır. Her yol
-üretildikten sonra blok sıraları baştan sona denetlenir: bir sıranın geçidinden
-sonrakinin geçidine o hızla yetişilemiyorsa o sıra kaldırılır (imkânsız dizilim yok).
+sıklığı, yoğun yolların payı, olaylı düz yolların sıklığı, kristal fırsatları
+bununla çarpılır; nefes yollar seyrekleşir. Çarpan mesafeyle büyür (8 km'de iki
+katı) ve olaylı kısım da onunla uzar: ilerledikçe yolda daha çok şey olur. Olaylar
+arası tepki süresi yine de en az ~0.45 sn kalır; çakıldan sonra ~1.15 sn.
+Olaylı yollar en az 6 m (yoğunda 6.6 m) geniştir, yoksa çoğu olay sığmaz.
+Çakıl boyları ve tümsekler saniye cinsinden: hızlanınca kısalmazlar. Eğimli
+yollara da olay dizilir. Her yol üretildikten sonra blok sıraları baştan sona
+denetlenir: bir sıranın *her* geçidinden sonrakinin bir geçidine o hızla
+yetişilemiyorsa (tuzak) ya da sıra çakıldan hemen sonra geliyorsa o sıra
+kaldırılır.
+
+Tümsek: rampası hızla uzar, eğimi ~%9–15; tepeden fırlarsın (eğimin verdiği
+dikey hız ×1.4) ve gövde sarsılır (rastgele yatma, burun kalkması, yana itiş):
+inişi toparlamak gerekir. Çakıl: arkayı savurur (burun sağa sola sallanır),
+etkisi hızla artar (en yüksek hızda ~1.35 kat), çıkınca ~0.8 sn sendelersin.
 İniş bölgesi engelsizdir ama seçim vardır: iki yana ayrılan iki kristal çizgisi
 (uzaktaki yanda bir kristal fazla) ya da bir yanda kısa çakıl. Pist çizgisi bir
 yandan başlayıp ortaya iner. Çatalın kolay kolu ve çıkmazın yanındaki ana yol da

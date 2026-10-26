@@ -12,7 +12,9 @@ extends Node3D
 		_apply_style()
 ## Gazsızken ve tam gazdayken izin ömrü (sn)
 @export var min_life := 0.18
-@export var max_life := 0.7
+@export var max_life := 1.1
+## Tam gazda ışık izinin genişlik katı (boyunca eşit: uca doğru incelmez)
+@export var boost_width := 3.2
 
 const MAX_CUBES := 220
 
@@ -119,10 +121,13 @@ func _draw_ribbon(r: Dictionary, head: Vector3) -> void:
 		dir.y = 0.0
 		var side := dir.normalized().cross(Vector3.UP) if dir.length_squared() > 1e-6 else Vector3.RIGHT
 		var k := clampf(1.0 - (_time - pts[i].t) / l, 0.0, 1.0)
-		var half: float = r.width * 0.5 * (0.35 + 0.65 * k)
-		mesh.surface_set_color(Color(color, color.a * k * k))
+		# Gazda iz genişler ve boyunca eşit kalır; sönük ucu yalnız saydamlaşır
+		var bl := car.boost_level if r.style == 1 else 0.0
+		var half: float = r.width * 0.5 * lerpf(1.0, boost_width, bl) * lerpf(0.35 + 0.65 * k, 1.0, bl)
+		var alpha := color.a * lerpf(k * k, sqrt(k), bl)
+		mesh.surface_set_color(Color(color, alpha))
 		mesh.surface_add_vertex(pts[i].p - side * half)
-		mesh.surface_set_color(Color(color, color.a * k * k))
+		mesh.surface_set_color(Color(color, alpha))
 		mesh.surface_add_vertex(pts[i].p + side * half)
 	mesh.surface_end()
 

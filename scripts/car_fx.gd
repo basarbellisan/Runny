@@ -1,15 +1,13 @@
 class_name CarFx
 extends Node3D
 ## Arabanın efektleri: inişte tekerlerden toz, sert inişte ve yolun
-## kenarına sürtünürken alt gövdeden kıvılcım. Parçacıklar dünyada kalır
+## kenarına sürtünürken alt gövdeden kıvılcım. (Roket alevi yok: gaz arka ışık izini büyütür.) Parçacıklar dünyada kalır
 ## (araba hızla uzaklaşırken arkada iz bırakır).
 
 var _dust: Array[CPUParticles3D] = []
 var _dust_next := 0
 var _sparks: CPUParticles3D
 var _scrape: CPUParticles3D
-var _flame: CPUParticles3D
-var _flame_core: CPUParticles3D
 var _gravel: CPUParticles3D
 
 
@@ -19,8 +17,6 @@ func _ready() -> void:
 		_dust.append(_make_dust())
 	_sparks = _make_sparks(40, true)
 	_scrape = _make_sparks(14, false)
-	_flame = _make_flame(Color("ff5a1f"), 0.38, 40)
-	_flame_core = _make_flame(Color("fff2d6"), 0.2, 24)
 	_gravel = _make_dust()
 	_gravel.one_shot = false
 	_gravel.explosiveness = 0.0
@@ -50,47 +46,11 @@ func scrape(on: bool, pos := Vector3.ZERO) -> void:
 	_scrape.emitting = on
 
 
-## Roket alevi: arkadan geriye fışkıran turuncu ve beyaz parçacıklar
-func flame(on: bool, pos := Vector3.ZERO, strength := 1.0) -> void:
-	for p in [_flame, _flame_core]:
-		if on:
-			p.global_position = pos
-			p.initial_velocity_min = 8.0 + 10.0 * strength
-			p.initial_velocity_max = 14.0 + 16.0 * strength
-		p.emitting = on
-
-
 ## Çakılda giderken tekerlerden sürekli toz
 func gravel(on: bool, pos := Vector3.ZERO) -> void:
 	if on:
 		_gravel.global_position = pos
 	_gravel.emitting = on
-
-
-func _make_flame(color: Color, size: float, count: int) -> CPUParticles3D:
-	var p := CPUParticles3D.new()
-	p.emitting = false
-	p.amount = count
-	p.lifetime = 0.11
-	p.local_coords = false
-	p.direction = Vector3(0, 0.05, 1)
-	p.spread = 6.0
-	p.gravity = Vector3.ZERO
-	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	p.emission_sphere_radius = 0.15
-	var curve := Curve.new()
-	curve.add_point(Vector2(0, 1))
-	curve.add_point(Vector2(1, 0.1))
-	p.scale_amount_curve = curve
-	var mesh := BoxMesh.new()
-	mesh.size = Vector3.ONE * size
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = color
-	mesh.material = mat
-	p.mesh = mesh
-	add_child(p)
-	return p
 
 
 func _make_dust() -> CPUParticles3D:

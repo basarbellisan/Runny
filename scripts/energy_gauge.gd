@@ -10,6 +10,8 @@ const LOW := Color("e8392b")
 const BLACK := Color("1c1d20")
 const LOW_AT := 20.0
 
+## Halka ve kristal ikonunun rengi (yol kristalleriyle aynı)
+var color := Palette.ENERGY
 ## Enerji ve depo büyüklüğü
 var value := 100.0
 var max_value := 100.0
@@ -61,7 +63,7 @@ func _draw() -> void:
 		c.x += sin(_shake_t * 60.0) * 6.0 * (1.0 - _shake_t / 0.35)
 	var f := _shown / max_value
 	var low := _shown <= LOW_AT
-	var col := LOW if low else Palette.ACCENT
+	var col := LOW if low else color
 	var ink := LOW if low else BLACK
 	var t := Time.get_ticks_msec() / 1000.0
 	if low:
@@ -83,8 +85,8 @@ func _draw() -> void:
 	if _gain_t < 0.8:
 		var a := 1.0 - smoothstep(0.45, 0.8, _gain_t)
 		var y := -R - 28 - _gain_t * 22.0
-		_crystal(c + Vector2(-26, y), 7.0, Color(Palette.ACCENT, a))
-		_text("+%d" % int(round(_gain)), c + Vector2(6, y), 24, Color(Palette.ACCENT, a))
+		_crystal(c + Vector2(-26, y), 7.0, Color(color, a))
+		_text("+%d" % int(round(_gain)), c + Vector2(6, y), 24, Color(color.darkened(0.15), a))
 
 
 func _crystal(p: Vector2, r: float, col: Color) -> void:

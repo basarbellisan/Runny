@@ -68,9 +68,9 @@ func _ready() -> void:
 		m.albedo_color = c
 		m.roughness = 1.0
 		_rock_mats.append(m)
-	_crystal_mat.albedo_color = Palette.SNOW
+	_crystal_mat.albedo_color = Palette.ENERGY
 	_crystal_mat.emission_enabled = true
-	_crystal_mat.emission = Palette.SNOW
+	_crystal_mat.emission = Palette.ENERGY
 	_crystal_mat.emission_energy_multiplier = 1.2
 	_portal_mat.albedo_color = Palette.ACCENT
 	_portal_mat.emission_enabled = true

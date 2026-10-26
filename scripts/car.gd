@@ -28,6 +28,9 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 
 @export var start_speed := 22.0
 @export var max_speed := 55.0
+## En yüksek hıza varınca hız yavaşça artmaya devam eder (m/s, her saniye), top_speed'e kadar
+@export var late_acceleration := 0.08
+@export var top_speed := 75.0
 ## Saniyede hız artışı (m/s)
 @export var acceleration := 0.35
 @export var steer_speed := 11.0
@@ -97,8 +100,17 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 @export var gravel_speed := 0.55
 @export var gravel_grip := 0.3
 ## Çakılda arabayı sağa sola savuran itiş (m/s²) ve çakıldan çıkınca süren sendeleme (sn)
-@export var gravel_shove := 30.0
-@export var gravel_after := 0.6
+@export var gravel_shove := 38.0
+@export var gravel_after := 0.8
+## Çakıl etkisi hızla artar: en yüksek hızda savurma bu kat güçlü
+@export var gravel_speed_gain := 1.35
+## Arka savrulma (görsel): çakılda burun sağa sola bu kadar döner (rad)
+@export var gravel_fishtail := 0.22
+
+@export_group("Tümsek")
+## Tümsek tepesinden kalkışta: eğimin verdiği dikey hızın katı ve sarsıntı gücü
+@export var bump_launch := 1.4
+@export var bump_shake := 2.6
 ## Yatık yolda araba alçak tarafa kayar: yatma açısının sinüsü × bu hız (m/s)
 @export var bank_slide := 45.0
 
@@ -182,6 +194,7 @@ var _air_lean := 0.0
 var _stumble_time := 0.0
 var _stumble := 0.0
 var _yaw := 0.0
+var _fishtail := 0.0
 var fx: CarFx
 var _wheel_spin := 0.0
 var _last_segment: RoadGenerator.Segment
@@ -237,7 +250,10 @@ func _physics_process(delta: float) -> void:
 		_dead_motion(delta)
 		return
 	_mode_time += delta
-	speed = minf(speed + acceleration * delta, max_speed)
+	if speed < max_speed:
+		speed = minf(speed + acceleration * delta, max_speed)
+	else:
+		speed = minf(speed + late_acceleration * delta, maxf(top_speed, max_speed))
 	var input := autopilot.input() if autopilot else _read_input()
 	_steer = input.x
 	boosting = input.y > 0.5
@@ -322,9 +338,9 @@ func _drive(delta: float) -> void:
 			_gravel_timer -= delta
 			if _gravel_timer <= 0.0:
 				_gravel_timer = randf_range(0.15, 0.35)
-				_gravel_push_target = randf_range(-1.0, 1.0) * gravel_shove
-			_bounce_v += randf_range(-1.0, 1.0) * 70.0 * delta
-			roll_rate += randf_range(-1.0, 1.0) * 14.0 * delta
+				_gravel_push_target = randf_range(-1.0, 1.0) * gravel_shove * _gravel_gain()
+			_bounce_v += randf_range(-1.0, 1.0) * 70.0 * delta * _gravel_gain()
+			roll_rate += randf_range(-1.0, 1.0) * 14.0 * delta * _gravel_gain()
 			# Çakıldan çıkınca da bir süre sendeler
 			_stumble = maxf(_stumble if _stumble_time > 0.0 else 0.0, 0.45)
 			_stumble_time = maxf(_stumble_time, gravel_after)
@@ -386,9 +402,17 @@ func _drive(delta: float) -> void:
 		# Yandan kayınca zıplama yok, düşülür.
 		var slope := _last_segment.slope() if _last_segment else 0.0
 		if _last_segment and _last_segment.next_flush:
-			# Yol bitmedi, bitişik parçası var (tümsek tepesi, daralmada boşta kalan kenar):
-			# zıplama yok, yalnız eğimin verdiği hafif sıçrama
-			velocity.y = maxf(velocity.y, forward_speed * slope)
+			# Yol bitmedi, bitişik parçası var. Tümsek tepesi: fırlar, gövde sarsılır
+			# (toparlamak gerekir). Daralmada boşta kalan kenar: zıplama yok, düşülür.
+			if slope > 0.04:
+				velocity.y = forward_speed * slope * bump_launch + 1.0
+				roll_rate += randf_range(-1.0, 1.0) * bump_shake
+				pitch_rate += randf_range(0.2, 0.6) * bump_shake
+				velocity.x += randf_range(-1.0, 1.0) * bump_shake
+				_bounce_v -= 1.5
+				jumped.emit()
+			else:
+				velocity.y = maxf(velocity.y, forward_speed * slope)
 		else:
 			velocity.y = launch_velocity + forward_speed * slope
 			# Yol üstü eğik rampa yana da atar
@@ -570,7 +594,6 @@ func _update_boost(delta: float) -> void:
 	else:
 		boost_level = maxf(boost_level - delta / boost_fall_time, 0.0)
 	if fx:
-		fx.flame(burning, global_position + Vector3(0, 0.6, half_length + 0.2), boost_level)
 		fx.gravel(on_gravel and is_on_floor(), global_position + Vector3(0, 0.15, 1.0))
 
 
@@ -610,6 +633,11 @@ func _sense_wheels() -> void:
 
 
 ## Yoldan önden mi (yolun sonu) yoksa yandan mı çıktık
+## Çakıl etkisinin hıza göre katı (başlangıç hızında 1)
+func _gravel_gain() -> float:
+	return lerpf(1.0, gravel_speed_gain, clampf(inverse_lerp(start_speed, max_speed, speed), 0.0, 1.0))
+
+
 func add_energy(amount: float) -> void:
 	energy = clampf(energy + amount, 0.0, max_energy)
 
@@ -703,8 +731,10 @@ func _time_to_fall_to(y: float) -> float:
 func _update_visual(delta: float) -> void:
 	_update_attitude(delta)
 	var forward := maxf(-velocity.z, 1.0)
-	# Çakılda savrulurken burun da sağa sola kayar
-	_yaw = lerpf(_yaw, -atan2(velocity.x, forward) * 0.8 - _gravel_push * 0.008, 1.0 - exp(-10.0 * delta))
+	# Çakılda arka savrulur: itişle birlikte burun sağa sola döner, üstüne titrek bir sallanma
+	_fishtail = move_toward(_fishtail, 1.0 if on_gravel and is_on_floor() else 0.0, delta * (4.0 if on_gravel else 1.5))
+	var wag := sin(_mode_time * 11.0) * gravel_fishtail * _fishtail * _gravel_gain() * 0.6
+	_yaw = lerpf(_yaw, -atan2(velocity.x, forward) * 0.8 - _gravel_push * 0.012 + wag, 1.0 - exp(-10.0 * delta))
 	_body.rotation = Vector3(pitch, _yaw, roll)
 	# Süspansiyon yaylanması (inişte gövde çöker ve toparlanır)
 	_bounce_v += (-suspension_stiffness * _bounce - suspension_damping * _bounce_v) * delta
