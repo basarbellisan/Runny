@@ -195,6 +195,8 @@ var _stumble_time := 0.0
 var _stumble := 0.0
 var _yaw := 0.0
 var _fishtail := 0.0
+## Tümsekten fırlarken kısa bir süre zemine yapışma kapalı
+var _snap_off := 0.0
 var fx: CarFx
 var _wheel_spin := 0.0
 var _last_segment: RoadGenerator.Segment
@@ -358,6 +360,17 @@ func _drive(delta: float) -> void:
 		# Son üstünde olunan yol (yolun ucunu geçerken sorgu boş dönebilir; eskisi kalsın)
 		var under: RoadGenerator.Segment = roads.segment_under(global_position) if roads else null
 		if under:
+			# Tümsek tepesi: yokuş parçasından inişe geçtik. Zemine yapışma (snap) arabayı
+			# yüzeyde tutacağından fırlatmayı burada kendimiz veririz; gövde sarsılır.
+			if _last_segment and _last_segment.next_flush == under and _last_segment.slope() > 0.04:
+				velocity.y = forward_speed * _last_segment.slope() * bump_launch + 1.0
+				# Havada dönme sürer: yatma ve burun vuruşu ölçülü (havada toparlanabilsin)
+				roll_rate += randf_range(-1.0, 1.0) * bump_shake * 0.3
+				pitch_rate += randf_range(0.05, 0.15) * bump_shake
+				velocity.x += randf_range(-1.0, 1.0) * bump_shake
+				_bounce_v -= 1.5
+				_snap_off = 0.15
+				jumped.emit()
 			_last_segment = under
 	# Yatık yolda araba kendiliğinden alçak tarafa kayar: ters direksiyonla yolda tut
 	var slide := 0.0
@@ -380,6 +393,8 @@ func _drive(delta: float) -> void:
 
 	var forward_before := -velocity.z
 	var vy_before := velocity.y
+	_snap_off = maxf(_snap_off - delta, 0.0)
+	floor_snap_length = 0.0 if _snap_off > 0.0 else 0.4
 	move_and_slide()
 
 	# Yolun ön yüzüne çakıldık (yeterince gaz verilmedi). İleri hızın aniden
@@ -404,15 +419,7 @@ func _drive(delta: float) -> void:
 		if _last_segment and _last_segment.next_flush:
 			# Yol bitmedi, bitişik parçası var. Tümsek tepesi: fırlar, gövde sarsılır
 			# (toparlamak gerekir). Daralmada boşta kalan kenar: zıplama yok, düşülür.
-			if slope > 0.04:
-				velocity.y = forward_speed * slope * bump_launch + 1.0
-				roll_rate += randf_range(-1.0, 1.0) * bump_shake
-				pitch_rate += randf_range(0.2, 0.6) * bump_shake
-				velocity.x += randf_range(-1.0, 1.0) * bump_shake
-				_bounce_v -= 1.5
-				jumped.emit()
-			else:
-				velocity.y = maxf(velocity.y, forward_speed * slope)
+			velocity.y = maxf(velocity.y, forward_speed * slope)
 		else:
 			velocity.y = launch_velocity + forward_speed * slope
 			# Yol üstü eğik rampa yana da atar

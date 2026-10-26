@@ -1146,7 +1146,8 @@ func _make_event(kind: String, w: float, v: float) -> Dictionary:
 			e.half = maxf(7.0, v * 0.15)
 			e.h = e.half * _rng.randf_range(0.09, 0.15)
 			var vy: float = v * e.h / e.half * car.bump_launch + 1.0
-			e.len = e.half * 2.0 + v * (2.0 * vy / car.gravity) * 0.6
+			# Tepeden uçuş (yerden kalkıp aynı yüksekliğe iniş) tamamen ayrılır
+			e.len = e.half * 2.0 + v * (2.0 * vy / car.gravity) * 1.1
 	return e
 
 
@@ -1175,7 +1176,10 @@ func _plan_events(z_from: float, z_to: float, w: float, v: float, mood: String, 
 		if kind.contains("çakıl"):
 			# Çakıldan sonra araba ~0.8 sn sendeler: toparlanma payı
 			gap = maxf(gap, v * 1.15)
-		elif kind == "tümsek" or kind == "kayma":
+		elif kind == "tümsek":
+			# İnişten sonra toparlanma (sarsıntı): bir sonraki olaya biraz vakit
+			gap = maxf(gap, v * 0.75)
+		elif kind == "kayma":
 			gap = maxf(gap, v * 0.55)
 		z -= e.len + gap
 	return out

@@ -165,9 +165,10 @@ denetlenir: bir sıranın *her* geçidinden sonrakinin bir geçidine o hızla
 yetişilemiyorsa (tuzak) ya da sıra çakıldan hemen sonra geliyorsa o sıra
 kaldırılır.
 
-Tümsek: rampası hızla uzar, eğimi ~%9–15; tepeden fırlarsın (eğimin verdiği
-dikey hız ×1.4) ve gövde sarsılır (rastgele yatma, burun kalkması, yana itiş):
-inişi toparlamak gerekir. Çakıl: arkayı savurur (burun sağa sola sallanır),
+Tümsek: rampası hızla uzar, eğimi ~%9–15; tepeye varınca fırlarsın (eğimin
+verdiği dikey hız ×1.4; o an zemine yapışma kısa süre kapanır, yoksa araba yüzeyde
+kalırdı) ve gövde sarsılır (biraz yatma ve burun kalkması, yana itiş): inişi
+toparlamak gerekir. Tümsekten sonraki uçuş mesafesi boyunca engel konmaz. Çakıl: arkayı savurur (burun sağa sola sallanır),
 etkisi hızla artar (en yüksek hızda ~1.35 kat), çıkınca ~0.8 sn sendelersin.
 İniş bölgesi engelsizdir ama seçim vardır: iki yana ayrılan iki kristal çizgisi
 (uzaktaki yanda bir kristal fazla) ya da bir yanda kısa çakıl. Pist çizgisi bir
