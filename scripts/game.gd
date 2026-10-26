@@ -99,6 +99,8 @@ func _ready() -> void:
 	car.model.variant = int(_args.get("model", _load_save().get_value("car", "model", 1)))
 	if _args.has("trail"):
 		car.trail.style = int(_args.trail)
+	if _args.has("nohud"):
+		hud.visible = false  # tasarım taslakları için temiz arka plan
 	car.speed = car.start_speed
 	_start_z = car.global_position.z
 	_landings_total = int(_load_save().get_value("tutorial", "landings", 0))

@@ -19,6 +19,8 @@ const GREY := Color("8a8d92")
 ## Roket yakıtı (0-1): kadranı çevreleyen halka. Tepeden saat yönünde dolar,
 ## gaza basınca azalır. İki renk: koyu iz + turuncu dolgu.
 var fuel := 1.0
+## Yakıt halkası çizilsin mi (enerji ayrı bir göstergedeyse kapatılır)
+var show_fuel := true
 var _shown_kmh := 0.0
 var _needle_v := 0.0
 var _kmh := 0.0
@@ -127,7 +129,8 @@ func _draw() -> void:
 			draw_arc(c, 56, deg_to_rad(135), deg_to_rad(135 + 270 * t), 72, orange, 9.0, true)
 			_text(speed, c + Vector2(0, 4), 36, white)
 			_text("KM/SA", c + Vector2(0, 30), 12, Color(white, 0.5))
-	_draw_fuel(c)
+	if show_fuel:
+		_draw_fuel(c)
 
 
 ## Yakıt halkası: yuvarlak kadranlarda çevresinde, köşeli olanlarda altında çubuk
