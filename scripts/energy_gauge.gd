@@ -2,7 +2,7 @@ class_name EnergyGauge
 extends Control
 ## Enerji deposu (sağ alt): beyaz disk, ortada sayı, çevresinde kalın turuncu halka.
 ## Halka tepeden saat yönünde dolar. 20'nin altında kırmızı nabız ve "KRİSTAL TOPLA!".
-## Kristal alınca üstünde "+8" belirir, halkanın ucu parlar; enerji yokken gaza
+## Kristal alınca üstünde kazanılan enerji belirir, halkanın ucu parlar; enerji yokken gaza
 ## basılınca gösterge sarsılır.
 
 const R := 66.0

@@ -180,7 +180,7 @@ var _pickup_next := 0
 ## Kristal rengi (enerji göstergesi de bu renkte)
 @export var crystal_color := Palette.ENERGY
 ## Kristal başına enerji ve toplama yarıçapı (araba yarı genişliğine eklenir)
-@export var crystal_value := 8.0
+@export var crystal_value := 4.0
 ## Bir yolun sonundaki boşluk için gereken enerjinin kaç katı kristal konur (baş, son)
 @export var crystal_supply := Vector2(3.0, 1.6)
 ## Kristallerin kolay yerlerde (iniş, pist) olan payı (baş, son)

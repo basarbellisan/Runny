@@ -59,12 +59,12 @@ Yolun başı (iniş) ve sonu (pist ışıkları + hizalanma) engelsizdir; oralar
 ## Enerji ve kristaller
 Sağ altta enerji deposu (solda hız kadranı): beyaz disk, ortada sayı, çevresinde
 limon yeşili halka (tepeden saat yönünde dolar). 20'nin altında kırmızı nabız ve
-"KRİSTAL TOPLA!"; kristal alınca üstünde "+8" belirir, halkanın ucu parlar.
+"KRİSTAL TOPLA!"; kristal alınca üstünde "+4" belirir (art arda toplananlar toplanır), halkanın ucu parlar.
 Tek enerji: roket ve kanatlar aynı depodan yer. Düşerken enerji 20'den azsa
 kanatlar için 20 yedek verilir; alt katmandaki kristaller de bu depoyu doldurur.
 Yola dönünce depo dolmaz (ne topladıysan o).
 
-Yoldaki limon yeşili kristaller (+8; alt katmandakiler de aynı renk) her yol için o yolun sonundaki boşluğa
+Yoldaki limon yeşili kristaller (+4; alt katmandakiler +15, aynı renk) her yol için o yolun sonundaki boşluğa
 gereken enerjinin katı kadar konur: başta 3 katı, 6 km'de 1.6 katı (yeterli
 ama gittikçe zor). Başta çoğu kolay yerdedir (inişten sonra bir çizgi, pist
 ışıklarında ortada bir çizgi), giderek zor yerlere kayar:
