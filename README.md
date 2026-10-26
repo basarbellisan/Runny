@@ -54,7 +54,7 @@ Düz yollarda (350 m'den sonra) sağ-sol oynatan engeller:
   araba sarsılır, taş sesi ve toz. İlk üç seferde "ÇAKIL · YAVAŞLATIR" yazar
 Yolun başı (iniş) ve sonu (pist ışıkları + hizalanma) her zaman boştur.
 
-Yatık yollar (500 m'den sonra): yol düz başlar, yavaşça sağa ya da sola
+Yatık yollar: yol düz başlar, yavaşça sağa ya da sola
 yatar (~11–15°), bir süre öyle gider ve düzelir; bazıları S çizer (önce bir
 yana, sonra öbür yana). Araba alçak tarafa doğru kayar, ters direksiyonla
 yolda tutulur; gövde yolla birlikte yatar, kamera da biraz eşlik eder. İnişte
@@ -80,15 +80,18 @@ varsayılandan farklı değerleri tek satırlık metin olarak verir
 - Portala girersen yukarı fırlatılır, arabaya dönüşüp bir yola konarsın
 
 ## Yollar
-Yollar kalıplar hâlinde üretilir, mesafe arttıkça yenileri açılır:
-- 0–300 m: düz yollar
-- 300 m+: yokuşlar (10–15°), vadiler (yokuş aşağı → alçak yol → rampayla yukarı)
-- 800 m+: merdivenler, rampalar (15–18°, kalkışta yukarı fırlatır), çıkmazlar
+Yollar kalıplar hâlinde, her oyunda rastgele üretilir. Başlangıç pistinden
+(~155 m) hemen sonra kalıpların çoğu gelebilir, böylece her oyun farklı başlar;
+ilk 1.5 km'de (ease_distance) açılar ve yatmalar daha yumuşaktır:
+- baştan: düz yollar, yokuşlar (10–15°), vadiler (yokuş aşağı → alçak yol →
+  rampayla yukarı), yatık yollar, yol ağı, engeller
+- 150 m+: merdivenler, rampalar (15–18°, kalkışta yukarı fırlatır)
+- 400 m+: çıkmazlar
   (yanda alçak, geniş bir yol; devamı yoktur, uçuşa düşülür — ana yol hep yanında devam eder)
   ve çatallar: geniş bir yoldan iki kol ayrılır. Alçak kol geniş ve kolay; yüksek
   kol rampayla çıkılır, dar ve zor boşlukludur, turuncu çizgilidir. Yüksek kolda
   puan iki kat, bitirince +250 × çarpan. İki kol ileride geniş bir yolda birleşir.
-- 500 m+: yol ağı. Kendi kalıbıdır (300–550 m düz yol); az başlar, ~4 km'de en
+- yol ağı: kendi kalıbıdır (300–550 m düz yol); az başlar, ~4 km'de en
   sık gelen kalıp olur. Ödül yoktur, sadece yol seçimi. Üstüne 1-4 parça
   sırayla dizilir (aynı parça üst üste gelmez), parçaların arası blok ve çakılla dolar:
   - rampa: tam ya da yarım genişlik, boyu (6–10 m) ve yüksekliği değişir; yarım

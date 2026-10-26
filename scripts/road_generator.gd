@@ -102,25 +102,30 @@ const ZONES: Array[Color] = [
 ## Boşluğun, gazsız ulaşılamayan en kısa ile tam gazla ulaşılan en uzun
 ## arasındaki yeri (0: az gaz yeter, 1: tam gaz şart)
 @export var gap_difficulty := Vector2(0.1, 0.85)
-## Kalıpların açıldığı mesafeler (m)
-@export var slopes_from := 300.0
-@export var ramps_from := 800.0
+## Kalıpların açıldığı mesafeler (m). Başlangıç pistinden hemen sonra hepsi
+## kolay hâlleriyle gelebilir (her oyun farklı başlar); ease_distance'a kadar
+## açılar ve yükseklikler yavaşça tam değerine çıkar.
+@export var slopes_from := 0.0
+@export var ramps_from := 150.0
+## Çıkmaz ve çatal (uçuşa düşme, iki kol) bu mesafeden sonra
+@export var advanced_from := 400.0
+@export var ease_distance := 1500.0
 ## Çıkmaz kalıbının seçilme ağırlığı (diğerleri ~0.5-1)
 @export var dead_end_weight := 0.5
 ## Çatal kalıbının seçilme ağırlığı
 @export var fork_weight := 0.6
 ## Yol ağı (yol üstü rampalar, alçak/yüksek yan yollar, dönüş rampaları) bu mesafeden
 ## sonra gelir; düz uzun bir yolun bu olasılıkla ağ olması, mesafeyle artar (az -> çok)
-@export var network_from := 500.0
+@export var network_from := 0.0
 ## Yol ağı kalıbının ağırlığı (başta, network_full_at'ta); diğer kalıplar ~0.5-1.1
 @export var network_weight := Vector2(1.0, 2.6)
 @export var network_full_at := 4000.0
 ## Yatık yollar (yana yatıp düzelen) bu mesafeden sonra gelir; ağırlık ve en fazla açı
-@export var banks_from := 500.0
+@export var banks_from := 0.0
 @export var bank_weight := 1.0
 @export var max_bank_deg := 15.0
 ## Düz yollara engel (çarpınca patlar) ve çakıl (yavaşlatır) bu mesafeden sonra gelir
-@export var obstacles_from := 350.0
+@export var obstacles_from := 0.0
 ## Düz bir yolun engelli olma olasılığı (zorlukla bu değere çıkar)
 @export_range(0.0, 1.0) var obstacle_chance := 1.0
 ## Pist ışıkları: yolun sonundaki ışıklı bölgenin süresi (sn, o anki hızla)
@@ -336,22 +341,26 @@ func _plan_pattern(travelled: float, level: float) -> void:
 	# Yükseklik sınırlı kalsın: alçaktayken inen, yüksekteyken çıkan kalıp yok
 	var low := level < MAIN_LEVEL - 3.0
 	var high := level > MAIN_LEVEL + 3.0
-	var flat := 1.0 if travelled < slopes_from else (0.9 if travelled < ramps_from else 1.1)
-	var options := [["düz", flat]]
-	if travelled > slopes_from:
+	# Başta kalıplar kolay hâlleriyle gelir (ease 0 → 1)
+	var ease := clampf(travelled / maxf(ease_distance, 1.0), 0.0, 1.0)
+	var options := [["düz", 0.9]]
+	if travelled >= slopes_from:
 		options.append(["eğim", 0.6])
 		if not low:
 			options.append(["vadi", 0.6])
-	if travelled > ramps_from:
+	if travelled >= ramps_from:
 		if not low:
-			options += [["merdiven", 0.5], ["çıkmaz", dead_end_weight]]
-		if not low and not high:
-			options.append(["çatal", fork_weight])
-	if travelled > banks_from:
-		options.append(["yatık", bank_weight])
+			options.append(["merdiven", 0.5])
 		if not high:
 			options.append(["rampa", 0.5])
-	if travelled > network_from:
+	if travelled >= advanced_from:
+		if not low:
+			options.append(["çıkmaz", dead_end_weight])
+		if not low and not high:
+			options.append(["çatal", fork_weight])
+	if travelled >= banks_from:
+		options.append(["yatık", bank_weight])
+	if travelled >= network_from:
 		var dens := clampf((travelled - network_from) / maxf(network_full_at - network_from, 1.0), 0.0, 1.0)
 		options.append(["ağ", lerpf(network_weight.x, network_weight.y, dens)])
 	# Tekrar yok: son kalıp hiç gelmez, son birkaç kalıbın şansı düşer
@@ -383,9 +392,9 @@ func _plan_pattern(travelled: float, level: float) -> void:
 			var dir := -1.0 if _rng.randf() < 0.5 else 1.0
 			if low: dir = 1.0
 			elif high: dir = -1.0
-			_plan.append({"angle": dir * _rng.randf_range(10.0, 15.0), "len": 0.6})
+			_plan.append({"angle": dir * _rng.randf_range(10.0, 15.0) * lerpf(0.6, 1.0, ease), "len": 0.6})
 		"vadi":
-			_plan.append({"dh": _rng.randf_range(-1.5, -0.5), "angle": -_rng.randf_range(12.0, 16.0), "len": 0.5})
+			_plan.append({"dh": _rng.randf_range(-1.5, -0.5), "angle": -_rng.randf_range(12.0, 16.0) * lerpf(0.65, 1.0, ease), "len": 0.5})
 			_plan.append({"dh": _rng.randf_range(-2.0, -0.5), "width": 1.1})
 			_plan.append({"dh": _rng.randf_range(-0.6, 0.0), "rise_to": MAIN_LEVEL + _rng.randf_range(-1.0, 1.0), "len": 0.4})
 		"merdiven":
@@ -393,14 +402,14 @@ func _plan_pattern(travelled: float, level: float) -> void:
 				_plan.append({"dh": -_rng.randf_range(2.5, 3.5)})
 			_plan.append({"dh": _rng.randf_range(-0.6, 0.0), "rise_to": MAIN_LEVEL + _rng.randf_range(-1.0, 1.0), "len": 0.4})
 		"rampa":
-			_plan.append({"angle": _rng.randf_range(15.0, 18.0), "len": 0.35})
+			_plan.append({"angle": _rng.randf_range(15.0, 18.0) * lerpf(0.7, 1.0, ease), "len": 0.35})
 			_plan.append({"up": true})
 		"çıkmaz":
 			_plan.append({"dead_end": true, "len": 1.4})
 			_plan.append({})
 		"yatık":
 			var dir := -1.0 if _rng.randf() < 0.5 else 1.0
-			_plan.append({"bank": dir * _rng.randf_range(0.75, 1.0) * max_bank_deg,
+			_plan.append({"bank": dir * _rng.randf_range(0.75, 1.0) * max_bank_deg * lerpf(0.55, 1.0, ease),
 				"s_curve": _rng.randf() < 0.4})
 		"çatal":
 			# Önce geniş bir yol: iki kola da buradan atlanır
