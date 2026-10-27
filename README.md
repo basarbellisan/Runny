@@ -134,6 +134,23 @@ ilk 1.5 km'de (ease_distance) açılar ve yatmalar daha yumuşaktır:
   söndürülür, araba havada takla atmaz. Rampaya yaklaşma, uçuş ve iniş yerleri
   hep boştur.
 
+- ada zinciri (150 m+, yolun ~%20'si): roketli bir boşluktan sonra 4–8 adım kısa
+  adalar (her biri 0.7–1.4 sn). Adalar arası küçük boşluklar gazsız atlanır; her
+  adımda 1–3 ada yan yana, farklı yükseklikte olabilir; her adadan sonrakilerden en
+  az birine yetişilir. Son ada pist ışıklıdır, ardından yine roketli boşluk gelir.
+  Her zincir dört çeşitten biridir (aynısı üst üste gelmez):
+  - ada: 1–3 ada yan yana, blok adalarında blok ya da yarım çakıl
+  - ada_rampa: rampa(up)/rampa(down) adalar ve sık tümsek (kama rampa)
+  - ada_çoklu: hep 2–3 ada yan yana, farklı yüksekliklerde
+  - ada_eğik: sağda solda uzak adalar, her birinin sonunda karşıya atan eğik rampa
+
+  Yan yana adalar arası 5–5.8 m (adalar birbirine değmez); bir adadan yandakine
+  adada kayıp havada hizalanarak geçilir. Adımların ~%40'ı "blok adası": biraz
+  uzun (1.6–2 sn) ve geniş, inişten sonra 1–2 blok ya da yarım çakıl.
+
+  Eğik rampadan atılınca yana hız havada korunur (direksiyon ekler ya da ters
+  basınca keser); inişte lastikler tutar, yana kalan hızın çoğu söner.
+
 Kalıplar tekrar etmez: bir önceki kalıp hiç gelmez, son üç kalıbın şansı düşer.
 Engelli düz yollar 330–470 m'dir (önceden en az 520 m).
 

@@ -195,6 +195,8 @@ var _stumble_time := 0.0
 var _stumble := 0.0
 var _yaw := 0.0
 var _fishtail := 0.0
+## Eğik rampadan atıldıktan sonra yana hızın korunduğu süre (yere değince biter)
+var _kick_hold := 0.0
 ## Tümsekten fırlarken kısa bir süre zemine yapışma kapalı
 var _snap_off := 0.0
 var fx: CarFx
@@ -380,7 +382,19 @@ func _drive(delta: float) -> void:
 		slide = fn.x * bank_slide
 	else:
 		surface_roll = 0.0
-	velocity.x = move_toward(velocity.x, _steer * steer_speed + slide, steer_accel * control * delta)
+	if _kick_hold > 0.0 and not on_floor:
+		# Eğik rampadan atıldık: yana hız korunur; direksiyon yalnız ona ekler ya da ters basınca keser
+		_kick_hold -= delta
+		if _steer != 0.0 and signf(_steer) != signf(velocity.x):
+			velocity.x = move_toward(velocity.x, _steer * steer_speed, steer_accel * control * delta)
+		elif _steer != 0.0:
+			velocity.x = move_toward(velocity.x, signf(_steer) * maxf(absf(velocity.x), steer_speed), steer_accel * control * delta)
+	else:
+		if on_floor and _kick_hold > 0.0:
+			# Eğik rampa inişi: lastikler tutar, yana kalan hız çoğunlukla söner (kısa adadan kaymasın)
+			_kick_hold = 0.0
+			velocity.x *= 0.35
+		velocity.x = move_toward(velocity.x, _steer * steer_speed + slide, steer_accel * control * delta)
 	surface_drag = move_toward(surface_drag, gravel_speed if on_gravel and on_floor else 1.0,
 		delta * (1.5 if on_gravel else 1.4))
 	if on_floor:
@@ -425,6 +439,8 @@ func _drive(delta: float) -> void:
 			# Yol üstü eğik rampa yana da atar
 			if _last_segment and _last_segment.ramp:
 				velocity.x += _last_segment.kick
+				# Uçuş boyunca bu yana hız sönmesin
+				_kick_hold = 2.0 if _last_segment.kick != 0.0 else 0.0
 				# Rampanın burgusu gövdeyi döndürmüş olur; havada takla attırmasın
 				roll_rate *= 0.15
 			jumped.emit()

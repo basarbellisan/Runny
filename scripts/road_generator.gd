@@ -40,6 +40,8 @@ class Segment:
 	var kick := 0.0
 	## Yol ağının yan yolu (alçak/yüksek): sonunda ana yola dönüş rampası var
 	var side_road := false
+	## Ada zincirinde: sonundaki boşluk gazsız zıplamayla geçilir (roket gerekmez)
+	var hop := false
 	## Aynı yolun bir sonraki parçası (boşluksuz devam eder: daralma, kayma, tümsek)
 	var next_flush: Segment
 
@@ -133,6 +135,8 @@ const ZONES: Array[Color] = [
 ## Yol ağı (yol üstü rampalar, alçak/yüksek yan yollar, dönüş rampaları) bu mesafeden
 ## sonra gelir; düz uzun bir yolun bu olasılıkla ağ olması, mesafeyle artar (az -> çok)
 @export var network_from := 0.0
+## Ada zinciri kalıbının ağırlığı (yolun ~%20'si)
+@export var island_weight := 3.0
 ## Yol ağı kalıbının ağırlığı (başta, network_full_at'ta); diğer kalıplar ~0.5-1.1
 @export var network_weight := Vector2(1.2, 2.4)
 @export var network_full_at := 4000.0
@@ -438,6 +442,8 @@ func _plan_pattern(travelled: float, level: float) -> void:
 			options.append(["çatal", fork_weight])
 	if travelled >= banks_from:
 		options.append(["yatık", bank_weight])
+	if travelled >= ramps_from and not low:
+		options.append(["ada", island_weight])
 	if travelled >= network_from:
 		var dens := clampf((travelled - network_from) / maxf(network_full_at - network_from, 1.0), 0.0, 1.0)
 		options.append(["ağ", lerpf(network_weight.x, network_weight.y, dens)])
@@ -496,6 +502,8 @@ func _plan_pattern(travelled: float, level: float) -> void:
 			var dir := -1.0 if _rng.randf() < 0.5 else 1.0
 			_plan.append({"bank": dir * _rng.randf_range(0.75, 1.0) * max_bank_deg * lerpf(0.55, 1.0, ease),
 				"s_curve": _rng.randf() < 0.4})
+		"ada":
+			_plan.append({"islands": true})
 		"çatal":
 			# Önce geniş bir yol: iki kola da buradan atlanır
 			_plan.append({"width": 1.6, "len": 0.8, "dh": _rng.randf_range(-1.0, 0.0)})
@@ -515,6 +523,8 @@ func _next_from(prev: Segment) -> Segment:
 		if merge:
 			return merge
 		spec = {}
+	if spec.get("islands", false):
+		return _build_islands(prev, travelled)
 
 	# Araba bu yolun sonuna vardığında ne hızda olacak (tahmini)
 	var v := estimate_speed(dist_ahead)
@@ -1687,6 +1697,285 @@ func _ramp_crystals(r: Segment, v: float) -> void:
 		var z := r.z_end - car.half_length - v * t
 		var y := r.top_end + vy * t - 0.5 * car.gravity * t * t + 0.8
 		_crystal(r, Vector3(r.x + r.kick * t, y, z))
+
+
+# --------------------------------------------------------------------------
+# Ada zincirleri: kısa adalar, aralarında gazsız sıçramalar, yan yana yollar
+# --------------------------------------------------------------------------
+
+## Ada zinciri türleri:
+##  ada       – her adımda 1-3 yan yana kısa ada; üstlerinde blok, çakıl, kristal
+##  ada_rampa – rampa (up) / rampa (down) adalar, uçlarında zıplatan kamalar, bloklar
+##  ada_çoklu – her adımda 2-3 ada, farklı yüksekliklerde (alçak / orta / yüksek)
+##  ada_eğik  – sağda solda uzak adalar; her birinin sonunda karşıya atan eğik rampa
+## Adalar arası boşluk gazsız zıplamayla geçilir (gaz verirsen kısa adayı aşabilirsin).
+## Zincire girişte ve çıkışta roketli normal boşluk vardır.
+const ISLAND_KINDS := {"ada": 1.0, "ada_rampa": 1.0, "ada_çoklu": 0.9, "ada_eğik": 0.8}
+var _last_island := ""
+
+
+## Gazsız zıplamanın yatay erişimi (araba boyu dahil) ve uçuş süresi: vy kalkıştaki dikey hız
+func _hop(v: float, vy: float, dh: float) -> Vector2:
+	var t := _flight_time(dh, vy)
+	return Vector2(car.half_length * 2.0 + v * t, t)
+
+
+func _build_islands(prev: Segment, travelled: float) -> Segment:
+	var total := 0.0
+	var weights := {}
+	for k: String in ISLAND_KINDS:
+		weights[k] = 0.0 if k == _last_island else float(ISLAND_KINDS[k])
+		total += weights[k]
+	var pick := _rng.randf() * total
+	var kind := "ada"
+	for k: String in weights:
+		pick -= weights[k]
+		if pick <= 0.0 and weights[k] > 0.0:
+			kind = k
+			break
+	_last_island = kind
+	stats[kind] = int(stats.get(kind, 0)) + 1
+	var hw: float = car.model.half_width if car.model else 1.1
+	var lv := car.launch_velocity
+	var g := car.gravity
+	# Havada yana erişim (güvenli pay ile)
+	var v0 := estimate_speed(car.global_position.z - prev.z_end)
+	var reach_t := _flight_time(-1.0, lv)
+	var side_reach := car.steer_speed * reach_t * car.air_control * 0.7
+	# Yan yana adalar arası (merkezden merkeze): adalar ayrı dursun (aralarında boşluk)
+	var d := _rng.randf_range(5.0, 5.8)
+	# Adadan adaya yana erişim: adada kalkıştan önce kayma (~0.35 sn) + havada
+	var lane_reach := side_reach + car.steer_speed * 0.35
+	# Giriş: roketli normal boşluk; ilk ada tam roketle inişi taşıyacak kadar uzun
+	var entry := _pick_gap(prev.slope(), _rng.randf_range(-1.5, 0.0), v0, gap_difficulty)
+	var top := maxf(prev.top_end + float(entry.dh), MIN_LEVEL + 6.0)
+	var z := prev.z_end - float(entry.gap)
+	var cx := prev.x + _rng.randf_range(-1.5, 1.5)
+	var steps := _rng.randi_range(5, 7) if kind == "ada_eğik" else _rng.randi_range(6, 9)
+	var main_x := cx
+	var prev_lanes: Array = [cx]
+	var last_main: Segment = null
+	var eg_side := -1.0 if _rng.randf() < 0.5 else 1.0
+	# Önceki zıplamanın en uzak inişi: bu adanın en az bu kadar uzun olması gerekir
+	var min_next_L := 0.0
+	# Bu adaya en uzak iniş (adanın başından): engeller bunun ötesinde başlar
+	var land_far_cur: float = float(entry.min_len) - v0 * 1.2
+	var depth := _rng.randf_range(10.0, 24.0)
+	for k in steps:
+		var v := estimate_speed(car.global_position.z - z)
+		var last := k == steps - 1
+		# --- Bu adımın şeridleri: [x, genişlik, yükseklik farkı]
+		var lanes: Array = []
+		match kind:
+			"ada_eğik":
+				eg_side = -eg_side
+				var w := _rng.randf_range(4.8, 5.8)
+				lanes.append([cx + eg_side * _rng.randf_range(3.0, 4.2) if k > 0 else cx, w, 0.0])
+			"ada_çoklu":
+				var sets := [[-d, 0.0, d], [-d, d], [0.0, d], [-d, 0.0]]
+				var xs: Array = sets[_rng.randi() % sets.size()]
+				var hs := [-1.2, -0.6, 0.0]
+				hs.shuffle()
+				for i in xs.size():
+					lanes.append([cx + float(xs[i]), _rng.randf_range(3.4, 4.2), hs[i % 3] if xs.size() > 1 else 0.0])
+			_:
+				var sets := [[0.0], [-d, d], [0.0, d], [-d, 0.0], [-d, 0.0, d]]
+				var wts := [1.0, 1.0, 0.8, 0.8, 0.5]
+				var tw := 0.0
+				for x in wts:
+					tw += x
+				var p := _rng.randf() * tw
+				var xs: Array = sets[0]
+				for i in sets.size():
+					p -= wts[i]
+					if p <= 0.0:
+						xs = sets[i]
+						break
+				for x in xs:
+					lanes.append([cx + float(x), _rng.randf_range(3.6, 4.2) if xs.size() > 1 else _rng.randf_range(4.6, 6.2),
+						_rng.randf_range(-0.8, 0.0) if xs.size() > 1 else 0.0])
+		if k == 0 or last:
+			# Giriş ve çıkış adası tek ve geniş: roketli boşluğa iniş/kalkış
+			lanes = [[cx, _rng.randf_range(5.5, 7.0), 0.0]] if kind != "ada_eğik" else [[lanes[0][0], 5.5, 0.0]]
+		# Erişim: önceki adımın her adasından bu adımın en az bir adasına yetişilmeli
+		if kind != "ada_eğik":
+			for px in prev_lanes:
+				var ok := false
+				for ln in lanes:
+					if absf(float(ln[0]) - float(px)) <= lane_reach + 0.5:
+						ok = true
+				if not ok:
+					var has_mid := false
+					for ln in lanes:
+						if absf(float(ln[0]) - cx) < 1.0:
+							has_mid = true
+					if not has_mid:
+						# Erişim için gereken orta ada: onunla çakışan adalar çıkar (orta ada kalmalı)
+						lanes = lanes.filter(func(ln: Array) -> bool:
+							return absf(float(ln[0]) - cx) >= (float(ln[1]) + 4.0) * 0.5 + 0.8)
+						lanes.append([cx, 4.0, 0.0])
+		# Adalar üst üste binmesin: soldan sağa, aralarında en az 0.8 m boşluk
+		lanes.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]))
+		var kept: Array = []
+		for ln in lanes:
+			if kept.is_empty() or float(ln[0]) - float(kept[-1][0]) >= (float(ln[1]) + float(kept[-1][1])) * 0.5 + 0.8:
+				kept.append(ln)
+		lanes = kept
+		# --- Ada boyu: kısa (0.7-1.4 sn); ilk ada roket inişini taşır
+		var L := maxf(v * _rng.randf_range(0.7, 1.4), min_next_L)
+		# Blok adası: arada bir biraz uzun (en çok 2 sn), inişten sonra engel sığsın;
+		# tek adaysa geniş (blok yanından geçilsin)
+		var block_isle := kind != "ada_eğik" and k > 0 and not last and _rng.randf() < 0.4
+		if block_isle:
+			L = maxf(L, v * _rng.randf_range(1.6, 2.0))
+			if lanes.size() == 1:
+				lanes[0][1] = maxf(float(lanes[0][1]), _rng.randf_range(5.2, 6.2))
+			else:
+				# Yan yana adalar da blok sığacak kadar geniş; aralarını biraz aç
+				for ln in lanes:
+					ln[0] = cx + (float(ln[0]) - cx) * 6.0 / d
+					ln[1] = _rng.randf_range(4.9, 5.2)
+		if k == 0:
+			L = maxf(L, float(entry.min_len))
+		if last:
+			L = maxf(L, clampf(v * lights_time, 18.0, 70.0) + v * 1.2)
+		# --- Uç türü: düz zıplama, kama (zıplatan rampa), eğik rampa; rampa up/down ada
+		var end := "hop"
+		var rise := 0.0
+		if not last:
+			match kind:
+				"ada_rampa":
+					var r := _rng.randf()
+					if r < 0.35:
+						end = "kama"
+					elif r < 0.65:
+						rise = _rng.randf_range(0.8, 1.6)   # rampa (up)
+					else:
+						rise = -_rng.randf_range(1.0, 2.0)  # rampa (down)
+				"ada_eğik":
+					end = "eğik"
+				_:
+					if _rng.randf() < 0.18:
+						end = "kama"
+		# Kalkışta dikey hız
+		var slope := rise / maxf(L, 1.0)
+		# Kama ve eğik rampa hıza göre: kalkıştaki dikey hız hep ~10-13 m/s (tepe ~2-3 m)
+		var r_len := 6.0 if end == "kama" else 7.0
+		var r_rise := 0.0
+		if end == "kama":
+			r_rise = clampf(r_len * (_rng.randf_range(10.0, 12.5) - lv) / maxf(v, 1.0), 0.4, 2.0)
+		elif end == "eğik":
+			r_rise = clampf(r_len * (_rng.randf_range(10.5, 12.0) - lv) / maxf(v, 1.0), 0.5, 2.0)
+		var vy := lv + v * slope
+		if end != "hop":
+			vy = lv + v * r_rise / r_len
+		# Sonraki adımın yüksekliği (bu adanın kalkış noktasına göre): zıplamanın
+		# tepesinin epey altında kalmalı ki ön yüzüne çarpılmasın
+		var apex := vy * vy / (2.0 * g)
+		var end_top := top + rise + r_rise
+		var dh_take := 0.0
+		# Bu adımın en alçak adası (şerit yükseklik farkı; sonraki adımda en yüksek fark 0)
+		var low_off := 0.0
+		for ln in lanes:
+			low_off = minf(low_off, float(ln[2]))
+		if not last:
+			dh_take = _rng.randf_range(-1.8, maxf(apex * 0.4 + low_off, -1.8))
+			if end_top + dh_take < MIN_LEVEL + 4.0:
+				dh_take = absf(dh_take) * 0.5
+			if end_top + dh_take > MAIN_LEVEL + 5.0:
+				dh_take = -absf(dh_take) - 0.5
+		# --- Adaları kur
+		var built: Array[Segment] = []
+		var best := INF
+		var main_i := 0
+		for i in lanes.size():
+			var ln: Array = lanes[i]
+			var x: float = ln[0]
+			var w: float = ln[1]
+			var t0: float = top + float(ln[2])
+			var sg := _add_segment(x, t0, t0 + rise, w, z, z - L, true, false, depth + t0 - top, last)
+			sg.hop = not last
+			sg.events_log.append(kind)
+			built.append(sg)
+			if absf(x - main_x) < best:
+				best = absf(x - main_x)
+				main_i = i
+		# Yalnız bir ada "ana yol" (test sürücüsü ve portal bunu izler); öbürleri yan ada
+		for i in built.size():
+			built[i].main = i == main_i
+			built[i].side_road = i != main_i
+		var main_seg := built[main_i]
+		main_x = main_seg.x
+		# Uçlar: kama ya da eğik rampa adanın son kısmına
+		var flight := Vector2.ZERO
+		var kick := 0.0
+		var next_x := cx
+		if end == "eğik" and not last:
+			var nx := cx + (-eg_side) * _rng.randf_range(3.0, 4.2)
+			flight = _hop(v, vy, dh_take)
+			kick = (nx - main_seg.x) / maxf(flight.y, 0.2)
+			_add_ramp(main_seg, main_seg.x, main_seg.width, z - L + r_len, r_len, r_rise, 7.0, kick)
+			next_x = nx
+		elif end == "kama":
+			for sg in built:
+				_add_ramp(sg, sg.x, sg.width * _rng.randf_range(0.55, 1.0), z - L + r_len, r_len, r_rise, 0.0, 0.0)
+		# Engeller ve kristaller: inişten sonra, kalkıştan önce
+		var land_in := land_far_cur + v * 0.45 if k > 0 else _clear_start(v, land_far_cur)
+		for sg in built:
+			var za := sg.z_start - land_in
+			var zb := sg.z_end + (r_len if end != "hop" else 0.0) + v * 0.4
+			if za - zb > v * (0.3 if block_isle else 0.45) and sg.width >= 3.6 and (block_isle or _rng.randf() < 0.5):
+				var bz := _rng.randf_range(zb + 1.5, za)
+				var lane_w := maxf(3.4, hw * 2.0 + 1.3)
+				if sg.width >= lane_w + 1.4 and (_rng.randf() < 0.7 or za - zb < 11.0):
+					_single_block(sg, bz, lane_w)
+					# Yer varsa ikinci blok (arada tepki payı)
+					var bz2 := bz - v * _rng.randf_range(0.5, 0.7)
+					if bz2 > zb + 1.5:
+						_single_block(sg, bz2, lane_w)
+				elif za - zb >= 11.0:
+					bz = _rng.randf_range(zb + 10.5, za)
+					var gw := sg.width * 0.5
+					var left := _rng.randf() < 0.5
+					_add_gravel(sg, sg.x - sg.width * 0.5 if left else sg.x + sg.width * 0.5 - gw,
+						sg.x - sg.width * 0.5 + gw if left else sg.x + sg.width * 0.5, bz, 10.0)
+				_validate_rows(sg, v)
+			# Yan adalar kristalli (zor seçim ödüllü), ana adada bazen
+			if (sg != main_seg or _rng.randf() < 0.3) and za - zb > 8.0:
+				var gx := sg.x + _rng.randf_range(-0.2, 0.2) * sg.width
+				_crystal_line(sg, gx, za, gx, maxf(zb, za - 24.0), 3)
+		if end == "eğik" and not last:
+			# Eğik rampanın uçuş yayında kristaller
+			for i in 3:
+				var t: float = flight.y * (0.3 + 0.2 * i)
+				_crystal(main_seg, Vector3(main_seg.x + kick * t, main_seg.top_end + r_rise + vy * t - 0.5 * g * t * t + 0.8,
+					z - L - v * t))
+		last_main = main_seg
+		prev_lanes = []
+		for sg in built:
+			prev_lanes.append(sg.x)
+		if end == "eğik" and not last:
+			prev_lanes = [next_x]
+		if last:
+			break
+		# --- Boşluk: en yüksek adaya gazsız yetişilsin (şerit farkı +0.5 m payı),
+		# en alçağa inen kısa adayı aşmasın
+		var hop := _hop(v, vy, minf(dh_take - low_off + 0.2, apex * 0.6))
+		var gap := car.half_length + v * hop.y * _rng.randf_range(0.3, 0.45)
+		if end == "eğik":
+			gap = car.half_length + v * flight.y * 0.4
+		# Bir sonraki ada en uzak inişi taşısın (en alçak şeride, biraz hızlı gelinse de)
+		var far := _hop(v * 1.15, vy, dh_take - low_off - 1.2)
+		min_next_L = far.x - gap + v * 0.35
+		land_far_cur = far.x - gap
+		top = end_top + dh_take
+		z = z - L - gap
+		if end == "eğik":
+			cx = next_x
+	# Çıkış adası roketli boşluğa açılır: kolay kristal çizgileri
+	_road_crystals(last_main, v0, travelled)
+	_add_decor(last_main)
+	return last_main
 
 
 # --------------------------------------------------------------------------

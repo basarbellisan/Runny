@@ -90,7 +90,8 @@ func _drive_input() -> Vector2:
 			# Çatal: bir kol seç, öbür kolun yollarını yok say
 			if s.route != 1 + s.fork_id % 2:
 				continue
-		if s.z_start < pos.z or s.contains(pos):
+		# Havadayken üstünden geçtiğimiz yol da hedef (ada zinciri: başını geçtik ama yana kayıyoruz)
+		if s.z_start < pos.z or s.contains(pos) or (current == null and s.z_end < pos.z - 4.0):
 			target = s
 			break
 	if target == null:
@@ -110,7 +111,9 @@ func _drive_input() -> Vector2:
 		var time_to_edge := (pos.z - current.road_end_z()) / maxf(car.forward_speed, 1.0)
 		# Enerji için: önümüzdeki, yolun üstündeki en yakın kristale doğru (pistte değilsek)
 		var to_joint := (pos.z - current.z_end) / maxf(car.forward_speed, 1.0)
-		if collect_crystals and time_to_edge > 0.9 and (current.next_flush == null or to_joint > 0.9):
+		# Ada zincirinde sonraki ada yandaysa kristal kovalama: önce oraya kay
+		var island_shift := current.hop and absf(target.x - current.x) > 2.0
+		if collect_crystals and not island_shift and time_to_edge > 0.9 and (current.next_flush == null or to_joint > 0.9):
 			var cx := _crystal_aim(current, pos, lim)
 			if not is_nan(cx):
 				aim = cx
@@ -119,15 +122,26 @@ func _drive_input() -> Vector2:
 			var lim2 := maxf(target.width * 0.5 - car.model.half_width - 0.5, 0.0)
 			aim = clampf(target.x, maxf(current.x - lim, target.x - lim2), minf(current.x + lim, target.x + lim2))
 		var aligned := absf(aim - pos.x) < 1.0 and absf(car.velocity.x) < 3.0
-		if use_boost and time_to_edge < 0.6 and (aligned or time_to_edge < 0.42):
+		# Ada zincirinde küçük boşluklar gazsız geçilir (gaz kısa adayı aştırır)
+		if use_boost and not current.hop and time_to_edge < 0.6 and (aligned or time_to_edge < 0.42):
 			return Vector2(0.0, 1.0)
 	var steer := _steer_to(aim, pos) if current != null else _toward(aim - pos.x, 0.25)
+	if current == null and car._kick_hold > 0.0:
+		# Eğik rampadan atıldık: hız hedefe götürüyorsa dokunma, yetmiyorsa o yana bas
+		var t_land := maxf(car._time_to_fall_to(target.top_at(pos.z)), 0.05)
+		var land_x := pos.x + car.velocity.x * t_land
+		if absf(land_x - aim) < target.width * 0.3:
+			return Vector2.ZERO
+		return Vector2(signf(aim - land_x), 0.0)
 	if not car.is_on_floor() and car.velocity.y < 0.0:
 		# İnerken: önce gövdeyi düzle (direksiyon yatırır), sonra az az hizalan
 		# (Eğik rampadan kalkınca gövde biraz yatık olur; o kadarı temiz inişe engel değil)
 		if absf(car.roll) > 0.22:
 			return Vector2(clampf(car.roll * 3.0, -1.0, 1.0), 0.0)
-		steer = clampf(steer, -0.3, 0.3)
+		# Hedef ada yandaysa (ada zinciri) tam bas, yoksa az az hizalan
+		var from_island: bool = car._last_segment != null and (car._last_segment.hop or car._last_segment.pattern == "ada")
+		var far_side := from_island and target != null and absf(aim - pos.x) > target.width * 0.5 - 0.8
+		steer = clampf(steer, -1.0, 1.0) if far_side else clampf(steer, -0.3, 0.3)
 	return Vector2(steer, 0.0)
 
 
