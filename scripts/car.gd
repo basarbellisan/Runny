@@ -197,6 +197,8 @@ var _yaw := 0.0
 var _fishtail := 0.0
 ## Eğik rampadan atıldıktan sonra yana hızın korunduğu süre (yere değince biter)
 var _kick_hold := 0.0
+## Yerde ileri gidemediğimiz süre (fizik motoru yatık yol yüzeyinde takabiliyor)
+var _stuck_time := 0.0
 ## Tümsekten fırlarken kısa bir süre zemine yapışma kapalı
 var _snap_off := 0.0
 var fx: CarFx
@@ -424,6 +426,16 @@ func _drive(delta: float) -> void:
 		return
 	if _keep_out_of_walls():
 		return
+	# Yatık yolun üçgenli yüzeyinde fizik motoru arabayı bazen bir noktaya takıyor
+	# (duvar değil, zemin): ~0.12 sn ileri gidemiyorsak hafifçe kaldır ve ileri it
+	var want := forward_speed * surface_drag
+	if is_on_floor() and _mode_time > 0.3 and want > 5.0 and -get_real_velocity().z < want * 0.3:
+		_stuck_time += delta
+		if _stuck_time > 0.12:
+			global_position += Vector3(0.0, 0.12, -want * delta)
+			_stuck_time = 0.0
+	else:
+		_stuck_time = 0.0
 
 	var now_on_floor := is_on_floor()
 	if _was_on_floor and not now_on_floor and _left_through_end():

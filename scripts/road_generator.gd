@@ -1667,8 +1667,9 @@ func _road_crystals(first: Segment, v: float, travelled: float) -> void:
 			var xb := first.x + _rng.randf_range(-0.3, 0.3) * first.width
 			_crystal_line(first, xa, land_z, xb, land_z - span, n_land)
 		var free := land_z - span - (first.z_start - _clear_start(v, 0.0))
+		# (Yatık yolda yok: düz kutu yatık yüzeye oturmaz, kenarda havada kalır)
 		if _rng.randf() < 0.18 * _act and first.width >= 5.0 and first.obstacles.is_empty() \
-				and land_z - span - first.z_end > 30.0:
+				and first.bank_a.is_empty() and land_z - span - first.z_end > 30.0:
 			# Yanda kısa çakıl: inen arabayı öldürmez, yavaşlatır
 			var bw := first.width * _rng.randf_range(0.35, 0.45)
 			var gz := land_z - _rng.randf_range(0.0, span * 0.5)

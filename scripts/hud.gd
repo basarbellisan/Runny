@@ -190,6 +190,13 @@ func set_speed(speed: float, base_speed: float, boost: float, show: bool) -> voi
 		create_tween().tween_property(_speedo, "modulate:a", 1.0 if show else 0.0, 0.4)
 
 
+## Oyun bitince kadranlar kalkar (yalnız oynarken görünür)
+func hide_gauges() -> void:
+	_speedo_shown = false
+	for c: Control in [_speedo, gauge]:
+		create_tween().tween_property(c, "modulate:a", 0.0, 0.3)
+
+
 ## Enerji (0-100) sağdaki depoda
 func set_energy_value(v: float, max_v: float) -> void:
 	gauge.set_value(v, max_v)

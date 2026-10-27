@@ -340,6 +340,7 @@ func _on_portal(p: LowerLayer.Portal) -> void:
 
 func _on_game_over(reason: String) -> void:
 	game_over = true
+	hud.hide_gauges()
 	var final := int(score)
 	var cfg := _load_save()
 	var best := maxi(final, int(cfg.get_value("score", "best", 0)))

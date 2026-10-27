@@ -60,6 +60,7 @@ Yolun başı (iniş) ve sonu (pist ışıkları + hizalanma) engelsizdir; oralar
 Sağ altta enerji deposu (solda hız kadranı): beyaz disk, ortada sayı, çevresinde
 limon yeşili halka (tepeden saat yönünde dolar). 20'nin altında kırmızı nabız ve
 "KRİSTAL TOPLA!"; kristal alınca üstünde "+4" belirir (art arda toplananlar toplanır), halkanın ucu parlar.
+İki kadran da yalnız oynarken görünür: oyun bitince kaybolur.
 Tek enerji: roket ve kanatlar aynı depodan yer. Düşerken enerji 20'den azsa
 kanatlar için 20 yedek verilir; alt katmandaki kristaller de bu depoyu doldurur.
 Yola dönünce depo dolmaz (ne topladıysan o).
@@ -83,6 +84,8 @@ vardır: yol hangi yana yatıyorsa o kenarda, yatık bölüm boyunca (S bükülm
 öbür kenara geçer). Yatık yolun sonu her zaman düzdür
 (pist ışıkları + roket). Yüzey tek parça kıvrılan bir ağ; arabanın çarpışma
 omurgası altı yuvarlak bir kapsül olduğu için yüzeyin kenarlarına takılmaz.
+Yine de fizik motoru arabayı bir noktada tutarsa (yerdeyken ~0.12 sn ileri
+gidemezse) araba hafifçe kaldırılıp ileri itilir.
 
 ## Hız
 Temel hız 22 m/s'den (79 km/sa) başlar, her saniye 0.35 m/s artar ve ~94 sn'de
@@ -202,7 +205,8 @@ kalırdı) ve gövde sarsılır (biraz yatma ve burun kalkması, yana itiş): in
 toparlamak gerekir. Tümsekten sonraki uçuş mesafesi boyunca engel konmaz. Çakıl: arkayı savurur (burun sağa sola sallanır),
 etkisi hızla artar (en yüksek hızda ~1.35 kat), çıkınca ~0.8 sn sendelersin.
 İniş bölgesi engelsizdir ama seçim vardır: iki yana ayrılan iki kristal çizgisi
-(uzaktaki yanda bir kristal fazla) ya da bir yanda kısa çakıl. Pist çizgisi bir
+(uzaktaki yanda bir kristal fazla) ya da bir yanda kısa çakıl (yatık yolda
+çakıl yok: düz kutu yatık yüzeye oturmuyor, kenarda havada kalıyordu). Pist çizgisi bir
 yandan başlayıp ortaya iner. Çatalın kolay kolu ve çıkmazın yanındaki ana yol da
 olaylarla dolar; yol ağında parçalar alçak yolun yanındaki ana yola da dizilir. 10 km'lik ölçümde 2 sn'den uzun "hiçbir şey olmayan" aralıklar
 yolun %45'inden ~%10'una indi (kristaller dahil; `--dump_roads` ile ölçülür).
