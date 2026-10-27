@@ -6,11 +6,13 @@ extends Node3D
 ## variant 3 – Konsept: uzun alçak gövde, büyük ince tekerler, beyaz jantlar
 ## variant 4 – Roadster: sivri uzun burun, açık kokpitin üstünde siperlik,
 ##             arkaya doğru kavisle inen kubbe, iri tekerler dışarıda
+## variant 5 – Formül: ince uzun burun ve ön kanat, açık kokpit, yan paneller,
+##             iki eğik ayakla taşınan büyük arka kanat, sekizgen iri tekerler
 ##
 ## Tekerler (wheels) fizik için de kullanılır: her birinin yerdeki
 ## temas noktası (contact), yarıçapı ve süspansiyon/dönüş düğümleri var.
 
-@export_range(1, 4) var variant := 1:
+@export_range(1, 5) var variant := 1:
 	set(v):
 		variant = v
 		if is_node_ready():
@@ -70,8 +72,10 @@ func _build() -> void:
 			_build_rover()
 		3:
 			_build_concept()
-		_:
+		4:
 			_build_roadster()
+		_:
+			_build_formula()
 
 
 func _build_box() -> void:
@@ -174,6 +178,58 @@ func _build_roadster() -> void:
 		_panel([Vector3(sx * 0.1, 0.58, -2.47), Vector3(sx * 0.36, 0.58, -2.47), Vector3(sx * 0.34, 0.7, -2.47),
 			Vector3(sx * 0.12, 0.7, -2.47)], Vector3.FORWARD, _light)
 	_wheels(1.0, 1.32, 0.456, 0.42, true, 10, 0.6)
+
+
+func _build_formula() -> void:
+	paint_material.albedo_color = Color("ff6a1a")
+	tire_material.albedo_color = Color("4a4d51")
+	# Gövde: önde ince ve alçak burun, kokpite doğru yükselip genişler, arkada daralır
+	_hull([
+		[-2.55, 0.17, 0.15, 0.36, 0.56],
+		[-1.6, 0.26, 0.22, 0.34, 0.7],
+		[-0.75, 0.38, 0.32, 0.32, 0.88],
+		[0.2, 0.44, 0.36, 0.32, 0.92],
+		[1.3, 0.4, 0.32, 0.32, 0.84],
+		[2.15, 0.32, 0.26, 0.34, 0.66],
+	], paint_material, 0.28)
+	# Yan paneller (sidepod): ön tekerin arkasından arka tekere uzanan iri kama;
+	# önü kokpitin önünde çentikli, üstü kokpit hizasına kadar yüksek
+	for sx in [-1.0, 1.0]:
+		var xo: float = sx * 0.66
+		_hull([
+			[-0.8, 0.24, 0.24, 0.32, 0.5],
+			[-0.45, 0.24, 0.24, 0.32, 0.8],
+			[1.1, 0.24, 0.22, 0.32, 0.78],
+			[1.6, 0.22, 0.2, 0.32, 0.56],
+		], paint_material, 0.18)
+		get_child(get_child_count() - 1).position.x = xo
+	# Kokpit: koyu açıklık ve sürücünün arkasında koyu koltuk başlığı
+	_box(Vector3(0.52, 0.06, 0.95), Vector3(0, 0.94, -0.35), dark_material)
+	_box(Vector3(0.46, 0.46, 0.28), Vector3(0, 1.08, 0.08), dark_material)
+	# Hava girişi / motor kapağı: kokpitin arkasından arka kanada yükselen yüzgeç
+	_hull([
+		[0.2, 0.24, 0.22, 0.8, 1.3],
+		[0.55, 0.26, 0.22, 0.8, 1.3],
+		[1.5, 0.2, 0.14, 0.7, 1.04],
+		[2.1, 0.16, 0.12, 0.62, 0.78],
+	], paint_material, 0.25)
+	# Koltuk başlığının üstünde öne uzanan düz tabla (hava girişinin kapağı)
+	_box(Vector3(0.7, 0.1, 0.7), Vector3(0, 1.34, 0.05), paint_material)
+	# Arka kanat: iki kalın, geriye yatık ayak ve kalın geniş plaka
+	for sx in [-1.0, 1.0]:
+		var leg: MeshInstance3D = _box(Vector3(0.16, 1.05, 0.26), Vector3(sx * 0.24, 1.3, 1.72), paint_material)
+		leg.rotation.x = -0.62
+	_box(Vector3(2.1, 0.2, 0.72), Vector3(0, 1.78, 2.02), paint_material)
+	# Arka alt plaka (difüzör) ve ön kanat
+	_box(Vector3(1.8, 0.16, 0.6), Vector3(0, 0.4, 2.12), paint_material)
+	_box(Vector3(1.7, 0.1, 0.5), Vector3(0, 0.32, -2.32), paint_material)
+	# Arka stop lambası (difüzörün ortasında)
+	_box(Vector3(0.34, 0.1, 0.04), Vector3(0, 0.55, 2.43), _tail)
+	_wheels(1.04, 1.42, 0.52, 0.52, true, 8, 0.5)
+	# Sekizgen tekerler: lastik de 8 kenarlı
+	for wh in wheels:
+		var tire_mi: MeshInstance3D = wh.spin.get_child(0)
+		(tire_mi.mesh as CylinderMesh).radial_segments = 8
 
 
 ## Düz panel (pencere, lamba): verilen yöne bakan dışbükey çokgen
