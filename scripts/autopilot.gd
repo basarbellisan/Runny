@@ -107,6 +107,9 @@ func _drive_input() -> Vector2:
 		var dodge := _dodge(current, pos)
 		if not is_nan(dodge):
 			return Vector2(_steer_to(dodge, pos), 0.0)
+		# Çakıl arabayı savurur: kenara yakınsa ortaya doğru tut
+		if car.on_gravel and absf(pos.x - current.x) > current.width * 0.5 - car.model.half_width - 1.2:
+			return Vector2(_steer_to(current.x, pos), 0.0)
 		# Roket: yolun sonuna ~0.6 sn kala (pist ışıklarında) hizalıysak gaza bas
 		var time_to_edge := (pos.z - current.road_end_z()) / maxf(car.forward_speed, 1.0)
 		# Enerji için: önümüzdeki, yolun üstündeki en yakın kristale doğru (pistte değilsek)

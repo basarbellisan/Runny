@@ -94,7 +94,7 @@ class Segment:
 
 ## Düz yolların ritmi: her ruh hâlinin süresi (sn, o anki hızla; min, max)
 ## (iniş ve pist ışıkları bölgesinin dışında kalan, olayların dizildiği kısım)
-const MOOD_SECONDS := {"nefes": Vector2(0.0, 0.5), "orta": Vector2(1.0, 2.0), "yoğun": Vector2(1.8, 3.2)}
+const MOOD_SECONDS := {"nefes": Vector2(0.6, 1.0), "orta": Vector2(1.0, 2.0), "yoğun": Vector2(1.8, 3.2)}
 
 ## Ana seviye ve alçak seviye (yol üstü yüksekliği)
 const MAIN_LEVEL := 0.0
@@ -691,6 +691,9 @@ func _next_from(prev: Segment) -> Segment:
 		_fill_events(seg, v, z_start - _clear_start(v, land_far), seg.z_end + _clear_end(v), "orta")
 	elif (mood == "" or seg == first) and _rng.randf() < side_road_chance:
 		_add_side_road(seg)
+	elif mood == "" and not banked and travelled > obstacles_from:
+		# Kalıbın içindeki kısa düz yol (rampa yolu, basamak...) da boş kalmasın
+		_fill_events(seg, v, z_start - _clear_start(v, land_far), seg.z_end + _clear_end(v), "orta", -1, true)
 	_road_crystals(first, v, travelled)
 	_add_decor(first)
 	return seg
@@ -822,6 +825,11 @@ func _add_fork(prev: Segment) -> Segment:
 		m_len = maxf(m_len, far + v * 1.2)
 	var merge := _add_segment((x_l + x_h) * 0.5, m_top, m_top, m_w,
 		m_start, m_start - m_len, true)
+	# Geniş birleşme yolu da engelli: en uzak inişten sonra, pistten önce
+	var m_far := 0.0
+	for e in [[end_h, g_h], [end_l, g_l]]:
+		m_far = maxf(m_far, car_len + v_full * _flight_time(m_top - e[0].end, car.launch_velocity) - e[1])
+	_fill_events(merge, v, m_start - _clear_start(v, m_far), merge.z_end + _clear_end(v), "orta", -1, true)
 	_add_decor(merge)
 	stats.forks = fork_id
 	return merge
@@ -1010,7 +1018,8 @@ func _clear_start(v: float, land_far: float) -> float:
 
 ## Yolun sonunda boş kalacak uzunluk: pist ışıkları ve gaz öncesi hizalanma
 func _clear_end(v: float) -> float:
-	return clampf(v * lights_time, 18.0, 70.0) + v * 0.5
+	# Son engelden sonra ~0.45 sn tepki + pist ışıklarının ilk yarısında hizalanıp gaz
+	return clampf(v * lights_time * 0.6, 14.0, 45.0) + v * 0.45
 
 
 ## Tam roketle bu boşluğu atlayan arabanın yeni yolun başından ne kadar ileride ineceği
@@ -1058,7 +1067,7 @@ func _add_gravel(s: Segment, x0: float, x1: float, z: float, depth: float) -> vo
 ##  tümsek      – küçük tümsek: tepede hafifçe havalanırsın
 const EVENTS := {
 	"tek_blok": [1.0, 4.6, false], "iki_blok": [0.8, 5.0, false], "kapı": [0.7, 6.4, false],
-	"zikzak": [0.5, 5.5, false], "çakıl_şerit": [0.55, 6.0, false], "çakıl_tarla": [0.35, 0.0, false],
+	"zikzak": [0.5, 5.5, false], "çakıl_şerit": [0.55, 6.0, false], "çakıl_tarla": [0.35, 6.5, false],
 	"çakıl_yan": [0.55, 5.0, false], "blok_çakıl": [0.4, 7.0, false],
 	"daralma": [0.6, 5.6, true], "yarık": [0.55, 5.6, true], "kayma": [0.75, 4.8, true],
 	"genişleme": [0.3, 0.0, true], "tümsek": [1.1, 0.0, true],
@@ -1073,7 +1082,7 @@ const EVENTS := {
 ## Şu anki (mesafeyle büyümüş) aksiyon çarpanı
 var _act := 2.0
 ## Ruh hâline göre bir yoldaki olay sayısı (en az, en çok)
-const MOOD_EVENTS := {"nefes": Vector2i(0, 1), "orta": Vector2i(2, 3), "yoğun": Vector2i(3, 6)}
+const MOOD_EVENTS := {"nefes": Vector2i(1, 1), "orta": Vector2i(2, 3), "yoğun": Vector2i(3, 6)}
 
 
 ## Sıradaki düz yolun ruh hâli. İki nefes üst üste gelmez, yoğun en fazla iki kez.
@@ -1099,12 +1108,14 @@ func _next_mood(difficulty: float) -> String:
 
 ## Olay seç: genişliği yetenler arasından ağırlıkla; son olay hiç gelmez,
 ## son birkaç olayın şansı düşer. Uygun yoksa "".
-func _pick_event(w: float, shapes_ok: bool) -> String:
+func _pick_event(w: float, shapes_ok: bool, no_gravel := false) -> String:
 	var total := 0.0
 	var weights := {}
 	for kind: String in EVENTS:
 		var e: Array = EVENTS[kind]
 		if w < e[1] or (e[2] and not shapes_ok) or (kind == "genişleme" and w > 7.5):
+			continue
+		if no_gravel and kind.contains("çakıl"):
 			continue
 		var wt: float = e[0]
 		if not _recent_events.is_empty() and _recent_events[-1] == kind:
@@ -1174,15 +1185,17 @@ func _make_event(kind: String, w: float, v: float) -> Dictionary:
 
 ## z_from'dan z_to'ya (ileriye) dizilecek olaylar; ruh hâline göre sayı ve aralık
 func _plan_events(z_from: float, z_to: float, w: float, v: float, mood: String, shapes_ok: bool,
-		n_max := -1) -> Array[Dictionary]:
+		n_max := -1, no_gravel := false) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	if n_max < 0:
 		n_max = _rng.randi_range(roundi(MOOD_EVENTS[mood].x * _act), roundi(MOOD_EVENTS[mood].y * _act))
 	var z := z_from - v * _rng.randf_range(0.0, 0.4)
 	var tries := 0
-	while out.size() < n_max and tries < n_max + 4:
+	# Sayı dolsa da yolun kalanı ~1 sn'den uzunsa olay eklemeye devam (uzun boş düzlük olmasın)
+	while (out.size() < n_max or z - z_to > v * 1.0) and tries < n_max + 12:
 		tries += 1
-		var kind := _pick_event(w, shapes_ok)
+		# Boş kalan yeri dolduran fazladan olaylar çakılsız (çakıl kenardan atabilir)
+		var kind := _pick_event(w, shapes_ok, no_gravel or out.size() >= n_max)
 		if kind == "":
 			break
 		var e := _make_event(kind, w, v)
@@ -1201,7 +1214,10 @@ func _plan_events(z_from: float, z_to: float, w: float, v: float, mood: String, 
 			# İnişten sonra toparlanma (sarsıntı): bir sonraki olaya biraz vakit
 			gap = maxf(gap, v * 0.75)
 		elif kind == "kayma":
-			gap = maxf(gap, v * 0.55)
+			gap = maxf(gap, v * 0.7)
+		elif kind in ["daralma", "yarık", "genişleme"]:
+			# Dar/geniş bölümden çıkınca bir sonraki sıranın geçidine kaymaya vakit
+			gap = maxf(gap, v * 0.8)
 		z -= e.len + gap
 	return out
 
@@ -1287,8 +1303,9 @@ func _build_road(x: float, top: float, w: float, z_start: float, length: float, 
 
 
 ## Boş bir yol aralığını (ağın parçaları arası, yan yollar) engel olaylarıyla doldurur
-func _fill_events(s: Segment, v: float, z_from: float, z_to: float, mood: String, n_max := -1) -> void:
-	for e in _plan_events(z_from, z_to, s.width, v, mood, false, n_max):
+func _fill_events(s: Segment, v: float, z_from: float, z_to: float, mood: String, n_max := -1,
+		no_gravel := false) -> void:
+	for e in _plan_events(z_from, z_to, s.width, v, mood, false, n_max, no_gravel):
 		_place_event(s, e, v)
 		s.events_log.append(e.kind)
 	_validate_rows(s, v)
@@ -1855,7 +1872,7 @@ func _build_islands(prev: Segment, travelled: float) -> Segment:
 				"ada_eğik":
 					end = "eğik"
 				_:
-					if _rng.randf() < 0.18:
+					if _rng.randf() < 0.4:
 						end = "kama"
 		# Kalkışta dikey hız
 		var slope := rise / maxf(L, 1.0)
@@ -1995,7 +2012,7 @@ func _build_islands(prev: Segment, travelled: float) -> Segment:
 func _add_network(s: Segment, v: float, land_far: float, travelled: float) -> void:
 	var dens := clampf((travelled - network_from) / maxf(network_full_at - network_from, 1.0), 0.0, 1.0)
 	var z0 := s.z_start - _clear_start(v, land_far)
-	var z_last := s.z_end + clampf(v * lights_time, 18.0, 70.0) + v * 1.1
+	var z_last := s.z_end + _clear_end(v)
 	# Ana yolda boş kalması gereken aralıklar (rampaya yaklaşma, uçuş, iniş): (yakın z, uzak z)
 	var busy: Array[Vector2] = []
 	var cursor := z0
@@ -2053,11 +2070,10 @@ func _add_network(s: Segment, v: float, land_far: float, travelled: float) -> vo
 	# Boş kalan ana yol aralıkları blok ve çakılla dolar
 	busy.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x > b.x)
 	var z := z0
-	var fill := lerpf(0.65, 0.95, dens) * _act
 	var stops := busy.duplicate()
 	stops.append(Vector2(z_last, z_last))
 	for b: Vector2 in stops:
-		if z - b.x > v * 0.8 and _rng.randf() < fill:
+		if z - b.x > v * 0.5:
 			_fill_events(s, v, z, b.x, "yoğun" if _rng.randf() < dens else "orta")
 		z = minf(z, b.y)
 

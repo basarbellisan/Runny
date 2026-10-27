@@ -157,7 +157,9 @@ Engelli düz yollar 330–470 m'dir (önceden en az 520 m).
 ### Yol içi: ritim ve olaylar
 Düz yollar tek bir kutu değil: kendi içinde bitişik parçalara bölünür ve
 üstüne rastgele olaylar dizilir. Her düz yolun bir ruh hâli var: **nefes**
-(kısa, sadece atlama ve kristal), **orta** (2-3 olay), **yoğun** (3-6 olay, sık).
+(kısa, tek olay), **orta** (2-3 olay), **yoğun** (3-6 olay, sık). Olay sayısı
+dolsa da yolun kalanı ~1 sn'den uzunsa olay eklenmeye devam eder (bu fazladan
+olaylar çakılsızdır: blok, kapı, zikzak...).
 İki nefes üst üste gelmez; yoğun mesafeyle sıklaşır. Yolun uzunluğu
 "iniş bölgesi + olaylar + pist bölgesi" kadardır (boş uzun yol yok).
 Olaylar (son olay hemen tekrar gelmez, son beşin şansı düşer):
@@ -181,6 +183,13 @@ Olaylı kısım en fazla 1.3 katına uzar ve başka bir kalıbın içindeki düz
 (ağ, yan yollar, çatal) seyreltmesin. Aç kalma kuralı: uzun süredir gelmeyen
 kalıbın şansı artar (her kalıp düzenli görünür). Yol ağında alçak/yüksek yan yol
 ağırlıkları rampadan yüksektir.
+Kalıpların içindeki kısa düz yollar (rampa yolu, merdiven basamağı...) ve
+çatalın geniş birleşme yolu da çakılsız olaylarla dolar; yol ağında parçalar
+arasındaki her boş ana yol aralığı dolar. Pist bölgesi (son olaydan yol sonuna)
+~1.1 sn: ~0.45 sn tepki + pist ışıklarının ilk yarısında hizalanıp gaz. Dar/geniş
+bölümden ve kaymadan çıkınca sonraki sıraya en az ~0.7–0.8 sn. Çakıl tarlası
+yalnız 6.5 m'den geniş yollarda (dar yolda arabayı kenardan atıyordu). Ada
+zincirlerinde adaların ~%40'ının sonunda tümsek (kama rampa) var.
 Çakıl boyları ve tümsekler saniye cinsinden: hızlanınca kısalmazlar. Eğimli
 yollara da olay dizilir. Her yol üretildikten sonra blok sıraları baştan sona
 denetlenir: bir sıranın *her* geçidinden sonrakinin bir geçidine o hızla
@@ -197,6 +206,10 @@ etkisi hızla artar (en yüksek hızda ~1.35 kat), çıkınca ~0.8 sn sendelersi
 yandan başlayıp ortaya iner. Çatalın kolay kolu ve çıkmazın yanındaki ana yol da
 olaylarla dolar; yol ağında parçalar alçak yolun yanındaki ana yola da dizilir. 10 km'lik ölçümde 2 sn'den uzun "hiçbir şey olmayan" aralıklar
 yolun %45'inden ~%10'una indi (kristaller dahil; `--dump_roads` ile ölçülür).
+Kristaller hariç, yalnız blok/çakıl/rampa sayılınca (12 tohum × 4 dk): düz ana
+yolda 2 sn'den uzun boşluk %35 → %23, 1.5 sn'den uzun %58 → %44; km başına blok
+2.1 → 2.4, rampa/tümsek 0.8 → 1.2. Kalan boşluk çoğunlukla yol ağında yan yoldan dönüş inişinin geçtiği
+yerler ve iniş/pist bölgeleri.
 
 Rampanın açısı kalkıştaki dikey hıza eklenir. Her boşluk yine gazsız
 ulaşılamaz, tam gazla ulaşılır. Eğimli yollar inişten sonra hizalanıp gaz
