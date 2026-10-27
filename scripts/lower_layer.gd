@@ -29,6 +29,9 @@ const CRYSTAL_REACH := Vector3(3.2, 1.8, 2.6)
 @export var row_interval := Vector2(0.7, 1.0)
 ## Kayanın yukarıda (yükselerek kaçılan yükseklikte) süzülme şansı
 @export_range(0.0, 1.0) var high_rock_chance := 0.25
+## Kaya sırasının yanında kristal dizisi olma şansı. Alt katman enerji yeri:
+## yukarıda enerji bitince buraya düşülüp toplanır
+@export_range(0.0, 1.0) var crystal_row_chance := 0.85
 ## Kristal dizisinin yukarıda çıkma şansı
 @export_range(0.0, 1.0) var high_crystal_chance := 0.35
 ## Portaldan yukarıdaki yola iniş süresi (yaklaşık)
@@ -162,6 +165,15 @@ func _collect_crystals() -> void:
 			crystal_collected.emit()
 
 
+## Önümüzdeki (dist metre içindeki) kristallerin konumları: test sürücüsü için
+func crystals_ahead(z: float, dist: float) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for cr in _crystals:
+		if is_instance_valid(cr) and cr.global_position.z < z and cr.global_position.z > z - dist:
+			out.append(cr.global_position)
+	return out
+
+
 ## Araba önündeki ilk portal
 func next_portal(z: float) -> Portal:
 	for p in portals:
@@ -213,7 +225,7 @@ func _spawn_row(z: float) -> void:
 			z + _rng.randf_range(-2.0, 2.0))
 		row.append(_spawn_rock(pos, r))
 
-	if _rng.randf() < 0.6:
+	if _rng.randf() < crystal_row_chance:
 		for attempt in 5:
 			var x := cx + _rng.randf_range(-10.0, 10.0)
 			if row.all(func(rk): return absf(rk.x - x) > rk.r + 2.0):

@@ -271,11 +271,19 @@ func _fly_steer() -> float:
 	var forward := maxf(-car.velocity.z, 1.0)
 	var best := pos.x
 	var best_cost := INF
+	# Alt katman kristalleri (alçaktakiler): enerji azaldıkça daha çok çeker
+	var gems := lower.crystals_ahead(pos.z - 6.0, 80.0) if collect_crystals else PackedVector3Array()
+	var hunger := 1.0 - clampf(car.energy / maxf(car.max_energy, 1.0), 0.0, 1.0)
 	for i in range(-30, 31):
 		var cand := pos.x + i
 		# Portala yaklaşırken hedef ağır basar (kayadan kaçıp portalı kaçırmasın)
 		var near_portal := portal != null and (pos.z - portal.z) < forward * 2.5
 		var cost := absf(cand - goal) * (0.6 if near_portal else 0.1) + absf(cand - pos.x) * 0.02
+		if not near_portal:
+			for g in gems:
+				var reach_g := car.steer_speed * maxf((pos.z - g.z) / forward - 0.15, 0.0)
+				if g.y < car.flight_altitude + 3.0 and absf(cand - g.x) < 2.0 and absf(g.x - pos.x) < reach_g + 2.0:
+					cost -= 2.0 + 6.0 * hunger
 		for r in lower.rocks:
 			var d: float = pos.z - r.z
 			if d < 0.0 or d > 60.0:

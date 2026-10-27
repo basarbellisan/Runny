@@ -184,9 +184,14 @@ var _pickup_next := 0
 ## Kristal rengi (enerji göstergesi de bu renkte)
 @export var crystal_color := Palette.ENERGY
 ## Kristal başına enerji ve toplama yarıçapı (araba yarı genişliğine eklenir)
-@export var crystal_value := 4.0
+@export var crystal_value := 3.0
 ## Bir yolun sonundaki boşluk için gereken enerjinin kaç katı kristal konur (baş, son)
-@export var crystal_supply := Vector2(3.0, 1.6)
+@export var crystal_supply := Vector2(2.0, 1.2)
+## Arz, deponun doluluğuyla değişir: dolu depoda bu katın ilki, boş depoda ikincisi.
+## Dolu depoda yol üstündeki kristal gruplarının çoğu da hiç konmaz.
+@export var crystal_need_range := Vector2(0.3, 1.6)
+## Kristaller hep tek sıra, yol boyunca bu aralıkla (m)
+@export var crystal_spacing := 6.0
 ## Kristallerin kolay yerlerde (iniş, pist) olan payı (baş, son)
 @export var crystal_easy_share := Vector2(0.6, 0.15)
 ## Arz ve kolay payın son değerine indiği mesafe (m)
@@ -1282,10 +1287,8 @@ func _build_road(x: float, top: float, w: float, z_start: float, length: float, 
 					"tümsek":
 						# Tepeden uçarken geçilen yay
 						var vy: float = v * e.h / e.half * car.bump_launch + 1.0
-						for k in 3:
-							var t := (0.25 + 0.2 * k) * 2.0 * vy / car.gravity
-							_crystal(sg, Vector3(sg.x, top + e.h + 0.8 + vy * t - 0.5 * car.gravity * t * t,
-								e.z - e.half - v * t))
+						_arc_crystals(sg, Vector3(sg.x, top + e.h, e.z - e.half), 0.0, vy, v,
+							2.0 * vy / car.gravity, 3)
 				break
 	# Engel olayları, üstüne düştükleri (tam genişlikteki) parçaya
 	for e in events:
@@ -1526,11 +1529,42 @@ func _crystal_on(host: Segment, x: float, z: float, lift := 1.0) -> void:
 	_crystal(host, Vector3(x, host.surface_y(x, z) + lift, z))
 
 
-## a'dan b'ye düz bir çizgi boyunca n kristal (yüzeyin üstünde)
-func _crystal_line(host: Segment, xa: float, za: float, xb: float, zb: float, n: int) -> void:
+## za'dan zb'ye yol boyunca tek sıra, en çok n kristal: düz (hep xb hizasında,
+## çapraz değil), crystal_spacing aralıkla. gated: depo doluysa grup çoğu zaman konmaz.
+func _crystal_line(host: Segment, _xa: float, za: float, xb: float, zb: float, n: int, gated := true) -> void:
+	if gated and not _want_crystals():
+		return
+	var fit := int(absf(za - zb) / crystal_spacing) + 1
+	var dir := -1.0 if zb < za else 1.0
+	for i in mini(n, fit):
+		_crystal_on(host, xb, za + dir * crystal_spacing * i)
+
+
+## Uçuş yayında tek sıra kristal, yol boyunca crystal_spacing aralıkla, yayın ortasında.
+## p0 kalkış noktası; vx yana, vy yukarı hız; speed ileri hız; t_all uçuş süresi.
+func _arc_crystals(host: Segment, p0: Vector3, vx: float, vy: float, speed: float, t_all: float,
+		n_max := 4) -> void:
+	if t_all < 0.3 or not _want_crystals():
+		return
+	var dt := crystal_spacing / maxf(speed, 1.0)
+	var n := clampi(int(t_all * 0.5 / dt) + 1, 1, n_max)
+	var t0 := t_all * 0.5 - dt * (n - 1) * 0.5
 	for i in n:
-		var t := float(i) / maxf(n - 1, 1)
-		_crystal_on(host, lerpf(xa, xb, t), lerpf(za, zb, t))
+		var t := t0 + dt * i
+		_crystal(host, p0 + Vector3(vx * t, vy * t - 0.5 * car.gravity * t * t + 0.8, -speed * t))
+
+
+## Deponun boşluğu (0 dolu, 1 boş): kristal arzı buna göre
+func _crystal_need() -> float:
+	if car == null:
+		return 1.0
+	return 1.0 - clampf(car.energy / maxf(car.max_energy, 1.0), 0.0, 1.0)
+
+
+## Bu kristal grubu konsun mu: depo %45'in üstündeyse giderek seyrekleşir, doluyken ~%20'si kalır
+func _want_crystals() -> bool:
+	var full := smoothstep(0.45, 0.95, 1.0 - _crystal_need())
+	return _rng.randf() >= full * 0.8
 
 
 func _pending_count(host: Segment) -> int:
@@ -1540,7 +1574,13 @@ func _pending_count(host: Segment) -> int:
 
 func _flush_crystals() -> void:
 	for key in _crystal_pending:
-		var pts: PackedVector3Array = _crystal_pending[key].pts
+		# Bir yolda hep tek sıra: yakından uzağa, öncekine aralıktan yakın olan atlanır
+		var raw: Array = Array(_crystal_pending[key].pts)
+		raw.sort_custom(func(a: Vector3, b: Vector3) -> bool: return a.z > b.z)
+		var pts := PackedVector3Array()
+		for q: Vector3 in raw:
+			if pts.is_empty() or pts[-1].z - q.z >= crystal_spacing * 0.75:
+				pts.append(q)
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		mm.use_custom_data = true
@@ -1639,7 +1679,8 @@ func _road_crystals(first: Segment, v: float, travelled: float) -> void:
 	var k := clampf(travelled / maxf(crystal_hard_at, 1.0), 0.0, 1.0)
 	# Bir boşluk için tipik roket: pist ışıklarında basılır, yerde ~0.65 sn yanar
 	var need := car.boost_energy_rate * 0.65
-	var target := ceili(need * lerpf(crystal_supply.x, crystal_supply.y, k) / maxf(crystal_value, 1.0))
+	var tank := lerpf(crystal_need_range.x, crystal_need_range.y, _crystal_need())
+	var target := ceili(need * lerpf(crystal_supply.x, crystal_supply.y, k) * tank / maxf(crystal_value, 1.0))
 	var chain: Array[Segment] = [first]
 	while chain[-1].next_flush:
 		chain.append(chain[-1].next_flush)
@@ -1650,22 +1691,14 @@ func _road_crystals(first: Segment, v: float, travelled: float) -> void:
 	if easy <= 0:
 		return
 	var last := chain[-1]
-	# İniş bölgesi: engel yok ama seçim var. Ya tek çizgi ya da iki yana ayrılan
-	# iki çizgi (uzaktaki yan bir kristal fazla); bazen bir yanda çakıl.
+	# İniş bölgesi: engel yok, tek sıra kristal (ortada ya da bir yanda: seçim);
+	# bazen bir yanda çakıl
 	var n_land := ceili(easy * 0.55)
 	var land_z := first.z_start - v * _rng.randf_range(0.3, 0.5)
-	var span := minf(maxf(6.0, v * 0.17) * n_land, (first.z_start - first.z_end) * 0.5)
+	var span := minf(crystal_spacing * maxf(n_land - 1, 1), (first.z_start - first.z_end) * 0.5)
 	if land_z - span > first.z_end + 2.0:
-		if _rng.randf() < 0.35 * _act and first.width >= 5.0:
-			var side := -1.0 if _rng.randf() < 0.5 else 1.0
-			var off := first.width * 0.3
-			var n_a := maxi(n_land / 2, 2)
-			_crystal_line(first, first.x, land_z, first.x - side * off, land_z - span, n_a)
-			_crystal_line(first, first.x + side * 0.6, land_z - 4.0, first.x + side * off, land_z - span, n_a + 1)
-		else:
-			var xa := first.x + _rng.randf_range(-0.25, 0.25) * first.width
-			var xb := first.x + _rng.randf_range(-0.3, 0.3) * first.width
-			_crystal_line(first, xa, land_z, xb, land_z - span, n_land)
+		var lx := first.x + _rng.randf_range(-0.3, 0.3) * first.width
+		_crystal_line(first, lx, land_z, lx, land_z - span, n_land, false)
 		var free := land_z - span - (first.z_start - _clear_start(v, 0.0))
 		# (Yatık yolda yok: düz kutu yatık yüzeye oturmaz, kenarda havada kalır)
 		if _rng.randf() < 0.18 * _act and first.width >= 5.0 and first.obstacles.is_empty() \
@@ -1681,11 +1714,10 @@ func _road_crystals(first: Segment, v: float, travelled: float) -> void:
 	var n_run := easy - n_land
 	if n_run > 0:
 		var zone := clampf(v * lights_time, 18.0, 70.0)
-		var za := maxf(last.z_end + zone, last.z_end + maxf(6.0, v * 0.17) * n_run)
+		var za := maxf(last.z_end + zone, last.z_end + 4.0 + crystal_spacing * (n_run - 1))
 		za = minf(za, last.z_start - 2.0)
 		var cx := last.x + _rng.randf_range(-0.12, 0.12) * last.width
-		var sx := last.x + (-1.0 if _rng.randf() < 0.5 else 1.0) * last.width * 0.28
-		_crystal_line(last, sx, za, cx, last.z_end + 4.0, n_run)
+		_crystal_line(last, cx, za, cx, last.z_end + 4.0, n_run, false)
 
 
 ## Boşluğun üstünde, orta karar gazla atlayanın uçuş yayında kristaller
@@ -1696,13 +1728,8 @@ func _gap_crystals(prev: Segment, next_x: float, dh: float, gap: float, v: float
 	var t_all := _flight_time(dh, vy)
 	if t_all < 0.3:
 		return
-	var n := _rng.randi_range(3, 4)
-	for i in n:
-		var t := t_all * lerpf(0.3, 0.7, float(i) / maxf(n - 1, 1))
-		var z := prev.z_end - car.half_length - v_mid * t
-		var y := prev.top_end + vy * t - 0.5 * car.gravity * t * t + 0.8
-		var x := lerpf(prev.x, next_x, clampf((prev.z_end - z) / maxf(gap, 1.0), 0.0, 1.0))
-		_crystal(prev, Vector3(x, y, z))
+	_arc_crystals(prev, Vector3(prev.x, prev.top_end, prev.z_end - car.half_length),
+		(next_x - prev.x) * v_mid / maxf(gap, 1.0), vy, v_mid, t_all, _rng.randi_range(3, 4))
 	stats.gap_arcs = int(stats.get("gap_arcs", 0)) + 1
 
 
@@ -1710,11 +1737,7 @@ func _gap_crystals(prev: Segment, next_x: float, dh: float, gap: float, v: float
 func _ramp_crystals(r: Segment, v: float) -> void:
 	var vy := car.launch_velocity + v * r.slope()
 	var t_all := _flight_time(-(r.top_end - r.top) - 0.5, vy)
-	for i in 4:
-		var t := t_all * lerpf(0.2, 0.75, i / 3.0)
-		var z := r.z_end - car.half_length - v * t
-		var y := r.top_end + vy * t - 0.5 * car.gravity * t * t + 0.8
-		_crystal(r, Vector3(r.x + r.kick * t, y, z))
+	_arc_crystals(r, Vector3(r.x, r.top_end, r.z_end - car.half_length), r.kick, vy, v, t_all, 4)
 
 
 # --------------------------------------------------------------------------
@@ -1964,10 +1987,7 @@ func _build_islands(prev: Segment, travelled: float) -> Segment:
 				_crystal_line(sg, gx, za, gx, maxf(zb, za - 24.0), 3)
 		if end == "eğik" and not last:
 			# Eğik rampanın uçuş yayında kristaller
-			for i in 3:
-				var t: float = flight.y * (0.3 + 0.2 * i)
-				_crystal(main_seg, Vector3(main_seg.x + kick * t, main_seg.top_end + r_rise + vy * t - 0.5 * g * t * t + 0.8,
-					z - L - v * t))
+			_arc_crystals(main_seg, Vector3(main_seg.x, main_seg.top_end + r_rise, z - L), kick, vy, v, flight.y, 3)
 		last_main = main_seg
 		prev_lanes = []
 		for sg in built:

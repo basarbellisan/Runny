@@ -59,16 +59,24 @@ Yolun başı (iniş) ve sonu (pist ışıkları + hizalanma) engelsizdir; oralar
 ## Enerji ve kristaller
 Sağ altta enerji deposu (solda hız kadranı): beyaz disk, ortada sayı, çevresinde
 limon yeşili halka (tepeden saat yönünde dolar). 20'nin altında kırmızı nabız ve
-"KRİSTAL TOPLA!"; kristal alınca üstünde "+4" belirir (art arda toplananlar toplanır), halkanın ucu parlar.
+"KRİSTAL TOPLA!"; kristal alınca üstünde "+3" belirir (art arda toplananlar toplanır), halkanın ucu parlar.
 İki kadran da yalnız oynarken görünür: oyun bitince kaybolur.
-Tek enerji: roket ve kanatlar aynı depodan yer. Düşerken enerji 20'den azsa
-kanatlar için 20 yedek verilir; alt katmandaki kristaller de bu depoyu doldurur.
+Tek enerji: roket ve kanatlar aynı depodan yer. Düşerken enerji 45'ten azsa
+kanatlar için 45 verilir (ilk portala kristalsiz yeter): enerji bitince aşağı
+düşüp alt katmanda toplamak güvenli bir yoldur (çarpan x1'e iner). Alt katmanda
+kaya sıralarının ~%85'inde bir kristal dizisi var (her biri +15).
 Yola dönünce depo dolmaz (ne topladıysan o).
 
-Yoldaki limon yeşili kristaller (+4; alt katmandakiler +15, aynı renk) her yol için o yolun sonundaki boşluğa
-gereken enerjinin katı kadar konur: başta 3 katı, 6 km'de 1.6 katı (yeterli
-ama gittikçe zor). Başta çoğu kolay yerdedir (inişten sonra bir çizgi, pist
-ışıklarında ortada bir çizgi), giderek zor yerlere kayar:
+Yoldaki limon yeşili kristaller (+3; alt katmandakiler +15, aynı renk) hep tek
+sıra: yol boyunca düz (çapraz değil), 6 m aralıkla; bir yolda aynı anda tek sıra
+(çakışanlar elenir). Uçuş yaylarında da aynı aralık. Her yol için o yolun sonundaki boşluğa
+gereken enerjinin katı kadar konur: başta 2 katı, 6 km'de 1.2 katı; bu, deponun
+doluluğuyla çarpılır (dolu depoda ×0.3, boşta ×1.6). Depo %45'in üstündeyse yol
+üstündeki kristal dizilerinin bir kısmı hiç konmaz (doluyken ~%80'i). Yollar
+~450 m önceden üretildiği için o anki depo seviyesi kullanılır. 12 tohum × 4 dk
+ölçümde: dolu depoyla boşa toplanan kristal ~420 → ~45, deponun dolu kaldığı
+süre %65 → %14. Başta çoğu kolay yerdedir (inişten sonra bir sıra, pist
+ışıklarında ortada bir sıra), giderek zor yerlere kayar:
 - bloğun kıl payı yanı, kapının geçidi, çakılın içindeki temiz şerit, çakıl tarlası
 - dar parçanın ortası, kaymadan sonraki yeni hat, tümsek tepesinin üstü (havada)
 - boşluğun üstünde, orta karar gazla atlayanın uçuş yayında
@@ -204,10 +212,10 @@ verdiği dikey hız ×1.4; o an zemine yapışma kısa süre kapanır, yoksa ara
 kalırdı) ve gövde sarsılır (biraz yatma ve burun kalkması, yana itiş): inişi
 toparlamak gerekir. Tümsekten sonraki uçuş mesafesi boyunca engel konmaz. Çakıl: arkayı savurur (burun sağa sola sallanır),
 etkisi hızla artar (en yüksek hızda ~1.35 kat), çıkınca ~0.8 sn sendelersin.
-İniş bölgesi engelsizdir ama seçim vardır: iki yana ayrılan iki kristal çizgisi
-(uzaktaki yanda bir kristal fazla) ya da bir yanda kısa çakıl (yatık yolda
-çakıl yok: düz kutu yatık yüzeye oturmuyor, kenarda havada kalıyordu). Pist çizgisi bir
-yandan başlayıp ortaya iner. Çatalın kolay kolu ve çıkmazın yanındaki ana yol da
+İniş bölgesi engelsizdir ama seçim vardır: tek sıra kristal (ortada ya da bir
+yanda) ya da bir yanda kısa çakıl (yatık yolda
+çakıl yok: düz kutu yatık yüzeye oturmuyor, kenarda havada kalıyordu). Pist
+sırası ortadadır. Çatalın kolay kolu ve çıkmazın yanındaki ana yol da
 olaylarla dolar; yol ağında parçalar alçak yolun yanındaki ana yola da dizilir. 10 km'lik ölçümde 2 sn'den uzun "hiçbir şey olmayan" aralıklar
 yolun %45'inden ~%10'una indi (kristaller dahil; `--dump_roads` ile ölçülür).
 Kristaller hariç, yalnız blok/çakıl/rampa sayılınca (12 tohum × 4 dk): düz ana

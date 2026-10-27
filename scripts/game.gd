@@ -51,8 +51,9 @@ var max_multiplier := 5
 ## Uçarken saniyede harcanan kanat enerjisi
 var energy_drain := 6.0
 var crystal_energy := 15.0
-## Enerjisi bitmiş araba düşünce kanatları açmak için bu kadar yedek enerji alır
-var wing_reserve := 20.0
+## Enerjisi az olan araba düşünce kanatlar için en az bu kadar enerji alır: ilk portala
+## kristalsiz yetecek kadar (enerji bitince aşağı düşüp orada toplamak güvenli olsun)
+var wing_reserve := 45.0
 ## Uçarken yükselirken (iki parmak) enerji bu kat hızlı harcanır
 var boost_drain_factor := 2.5
 
@@ -69,7 +70,8 @@ var _start_z := 0.0
 ## Çatalın yüksek kolundayız (puan iki kat)
 var _on_high_route := false
 var _was_on_gravel := false
-var _stats := {"falls": 0, "returns": 0, "crystals": 0, "clean": 0, "hard": 0, "high": 0, "empty": 0}
+var _stats := {"falls": 0, "returns": 0, "crystals": 0, "clean": 0, "hard": 0, "high": 0, "empty": 0,
+	"wasted": 0.0, "time": 0.0, "full_time": 0.0}
 var _args := {}
 
 
@@ -127,7 +129,12 @@ func _physics_process(delta: float) -> void:
 	_update_high_route(delta)
 	_update_gravel(delta)
 	var got := 0 if _args.has("nocrystal") else roads.collect_crystals(car.global_position, car.model.half_width, car.half_length)
+	_stats.time += delta
+	if car.energy >= car.max_energy - 1.0:
+		_stats.full_time += delta
 	if got > 0:
+		# Depo doluyken boşa giden kristaller (denge ölçümü)
+		_stats.wasted += maxf(got * roads.crystal_value - (car.max_energy - car.energy), 0.0) / roads.crystal_value
 		car.add_energy(got * roads.crystal_value)
 		hud.gauge.gained(got * roads.crystal_value)
 		_stats.crystals += got
@@ -391,10 +398,10 @@ func _parse_args() -> void:
 
 
 func _stats_text() -> String:
-	return "distance=%.0f score=%d speed=%.1f falls=%d returns=%d crystals=%d landings=%d/%d high=%d energy=%d empty=%d" % [
+	return "distance=%.0f score=%d speed=%.1f falls=%d returns=%d crystals=%d landings=%d/%d high=%d energy=%d empty=%d wasted=%d full=%d%%" % [
 		_start_z - car.position.z, int(score), car.speed,
 		_stats.falls, _stats.returns, _stats.crystals, _stats.clean, _stats.clean + _stats.hard, _stats.high,
-		int(car.energy), _stats.empty]
+		int(car.energy), _stats.empty, int(_stats.wasted), int(100.0 * _stats.full_time / maxf(_stats.time, 0.01))]
 
 
 func _exit_tree() -> void:
