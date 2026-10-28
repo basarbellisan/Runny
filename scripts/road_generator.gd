@@ -190,6 +190,10 @@ var _pickup_next := 0
 ## Arz, deponun doluluğuyla değişir: dolu depoda bu katın ilki, boş depoda ikincisi.
 ## Dolu depoda yol üstündeki kristal gruplarının çoğu da hiç konmaz.
 @export var crystal_need_range := Vector2(0.3, 1.6)
+## Depo bu orandan azsa arz ayrıca bu katla artar (aşağıda kristal yok: depo, düşünce
+## hayat süresi; azken toparlanma fırsatı)
+@export var crystal_low_at := 0.3
+@export var crystal_low_boost := 1.4
 ## Kristaller hep tek sıra, yol boyunca bu aralıkla (m)
 @export var crystal_spacing := 6.0
 ## Ana yolda en uzun engelsiz düzlük (sn): daha uzunsa araya tek blok ya da yarım
@@ -1792,6 +1796,8 @@ func _road_crystals(first: Segment, v: float, travelled: float) -> void:
 	# Bir boşluk için tipik roket: pist ışıklarında basılır, yerde ~0.65 sn yanar
 	var need := car.boost_energy_rate * 0.65
 	var tank := lerpf(crystal_need_range.x, crystal_need_range.y, _crystal_need())
+	if 1.0 - _crystal_need() < crystal_low_at:
+		tank *= crystal_low_boost
 	var target := ceili(need * lerpf(crystal_supply.x, crystal_supply.y, k) * tank / maxf(crystal_value, 1.0))
 	var chain: Array[Segment] = [first]
 	while chain[-1].next_flush:

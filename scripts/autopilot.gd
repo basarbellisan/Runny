@@ -304,13 +304,19 @@ func _fly_steer() -> float:
 				if g.y < car.flight_altitude + 3.0 and absf(cand - g.x) < 2.0 and absf(g.x - pos.x) < reach_g + 2.0:
 					cost -= 2.0 + 6.0 * hunger
 		for r in lower.rocks:
+			var v: Vector3 = r.get("v", Vector3.ZERO)
 			var d: float = pos.z - r.z
-			if d < 0.0 or d > 60.0:
+			# Karşılaşma süresi (kuyruklu kaya bize doğru geliyor: daha erken)
+			var t := d / maxf(forward + v.z, 1.0)
+			if d < -2.0 or t > 60.0 / forward:
+				continue
+			# Yüksek kaya ancak yükselirken engel
+			if float(r.get("y", car.flight_altitude)) > car.flight_altitude + 5.0 and not car.climbing:
 				continue
 			# Kayanın hizasına geldiğimizde nerede olabiliriz
-			var reach := car.steer_speed * maxf(d / forward - 0.15, 0.0)
+			var reach := car.steer_speed * maxf(t - 0.15, 0.0)
 			var x_at := pos.x + clampf(cand - pos.x, -reach, reach)
-			if absf(x_at - r.x) < r.r + 2.2:
+			if absf(x_at - (r.x + v.x * t)) < r.r + 2.2:
 				cost += 1000.0
 		if cost < best_cost:
 			best_cost = cost
@@ -330,12 +336,14 @@ func _should_climb() -> bool:
 		return false
 	var low_ahead := false
 	for r in lower.rocks:
+		var v: Vector3 = r.get("v", Vector3.ZERO)
 		var d: float = pos.z - r.z
-		if d < 0.0 or d > forward * 0.9:
+		if d < 0.0 or d > (forward + v.z) * 0.9:
 			continue
 		var ry: float = r.node.position.y
 		if absf(r.x - pos.x) < r.r + 2.0:
-			if ry > car.flight_altitude + 3.0:
+			# Ortadaki ya da yüksek kaya: yükselmek kurtarmaz
+			if ry > car.flight_altitude + 2.0:
 				return false
 			low_ahead = true
 	return low_ahead

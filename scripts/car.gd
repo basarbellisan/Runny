@@ -213,6 +213,13 @@ var _steer := 0.0
 var _debris: Array[Dictionary] = []
 var _launch_target := Vector3.ZERO
 var _launch_clear_y := 0.0
+## Portal tüneli: araba önce bu çizgi boyunca kayar, sonra fırlatılır
+var _tube: PackedVector3Array = []
+var _tube_i := 0
+## Kanat yedeği: depo bitince açılır (kanat uçlarından iz), yanınca kanatlar kapanır
+var reserve := 0.0
+var reserve_max := 15.0
+var reserve_on := false
 var _launch_vz := 0.0
 var _default_mask := 1
 var _wing_tween: Tween
@@ -279,7 +286,26 @@ func _physics_process(delta: float) -> void:
 
 ## Portala girince çağrılır: araba, target noktasındaki yola inecek şekilde fırlatılır.
 ## clear_y'nin üstüne çıkana kadar yana kaymaz (yolların içinden geçmemek için).
-func launch_to(target: Vector3, clear_y: float) -> void:
+## tube verilirse önce tünelin içinden (yukarı kıvrılarak) geçer, ucundan fırlar.
+func launch_to(target: Vector3, clear_y: float, tube := PackedVector3Array()) -> void:
+	_launch_target = target
+	_launch_clear_y = clear_y
+	collision_mask = 0
+	_tube = tube
+	_tube_i = 0
+	if _tube.is_empty():
+		_ballistic_to(target, clear_y)
+	_set_mode(Mode.LAUNCH)
+
+
+## Kanat yedeğini aç (depo bitti)
+func start_reserve(amount: float) -> void:
+	reserve = amount
+	reserve_max = maxf(amount, 0.01)
+	reserve_on = true
+
+
+func _ballistic_to(target: Vector3, clear_y: float) -> void:
 	var y := global_position.y
 	var dist := global_position.z - target.z
 	var t := maxf(dist / speed, 1.5)
@@ -292,10 +318,6 @@ func launch_to(target: Vector3, clear_y: float) -> void:
 		t = (vy + sqrt(maxf(vy * vy - 2.0 * gravity * (target.y - y), 0.0))) / gravity
 	_launch_vz = -dist / t
 	velocity = Vector3(0.0, vy, _launch_vz)
-	_launch_target = target
-	_launch_clear_y = clear_y
-	collision_mask = 0
-	_set_mode(Mode.LAUNCH)
 
 
 ## Kanat enerjisi bitti: kanatlar kapanır, uçuruma düşeriz
@@ -501,6 +523,26 @@ func _flying(delta: float) -> void:
 
 
 func _launch(delta: float) -> void:
+	if not _tube.is_empty():
+		# Tünelin içinde: çizgi boyunca kay (direksiyon yok), ucunda fırla
+		var step := maxf(speed, 40.0) * delta
+		var p := global_position
+		while step > 0.0 and _tube_i < _tube.size():
+			var to := _tube[_tube_i] - p
+			if to.length() <= step:
+				p = _tube[_tube_i]
+				step -= to.length()
+				_tube_i += 1
+			else:
+				p += to.normalized() * step
+				step = 0.0
+		var dir := (p - global_position).normalized() if p != global_position else Vector3.FORWARD
+		velocity = dir * maxf(speed, 40.0)
+		global_position = p
+		if _tube_i >= _tube.size():
+			_tube = PackedVector3Array()
+			_ballistic_to(_launch_target, _launch_clear_y)
+		return
 	velocity.y -= gravity * delta
 	velocity.z = _launch_vz
 	if global_position.y > _launch_clear_y:
@@ -584,6 +626,8 @@ func _set_mode(m: Mode) -> void:
 		_set_wings(true)
 	elif previous == Mode.FLYING:
 		_set_wings(false)
+	if m != Mode.FLYING:
+		reserve_on = false
 	mode_changed.emit(m, previous)
 
 

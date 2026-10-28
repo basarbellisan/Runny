@@ -5,6 +5,7 @@ extends Node3D
 ##  style 1 – ışık izi: arka lambalardan iki ince şerit (kristallerin yeşili)
 ##  style 2 – egzoz küpleri: küçülerek kaybolan low poly küpler
 ##  style 3 – rüzgâr izi: yolun üstünde geniş, yarı saydam beyaz iz
+## Ayrıca kanat yedeği yanarken kanat uçlarından iki yeşil iz: yedek azaldıkça kısalır.
 
 @export_range(1, 3) var style := 1:
 	set(v):
@@ -36,6 +37,10 @@ func _ready() -> void:
 	for x in [-0.55, 0.55]:
 		_ribbons.append(_make_ribbon(1, Vector3(x, 0.55, 1.75), 0.16, light))
 	_ribbons.append(_make_ribbon(3, Vector3(0, 0.06, 1.5), 1.7, Color(Palette.SNOW, 0.5)))
+	for side in [-1.0, 1.0]:
+		var w := _make_ribbon(0, Vector3(side * car.wing_half_span * 0.95, 0.3, 0.6), 0.45, light)
+		w.wing = true
+		_ribbons.append(w)
 	_cubes = MultiMeshInstance3D.new()
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
@@ -59,11 +64,25 @@ func life() -> float:
 	return lerpf(min_life, max_life, car.boost_level)
 
 
+## Kanat izinin ömrü: kalan yedekle kısalır
+func wing_life() -> float:
+	return lerpf(0.12, 0.9, clampf(car.reserve / car.reserve_max, 0.0, 1.0))
+
+
 func _physics_process(delta: float) -> void:
 	_time += delta
 	var emitting := car.alive
 	var l := life()
 	for r in _ribbons:
+		if r.get("wing", false):
+			var wl := wing_life()
+			if emitting and car.reserve_on:
+				var wp: Vector3 = car.global_position + r.offset
+				if r.points.is_empty() or r.points[-1].p.distance_to(wp) > 0.25:
+					r.points.append({"p": wp, "t": _time})
+			while not r.points.is_empty() and _time - r.points[0].t > wl:
+				r.points.pop_front()
+			continue
 		if r.style != style:
 			continue
 		var pts: Array = r.points
@@ -80,7 +99,9 @@ func _physics_process(delta: float) -> void:
 func _process(_delta: float) -> void:
 	var head := car.get_global_transform_interpolated().origin
 	for r in _ribbons:
-		if r.style == style:
+		if r.get("wing", false):
+			_draw_ribbon(r, head + r.offset if car.alive and car.reserve_on else Vector3.INF)
+		elif r.style == style:
 			_draw_ribbon(r, head + r.offset if car.alive else Vector3.INF)
 
 
@@ -111,7 +132,8 @@ func _draw_ribbon(r: Dictionary, head: Vector3) -> void:
 		pts.append({"p": head, "t": _time})
 	if pts.size() < 2:
 		return
-	var l := maxf(life(), 0.01)
+	var wing: bool = r.get("wing", false)
+	var l := maxf(wing_life() if wing else life(), 0.01)
 	var color: Color = r.color
 	mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
 	for i in pts.size():
@@ -122,7 +144,7 @@ func _draw_ribbon(r: Dictionary, head: Vector3) -> void:
 		var side := dir.normalized().cross(Vector3.UP) if dir.length_squared() > 1e-6 else Vector3.RIGHT
 		var k := clampf(1.0 - (_time - pts[i].t) / l, 0.0, 1.0)
 		# Gazda iz genişler ve boyunca eşit kalır; sönük ucu yalnız saydamlaşır
-		var bl := car.boost_level if r.style == 1 else 0.0
+		var bl := car.boost_level if r.style == 1 and not wing else 0.0
 		var half: float = r.width * 0.5 * lerpf(1.0, boost_width, bl) * lerpf(0.35 + 0.65 * k, 1.0, bl)
 		var alpha := color.a * lerpf(k * k, sqrt(k), bl)
 		mesh.surface_set_color(Color(color, alpha))
@@ -168,6 +190,8 @@ func _apply_style() -> void:
 	if not is_node_ready():
 		return
 	for r in _ribbons:
+		if r.get("wing", false):
+			continue
 		r.node.visible = r.style == style
 		if r.style != style:
 			r.points.clear()

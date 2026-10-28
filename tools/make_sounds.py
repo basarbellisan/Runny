@@ -388,6 +388,18 @@ def sfx_empty():
     return room(buf, 0.05, 0.3)
 
 
+def sfx_hiss():
+    """Kanat yedeği açıldı: basınçlı gaz boşalması (çısss), başta tık, giderek kısılır."""
+    d = 0.9
+    buf = np.zeros(n_of(d))
+    place(buf, click(0.005), 0.0, 0.8)
+    n = noise(d)
+    hiss = filt(n, lo=3000, hi=9000) * 0.8 + filt(n, lo=1200, hi=3000) * 0.35
+    e = env(d, 0.008, 0.05, 0.6, 0.0) * np.linspace(1.0, 0.0, n_of(d)) ** 1.5
+    buf += hiss * e
+    return room(fade(buf, 0.001, 0.08), 0.08, 0.4)
+
+
 def sfx_game_over():
     buf = np.zeros(n_of(1.6))
     for k, m in enumerate([81, 76, 69]):
@@ -679,6 +691,7 @@ def main():
         ("sfx_fall.wav", sfx_fall), ("sfx_explosion.wav", sfx_explosion),
         ("sfx_energy_low.wav", sfx_energy_low), ("sfx_game_over.wav", sfx_game_over),
         ("sfx_climb.wav", sfx_climb), ("sfx_boost.wav", sfx_boost), ("sfx_empty.wav", sfx_empty),
+        ("sfx_hiss.wav", sfx_hiss),
         ("loop_engine.ogg", loop_engine), ("loop_road.ogg", loop_road), ("loop_wind.ogg", loop_wind),
         ("loop_plane.ogg", loop_plane), ("loop_climb.ogg", loop_climb), ("loop_tire.ogg", loop_tire),
         ("loop_gravel.ogg", loop_gravel),

@@ -51,9 +51,10 @@ var max_multiplier := 5
 ## Uçarken saniyede harcanan kanat enerjisi
 var energy_drain := 6.0
 var crystal_energy := 15.0
-## Enerjisi az olan araba düşünce kanatlar için en az bu kadar enerji alır: ilk portala
-## kristalsiz yetecek kadar (enerji bitince aşağı düşüp orada toplamak güvenli olsun)
-var wing_reserve := 45.0
+## Kanat yedeği: uçarken depo bitince kanatlar bu kadar yedek enerjiyle "çısss" diye
+## açılır (kanat uçlarından iz çıkar, yedek bittikçe kısalır); bitince uçuruma düşülür.
+## Aşağıda kristal yok: düşerkenki depo + bu yedek, aşağıdaki hayat süresidir.
+var wing_reserve := 15.0
 ## Uçarken yükselirken (iki parmak) enerji bu kat hızlı harcanır
 var boost_drain_factor := 2.5
 
@@ -150,12 +151,20 @@ func _physics_process(delta: float) -> void:
 				hud.popup("x%d" % multiplier)
 				Audio.play("multiplier")
 		Car.Mode.FLYING:
-			car.energy -= energy_drain * delta * (boost_drain_factor if car.climbing else 1.0)
-			if car.energy <= 0.0:
-				car.energy = 0.0
-				car.lose_wings()
-				hud.popup("ENERJİ BİTTİ", true)
-				Audio.play("fall")
+			var burn := energy_drain * delta * (boost_drain_factor if car.climbing else 1.0)
+			if car.energy > 0.0:
+				car.energy = maxf(car.energy - burn, 0.0)
+			elif not car.reserve_on:
+				car.start_reserve(wing_reserve)
+				hud.popup("YEDEK", true)
+				Audio.play("hiss")
+			else:
+				car.reserve -= burn
+				if car.reserve <= 0.0:
+					car.reserve = 0.0
+					car.lose_wings()
+					hud.popup("ENERJİ BİTTİ", true)
+					Audio.play("fall")
 
 	if car.energy < EnergyGauge.LOW_AT and not _energy_warned:
 		_energy_warned = true
@@ -191,7 +200,7 @@ func _apply_mood(m: float) -> void:
 
 
 func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
-	print("MODE %d->%d z=%.0f x=%.1f y=%.1f vz=%.1f energy=%.0f" % [previous, mode, car.position.z, car.position.x, car.position.y, car.velocity.z, car.energy])
+	print("F%d MODE %d->%d z=%.0f x=%.1f y=%.1f vz=%.1f energy=%.0f" % [Engine.get_process_frames(), previous, mode, car.position.z, car.position.x, car.position.y, car.velocity.z, car.energy])
 	match mode:
 		Car.Mode.FALLING:
 			if previous == Car.Mode.DRIVE:
@@ -203,7 +212,8 @@ func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 				_mult_timer = 0.0
 		Car.Mode.FLYING:
 			lower.activate()
-			car.energy = maxf(car.energy, wing_reserve)
+			if _args.has("fly_energy"):
+				car.energy = minf(car.energy, float(_args.fly_energy))  # test: az enerjiyle düş
 			hud.popup("KANATLAR")
 			Audio.play("wings")
 			_flight_hint()
@@ -342,7 +352,7 @@ func _on_rock_hit() -> void:
 
 func _on_portal(p: LowerLayer.Portal) -> void:
 	if car.mode == Car.Mode.FLYING:
-		car.launch_to(p.land, p.clear_y)
+		car.launch_to(p.land, p.clear_y, p.path)
 
 
 func _on_game_over(reason: String) -> void:

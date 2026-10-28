@@ -1,7 +1,8 @@
 class_name LowerLayer
 extends Node3D
-## Alt katman: kayalar, enerji kristalleri ve yukarı fırlatan portallar.
-## Sadece araba uçarken aktiftir; araba yola dönünce temizlenir.
+## Alt katman: kayalar, kuyruklu kayalar ve yukarı fırlatan portallar (tünel).
+## Aşağıda kristal yok: depo, aşağıdaki hayat süresidir. Sadece araba uçarken
+## aktiftir; araba yola dönünce temizlenir.
 
 signal crystal_collected
 signal rock_hit
@@ -14,6 +15,7 @@ class Portal:
 	var land: Vector3      # inilecek yol noktası (x, yol üstü, z)
 	var clear_y: float     # bu yüksekliğe çıkana kadar yana kayma
 	var node: Node3D
+	var path: PackedVector3Array  # tünelin orta çizgisi (araba içinden geçer)
 
 ## Kristal toplama mesafesi (yarı genişlik): x kanatlar, y gövde, z araba boyu
 const CRYSTAL_REACH := Vector3(3.2, 1.8, 2.6)
@@ -21,17 +23,22 @@ const CRYSTAL_REACH := Vector3(3.2, 1.8, 2.6)
 @export var fill_distance := 350.0
 @export var corridor_half_width := 14.0
 ## Portallar arası süre (saniye, o anki hızla)
-@export var portal_interval := Vector2(7.0, 10.0)
-@export var first_portal_time := Vector2(5.0, 7.0)
-## Kaya sırası başına kaya sayısı (en az, en çok)
-@export var rocks_per_row := Vector2(1, 3)
-## Kaya sıraları arası süre (saniye, o anki hızla)
-@export var row_interval := Vector2(0.7, 1.0)
-## Kayanın yukarıda (yükselerek kaçılan yükseklikte) süzülme şansı
+## İlk portal şansa kalır (az enerjiyle düşen ancak yakın bir portal denk gelirse kurtulur)
+@export var portal_interval := Vector2(6.0, 10.0)
+@export var first_portal_time := Vector2(2.0, 9.0)
+## Kaya alanı: 100 m'deki kaya sayısı (yeni düşünce, uzun kalınca)
+@export var rock_density := Vector2(7.0, 13.0)
+## Yoğunluğun tavana çıktığı süre (alt katmanda kalınan sn)
+@export var density_time := 20.0
+## Kayanın yukarıda (yükselerek çarpılan yükseklikte) süzülme şansı; ortada
+## (hem alçaktan hem yükselerek çarpılan, yalnız direksiyonla geçilen) olma şansı
 @export_range(0.0, 1.0) var high_rock_chance := 0.25
-## Kaya sırasının yanında kristal dizisi olma şansı. Alt katman enerji yeri:
-## yukarıda enerji bitince buraya düşülüp toplanır
-@export_range(0.0, 1.0) var crystal_row_chance := 0.85
+@export_range(0.0, 1.0) var mid_rock_chance := 0.15
+## Kuyruklu kaya: kaç sn'de bir (en az, en çok) ve bize doğru hızı (m/s)
+@export var comet_interval := Vector2(3.0, 6.0)
+@export var comet_speed := Vector2(30.0, 45.0)
+## Kaya sırasının yanında kristal dizisi olma şansı (aşağıda kristal yok: 0)
+@export_range(0.0, 1.0) var crystal_row_chance := 0.0
 ## Kristal dizisinin yukarıda çıkma şansı
 @export_range(0.0, 1.0) var high_crystal_chance := 0.35
 ## Portaldan yukarıdaki yola iniş süresi (yaklaşık)
@@ -40,13 +47,18 @@ const CRYSTAL_REACH := Vector3(3.2, 1.8, 2.6)
 var car: Car
 var roads: RoadGenerator
 var active := false
-var rocks: Array = []      # { x, z, r, node }
+var rocks: Array = []      # { x, y, z, r, node, v (Vector3: hareketli kaya) }
 var portals: Array = []    # Portal
 var _items: Array[Node3D] = []
 var _spinners: Array = []  # dönen kristaller
 var _crystals: Array = []
 var _next_row_z := 0.0
 var _next_portal: Portal
+## Alt katmanda geçen süre ve sıradaki kuyruklu kayanın zamanı
+var _time := 0.0
+var _next_comet := 0.0
+var _comet_mat := StandardMaterial3D.new()
+var _tail_mat := StandardMaterial3D.new()
 var _rng := RandomNumberGenerator.new()
 
 var _rock_mesh: Mesh
@@ -83,6 +95,14 @@ func _ready() -> void:
 	_portal_fill_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_portal_fill_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_portal_fill_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_comet_mat.albedo_color = Color("ffb067")
+	_comet_mat.emission_enabled = true
+	_comet_mat.emission = Color("ff7a2e")
+	_comet_mat.emission_energy_multiplier = 1.6
+	_tail_mat.vertex_color_use_as_albedo = true
+	_tail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_tail_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_tail_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 
 func setup(p_car: Car, p_roads: RoadGenerator, seed_value := -1) -> void:
@@ -98,6 +118,8 @@ func activate() -> void:
 	if active:
 		return
 	active = true
+	_time = 0.0
+	_next_comet = _rng.randf_range(2.0, 4.0)
 	var z := car.global_position.z
 	_next_row_z = z - 70.0
 	_next_portal = _plan_portal(z - car.speed * _rng.randf_range(first_portal_time.x, first_portal_time.y))
@@ -120,17 +142,27 @@ func update(delta: float) -> void:
 	if not active:
 		return
 	var z := car.global_position.z
+	_time += delta
 	while _next_row_z > z - fill_distance:
-		# Portalın önünde kayasız bir yaklaşma payı: hizalanmaya vakit kalsın
-		if _next_portal and _next_row_z <= _next_portal.z + 55.0:
+		# Portalın önünde kısa bir kayasız yaklaşma payı (tünelin ağzına hizalanmak için)
+		if _next_portal and _next_row_z <= _next_portal.z + 35.0:
 			_spawn_portal(_next_portal)
-			_next_row_z = _next_portal.z - 25.0
+			_next_row_z = _next_portal.z - 45.0
 			var interval := car.speed * _rng.randf_range(portal_interval.x, portal_interval.y)
 			_next_portal = _plan_portal(_next_portal.z - interval)
 			continue
-		_spawn_row(_next_row_z)
-		# Sıralar arası süre hızdan bağımsız kalsın
-		_next_row_z -= maxf(26.0, car.speed * _rng.randf_range(row_interval.x, maxf(row_interval.x, row_interval.y)))
+		var stop := _next_portal.z + 35.0 if _next_portal else -INF
+		_next_row_z = _spawn_chunk(_next_row_z, stop)
+	# Kuyruklu kayalar: uzaktan parlayarak bize doğru gelir
+	if _time >= _next_comet:
+		_next_comet = _time + _rng.randf_range(comet_interval.x, comet_interval.y)
+		_spawn_comet()
+	for r in rocks:
+		if r.has("v") and is_instance_valid(r.node):
+			r.node.position += r.v * delta
+			r.x = r.node.position.x
+			r.y = r.node.position.y
+			r.z = r.node.position.z
 
 	var limit := z + 30.0
 	for i in range(_items.size() - 1, -1, -1):
@@ -182,6 +214,38 @@ func next_portal(z: float) -> Portal:
 	return _next_portal
 
 
+## Tünelin orta çizgisi (dünya konumu): halkadan 8 m düz, sonra 26 m yarıçapla 55°
+## yukarı kıvrılır, 14 m o açıyla devam eder
+func _tube_path(ring: Vector3) -> PackedVector3Array:
+	var pts := PackedVector3Array()
+	var straight := 8.0
+	var radius := 26.0
+	var turn := deg_to_rad(55.0)
+	var z := 0.0
+	while z <= straight:
+		pts.append(ring + Vector3(0, 0, -z))
+		z += 4.0
+	var c := ring + Vector3(0, radius, -straight)
+	var a := deg_to_rad(7.0)
+	while a <= turn + 0.001:
+		pts.append(c + Vector3(0, -radius * cos(a), -radius * sin(a)))
+		a += deg_to_rad(7.0)
+	var dir := Vector3(0, sin(turn), -cos(turn))
+	var last := pts[pts.size() - 1]
+	for d in [7.0, 14.0]:
+		pts.append(last + dir * d)
+	return pts
+
+
+## Y ekseni dir'e bakan dönüş (boru parçaları için)
+func _basis_y(dir: Vector3) -> Basis:
+	var y := dir.normalized()
+	var x := Vector3.RIGHT if absf(y.dot(Vector3.RIGHT)) < 0.9 else Vector3.FORWARD
+	var zz := x.cross(y).normalized()
+	x = y.cross(zz).normalized()
+	return Basis(x, y, zz)
+
+
 ## Portalı, arabanın launch_time saniye sonra yukarıdaki bir yola ineceği yere koyar.
 ## Portal yolların hizasından yana kaydırılır ki araba yükselirken yollara girmesin.
 func _plan_portal(z_desired: float) -> Portal:
@@ -213,29 +277,102 @@ func _plan_portal(z_desired: float) -> Portal:
 	return p
 
 
-func _spawn_row(z: float) -> void:
+## Bir kaya parçası (~30-45 m) üretir, bir sonraki parçanın z'sini döndürür.
+## Kayalar sıra sıra değil: dağınık alan, gevşek duvar ya da yığın; boyları ve
+## yükseklikleri karışık. Her yerde kanat açıklığı kadar en az bir geçit kalır.
+func _spawn_chunk(z: float, stop_z: float) -> float:
+	var length := _rng.randf_range(30.0, 45.0)
+	var z_end := maxf(z - length, stop_z)
+	if z - z_end < 8.0:
+		return z_end
+	var dens := lerpf(rock_density.x, rock_density.y, clampf(_time / maxf(density_time, 0.1), 0.0, 1.0))
+	var n := roundi(dens * (z - z_end) / 100.0 * _rng.randf_range(0.7, 1.3))
 	var cx := roads.path_x_at(z)
 	var fy := car.flight_altitude
-	var row: Array[Dictionary] = []
-	for i in _rng.randi_range(int(rocks_per_row.x), maxi(int(rocks_per_row.x), int(rocks_per_row.y))):
-		var r := _rng.randf_range(2.0, 3.8)
-		var pos := Vector3(
-			cx + _rng.randf_range(-corridor_half_width, corridor_half_width),
-			fy + (_rng.randf_range(4.5, 8.0) if _rng.randf() < high_rock_chance else _rng.randf_range(-1.0, 1.0)),
-			z + _rng.randf_range(-2.0, 2.0))
-		row.append(_spawn_rock(pos, r))
+	var style := _rng.randf()
+	var tries := 0
+	var placed := 0
+	if style < 0.25:
+		# Gevşek duvar: koridoru eğri büğrü kesen kayalar, düzensiz bir geçit
+		var wz := _rng.randf_range(z_end + 4.0, z - 4.0)
+		var gap_x := cx + _rng.randf_range(-10.0, 10.0)
+		var gap_w := _rng.randf_range(8.0, 11.0)
+		var x := cx - corridor_half_width - 2.0
+		while x < cx + corridor_half_width + 2.0:
+			var r := _rng.randf_range(2.0, 3.2)
+			if absf(x - gap_x) > gap_w * 0.5 + r * 0.85:
+				_try_rock(Vector3(x, fy + _rng.randf_range(-1.2, 1.2), wz + _rng.randf_range(-3.5, 3.5)), r, true)
+			x += r * _rng.randf_range(1.5, 2.3)
+		placed = n / 2
+	elif style < 0.4:
+		# Yığın: birbirine yaslanmış birkaç kaya, farklı yükseklikler
+		var c := Vector3(cx + _rng.randf_range(-10.0, 10.0), fy, _rng.randf_range(z_end + 5.0, z - 5.0))
+		for i in _rng.randi_range(3, 5):
+			var r := _rng.randf_range(1.8, 3.4)
+			_try_rock(c + Vector3(_rng.randf_range(-4.0, 4.0), _rng.randf_range(-1.0, 6.0), _rng.randf_range(-4.0, 4.0)), r, true)
+		placed = n / 2
+	while placed < n and tries < n * 6:
+		tries += 1
+		var r := _rng.randf_range(1.6, 3.0) if _rng.randf() > 0.1 else _rng.randf_range(3.5, 5.0)
+		var h := _rng.randf()
+		var y := fy + _rng.randf_range(-1.5, 1.5)
+		if h < high_rock_chance:
+			y = fy + _rng.randf_range(5.5, 9.0)
+		elif h < high_rock_chance + mid_rock_chance:
+			y = fy + _rng.randf_range(2.5, 4.5)
+		var pos := Vector3(cx + _rng.randf_range(-corridor_half_width - 3.0, corridor_half_width + 3.0), y,
+			_rng.randf_range(z_end, z))
+		if _try_rock(pos, r, false):
+			placed += 1
+	_spawn_decor(cx, (z + z_end) * 0.5)
+	return z_end
 
-	if _rng.randf() < crystal_row_chance:
-		for attempt in 5:
-			var x := cx + _rng.randf_range(-10.0, 10.0)
-			if row.all(func(rk): return absf(rk.x - x) > rk.r + 2.0):
-				# Bazı kristal dizileri yukarıda: yükselmenin ödülü
-				var y := fy + (6.5 if _rng.randf() < high_crystal_chance else 0.0)
-				for k in 3:
-					_spawn_crystal(Vector3(x, y, z - 9.0 - k * 4.0))
+
+## Kayayı yerleştir: yakınındaki kayalarla arası ya kanat açıklığından geniş olmalı
+## ya da birbirine yaslanmalı (tek büyük kaya gibi). Yanına aynı hizada geçit
+## kalmıyorsa konmaz. merge: yaslanmaya izin (duvar, yığın)
+func _try_rock(pos: Vector3, r: float, merge: bool) -> bool:
+	var span: float = car.wing_half_span * 2.0 + 0.6
+	var near: Array = []
+	for o in rocks:
+		if o.has("v"):
+			continue
+		var reach: float = 0.85 * (r + o.r)
+		if absf(o.z - pos.z) > reach + 3.0 or absf(o.y - pos.y) > reach + 1.0:
+			continue
+		var dx := absf(o.x - pos.x)
+		if dx < reach * (0.75 if merge else 0.55):
+			continue  # yaslanmış: aynı kaya kütlesi
+		if dx - reach < span:
+			return false
+		near.append(o)
+	# Aynı hizada (z) uçuş yüksekliğinde koridorda en az bir geçit kalmalı
+	var fy := car.flight_altitude
+	if absf(pos.y - fy) < 0.85 * r + 1.5:
+		var cx := roads.path_x_at(pos.z)
+		var blocks: Array[Vector2] = [Vector2(pos.x - 0.85 * r - 1.0, pos.x + 0.85 * r + 1.0)]
+		for o in rocks:
+			if not o.has("v") and absf(o.z - pos.z) < 0.85 * (r + o.r) + 3.0 and absf(o.y - fy) < 0.85 * o.r + 1.5:
+				blocks.append(Vector2(o.x - 0.85 * o.r - 1.0, o.x + 0.85 * o.r + 1.0))
+		blocks.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
+		var cur := cx - corridor_half_width - 4.0
+		var ok := false
+		for b in blocks:
+			if b.x - cur >= span:
+				ok = true
 				break
+			cur = maxf(cur, b.y)
+		if not ok and cx + corridor_half_width + 4.0 - cur >= span:
+			ok = true
+		if not ok:
+			return false
+	_spawn_rock(pos, r)
+	return true
 
-	# Uzakta süzülen kayalar (dekor)
+
+## Uzakta süzülen kayalar (dekor)
+func _spawn_decor(cx: float, z: float) -> void:
+	var fy := car.flight_altitude
 	for i in _rng.randi_range(0, 2):
 		var side := -1.0 if _rng.randf() < 0.5 else 1.0
 		var deco := MeshInstance3D.new()
@@ -271,9 +408,62 @@ func _spawn_rock(pos: Vector3, r: float) -> Dictionary:
 		if body == car:
 			rock_hit.emit())
 	_items.append(area)
-	var info := {"x": pos.x, "z": pos.z, "r": r, "node": area}
+	var info := {"x": pos.x, "y": pos.y, "z": pos.z, "r": r, "node": area}
 	rocks.append(info)
 	return info
+
+
+## Kuyruklu kaya: uzakta (~240 m) belirir, parlayan bir kuyrukla bize doğru gelir.
+## Arabanın şu anki hizasına yakın bir çizgide gelir: kaçmak için direksiyon ya da yükselme.
+func _spawn_comet() -> void:
+	var p := car.global_position
+	var r := _rng.randf_range(1.8, 2.6)
+	var y := car.flight_altitude + (_rng.randf_range(-0.8, 1.2) if _rng.randf() < 0.75 else _rng.randf_range(6.0, 8.0))
+	var pos := Vector3(p.x + _rng.randf_range(-5.0, 5.0), y, p.z - 240.0)
+	var info := _spawn_rock(pos, r)
+	var core: MeshInstance3D = info.node.get_child(0)
+	core.material_override = _comet_mat
+	core.scale = Vector3.ONE * r * 1.6
+	info.v = Vector3(_rng.randf_range(-1.5, 1.5), 0.0, _rng.randf_range(comet_speed.x, comet_speed.y))
+	# Kuyruk: arkasında (gelişinin tersine) uzayan, ucu sönen ışık
+	var tail := MeshInstance3D.new()
+	var im := ImmediateMesh.new()
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	var length := 26.0
+	var seg := 10
+	for i in seg:
+		var a0 := TAU * i / seg
+		var a1 := TAU * (i + 1) / seg
+		var w := r * 1.3
+		for q in [[Vector3(cos(a0) * w, sin(a0) * w, 0.0), Color(1.0, 0.62, 0.3, 0.75)],
+				[Vector3(cos(a1) * w, sin(a1) * w, 0.0), Color(1.0, 0.62, 0.3, 0.75)],
+				[Vector3(0, 0, -length), Color(1.0, 0.35, 0.15, 0.0)]]:
+			im.surface_set_color(q[1])
+			im.surface_add_vertex(q[0])
+	im.surface_end()
+	tail.mesh = im
+	tail.material_override = _tail_mat
+	tail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	info.node.add_child(tail)
+	var sparks := CPUParticles3D.new()
+	sparks.amount = 24
+	sparks.lifetime = 0.6
+	sparks.local_coords = false
+	sparks.direction = Vector3(0, 0, -1)
+	sparks.spread = 18.0
+	sparks.initial_velocity_min = 4.0
+	sparks.initial_velocity_max = 10.0
+	sparks.gravity = Vector3.ZERO
+	sparks.scale_amount_min = 0.25
+	sparks.scale_amount_max = 0.5
+	var sm := BoxMesh.new()
+	sm.size = Vector3.ONE * 0.5
+	var smat := StandardMaterial3D.new()
+	smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	smat.albedo_color = Color("ffc27a")
+	sm.material = smat
+	sparks.mesh = sm
+	info.node.add_child(sparks)
 
 
 func _spawn_crystal(pos: Vector3) -> void:
@@ -323,18 +513,37 @@ func _spawn_portal(p: Portal) -> void:
 	fill.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(fill)
 
-	# Yukarı doğru ışık sütunu: portalın yerini uzaktan belli eder
-	var beam := MeshInstance3D.new()
-	var beam_mesh := CylinderMesh.new()
-	beam_mesh.top_radius = 0.6
-	beam_mesh.bottom_radius = 1.6
-	beam_mesh.height = 30.0
-	beam_mesh.radial_segments = 8
-	beam.mesh = beam_mesh
-	beam.material_override = _portal_fill_mat
-	beam.position.y = 20.0
-	beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	root.add_child(beam)
+	# Tünel: halkadan sonra kısa düz, sonra yukarı kıvrılan saydam boru (araba içinden
+	# geçip yukarı-ileri fırlar). Yukarı kalkan ucu portalın yerini uzaktan belli eder.
+	p.path = _tube_path(root.position)
+	for i in p.path.size() - 1:
+		var a := p.path[i]
+		var b := p.path[i + 1]
+		var basis := _basis_y((b - a).normalized())
+		var cyl := CylinderMesh.new()
+		cyl.top_radius = 4.6
+		cyl.bottom_radius = 4.6
+		cyl.height = a.distance_to(b) + 0.05
+		cyl.radial_segments = 18
+		cyl.cap_top = false
+		cyl.cap_bottom = false
+		var tube := MeshInstance3D.new()
+		tube.mesh = cyl
+		tube.material_override = _portal_fill_mat
+		tube.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		tube.transform = Transform3D(basis, (a + b) * 0.5 - root.position)
+		root.add_child(tube)
+		if i % 2 == 0 and i > 0:
+			var rib := MeshInstance3D.new()
+			var t := TorusMesh.new()
+			t.inner_radius = 4.4
+			t.outer_radius = 4.75
+			t.rings = 18
+			t.ring_segments = 6
+			rib.mesh = t
+			rib.material_override = _portal_mat
+			rib.transform = Transform3D(basis, a - root.position)
+			root.add_child(rib)
 
 	var shape := CylinderShape3D.new()
 	shape.radius = 4.8
