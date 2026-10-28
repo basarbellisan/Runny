@@ -59,19 +59,21 @@ Yolun başı (iniş) ve sonu (pist ışıkları + hizalanma) engelsizdir; oralar
 ## Enerji ve kristaller
 Sağ altta enerji deposu (solda hız kadranı): beyaz disk, ortada sayı, çevresinde
 limon yeşili halka (tepeden saat yönünde dolar). 20'nin altında kırmızı nabız ve
-"KRİSTAL TOPLA!"; kristal alınca üstünde "+3" belirir (art arda toplananlar toplanır), halkanın ucu parlar.
+"KRİSTAL TOPLA!" (alt katmanda bu yazı yok: orada kristal yok); kristal alınca üstünde "+3" belirir (art arda toplananlar toplanır), halkanın ucu parlar.
 İki kadran da yalnız oynarken görünür: oyun bitince kaybolur.
-Tek enerji: roket ve kanatlar aynı depodan yer. Düşerken enerji 45'ten azsa
-kanatlar için 45 verilir (ilk portala kristalsiz yeter): enerji bitince aşağı
-düşüp alt katmanda toplamak güvenli bir yoldur (çarpan x1'e iner). Alt katmanda
-kaya sıralarının ~%85'inde bir kristal dizisi var (her biri +15).
-Yola dönünce depo dolmaz (ne topladıysan o).
+Tek enerji: roket ve kanatlar aynı depodan yer. **Aşağıda kristal yok**: düştüğün
+andaki depo, aşağıdaki hayat süren olur (uçuş 6/s, yükselirken 15/s yakar). Depo
+bitince kanat yedeği (15) "çısss" diye açılır: kanat uçlarından iki yeşil iz çıkar,
+yedek yandıkça kısalır; bitince kanatlar kapanır, uçuruma düşülür. Her roket
+basışı bu sigortadan yer. Yedek 15 ile: boş depoyla düşen ~%7, 15 enerjiyle ~%43,
+30 enerjiyle ~%79 ihtimalle portala yetişir (ilk portal 2–9 sn arasında rastgele).
+Yola dönünce depo dolmaz.
 
-Yoldaki limon yeşili kristaller (+3; alt katmandakiler +15, aynı renk) hep tek
+Yoldaki limon yeşili kristaller (+3) hep tek
 sıra: yol boyunca düz (çapraz değil), 6 m aralıkla; bir yolda aynı anda tek sıra
 (çakışanlar elenir). Uçuş yaylarında da aynı aralık. Her yol için o yolun sonundaki boşluğa
 gereken enerjinin katı kadar konur: başta 2 katı, 6 km'de 1.2 katı; bu, deponun
-doluluğuyla çarpılır (dolu depoda ×0.3, boşta ×1.6). Depo %45'in üstündeyse yol
+doluluğuyla çarpılır (dolu depoda ×0.3, boşta ×1.6; %30'un altında ayrıca ×1.4). Depo %45'in üstündeyse yol
 üstündeki kristal dizilerinin bir kısmı hiç konmaz (doluyken ~%80'i). Yollar
 ~450 m önceden üretildiği için o anki depo seviyesi kullanılır. 12 tohum × 4 dk
 ölçümde: dolu depoyla boşa toplanan kristal ~420 → ~45, deponun dolu kaldığı
@@ -113,9 +115,17 @@ varsayılandan farklı değerleri tek satırlık metin olarak verir
 ## Oyun döngüsü
 - Üst katman: yollarda git, üstte kaldıkça çarpan artar (x5'e kadar)
 - Yoldan düşersen kanatlar açılır, alt katmanda uçarsın; çarpan x1'e döner
-- Alt katmanda enerji (roketle aynı depo) azalır; iki parmakla ~8 m yükselip kayaların üstünden geçilebilir ama
-  enerji 2.5 kat hızlı biter. Bazı kayalar ve kristaller yukarıda. Kristaller enerji verir, kayalar öldürür
-- Portala girersen yukarı fırlatılır, arabaya dönüşüp bir yola konarsın
+- Alt katmanda enerji (roketle aynı depo) azalır, kristal yok; iki parmakla ~8 m
+  yükselip alçak kayaların üstünden geçilebilir ama enerji 2.5 kat hızlı biter
+- Kayalar parça parça gelir (dağınık alan, eğri büğrü duvar, yığın), boyları ve
+  yükseklikleri karışık: alçak (yükselerek geçilir), yüksek (yükselince çarpılır),
+  ortada (yalnız direksiyonla geçilir). Her yerde kanat açıklığı kadar en az bir
+  geçit kalır; aşağıda kaldıkça sıklaşır (100 m'de 7 → 13 kaya, 20 sn'de)
+- Kuyruklu kayalar: 3–6 sn'de bir ~240 m ileride parlayarak belirir, turuncu
+  kuyruğuyla senin hizana doğru gelir (30–45 m/s)
+- Portal: halkadan girince araba kısa tünelin içinden kayar, tünel 55° yukarı
+  kıvrılır, ucundan yukarıdaki bir yola fırlar. İlk portal 2–9 sn (şans), sonra
+  6–10 sn arayla
 
 ## Yollar
 Yollar kalıplar hâlinde, her oyunda rastgele üretilir. Başlangıç pistinden
@@ -256,7 +266,7 @@ turuncuya çalan duvarlar; yokuş aşağılar biraz daha koyu.
 - `tools/showroom.gd` — araba modellerinin vitrin görüntülerini çeker
 - `scripts/car.gd` — araba fiziği ve modları (yol / düşüş / uçuş / portal fırlatması), kanat animasyonu
 - `scripts/road_generator.gd` — prosedürel yol üretimi (her yol ulaşılabilir olacak şekilde hesaplanır)
-- `scripts/lower_layer.gd` — alt katman: kayalar, kristaller, portallar (portal, yukarıdaki bir yola indirecek şekilde yerleştirilir)
+- `scripts/lower_layer.gd` — alt katman: kaya alanı, kuyruklu kayalar, tünelli portallar (portal, yukarıdaki bir yola indirecek şekilde yerleştirilir)
 - `scripts/game.gd` — skor, çarpan, kanat enerjisi, katmanlar arası renk geçişi, oyun sonu
 - `scripts/audio.gd` — ses yöneticisi (autoload `Audio`): müzik katmanlar arası geçiş yapar, motor/rüzgâr hıza göre değişir
 - `scripts/autopilot.gd` — test için otomatik sürücü
@@ -277,6 +287,7 @@ godot --path . -- --autopilot --noboost --seed=42    # hiç gaz vermez: ilk boş
 godot --path . -- --autopilot --deadend --seed=42    # çıkmazlara bilerek girer, ucundaki bloktan önce yandan düşer
 godot --path . -- --autopilot --side --seed=42       # yan yollara girer (alçağa düşer, eğik rampaya girer), SIDE_TRIPS yazar
 godot --path . -- --autopilot --nocrystal --seed=42  # hiç kristal almaz: ~1.5 km'de enerjisi bitip düşmeli
+godot --path . -- --autopilot --dive=8 --seed=5 --fly_energy=12  # az enerjiyle düşer: kanat yedeği (çısss) devreye girer
 godot --path . -- --autopilot --seed=5 --dump_roads=/tmp/yol.json   # üretilen bütün yolları, engelleri ve kristalleri yazar
 godot --path . -- --nohud --shots=600 --shot_dir=/tmp                 # göstergesiz ekran görüntüsü (tasarım taslakları için)
 godot --headless --path . --fixed-fps 60 --quit-after 14400 -- --autopilot --seed=1 | python3 tools/road_variety.py   # 4 dk: kalıp çeşitliliği (ağ, yan yol, çatal...)

@@ -172,6 +172,7 @@ func _physics_process(delta: float) -> void:
 	elif car.energy > EnergyGauge.LOW_AT + 10.0:
 		_energy_warned = false
 	hud.set_score(int(score), multiplier)
+	hud.gauge.collect_hint = not lower.active
 	hud.set_energy_value(car.energy, car.max_energy)
 	var driving := car.mode == Car.Mode.DRIVE
 	hud.set_speed(car.forward_speed * car.surface_drag if driving else -car.velocity.z, car.speed, car.boost_level, driving)

@@ -32,6 +32,10 @@ func _ready() -> void:
 	_bold.variation_embolden = 0.6
 
 
+## Az enerjide "KRİSTAL TOPLA!" yazısı (alt katmanda kristal yok: orada kapalı)
+var collect_hint := true
+
+
 func set_value(v: float, max_v := 100.0) -> void:
 	max_value = maxf(max_v, 1.0)
 	value = clampf(v, 0.0, max_value)
@@ -80,7 +84,7 @@ func _draw() -> void:
 	_crystal(c + Vector2(0, -30), 7.0, col)
 	_text(str(int(round(_shown))), c + Vector2(0, 6), 36, ink)
 	_text("ENERJİ", c + Vector2(0, 34), 11, Color(BLACK, 0.5))
-	if low:
+	if low and collect_hint:
 		_text("KRİSTAL TOPLA!", c + Vector2(0, -R - 26), 14, LOW)
 	if _gain_t < 0.8:
 		var a := 1.0 - smoothstep(0.45, 0.8, _gain_t)
