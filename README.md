@@ -114,7 +114,8 @@ varsayılandan farklı değerleri tek satırlık metin olarak verir
 
 ## Oyun döngüsü
 - Üst katman: yollarda git, üstte kaldıkça çarpan artar (x5'e kadar)
-- Yoldan düşersen kanatlar açılır, alt katmanda uçarsın; çarpan x1'e döner
+- Yoldan düşersen kanatlar açılır, alt katmanda uçarsın; çarpan x1'e döner. Uçarken burun hep ileri
+  bakar (en çok ~15° döner), dönüşü gövdenin yatması gösterir; düşerken kalan açı hemen düzelir
 - Alt katmanda enerji (roketle aynı depo) azalır, kristal yok; iki parmakla ~8 m
   yükselip alçak kayaların üstünden geçilebilir ama enerji 2.5 kat hızlı biter
 - Kayalar parça parça gelir (dağınık alan, eğri büğrü duvar, yığın), boyları ve

@@ -813,7 +813,12 @@ func _update_visual(delta: float) -> void:
 	# Çakılda arka savrulur: itişle birlikte burun sağa sola döner, üstüne titrek bir sallanma
 	_fishtail = move_toward(_fishtail, 1.0 if on_gravel and is_on_floor() else 0.0, delta * (4.0 if on_gravel else 1.5))
 	var wag := sin(_mode_time * 11.0) * gravel_fishtail * _fishtail * _gravel_gain() * 0.6
-	_yaw = lerpf(_yaw, -atan2(velocity.x, forward) * 0.8 - _gravel_push * 0.012 + wag, 1.0 - exp(-10.0 * delta))
+	var yaw_target := -atan2(velocity.x, forward) * 0.8 - _gravel_push * 0.012 + wag
+	if mode == Mode.FLYING or mode == Mode.LAUNCH:
+		# Uçarken burun hep ileri bakar, dönüşü yatma gösterir: dalışta ileri hız düşük
+		# olsa da burun yana dönmesin (düşerken kalan açı da hemen düzelir)
+		yaw_target = clampf(-atan2(velocity.x, maxf(forward, speed)) * 0.45, -0.26, 0.26)
+	_yaw = lerpf(_yaw, yaw_target, 1.0 - exp(-10.0 * delta))
 	_body.rotation = Vector3(pitch, _yaw, roll)
 	# Süspansiyon yaylanması (inişte gövde çöker ve toparlanır)
 	_bounce_v += (-suspension_stiffness * _bounce - suspension_damping * _bounce_v) * delta
