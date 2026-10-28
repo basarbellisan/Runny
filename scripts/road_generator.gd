@@ -192,6 +192,10 @@ var _pickup_next := 0
 @export var crystal_need_range := Vector2(0.3, 1.6)
 ## Kristaller hep tek sıra, yol boyunca bu aralıkla (m)
 @export var crystal_spacing := 6.0
+## Ana yolda en uzun engelsiz düzlük (sn): daha uzunsa araya tek blok ya da yarım
+## çakıl girer. İnişten bu kadar sn sonrasından pist bölgesine kadar geçerli.
+@export var max_empty_time := 1.2
+@export var fill_after_landing := 1.0
 ## Kristallerin kolay yerlerde (iniş, pist) olan payı (baş, son)
 @export var crystal_easy_share := Vector2(0.6, 0.15)
 ## Arz ve kolay payın son değerine indiği mesafe (m)
@@ -699,6 +703,8 @@ func _next_from(prev: Segment) -> Segment:
 	elif mood == "" and not banked and travelled > obstacles_from:
 		# Kalıbın içindeki kısa düz yol (rampa yolu, basamak...) da boş kalmasın
 		_fill_events(seg, v, z_start - _clear_start(v, land_far), seg.z_end + _clear_end(v), "orta", -1, true)
+	if not banked and travelled > obstacles_from:
+		_fill_gaps(first, v, land_far)
 	_road_crystals(first, v, travelled)
 	_add_decor(first)
 	return seg
@@ -818,10 +824,19 @@ func _add_fork(prev: Segment) -> Segment:
 		seg.fork_id = fork_id
 		# Alçak (kolay) kol da boş kalmasın
 		_fill_events(seg, v, p.zs - _v_boost(v) * 0.6 - 10.0, p.ze + _clear_end(v), "yoğun")
+		_fill_gaps(seg, v)
 	for p in plan_h:
 		var seg := _add_segment(p.x, p.top, p.end, p.w, p.zs, p.ze, true, true)
 		seg.route = 2
 		seg.fork_id = fork_id
+		# Zor kolun düz yollarında yarım çakıl (dar yolda: kenardan atabilir)
+		if absf(p.end - p.top) < 0.3 and _rng.randf() < 0.6:
+			var gl := v * _rng.randf_range(0.2, 0.3)
+			var room: float = (p.zs - p.ze) - v * 1.0 - _clear_end(v)
+			if room > gl:
+				var gz: float = p.zs - v * 1.0 - _rng.randf_range(0.0, room - gl)
+				var left := _rng.randf() < 0.5
+				_add_gravel(seg, seg.x - seg.width * 0.5 if left else seg.x, seg.x if left else seg.x + seg.width * 0.5, gz, gl)
 	var m_w := absf(x_l - x_h) + maxf(end_l.w, end_h.w)
 	var v_full := v + minf(v * car.boost_bonus, car.boost_max_extra)
 	var m_len := v * _rng.randf_range(2.0, 2.6)
@@ -834,7 +849,16 @@ func _add_fork(prev: Segment) -> Segment:
 	var m_far := 0.0
 	for e in [[end_h, g_h], [end_l, g_l]]:
 		m_far = maxf(m_far, car_len + v_full * _flight_time(m_top - e[0].end, car.launch_velocity) - e[1])
+	# Geniş birleşme yolunda büyük çakıl (yarı genişlik), sonra boşluklar dolar
+	if _rng.randf() < 0.7:
+		var gl := v * _rng.randf_range(0.3, 0.5)
+		var room := (m_start - merge.z_end) - v * 0.3 - _clear_end(v) - v * 1.0
+		if room > gl:
+			var gz := m_start - v * 0.3 - _rng.randf_range(0.0, room - gl)
+			var left := _rng.randf() < 0.5
+			_add_gravel(merge, merge.x - merge.width * 0.5 if left else merge.x, merge.x if left else merge.x + merge.width * 0.5, gz, gl)
 	_fill_events(merge, v, m_start - _clear_start(v, m_far), merge.z_end + _clear_end(v), "orta", -1, true)
+	_fill_gaps(merge, v)
 	_add_decor(merge)
 	stats.forks = fork_id
 	return merge
@@ -887,6 +911,8 @@ func _add_dead_end(prev: Segment, main_seg: Segment, side: float, v: float, vy_b
 	var top := maxf(prev.top_end - drop, MIN_LEVEL)
 	var s := _add_segment(x, top, top, w, main_seg.z_start, main_seg.z_start - length, false)
 	s.dead_end = true
+	# Ucunda tam genişlik blok: çıkmaza girilirse sonunda zamanında yandan atlamak gerek
+	_add_block(s, s.x - w * 0.5, s.x + w * 0.5, s.z_end + 1.4, 1.2)
 	stats.dead_ends += 1
 	_avoid_side = signf(x - main_seg.x)
 	_avoid_count = 3
@@ -1303,6 +1329,92 @@ func _build_road(x: float, top: float, w: float, z_start: float, length: float, 
 	for sg in built:
 		_validate_rows(sg, v)
 	return built[0]
+
+
+## Uzun boş düzlük kalmasın: ana yolun (bitişik parçalarıyla) inişten fill_after_landing
+## sn sonrasından pist bölgesine kadar, max_empty_time'dan uzun engelsiz aralıklarına
+## tek blok ya da yarım çakıl girer (yeri, yanı ve sayısı her seferinde değişir).
+## Yokuş, tümsek ve yatık parçalar kendisi manevra sayılır. Yol ağındaki dönüş
+## inişleri de dolar: inen araba havada yön verip yerini seçer.
+func _fill_gaps(first: Segment, v: float, land_far := 0.0) -> void:
+	var chain: Array[Segment] = [first]
+	while chain[-1].next_flush:
+		chain.append(chain[-1].next_flush)
+	# Tam gazla en uzak inişten sonra da biraz pay (havada yön verip yer seçilir)
+	var z_from := first.z_start - maxf(v * fill_after_landing, land_far + v * 0.25)
+	var z_to := chain[-1].z_end + _clear_end(v)
+	if z_from - z_to < v * max_empty_time:
+		return
+	# Meşgul aralıklar (yakın z, uzak z)
+	var busy: Array[Vector2] = []
+	for i in chain.size():
+		var sg := chain[i]
+		if absf(sg.top_end - sg.top) > 0.3 or (sg.bank_a.size() > 0 and not sg.ramp):
+			# Yokuş/tümsek parçası kendisi manevra; tümsekten fırlayınca iniş yeri de boş
+			busy.append(Vector2(sg.z_start, sg.z_end - (v * 1.4 if i > 0 or sg.next_flush else 0.0)))
+		if i > 0 and (absf(sg.x - chain[i - 1].x) > 0.5 or absf(sg.width - chain[i - 1].width) > 0.5):
+			busy.append(Vector2(sg.z_start + v * 0.3, sg.z_start - v * 0.3))
+		for o in sg.obstacles:
+			if o.get("ramp", false):
+				# Rampaya yaklaşma payı
+				busy.append(Vector2(o.z0 + v * 0.5, o.z1))
+			elif o.gravel:
+				# Çakıldan sonra sendeleme payı
+				busy.append(Vector2(o.z0, o.z1 - v * 1.0))
+			else:
+				busy.append(Vector2(o.z0, o.z1))
+	# Ana yolun üstündeki rampa parçaları (yol ağı, adalar)
+	for r in segments:
+		if r.ramp and r.z_start <= first.z_start and r.z_end >= z_to - 1.0:
+			for sg in chain:
+				if absf(r.x - sg.x) < sg.width * 0.5 and r.z_start <= sg.z_start and r.z_end >= sg.z_end - 1.0:
+					busy.append(Vector2(r.z_start + v * 0.5, r.z_end))
+	busy.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x > b.x)
+	var hw: float = car.model.half_width if car.model else 1.1
+	var lane := maxf(3.4, hw * 2.0 + 1.3)
+	# İniş bölgesi de sayılır ama oraya yalnız çakıl girer (inen arabayı öldürmez)
+	var land_edge := z_from
+	var cur := first.z_start - v * 0.3
+	busy.append(Vector2(z_to, z_to))
+	for b in busy:
+		var gap := cur - maxf(minf(b.x, cur), z_to)
+		if gap > v * max_empty_time:
+			var n := int(ceil(gap / (v * max_empty_time))) - 1
+			var step := gap / (n + 1)
+			for k in n:
+				var z := cur - step * (k + 1) + _rng.randf_range(-0.15, 0.15) * step
+				var host: Segment = null
+				for sg in chain:
+					if z <= sg.z_start - 1.0 and z - 1.2 >= sg.z_end:
+						host = sg
+				if host == null:
+					continue
+				var after := z - (cur - gap)
+				if z > land_edge:
+					# İniş bölgesinde: kısa çakıl, ardından toparlanma payı
+					var gl2 := minf(v * 0.22, 14.0)
+					if after - gl2 >= v * 1.0 and host.width >= 5.5:
+						if _rng.randf() < 0.5:
+							_add_gravel(host, host.x - host.width * 0.5, host.x + host.width * 0.5, z, gl2)
+						else:
+							var left2 := _rng.randf() < 0.5
+							_add_gravel(host, host.x - host.width * 0.5 if left2 else host.x,
+								host.x if left2 else host.x + host.width * 0.5, z, gl2)
+						stats["dolgu"] = int(stats.get("dolgu", 0)) + 1
+					continue
+				if host.width >= lane + 1.4 and (_rng.randf() < 0.75 or after < v * 1.1):
+					_single_block(host, z, lane)
+				elif after >= v * 1.1 and host.width >= 3.0:
+					var gl := minf(v * 0.2, 12.0)
+					var left := _rng.randf() < 0.5
+					_add_gravel(host, host.x - host.width * 0.5 if left else host.x,
+						host.x if left else host.x + host.width * 0.5, z, gl)
+				stats["dolgu"] = int(stats.get("dolgu", 0)) + 1
+		cur = minf(cur, b.y)
+		if cur <= z_to:
+			break
+	for sg in chain:
+		_validate_rows(sg, v)
 
 
 ## Boş bir yol aralığını (ağın parçaları arası, yan yollar) engel olaylarıyla doldurur
@@ -1981,6 +2093,21 @@ func _build_islands(prev: Segment, travelled: float) -> Segment:
 					_add_gravel(sg, sg.x - sg.width * 0.5 if left else sg.x + sg.width * 0.5 - gw,
 						sg.x - sg.width * 0.5 + gw if left else sg.x + sg.width * 0.5, bz, 10.0)
 				_validate_rows(sg, v)
+			# Çakıl yaması (adanın tamamı ya da yarısı): inişte de olabilir (öldürmez,
+			# yavaşlatır), kalkıştan en az ~0.7 sn önce biter ki yavaşlayan araba yetişsin
+			if not last and sg.obstacles.is_empty() and _rng.randf() < 0.5:
+				var gl := clampf(v * _rng.randf_range(0.18, 0.28), 8.0, 18.0)
+				var g_end := sg.z_end + (r_len if end != "hop" else 0.0) + v * 0.7
+				var room := sg.z_start - 2.0 - g_end - gl
+				if room > 0.0:
+					var gz := sg.z_start - 2.0 - _rng.randf_range(0.0, room)
+					if _rng.randf() < 0.5:
+						_add_gravel(sg, sg.x - sg.width * 0.5, sg.x + sg.width * 0.5, gz, gl)
+					else:
+						var left := _rng.randf() < 0.5
+						_add_gravel(sg, sg.x - sg.width * 0.5 if left else sg.x, sg.x if left else sg.x + sg.width * 0.5, gz, gl)
+			if last:
+				_fill_gaps(sg, v)
 			# Yan adalar kristalli (zor seçim ödüllü), ana adada bazen
 			if (sg != main_seg or _rng.randf() < 0.3) and za - zb > 8.0:
 				var gx := sg.x + _rng.randf_range(-0.2, 0.2) * sg.width

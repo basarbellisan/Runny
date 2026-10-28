@@ -220,8 +220,24 @@ olaylarla dolar; yol ağında parçalar alçak yolun yanındaki ana yola da dizi
 yolun %45'inden ~%10'una indi (kristaller dahil; `--dump_roads` ile ölçülür).
 Kristaller hariç, yalnız blok/çakıl/rampa sayılınca (12 tohum × 4 dk): düz ana
 yolda 2 sn'den uzun boşluk %35 → %23, 1.5 sn'den uzun %58 → %44; km başına blok
-2.1 → 2.4, rampa/tümsek 0.8 → 1.2. Kalan boşluk çoğunlukla yol ağında yan yoldan dönüş inişinin geçtiği
-yerler ve iniş/pist bölgeleri.
+2.1 → 2.4, rampa/tümsek 0.8 → 1.2.
+
+**Boşluk doldurucu** (kullanıcının kalıp çizimlerinden): her ana yol (bitişik
+parçalarıyla) üretildikten sonra 1.2 sn'den (`max_empty_time`) uzun engelsiz
+aralıklarına tek blok ya da yarım çakıl girer; yeri, yanı ve sayısı her seferinde
+değişir. Başlangıç: inişten 1 sn sonra, ama tam gazla en uzak inişten sonra da
+~0.25 sn pay. İniş bölgesine (geniş yolda) yalnız kısa çakıl girer. Yokuş, tümsek
+(ve tümsekten sonraki ~1.4 sn uçuş), yatık parçalar, rampaya yaklaşma ve
+çakıldan sonraki ~1 sn sayılmaz. Yol ağındaki dönüş inişleri de dolar: inen
+araba havada yön verip yerini seçer. Ayrıca:
+- adalar: inişte de olabilen çakıl yamaları (adanın tamamı ya da yarısı), kalkıştan
+  ~0.7 sn önce biter; son ada doldurucudan geçer
+- çatal: kolay kol doldurucudan geçer, zor kolun düz yollarında yarım çakıl,
+  geniş birleşme yolunda büyük çakıl
+- çıkmaz: ucunda tam genişlik blok (zamanında yandan atlamak gerek)
+- eğim ve yatık yollara dokunulmaz
+3000 m sonrası (12 tohum): 1.5 sn'den uzun boş düzlük %43 → %30; kalanın çoğu
+pist ışıkları bölgesi ve tek parça kısa yollar.
 
 Rampanın açısı kalkıştaki dikey hıza eklenir. Her boşluk yine gazsız
 ulaşılamaz, tam gazla ulaşılır. Eğimli yollar inişten sonra hizalanıp gaz
@@ -258,7 +274,7 @@ godot --headless --path . --export-release "Web" build/web/index.html
 godot --path . -- --autopilot --seed=42              # otomatik pilot
 godot --path . -- --autopilot --dive=10 --seed=42    # 10 sn'de bir bilerek düşer, portal arar
 godot --path . -- --autopilot --noboost --seed=42    # hiç gaz vermez: ilk boşlukta çakılmalı
-godot --path . -- --autopilot --deadend --seed=42    # çıkmazlara bilerek girer: çakılmadan uçuşa düşmeli
+godot --path . -- --autopilot --deadend --seed=42    # çıkmazlara bilerek girer, ucundaki bloktan önce yandan düşer
 godot --path . -- --autopilot --side --seed=42       # yan yollara girer (alçağa düşer, eğik rampaya girer), SIDE_TRIPS yazar
 godot --path . -- --autopilot --nocrystal --seed=42  # hiç kristal almaz: ~1.5 km'de enerjisi bitip düşmeli
 godot --path . -- --autopilot --seed=5 --dump_roads=/tmp/yol.json   # üretilen bütün yolları, engelleri ve kristalleri yazar

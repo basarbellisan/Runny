@@ -57,7 +57,14 @@ func _drive_input() -> Vector2:
 			return Vector2(_dive_dir, 0.0)
 
 	if seek_dead_ends and current != null and current.dead_end:
-		return Vector2.ZERO  # çıkmazda dümdüz git, sonunda düş
+		# Çıkmazın ucunda blok var: sona ~0.8 sn kala ana yolun ters yanından düş
+		if (pos.z - current.z_end) / maxf(car.forward_speed, 1.0) < 0.8:
+			var main_x := pos.x
+			for s in roads.main_segments_ahead(pos.z + 2.0):
+				main_x = s.x
+				break
+			return Vector2(signf(pos.x - main_x) if main_x != pos.x else 1.0, 0.0)
+		return Vector2.ZERO  # çıkmazda dümdüz git
 	if seek_side and car.mode == Car.Mode.DRIVE and current != null:
 		var side_input := _side_input(current, pos)
 		if not is_nan(side_input):
@@ -136,6 +143,18 @@ func _drive_input() -> Vector2:
 		if absf(land_x - aim) < target.width * 0.3:
 			return Vector2.ZERO
 		return Vector2(signf(aim - land_x), 0.0)
+	if current == null and target != null and not car.is_on_floor():
+		# Havada: ineceğimiz yerin hemen önünde blok sırası varsa geçidine yönel
+		var t_l := maxf(car._time_to_fall_to(target.top_at(pos.z)), 0.0)
+		var lz := pos.z + car.velocity.z * t_l
+		var close := false
+		for o in target.obstacles:
+			if not o.gravel and not o.get("ramp", false) and o.z0 < lz + 2.0 and o.z0 > lz - car.forward_speed * 0.6:
+				close = true
+		if close and lz < target.z_start and lz > target.z_end:
+			var gap_x := _dodge(target, Vector3(pos.x + car.velocity.x * t_l, target.top, lz))
+			if not is_nan(gap_x):
+				return Vector2(_toward(gap_x - pos.x, 0.25), 0.0)
 	if not car.is_on_floor() and car.velocity.y < 0.0:
 		# İnerken: önce gövdeyi düzle (direksiyon yatırır), sonra az az hizalan
 		# (Eğik rampadan kalkınca gövde biraz yatık olur; o kadarı temiz inişe engel değil)
