@@ -2385,13 +2385,18 @@ func _add_ramp(host: Segment, x: float, width: float, z_start: float, length: fl
 	s.bank_a = PackedFloat32Array([0.0, a])
 	var body := StaticBody3D.new()
 	body.position = Vector3(x, s.top, (s.z_start + s.z_end) * 0.5)
+	# Araba rampanın yan duvarlarını yol duvarı saymasın (yarım girişte tekerler üstüne çıkar)
+	body.set_meta("ramp", s)
 	add_child(body)
 	var cz := body.position.z
 	var rows := 6
 	var at := func(d: float, i: float, lift: float) -> Vector3:
 		var z := z_start - length * i / rows
 		var b := s.bank_at(z)
-		return Vector3(d * cos(b), rise * i / rows + d * sin(b) + lift, z - cz)
+		# Ağzı yolun birkaç cm altından başlar: araba hep üstüne çıkar, altına girip
+		# yüzeye alttan çarpmaz
+		var lead := 0.08 if i == 0 else 0.0
+		return Vector3(d * cos(b), rise * i / rows + d * sin(b) + lift - lead, z - cz)
 	var hw := width * 0.5
 	var top_st := SurfaceTool.new()
 	top_st.begin(Mesh.PRIMITIVE_TRIANGLES)

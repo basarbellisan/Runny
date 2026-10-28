@@ -177,6 +177,17 @@ var model: CarModel
 ## Tekerlerin yerle teması (sırası: ön sol, ön sağ, arka sol, arka sağ)
 var wheel_contact: Array[bool] = [true, true, true, true]
 var _wheel_ground: Array[float] = [0.0, 0.0, 0.0, 0.0]
+## Her tekerin altındaki rampanın (yol üstü) yüksekliği, rampa yoksa 0; sıra: 0,2 sol, 1,3 sağ
+var _ramp_lift: Array[float] = [0.0, 0.0, 0.0, 0.0]
+var _wheel_ramp: RoadGenerator.Segment
+## Yarım rampa: omurga yolda ama bir yanın tekerleri rampada (o yan yükselir)
+var _partial: RoadGenerator.Segment
+var _partial_side := 0.0
+var _partial_frac := 0.0
+## Yarım rampada gövdenin yatması (rampadaki yan yukarıda)
+var _side_tilt := 0.0
+## Yarım rampada gövdenin yükselmesi: bir yan h kalkınca ağırlık merkezi h/2 kalkar
+var _part_lift := 0.0
 ## -1..1: yan yatma (eksi: sol taraf boşta)
 var _tip := 0.0
 ## 0..1: ön tekerler boşta
@@ -459,6 +470,8 @@ func _drive(delta: float) -> void:
 	else:
 		_stuck_time = 0.0
 
+	_partial_ramp()
+
 	var now_on_floor := is_on_floor()
 	if _was_on_floor and not now_on_floor and _left_through_end():
 		# Yolun sonundan çıktık: hızla havalan, rampanın açısı da dikey hıza eklenir.
@@ -477,6 +490,11 @@ func _drive(delta: float) -> void:
 				_kick_hold = 2.0 if _last_segment.kick != 0.0 else 0.0
 				# Rampanın burgusu gövdeyi döndürmüş olur; havada takla attırmasın
 				roll_rate *= 0.15
+				# Bir yanın tekerleri rampanın dışında kaldıysa o yan desteksiz: o yana yatarak uçar
+				var off_l := int(_ramp_lift[0] <= 0.0) + int(_ramp_lift[2] <= 0.0)
+				var off_r := int(_ramp_lift[1] <= 0.0) + int(_ramp_lift[3] <= 0.0)
+				if off_l != off_r:
+					roll_rate += (1.0 if off_l > off_r else -1.0) * 0.45 * absf(off_l - off_r)
 			jumped.emit()
 	if not _was_on_floor and now_on_floor:
 		if not _touchdown(vy_before):
@@ -628,6 +646,10 @@ func _set_mode(m: Mode) -> void:
 		_set_wings(false)
 	if m != Mode.FLYING:
 		reserve_on = false
+	# Yarım rampa durumu yalnız yolda sürerken geçerli
+	_partial = null
+	_side_tilt = 0.0
+	_part_lift = 0.0
 	mode_changed.emit(m, previous)
 
 
@@ -709,6 +731,22 @@ func _sense_wheels() -> void:
 		var hit := space.intersect_ray(q)
 		wheel_contact[i] = not hit.is_empty()
 		_wheel_ground[i] = hit.position.y - origin.y if wheel_contact[i] else -INF
+	# Tekerlerin altındaki rampalar (yarım girişte bir yan rampaya çıkar)
+	_wheel_ramp = null
+	for i in 4:
+		_ramp_lift[i] = 0.0
+	if roads == null or mode != Mode.DRIVE:
+		return
+	for s in roads.segments:
+		if not s.ramp or s.z_start < origin.z - 6.0 or s.z_end > origin.z + 6.0:
+			continue
+		for i in model.wheels.size():
+			var p: Vector3 = origin + model.wheels[i].contact
+			if absf(p.x - s.x) < s.width * 0.5 and p.z <= s.z_start and p.z >= s.z_end:
+				_ramp_lift[i] = maxf(_ramp_lift[i], s.top_at(p.z) - origin.y)
+				_wheel_ramp = s
+				# Işın rampanın içinden başlayıp alttaki yolu bulabilir: teker rampanın üstündedir
+				_wheel_ground[i] = maxf(_wheel_ground[i], _ramp_lift[i])
 
 
 ## Yoldan önden mi (yolun sonu) yoksa yandan mı çıktık
@@ -719,6 +757,54 @@ func _gravel_gain() -> float:
 
 func add_energy(amount: float) -> void:
 	energy = clampf(energy + amount, 0.0, max_energy)
+
+
+## Yarım rampa: omurga yolda, bir yanın tekerleri rampada. O yan yükselir (gövde yatar);
+## rampanın ucunda yalnız o yan fırlar: araba yana dönerek ve rampadan uzağa savrularak
+## uçar. Havada direksiyonla düzeltilebilir, düzeltilmezse yan inilir.
+func _partial_ramp() -> void:
+	var hl := maxf(_ramp_lift[0], _ramp_lift[2])
+	var hr := maxf(_ramp_lift[1], _ramp_lift[3])
+	var track := maxf(model.half_width * 2.0, 1.0) if model else 2.2
+	# Omurga (ince kapsül) rampanın üstünde mi: öyleyse araba rampaya tam girmiştir
+	var w := _wheel_ramp
+	var capsule_on_ramp := w != null and absf(global_position.x - w.x) < w.width * 0.5 + 0.25
+	if is_on_floor() and not capsule_on_ramp and w != null and maxf(hl, hr) > 0.05:
+		if _partial != w:
+			_partial_frac = 0.0
+		_partial = w
+		_partial_side = signf(hr - hl)
+		# Rampaya çıkan yanın kaç tekeri oldu (ikisi de çıktıysa tam etki)
+		var n := 0
+		for i in 4:
+			n += int(_ramp_lift[i] > 0.05)
+		_partial_frac = maxf(_partial_frac, clampf(n / 2.0, 0.5, 1.0))
+		_side_tilt = atan2(hr - hl, track)
+		_part_lift = maxf(hl, hr) * 0.5
+		return
+	_side_tilt = 0.0
+	if _partial == null:
+		_part_lift = move_toward(_part_lift, 0.0, get_physics_process_delta_time() * 3.0)
+		return
+	var r := _partial
+	_partial = null
+	# Tekerler rampanın ucundan çıktı (yanından değil): rampadaki yan fırlar
+	if is_on_floor() and global_position.z < r.z_end + half_length + 1.5:
+		# Rampadaki yan, tam girişteki dikey hızla ayrılır; öbür yan yolda kalır.
+		# Ağırlık merkezi bunun yarısıyla kalkar, fark gövdeyi öbür yana döndürür.
+		var vy := launch_velocity + forward_speed * r.slope()
+		var f := _partial_frac
+		velocity.y = maxf(velocity.y, vy * 0.5 * f)
+		roll_rate += _partial_side * clampf(vy / track * 0.3, 1.0, 2.4) * f
+		# Rampa kenarından itilir: rampadan uzağa savrulur
+		velocity.x += -_partial_side * vy * 0.15 * f + r.kick * 0.5 * f
+		if r.kick != 0.0:
+			_kick_hold = 2.0
+		# Gövde zaten yarı yükseklikte: kalkışta yere çekilmesin, görsel sıçramasın
+		global_position.y += _part_lift
+		_part_lift = 0.0
+		_snap_off = 0.25
+		jumped.emit()
 
 
 func _left_through_end() -> bool:
@@ -745,7 +831,8 @@ func _keep_out_of_walls() -> bool:
 			for y in [0.45, 0.9]:
 				var from := pos + Vector3(0, y, z)
 				var hit := _ray(space, from, from + Vector3(side * (hw + 0.05), 0, 0))
-				if not hit.is_empty():
+				# Rampanın yanı duvar değil: yarım girişte teker üstüne çıkar
+				if not hit.is_empty() and not (hit.collider as Node).has_meta("ramp"):
 					depth = maxf(depth, hw - absf(hit.position.x - pos.x))
 		if depth > 0.0:
 			push -= side * depth
@@ -759,7 +846,7 @@ func _keep_out_of_walls() -> bool:
 		for y in [0.3, 0.9]:
 			var from := pos + Vector3(x, y, -hl + 0.4)
 			var hit := _ray(space, from, from - Vector3(0, 0, 0.4 + reach))
-			if hit.is_empty() or hit.normal.z < 0.6:
+			if hit.is_empty() or hit.normal.z < 0.6 or (hit.collider as Node).has_meta("ramp"):
 				continue
 			if mode == Mode.DRIVE:
 				crash("ÇAKILDIN!")
@@ -823,7 +910,7 @@ func _update_visual(delta: float) -> void:
 	# Süspansiyon yaylanması (inişte gövde çöker ve toparlanır)
 	_bounce_v += (-suspension_stiffness * _bounce - suspension_damping * _bounce_v) * delta
 	_bounce = clampf(_bounce + _bounce_v * delta, -0.42, 0.18)
-	_body.position.y = _bounce
+	_body.position.y = _bounce + _part_lift
 	_update_wheels(delta)
 	_update_scrape()
 
@@ -850,7 +937,7 @@ func _update_attitude(delta: float) -> void:
 		var n := get_floor_normal()
 		var surface := atan2(n.z, n.y)
 		# Gövde yolun yatıklığına oturur, üstüne direksiyon yatması eklenir
-		var lean := atan2(-n.x, n.y) - velocity.x / steer_speed * 0.08
+		var lean := atan2(-n.x, n.y) - velocity.x / steer_speed * 0.08 + _side_tilt
 		var k := suspension_stiffness
 		var c := suspension_damping
 		# Bir yanın iki tekeri de boştaysa yay tutmaz: araba kenardan devrilir
@@ -911,7 +998,7 @@ func _update_wheels(delta: float) -> void:
 			# Gövde yatınca/burun kalkınca teker yerde kalır: yay uzar ya da kısalır
 			var c: Vector3 = wh.contact
 			var lift := c.x * sin(roll) - c.z * sin(pitch)
-			target = r + clampf(_wheel_ground[i] - lift - _bounce, -suspension_travel, 0.15)
+			target = r + clampf(_wheel_ground[i] - lift - _bounce - _part_lift, -suspension_travel, 0.15)
 		else:
 			target -= _bounce
 		var mount: Node3D = wh.mount

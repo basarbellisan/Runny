@@ -156,6 +156,14 @@ ilk 1.5 km'de (ease_distance) açılar ve yatmalar daha yumuşaktır:
   söndürülür, araba havada takla atmaz. Rampaya yaklaşma, uçuş ve iniş yerleri
   hep boştur.
 
+  Yarım giriş: rampaya yalnız bir yanın tekerleriyle girersen o yan rampayla
+  yükselir, araba yatar (öbür yan yolda kalır, gövde aradaki yükseklikte).
+  Rampanın ucunda rampadaki yan fırlar: ağırlık merkezi tam kalkışın yarısıyla
+  kalkar, araba öbür yana dönerek ve rampadan uzağa savrularak uçar. Havada
+  dönüşün tersine direksiyon kırarak düzeltilir; düzeltmezsen sendeleyerek
+  inersin. Rampanın ağzı ve yan duvarları artık çarpma sayılmaz (eskiden yarım
+  girişte araba patlıyordu). Test: `tools/ramp_test.gd`.
+
 - ada zinciri (150 m+, yolun ~%20'si): roketli bir boşluktan sonra 4–8 adım kısa
   adalar (her biri 0.7–1.4 sn). Adalar arası küçük boşluklar gazsız atlanır; her
   adımda 1–3 ada yan yana, farklı yükseklikte olabilir; her adadan sonrakilerden en
