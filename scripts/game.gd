@@ -442,6 +442,8 @@ func _setup_level_test() -> void:
 		return
 	roads.test_level = level
 	_level_test = true
+	if car.autopilot:
+		car.autopilot.full_ramps = true
 	car.speed = roads.speed_at_distance(float(level.get("at", 0.0)))
 
 

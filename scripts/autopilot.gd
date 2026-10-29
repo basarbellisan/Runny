@@ -17,6 +17,9 @@ var seek_dead_ends := false
 var seek_side := false
 ## Test: kristal topla (kapalıyken hiç kristal almaz: enerji bitip düşmeli)
 var collect_crystals := true
+## Tasarım testi: engelin yanında temiz geçit yoksa rampanın tam üstünden geç
+## (yarım rampa devirir; tasarımcı rampayı kullanılsın diye koymuştur)
+var full_ramps := false
 ## Yan yoldan ana yola dönüş sayısı
 var side_trips := 0
 var _on_side := false
@@ -277,6 +280,16 @@ func _dodge(seg: RoadGenerator.Segment, pos: Vector3) -> float:
 				if b1 < iv.y:
 					next_free.append(Vector2(b1, iv.y))
 			free = next_free
+		if free.is_empty() and avoid_gravel and full_ramps:
+			# Temiz geçit yok ama rampa var: yarım rampa arabayı devirir, tam üstüne çık
+			for o in row:
+				if o.get("ramp", false) and o.x1 - o.x0 > hw * 2.0 + 0.4:
+					var lane := Vector2(maxf(o.x0 + hw + 0.2, lo), minf(o.x1 - hw - 0.2, hi))
+					for b in row:
+						if b != o and not b.get("ramp", false) and b.x1 + hw + 0.3 > lane.x and b.x0 - hw - 0.3 < lane.y:
+							lane = Vector2.ZERO
+					if lane.y > lane.x:
+						free.append(lane)
 		var best := NAN
 		for iv in free:
 			var x := clampf(pos.x, iv.x, iv.y)
