@@ -554,6 +554,159 @@ def build_dragster():
         round_wheel(name, (x, y, r), r, tw, hub, cap, out, nut)
 
 
+def build_yarisci():
+    """Yarışçı (Figma "RUNNY / Araba 2" çiziminden): yükselerek genişleyen dar burun,
+    açık kokpit ve üstünden öne uzanan koruma çubuğu (iki dikmeyle), eğimli motor
+    kapağı, iki dikmeye oturan büyük arka kanat, geniş yan gövdeler, kalın arka tekerler.
+    Ölçüler çizimin pikselleri: yan görünüşte x boy (burun solda), y aşağı (yer y=326)."""
+    MID, GROUND = 300.0, 326.0
+    w = lambda px: px * DS
+
+    def P(x, y):
+        return (MID - x) * DS, (GROUND - y) * DS
+
+    def st(x, hb, ht, yb, yt):
+        Y, Zb = P(x, yb)
+        _, Zt = P(x, yt)
+        return (Y, w(hb), w(ht), Zb, Zt)
+
+    def slab(name, pts, x_in, x_out, mat="Paint"):
+        """Yan görünüş çokgeni (x, y) iki düzlem arasında (iç ve dış yarı genişlik, y'ye bağlı)."""
+        bm = bmesh.new()
+        a, b = [], []
+        for x, y in pts:
+            Y, Z = P(x, y)
+            a.append(bm.verts.new((w(x_in(y)), Y, Z)))
+            b.append(bm.verts.new((w(x_out(y)), Y, Z)))
+        bm.faces.new(a)
+        bm.faces.new(list(reversed(b)))
+        n = len(pts)
+        for i in range(n):
+            j = (i + 1) % n
+            bm.faces.new((a[i], a[j], b[j], b[i]))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        ob = new_object(name, bm, [mat])
+        flat(ob)
+        return ob
+
+    # Alt gövde: burun önde dar (önden 35 px), yukarı çıkarak genişler; kokpitin önünde
+    # basamak; yan gövdeler arkaya doğru genişler; arkada alçak tampon kutusu
+    loft("body", [
+        st(155, 17.5, 17.5, 311, 288),
+        st(274, 38, 36, 311, 260),
+        st(285, 42, 38, 311, 273),
+        st(339, 44, 38, 311, 265.5),
+        st(379, 46, 38, 311, 260),
+        st(423, 47.5, 40, 311, 258),
+        st(424, 47.5, 47.5, 311, 288),
+        st(439, 47.5, 47.5, 311, 288),
+    ])
+    # Motor kapağı: kokpitin arkasında eğik ön yüz, tepeden arkaya doğru alçalır
+    loft("cover", [
+        st(339, 36, 36, 266, 265),
+        st(348, 38, 29.5, 266, 239.5),
+        st(359, 38, 29.5, 264, 230),
+        st(401.5, 38, 29.5, 262, 250),
+        st(423, 40, 34, 262, 258),
+    ])
+    # Koruma çubuğu: kokpitin üstünden öne uzanan düz plaka (önden 51 px geniş)
+    loft("halo", [
+        st(237, 25.5, 25.5, 239.5, 232),
+        st(318, 25.5, 25.5, 239.5, 232),
+        st(359, 25.5, 25.5, 239.5, 230),
+    ])
+    # Çubuğun iki yan dikmesi (yan görünüşte motor kapağının ön kenarı boyunca)
+    for sx in (-1, 1):
+        bm = bmesh.new()
+        Y0, Z0 = P(348, 239.5)
+        Y1, Z1 = P(339, 265.5)
+        a = Vector((sx * w(25.0), Y0, Z0))
+        b = Vector((sx * w(28.5), Y1, Z1))
+        mid, d = (a + b) / 2, (b - a)
+        ob = box("halo_post", (w(4), w(4), d.length), mid, "Paint")
+        ob.rotation_euler = Vector((0, 0, 1)).rotation_difference(d.normalized()).to_euler()
+
+    # Arka kanat ve iki dikmesi
+    slab("wing", [(405, 217.5), (445, 214), (445, 226), (405, 226)], lambda y: -74.5, lambda y: 74.5)
+    strut = [(415.5, 224), (431.5, 224), (423.5, 290), (405, 290), (401.5, 250)]
+    out = lambda y: 24.5 + (y - 225) / (289 - 225) * 5.0
+    slab("strut_r", strut, lambda y: 14.5, out)
+    slab("strut_l", strut, lambda y: -out(y), lambda y: -14.5)
+
+    # Koyu yüzeyler: burun ağzı, kokpit açıklığı, motor kapağının ön yüzü ve arkadaki menfez
+    bm = bmesh.new()
+
+    def quad(pts, face_dir):
+        f = bm.faces.new([bm.verts.new(p) for p in pts])
+        f.normal_update()
+        if f.normal.dot(Vector(face_dir)) < 0:
+            f.normal_flip()
+
+    Y, _ = P(155, 0)
+    _, z0 = P(0, 306)
+    _, z1 = P(0, 293)
+    quad([(-w(9.5), Y + 0.004, z0), (w(9.5), Y + 0.004, z0), (w(9.5), Y + 0.004, z1), (-w(9.5), Y + 0.004, z1)], (0, 1, 0))
+    # Kokpit: yan gövdenin üstünde, çubuğun altında
+    pts = []
+    for x, y, hw in ((287, 272.6, -22), (287, 272.6, 22), (337, 265.9, 22), (337, 265.9, -22)):
+        Y, Z = P(x, y)
+        pts.append((w(hw), Y, Z + 0.004))
+    quad(pts, (0, 0, 1))
+    # Motor kapağının ön yüzü (önden görünüşte siyah)
+    pts = []
+    for x, y, hw in ((339.4, 264.5, -36), (339.4, 264.5, 36), (347.6, 240.5, 29.8), (347.6, 240.5, -29.8)):
+        Y, Z = P(x, y)
+        pts.append((w(hw), Y + 0.004, Z))
+    quad(pts, (0, 1, 0.3))
+    # Arka menfez: kapağın eğik sırtında, kanat dikmelerinin arasında
+    pts = []
+    for x, y, hw in ((384, 242.0, -14), (384, 242.0, 14), (400.5, 249.6, 14), (400.5, 249.6, -14)):
+        Y, Z = P(x, y)
+        pts.append((w(hw), Y, Z + 0.006))
+    quad(pts, (0, -0.4, 1))
+    g = new_object("dark", bm, ["Dark"])
+    flat(g)
+
+    # Akslar
+    yf, _ = P(203.59, 0)
+    yr, _ = P(381.8, 0)
+    rf, rr = w(26.59), w(33.8)
+    for sx in (-1, 1):
+        box("rod", (w(31.25), w(3.5), w(3.5)), (sx * w(30.55 + 15.6), yf, rf), "Dark")
+    box("axle", (w(150), w(5), w(5)), (0, yr, rr), "Dark")
+
+    # Tekerler (Dragster'daki gibi: göbek diski, kapak, somun)
+    def round_wheel(name, pos, r, tw, hub_r, cap_r, cap_out, nut_r):
+        seg = 16
+        bm = bmesh.new()
+        bmesh.ops.create_cone(bm, cap_ends=True, segments=seg, radius1=r, radius2=r, depth=tw)
+        bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
+        tire = new_object(name, bm, ["Tire"])
+        bevel(tire, w(4), 2)
+        flat(tire)
+        for side in (-1, 1):
+            parts = ((hub_r, 0.01, tw / 2, "Hub"), (cap_r, cap_out + 0.004, tw / 2 + cap_out / 2, "Hub"),
+                     (nut_r, 0.01, tw / 2 + cap_out + 0.003, "Dark"))
+            for k, (rad, depth, off, mat) in enumerate(parts):
+                bm = bmesh.new()
+                bmesh.ops.create_cone(bm, cap_ends=True, segments=seg if k < 2 else 8, radius1=rad, radius2=rad, depth=depth)
+                bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
+                bmesh.ops.translate(bm, verts=bm.verts, vec=(side * off, 0, 0))
+                ob = new_object(name + "_p", bm, [mat])
+                ob.parent = tire
+                flat(ob)
+        tire.location = pos
+        return tire
+
+    xf, xr = w(52.2), w(67.8)
+    for name, x, y, r, tw, hub, cap, cout, nut in (
+            ("wheel_FL", -xf, yf, rf, w(27.73), w(15.46), w(7.5), w(3.75), w(4.33)),
+            ("wheel_FR", xf, yf, rf, w(27.73), w(15.46), w(7.5), w(3.75), w(4.33)),
+            ("wheel_RL", -xr, yr, rr, w(30.97), w(19.65), w(9.5), w(4.18), w(5.5)),
+            ("wheel_RR", xr, yr, rr, w(30.97), w(19.65), w(9.5), w(4.18), w(5.5))):
+        round_wheel(name, (x, y, r), r, tw, hub, cap, cout, nut)
+
+
 def stretch_y(k):
     """Arabayı boyuna uzatır (tekerler büyümez, yalnız yerleri kayar)."""
     for ob in bpy.context.scene.objects:
@@ -565,9 +718,11 @@ def stretch_y(k):
                 v.co.y *= k
 
 
-BUILDERS = {"kutu": build_kutu, "dragster": build_dragster}
+BUILDERS = {"kutu": build_kutu, "dragster": build_dragster, "yarisci": build_yarisci}
+## Figma çizimli arabalar: yan görünüşte arabanın ortası ve yer çizgisi (piksel)
+ORTHO = {"dragster": (D_MID, 334.0), "yarisci": (300.0, 326.0)}
 ## Modelin gövde rengi (oyun bu rengi alır)
-PAINTS = {"dragster": ((1.0, 0.549, 0.255), 0.6, 0.0)}
+PAINTS = {"dragster": ((1.0, 0.549, 0.255), 0.6, 0.0), "yarisci": ((1.0, 0.549, 0.255), 0.6, 0.0)}
 
 
 # ---------------------------------------------------------------- çıktı
@@ -712,14 +867,15 @@ def main():
         export(os.path.join(a.out, name + ".glb"))
         if a.render:
             os.makedirs(a.render, exist_ok=True)
-            if a.ortho and name == "dragster":
-                # Figma çizimiyle aynı ölçek ve çerçeve (her görünüş 300 px kare)
-                _, zc = dp(296.5, 281.5)
-                yc, _ = dp(296.5, 0)
+            if a.ortho and name in ORTHO:
+                # Figma çizimiyle aynı ölçek: her görünüş arabanın orta çizgisinde 300 px kare;
+                # yan görünüş çizimin ızgara ortasında (x 296.5, y 281.5)
+                mid, ground = ORTHO[name]
+                yc, zc = (mid - 296.5) * DS, (ground - 281.5) * DS
                 render_ortho(a.render, name, {
                     "o_yan": ((-20, yc, zc), (0, yc, zc)),
-                    "o_on": ((-(980.5 - 980.3) * DS, 20, zc), (-(980.5 - 980.3) * DS, 0, zc)),
-                    "o_arka": (((636.5 - 636.5) * DS, -20, zc), (0, 0, zc)),
+                    "o_on": ((0, 20, zc), (0, 0, zc)),
+                    "o_arka": ((0, -20, zc), (0, 0, zc)),
                 }, DS)
             else:
                 render(a.render, name, a.studio)
