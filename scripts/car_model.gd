@@ -18,6 +18,10 @@ extends Node3D
 		if is_node_ready():
 			_build()
 
+## Blender'da yapılmış modeller (tools/blender/cars.py): variant -> .glb yolu.
+## Onaylanana kadar yalnız önizlemede (vitrin aracı) doldurulur.
+static var glb_models := {}
+
 ## Her teker: { contact: Vector3 (yerel, y=0), radius, front, mount, steer, spin }
 var wheels: Array[Dictionary] = []
 ## Gövde ve tekerlerin yandan en dış noktası (duvar kontrolü için)
@@ -65,6 +69,9 @@ func _build() -> void:
 	half_width = 0.0
 	tire_material.albedo_color = Color("1c1d20")
 	paint_material.albedo_color = Palette.ACCENT
+	if glb_models.has(variant):
+		_build_glb(glb_models[variant])
+		return
 	match variant:
 		1:
 			_build_box()
@@ -321,6 +328,40 @@ func _box(size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
 	mi.position = pos
 	add_child(mi)
 	return mi
+
+
+## Blender modeli: gövde olduğu gibi, tekerler (wheel_FL/FR/RL/RR) süspansiyon,
+## direksiyon ve dönme düğümlerine taşınır. Malzemeler adlarına göre oyunun
+## malzemeleriyle değişir (Paint değişince gövde rengi de değişir).
+func _build_glb(path: String) -> void:
+	var scene := (load(path) as PackedScene).instantiate() as Node3D
+	add_child(scene)
+	var mats := {"Paint": paint_material, "Dark": dark_material, "Tire": tire_material,
+		"Glass": _glass, "Light": _light, "Tail": _tail, "Hub": _hub}
+	for mi in scene.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		for i in m.mesh.get_surface_count():
+			var mat := m.mesh.surface_get_material(i)
+			if mat and mats.has(mat.resource_name):
+				m.set_surface_override_material(i, mats[mat.resource_name])
+	for n in ["wheel_FL", "wheel_FR", "wheel_RL", "wheel_RR"]:
+		var w := scene.find_child(n, true, false) as MeshInstance3D
+		var p := w.position
+		var box := w.get_aabb()
+		var radius := box.size.y * 0.5
+		var mount := Node3D.new()
+		mount.position = Vector3(p.x, radius, p.z)
+		add_child(mount)
+		var steer := Node3D.new()
+		mount.add_child(steer)
+		var spin := Node3D.new()
+		steer.add_child(spin)
+		w.get_parent().remove_child(w)
+		spin.add_child(w)
+		w.position = Vector3.ZERO
+		wheels.append({"contact": Vector3(p.x, 0, p.z), "radius": radius, "front": p.z < 0,
+			"mount": mount, "steer": steer, "spin": spin})
+		half_width = maxf(half_width, absf(p.x) + box.size.x * 0.5)
 
 
 func _lights(pos: Vector3, size: Vector3) -> void:

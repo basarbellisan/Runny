@@ -10,6 +10,13 @@ Oyun garaj ekranıyla açılır: araba modelleri platformlarında döner, sağa/
 kaydırarak (ya da oklarla) model seçilir, BAŞLA ile oyun başlar. Seçim
 kaydedilir. Oyun sonunda GARAJ butonu garaja döndürür.
 
+Blender modelleri: arabalar `tools/blender/cars.py` ile Blender'da (Python, `bpy`)
+kurulur ve `models/cars/*.glb` olarak çıkar. Kural: 1 birim = 1 m, burun +Y, yer
+Z = 0; tekerler ayrı `wheel_FL/FR/RL/RR` objeleri (oyun bunları süspansiyon ve
+direksiyona bağlar); malzeme adları Paint/Dark/Tire/Glass/Light/Tail/Hub (oyun
+kendi malzemeleriyle değiştirir). Üretmek: `python tools/blender/cars.py --out
+models/cars --render <klasör>`. Önizleme: `tools/showroom.gd -- --glb=1:res://models/cars/kutu.glb`.
+
 ## Kontroller
 - Mobil: ekranın sol yarısına dokun → sola, sağ yarısına → sağa
 - İki parmakla (iki yarıya birden) bas → yolda gaz, uçarken yükselme. Bu sırada direksiyon çalışmaz.

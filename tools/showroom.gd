@@ -14,6 +14,10 @@ func _initialize() -> void:
 			_out = a.trim_prefix("--out=")
 		elif a == "--studio":
 			_studio = true
+		elif a.begins_with("--glb="):
+			# --glb=1:res://models/cars/kutu.glb  (Blender modelini önizle)
+			var kv := a.trim_prefix("--glb=").split(":", true, 1)
+			CarModel.glb_models[int(kv[0])] = kv[1]
 		elif a.begins_with("--variants="):
 			_variants = Array(a.trim_prefix("--variants=").split(",")).map(func(v): return int(v))
 	_shoot.call_deferred()
