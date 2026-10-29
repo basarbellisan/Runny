@@ -499,20 +499,19 @@ def build_dragster():
     g = new_object("glass", bm, ["Glass"])
     flat(g)
 
-    # Hava girişleri: yan görünüşte art arda üç kule
-    for x0 in (250.05, 262.82, 275.58):
-        Y, Z = dp(x0 + 4.64, (262.98 + 279.69) / 2)
-        box("blower", (w(9.28), w(9.28), w(16.71)), (0, Y, Z), "Dark")
+    # Hava girişleri: yan görünüşte art arda üç kule; çizimdekinden %20 büyük
+    # (aralarındaki mesafe de büyür, tabanları kaportada aynı yükseklikte kalır)
+    k = 1.2
+    for xc in (254.69, 267.46, 280.22):
+        xc = 267.46 + (xc - 267.46) * k
+        Y, Z = dp(xc, 279.69 - 16.71 * k / 2)
+        box("blower", (w(9.28 * k), w(9.28 * k), w(16.71 * k)), (0, Y, Z), "Dark")
 
-    # Farlar (burnun eğik ön yüzünde) ve stop lambaları (arka yüzde)
+    # Farlar: burnun eğik ön yüzünde siyah. Arkada stop lambası yok (oradan yeşil iz çıkar).
     tilt_f = math.atan2(155.36 - 147, 313.11 - 283.55)
     for x in (-15.9, 15.9):
         Y, Z = dp(151.2 - 0.6, 298.5)
-        box("headlight", (w(18.46), 0.02, w(11)), (w(x), Y, Z), "Light", rot=(-tilt_f, 0, 0))
-    tilt_r = math.atan2(436 - 430.4, 295 - 261.6)
-    for x in (-35.2, 35.2):
-        Y, Z = dp(433.3 + 0.6, 278)
-        box("taillight", (w(24.27), 0.02, w(8)), (w(x), Y, Z), "Tail", rot=(-tilt_r, 0, 0))
+        box("headlight", (w(18.46), 0.02, w(11)), (w(x), Y, Z), "Dark", rot=(-tilt_f, 0, 0))
 
     # Ön aks çubukları (burundan tekere), arka aks (boydan boya)
     yf, _ = dp(203.94, 0)
