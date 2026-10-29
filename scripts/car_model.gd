@@ -343,9 +343,11 @@ func _build_glb(path: String) -> void:
 		var m := mi as MeshInstance3D
 		for i in m.mesh.get_surface_count():
 			var mat := m.mesh.surface_get_material(i)
-			# Gövde rengi modelden gelir (Blender'da seçilen renk)
+			# Gövde ve lastik rengi modelden gelir (Blender'da seçilen renk)
 			if mat is BaseMaterial3D and mat.resource_name == "Paint":
 				paint_material.albedo_color = (mat as BaseMaterial3D).albedo_color
+			if mat is BaseMaterial3D and mat.resource_name == "Tire":
+				tire_material.albedo_color = (mat as BaseMaterial3D).albedo_color
 			if mat and mats.has(mat.resource_name):
 				m.set_surface_override_material(i, mats[mat.resource_name])
 	for n in ["wheel_FL", "wheel_FR", "wheel_RL", "wheel_RR"]:

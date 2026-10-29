@@ -609,10 +609,9 @@ def build_yarisci():
         st(401.5, 38, 29.5, 262, 250),
         st(423, 40, 34, 262, 258),
     ])
-    # Koruma çubuğu: kokpitin üstünden öne uzanan düz plaka (önden 51 px geniş)
+    # Koruma çubuğu: kokpitin arka üstünde kısa düz plaka (önden 51 px geniş)
     loft("halo", [
-        st(237, 25.5, 25.5, 239.5, 232),
-        st(318, 25.5, 25.5, 239.5, 232),
+        st(316, 25.5, 25.5, 239.5, 232),
         st(359, 25.5, 25.5, 239.5, 230),
     ])
     # Çubuğun iki yan dikmesi (yan görünüşte motor kapağının ön kenarı boyunca)
@@ -686,7 +685,8 @@ def build_yarisci():
         bevel(tire, w(4), 2)
         flat(tire)
         for side in (-1, 1):
-            parts = ((hub_r, 0.01, tw / 2, "Hub"), (cap_r, cap_out + 0.004, tw / 2 + cap_out / 2, "Hub"),
+            # Jant (göbek diski ve kapak) siyah, lastik kırmızı (TIRE_COLORS)
+            parts = ((hub_r, 0.01, tw / 2, "Dark"), (cap_r, cap_out + 0.004, tw / 2 + cap_out / 2, "Dark"),
                      (nut_r, 0.01, tw / 2 + cap_out + 0.003, "Dark"))
             for k, (rad, depth, off, mat) in enumerate(parts):
                 bm = bmesh.new()
@@ -724,6 +724,8 @@ BUILDERS = {"kutu": build_kutu, "dragster": build_dragster, "yarisci": build_yar
 ORTHO = {"dragster": (D_MID, 334.0), "yarisci": (300.0, 326.0)}
 ## Modelin gövde rengi (oyun bu rengi alır)
 PAINTS = {"dragster": ((1.0, 0.549, 0.255), 0.6, 0.0), "yarisci": ((0.11, 0.11, 0.12), 0.45, 0.0)}
+## Lastik rengi (oyun bu rengi alır); yoksa koyu gri
+TIRES = {"yarisci": ((0.82, 0.16, 0.13), 0.8, 0.0)}
 
 
 # ---------------------------------------------------------------- çıktı
@@ -862,6 +864,7 @@ def main():
             continue
         clear_scene()
         COLORS["Paint"] = PAINTS.get(name, ((1.0, 0.353, 0.122), 0.5, 0.0))
+        COLORS["Tire"] = TIRES.get(name, ((0.11, 0.114, 0.125), 0.95, 0.0))
         build()
         join_body()
         print("%s: %d üçgen" % (name, triangles()))
