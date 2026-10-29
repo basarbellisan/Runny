@@ -12,6 +12,7 @@ const MODELS := [
 	["KONSEPT", "Alçak ve uzun", 3],
 	["ROADSTER", "Sivri burun, yuvarlak sırt", 4],
 	["DRAGSTER", "Uzun burun, kalın arka teker", 6],
+	["DARK ROSE", "Arka kanat, kırmızı lastikler", 7],
 ]
 ## Platformlar arası mesafe (m)
 const SPACING := 7.0

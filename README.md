@@ -18,13 +18,17 @@ kendi malzemeleriyle değiştirir). Üretmek: `python tools/blender/cars.py --ou
 models/cars --render <klasör>`. Önizleme: `tools/showroom.gd -- --glb=1:res://models/cars/kutu.glb`.
 Gövde rengi modelden gelir (Blender'daki Paint rengi).
 
-Garajda 5 araba var: Kutu, Gezgin, Konsept, Roadster ve Dragster. Dragster
+Garajda 6 araba var: Kutu, Gezgin, Konsept, Roadster, Dragster ve Dark Rose. Dragster
 (model 6) Blender modeli: Figma'daki "RUNNY / Araba 01" çiziminin yan, ön ve
 arka görünüşünden birebir kuruldu (`--ortho` ile çizimle aynı ölçekte dik
 görünüşler çıkar). Uzun dar burun, eğik ön yüzlü geniş arka gövde, öne taşan
 tavan, kaportada üç siyah hava girişi, siyah farlar, arkada lamba yok (yeşil
 iz oradan çıkar), kalın arka tekerler. Kutu'nun Blender sürümü yalnız
 önizlemede.
+Dark Rose (model 7) Blender modeli: Figma'daki "RUNNY / Araba 2" çiziminden
+(`tools/blender/cars.py` içinde `yarisci`). Siyah gövde, dar yükselen burun,
+açık kokpit ve arka üstünde kısa koruma çubuğu, iki dikmeli büyük arka kanat;
+far, kokpit ve camlar kırmızı, lastikler kırmızı, jantlar siyah.
 
 ## Kontroller
 - Mobil: ekranın sol yarısına dokun → sola, sağ yarısına → sağa
