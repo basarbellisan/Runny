@@ -46,6 +46,10 @@ func _ready() -> void:
 	if _args.has("autopilot"):
 		get_tree().change_scene_to_file.call_deferred(GAME_SCENE)
 		return
+	# Bölüm Tasarımcısından ("Oyna", "Test et"): garajı atla, tasarım oyunda açılsın
+	if OS.has_feature("web") and str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('level') || ''")) != "":
+		get_tree().change_scene_to_file.call_deferred(GAME_SCENE)
+		return
 	var cfg := ConfigFile.new()
 	cfg.load(SAVE_PATH)
 	index = 0

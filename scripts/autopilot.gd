@@ -159,7 +159,13 @@ func _drive_input() -> Vector2:
 		# İnerken: önce gövdeyi düzle (direksiyon yatırır), sonra az az hizalan
 		# (Eğik rampadan kalkınca gövde biraz yatık olur; o kadarı temiz inişe engel değil)
 		if absf(car.roll) > 0.22:
-			return Vector2(clampf(car.roll * 3.0, -1.0, 1.0), 0.0)
+			# Direksiyon gövdeyle birlikte arabayı da yana taşır: iniş noktası yoldan
+			# taşacaksa önce hedefe dön (yan iniş sendeletir, yoldan düşmek bitirir)
+			var t_fall := maxf(car._time_to_fall_to(target.top_at(pos.z)), 0.0) if target else 0.0
+			var land_x := pos.x + car.velocity.x * t_fall
+			var room := target.width * 0.5 - car.model.half_width - 0.4 if target else 99.0
+			if target == null or absf(land_x - target.x) < room:
+				return Vector2(clampf(car.roll * 3.0, -1.0, 1.0), 0.0)
 		# Hedef ada yandaysa (ada zinciri) tam bas, yoksa az az hizalan
 		var from_island: bool = car._last_segment != null and (car._last_segment.hop or car._last_segment.pattern == "ada")
 		var far_side := from_island and target != null and absf(aim - pos.x) > target.width * 0.5 - 0.8

@@ -75,6 +75,15 @@ var _was_on_gravel := false
 var _stats := {"falls": 0, "returns": 0, "crystals": 0, "clean": 0, "hard": 0, "high": 0, "empty": 0,
 	"wasted": 0.0, "time": 0.0, "full_time": 0.0}
 var _args := {}
+## Bölüm Tasarımcısı testi: denenen tasarım (editörden "Oyna"/"Test et" ya da --level=dosya)
+var _level_test := false
+var _level_done := false
+var _level_auto := false
+## Web: editörle paylaşılan tarayıcı hafızası anahtarları (aynı adres: Runny/ ve Runny/editor/)
+const LEVEL_KEY := "runny_level_test"
+const RESULT_KEY := "runny_level_result"
+## Otomatik pilot testinde koşular sırayla bu arabalarla yapılır
+const TEST_MODELS := [1, 2, 3, 4, 6, 7]
 
 
 func _ready() -> void:
@@ -114,6 +123,9 @@ func _ready() -> void:
 		hud.visible = false  # tasarım taslakları için temiz arka plan
 	car.speed = car.start_speed
 	car.energy = car.max_energy
+	roads.car = car
+	roads.load_levels()
+	_setup_level_test()
 	_start_z = car.global_position.z
 	_landings_total = int(_load_save().get_value("tutorial", "landings", 0))
 	roads.set_crystal_color(roads.crystal_color)
@@ -127,6 +139,7 @@ func _physics_process(delta: float) -> void:
 		return
 	roads.update(car.global_position)
 	lower.update(delta)
+	_check_level_test()
 	score += maxf(-car.velocity.z, 0.0) * delta * multiplier
 	_update_high_route(delta)
 	_update_gravel(delta)
@@ -203,6 +216,9 @@ func _apply_mood(m: float) -> void:
 
 func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 	print("F%d MODE %d->%d z=%.0f x=%.1f y=%.1f vz=%.1f energy=%.0f" % [Engine.get_process_frames(), previous, mode, car.position.z, car.position.x, car.position.y, car.velocity.z, car.energy])
+	# Tasarım testinde yoldan düşmek de başarısızlık (uçuşa düşen tasarımı geçemedi)
+	if mode == Car.Mode.FALLING and _level_test and not _level_done and not roads.custom_log.is_empty():
+		_level_result(false, "DÜŞTÜN")
 	match mode:
 		Car.Mode.FALLING:
 			if previous == Car.Mode.DRIVE:
@@ -359,6 +375,8 @@ func _on_portal(p: LowerLayer.Portal) -> void:
 
 func _on_game_over(reason: String) -> void:
 	game_over = true
+	if _level_test and not _level_done:
+		_level_result(false, reason)
 	hud.hide_gauges()
 	var final := int(score)
 	var cfg := _load_save()
@@ -403,6 +421,69 @@ func _capture_shots() -> void:
 
 
 ## Komut satırı: -- --autopilot --dive=12 --seed=42 --shots=120,600 --shot_dir=/tmp
+## Tasarım testi: --level=dosya.json ya da web'de ?level=test (tasarım tarayıcı hafızasında).
+## Tasarım başlangıç pistinden hemen sonra gelir; araba tasarımın hızıyla başlar.
+func _setup_level_test() -> void:
+	var text := ""
+	if _args.has("level"):
+		text = FileAccess.get_file_as_string(_args.level)
+	elif _web_param("level") != "":
+		text = str(JavaScriptBridge.eval("localStorage.getItem('%s') || ''" % LEVEL_KEY))
+		if _web_param("autopilot") != "":
+			_level_auto = true
+			var done := int(JavaScriptBridge.eval("JSON.parse(localStorage.getItem('%s') || '[]').length" % RESULT_KEY))
+			car.model.variant = TEST_MODELS[done % TEST_MODELS.size()]
+			car.autopilot = Autopilot.new(car, roads, lower, 0.0, true)
+			Engine.time_scale = 2.0
+	if text == "":
+		return
+	var level := RoadGenerator.parse_level(text)
+	if level.is_empty():
+		return
+	roads.test_level = level
+	_level_test = true
+	car.speed = roads.speed_at_distance(float(level.get("at", 0.0)))
+
+
+## Web adresindeki parametre (?ad=değer); yoksa ya da web değilse boş
+func _web_param(key: String) -> String:
+	if not OS.has_feature("web"):
+		return ""
+	var v: Variant = JavaScriptBridge.eval("new URLSearchParams(location.search).get('%s') || ''" % key)
+	return "" if v == null else str(v)
+
+
+## Tasarım testi bitti: geçti ya da şurada düştü/çakıldı (tasarım koordinatlarında)
+func _level_result(ok: bool, reason: String) -> void:
+	_level_done = true
+	var d := roads.to_design(car.global_position)
+	print("LEVEL_%s reason=%s x=%.1f z=%.1f model=%d" % ["PASS" if ok else "FAIL", reason, d.x, d.y, car.model.variant])
+	if ok:
+		hud.popup("TASARIM GEÇİLDİ", true)
+	if not OS.has_feature("web"):
+		return
+	var rec := JSON.stringify({"ok": ok, "reason": reason, "x": snappedf(d.x, 0.1), "z": snappedf(d.y, 0.1),
+		"model": car.model.variant, "auto": _level_auto})
+	JavaScriptBridge.eval("(function(){var a=JSON.parse(localStorage.getItem('%s')||'[]');a.push(%s);localStorage.setItem('%s',JSON.stringify(a));})()" % [RESULT_KEY, rec, RESULT_KEY])
+	if _level_auto:
+		var runs := int(_web_param("runs")) if _web_param("runs") != "" else 6
+		var done := int(JavaScriptBridge.eval("JSON.parse(localStorage.getItem('%s') || '[]').length" % RESULT_KEY))
+		if done < runs:
+			get_tree().create_timer(0.6 * Engine.time_scale).timeout.connect(get_tree().reload_current_scene)
+		else:
+			Engine.time_scale = 1.0
+
+
+## Tasarım testinde: araba tasarımın çıkış yolunun sonuna sağ vardı mı
+func _check_level_test() -> void:
+	if not _level_test or _level_done or roads.custom_log.is_empty():
+		return
+	var c: Dictionary = roads.custom_log[0]
+	# Çıkış yolunun sonuna (ya da ardından gelen yola) tekerlekler yerde varılmalı
+	if car.mode == Car.Mode.DRIVE and car.is_on_floor() and car.global_position.z <= float(c.exit_z) + 6.0:
+		_level_result(true, "geçti")
+
+
 func _parse_args() -> void:
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)

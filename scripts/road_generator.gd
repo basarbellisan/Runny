@@ -433,6 +433,11 @@ func _fill(car_z: float) -> void:
 ##  len      – uzunluk çarpanı, width – genişlik çarpanı
 ##  dead_end – bu yolun yanına bir çıkmaz yol ekle
 func _plan_pattern(travelled: float, level: float) -> void:
+	# Test: başlangıç pistinden hemen sonra denenen el yapımı kalıp
+	if not test_level.is_empty() and not _test_used:
+		_test_used = true
+		_plan.append({"custom": test_level})
+		return
 	# Yükseklik sınırlı kalsın: alçaktayken inen, yüksekteyken çıkan kalıp yok
 	var low := level < MAIN_LEVEL - 3.0
 	var high := level > MAIN_LEVEL + 3.0
@@ -460,6 +465,9 @@ func _plan_pattern(travelled: float, level: float) -> void:
 	if travelled >= network_from:
 		var dens := clampf((travelled - network_from) / maxf(network_full_at - network_from, 1.0), 0.0, 1.0)
 		options.append(["ağ", lerpf(network_weight.x, network_weight.y, dens)])
+	var custom := _eligible_levels(travelled, car.speed)
+	if not custom.is_empty() and not low:
+		options.append(["özel", custom_weight])
 	# Tekrar yok: son kalıp hiç gelmez, son birkaç kalıbın şansı düşer.
 	# Aç kalma: uzun süredir gelmeyen kalıbın şansı artar (her kalıp düzenli görünsün).
 	for o in options:
@@ -517,6 +525,16 @@ func _plan_pattern(travelled: float, level: float) -> void:
 				"s_curve": _rng.randf() < 0.4})
 		"ada":
 			_plan.append({"islands": true})
+		"özel":
+			# El yapımı kalıp: yakında gelmemiş olanlardan biri
+			var pick_from: Array[Dictionary] = custom.filter(func(l): return not str(l.name) in _custom_recent)
+			if pick_from.is_empty():
+				pick_from = custom
+			var chosen: Dictionary = pick_from[_rng.randi() % pick_from.size()]
+			_custom_recent.append(str(chosen.name))
+			if _custom_recent.size() > maxi(custom_levels.size() - 1, 1):
+				_custom_recent.pop_front()
+			_plan.append({"custom": chosen})
 		"çatal":
 			# Önce geniş bir yol: iki kola da buradan atlanır
 			_plan.append({"width": 1.6, "len": 0.8, "dh": _rng.randf_range(-1.0, 0.0)})
@@ -538,6 +556,8 @@ func _next_from(prev: Segment) -> Segment:
 		spec = {}
 	if spec.get("islands", false):
 		return _build_islands(prev, travelled)
+	if spec.has("custom"):
+		return _build_custom(prev, spec.custom, travelled)
 
 	# Araba bu yolun sonuna vardığında ne hızda olacak (tahmini)
 	var v := estimate_speed(dist_ahead)
@@ -2696,3 +2716,285 @@ func _add_decor(seg: Segment) -> void:
 		var block := _add_box(self, pos, size, m)
 		block.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_decor.append(block)
+
+
+# --------------------------------------------------------------------------
+# El yapımı kalıplar (Bölüm Tasarımcısı: editor/, levels/*.json)
+# --------------------------------------------------------------------------
+# Tasarım dosyası metre cinsindendir: z girişten ileri doğru (0'dan), x sağa,
+# h yükseklik (0 = ana seviye). Parçalar ("pieces") yollar, engeller ("obstacles")
+# yolların üstündedir. Oyun tasarımı olduğu gibi kurar; yalnız girişini önceki yola
+# göre yerleştirir (boşluk oyunun atlama fiziğiyle, gazsız geçilemez/roketle geçilir)
+# ve kristalleri kendi algoritmasıyla dizer.
+
+## Sonsuz koşuya karışan el yapımı kalıplar (her biri "at" metreden sonra açılır)
+var custom_levels: Array[Dictionary] = []
+## Test: başlangıç pistinden hemen sonra bu kalıp gelir (editörde "Oyna", testler)
+var test_level: Dictionary = {}
+## Kurulan el yapımı kalıpların kaydı (test sonucu için): dünya konumları
+var custom_log: Array[Dictionary] = []
+## El yapımı kalıbın seçilme ağırlığı (diğer kalıplar ~0.5-3)
+@export var custom_weight := 1.2
+## Kalıp, tasarlandığı hızın en çok bu katına kadar gelir (daha hızlıda boşluklar bozulur)
+@export var custom_speed_margin := 1.25
+var _test_used := false
+var _custom_recent: Array[String] = []
+
+const LEVEL_DIR := "res://levels"
+
+
+## levels/ klasöründeki tasarımları yükler
+func load_levels() -> void:
+	custom_levels.clear()
+	for f in DirAccess.get_files_at(LEVEL_DIR):
+		if not f.ends_with(".json"):
+			continue
+		var level := parse_level(FileAccess.get_file_as_string(LEVEL_DIR + "/" + f))
+		if not level.is_empty():
+			custom_levels.append(level)
+
+
+## JSON metninden tasarım; bozuksa boş sözlük
+static func parse_level(text: String) -> Dictionary:
+	var data: Variant = JSON.parse_string(text)
+	if not data is Dictionary or not data.has("pieces") or not data.pieces is Array or data.pieces.is_empty():
+		return {}
+	var level: Dictionary = data
+	if not level.has("obstacles"):
+		level.obstacles = []
+	if not level.has("name"):
+		level.name = "isimsiz"
+	return level
+
+
+## Başlangıçtan d metre sonra arabanın hızı (oyunun hızlanmasıyla)
+func speed_at_distance(d: float) -> float:
+	var v0 := car.start_speed
+	var v := sqrt(v0 * v0 + 2.0 * car.acceleration * maxf(d, 0.0))
+	if v > car.max_speed:
+		var d_max := (car.max_speed * car.max_speed - v0 * v0) / (2.0 * car.acceleration)
+		v = sqrt(car.max_speed * car.max_speed + 2.0 * car.late_acceleration * (d - d_max))
+	return minf(v, car.top_speed)
+
+
+## Şu anki mesafe ve hızda gelebilecek el yapımı kalıplar
+func _eligible_levels(travelled: float, v: float) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for level in custom_levels:
+		var at := float(level.get("at", 0.0))
+		if travelled >= at and v <= speed_at_distance(at) * custom_speed_margin:
+			out.append(level)
+	return out
+
+
+## Tasarımı önceki yolun ardına kurar; çıkış yolunu (sonraki kalıbın başlayacağı) döndürür
+func _build_custom(prev: Segment, level: Dictionary, travelled: float) -> Segment:
+	var v := estimate_speed(car.global_position.z - prev.z_end)
+	var v_boost := _v_boost(v)
+	var slope := prev.slope()
+	var vy := car.launch_velocity + v * slope
+	var vy_b := car.launch_velocity + v_boost * slope
+	var max_up := maxf(vy, 0.0) * maxf(vy, 0.0) / (2.0 * car.gravity) * 0.6
+	var pieces: Array = level.pieces.duplicate()
+	pieces.sort_custom(func(a, b): return float(a.z0) < float(b.z0))
+	var entry: Dictionary = pieces[0]
+	for p in pieces:
+		if not p.get("side", false):
+			entry = p
+			break
+	# Giriş: önceki yoldan normal bir boşlukla (gazsız ulaşılamaz, roketle ulaşılır)
+	var dh := minf(_rng.randf_range(-2.0, 0.5), max_up)
+	if vy < 2.0:
+		dh = minf(dh, -2.0)
+	var car_len := car.half_length * 2.0
+	var gaps := _gap_window(dh, v, v_boost, vy, vy_b, car_len)
+	if gaps.y < gaps.x:
+		dh = minf(dh, -1.0)
+		gaps = _gap_window(dh, v, v_boost, vy, vy_b, car_len)
+	var gap := lerpf(gaps.x, maxf(gaps.y, gaps.x), 0.35)
+	var oy := prev.top_end + dh - float(entry.get("h0", 0.0))
+	# Tasarımın en alçak yeri bulutlara inmesin
+	var lowest := INF
+	for p in pieces:
+		lowest = minf(lowest, minf(float(p.get("h0", 0.0)), float(p.get("h1", p.get("h0", 0.0)))))
+	if lowest + oy < MIN_LEVEL:
+		oy = MIN_LEVEL - lowest
+	var ox := prev.x + _rng.randf_range(-1.0, 1.0) * minf(prev.width * 0.25, 2.0) - float(entry.get("x", 0.0))
+	var zb := prev.z_end - gap + float(entry.get("z0", 0.0))
+	_current_kind = "özel"
+	var lname: String = str(level.get("name", "özel"))
+
+	var obstacles: Array = level.obstacles
+	var built: Array[Dictionary] = []  # { p, first, last }
+	var heads: Array[Segment] = []
+	for p in pieces:
+		var x := ox + float(p.get("x", 0.0))
+		var w := clampf(float(p.get("w", 8.0)), 2.5, 16.0)
+		var plen := maxf(float(p.get("len", 40.0)), 4.0)
+		var h0 := float(p.get("h0", 0.0))
+		var h1 := float(p.get("h1", h0))
+		var zs := zb - float(p.get("z0", 0.0))
+		var ze := zs - plen
+		var is_main: bool = not p.get("side", false)
+		# Ucunda bitişik devamı olan parçada pist ışıkları yok
+		var flush_next := _custom_successor(p, pieces) != null
+		var bank := float(p.get("bank", 0.0))
+		var first: Segment
+		var last: Segment
+		var bumps: Array = []
+		for o in obstacles:
+			if o.get("kind", "") == "bump" and _custom_on(o, p):
+				bumps.append(o)
+		if absf(bank) > 0.5 and absf(h1 - h0) < 0.01:
+			var a := deg_to_rad(clampf(bank, -max_bank_deg, max_bank_deg))
+			var flat_in := minf(10.0, plen * 0.2)
+			var flat_out := minf(clampf(v * lights_time, 18.0, 70.0), plen * 0.3)
+			var t0 := zs - flat_in
+			var t1 := ze + flat_out
+			var m := t0 - t1
+			var pts: Array = [[zs, 0.0], [t0, 0.0], [t0 - m * 0.3, a], [t0 - m * 0.7, a], [t1, 0.0], [ze, 0.0]]
+			first = _add_banked_segment(x, oy + h0, w, zs, ze, pts)
+			first.main = is_main
+			last = first
+		elif not bumps.is_empty() and absf(h1 - h0) < 0.01:
+			# Tümsek: yol parçalara bölünür (çık, in), bitişik devam eder
+			bumps.sort_custom(func(a, b): return float(a.z0) < float(b.z0))
+			var secs: Array = []
+			var cur := zs
+			for o in bumps:
+				var bz := zb - float(o.z0)
+				var half := maxf(float(o.get("len", 12.0)), 4.0) * 0.5
+				var bh := clampf(float(o.get("rise", 1.0)), 0.3, 3.0)
+				if bz > cur or bz - half * 2.0 < ze:
+					continue
+				secs.append([cur, bz, 0.0, 0.0])
+				secs.append([bz, bz - half, 0.0, bh])
+				secs.append([bz - half, bz - half * 2.0, bh, 0.0])
+				cur = bz - half * 2.0
+			secs.append([cur, ze, 0.0, 0.0])
+			var depth := _rng.randf_range(6.0, 28.0)
+			for i in secs.size():
+				var c: Array = secs[i]
+				if c[0] - c[1] < 0.5:
+					continue
+				var sg := _add_segment(x, oy + h0 + c[2], oy + h0 + c[3], w, c[0], c[1], is_main, false,
+					depth + minf(c[2], c[3]), i == secs.size() - 1 and not flush_next)
+				if last:
+					last.next_flush = sg
+				else:
+					first = sg
+				last = sg
+		else:
+			first = _add_segment(x, oy + h0, oy + h1, w, zs, ze, is_main, false, -1.0, not flush_next)
+			last = first
+		var sg := first
+		while sg:
+			sg.side_road = not is_main
+			sg = sg.next_flush
+		built.append({"p": p, "first": first, "last": last})
+		if is_main:
+			heads.append(last)
+	# Bitişik parçalar (boşluksuz devam) birbirine bağlanır
+	for b in built:
+		var nxt: Variant = _custom_successor(b.p, pieces)
+		if nxt != null:
+			for c in built:
+				if c.p == nxt:
+					b.last.next_flush = c.first
+	# Engeller: üstünde durduğu parçaya
+	for o in obstacles:
+		var kind: String = o.get("kind", "")
+		if kind == "bump":
+			continue
+		var host: Dictionary = {}
+		for b in built:
+			if _custom_on(o, b.p):
+				host = b
+				if not b.p.get("side", false):
+					break
+		if host.is_empty():
+			continue
+		var wz := zb - float(o.get("z0", 0.0))
+		var sg: Segment = host.first
+		while sg.next_flush and wz < sg.z_end:
+			sg = sg.next_flush
+		var ow := clampf(float(o.get("w", 3.0)), 0.8, sg.width)
+		var cx := clampf(ox + float(o.get("x", 0.0)), sg.x - sg.width * 0.5 + ow * 0.5, sg.x + sg.width * 0.5 - ow * 0.5)
+		var olen := maxf(float(o.get("len", 6.0)), 0.6)
+		match kind:
+			"gravel":
+				_add_gravel(sg, cx - ow * 0.5, cx + ow * 0.5, wz, olen)
+			"block":
+				_add_block(sg, cx - ow * 0.5, cx + ow * 0.5, wz, clampf(olen, 0.6, 4.0))
+			"ramp", "kick":
+				var rise := clampf(float(o.get("rise", 1.6)), 0.3, 4.0)
+				var kick := 0.0
+				var tilt := 0.0
+				if kind == "kick":
+					# Hedef yana uzaklığı (m) uçuş süresinde alacak yana hız
+					var fl := _ramp_flight(v, rise / olen, -rise)
+					kick = signf(float(o.get("dir", 1.0))) * float(o.get("dx", 8.0)) / maxf(fl.y, 0.3)
+					tilt = 7.0
+				_add_ramp(sg, cx, ow, wz, olen, rise, tilt, kick)
+			"deadend":
+				var end_seg: Segment = host.last
+				end_seg.dead_end = true
+				_add_block(end_seg, end_seg.x - end_seg.width * 0.5, end_seg.x + end_seg.width * 0.5, end_seg.z_end + 1.4, 1.2)
+	# Kristaller: oyunun algoritmasıyla (iniş sırası, pist çizgisi, boşluk yayları)
+	if level.get("crystals", true):
+		var mains: Array[Dictionary] = []
+		for b in built:
+			if not b.p.get("side", false):
+				mains.append(b)
+		var prev_last: Segment = prev
+		for b in mains:
+			var dz: float = prev_last.z_end - b.first.z_start
+			if dz > 4.0 and _rng.randf() < 0.6:
+				_gap_crystals(prev_last, b.first.x, b.first.top - prev_last.top_end, dz, v)
+			_road_crystals(b.first, v, travelled + float(b.p.get("z0", 0.0)))
+			prev_last = b.last
+		for b in built:
+			if b.p.get("side", false):
+				var s: Segment = b.first
+				var cxs := s.x
+				_crystal_line(s, cxs, s.z_start - 6.0, cxs, s.z_end + 6.0, mini(int((s.z_start - s.z_end) / crystal_spacing), 6))
+	for b in built:
+		_add_decor(b.first)
+	# Çıkış: en uzaktaki ana yol (sonraki kalıp buradan devam eder)
+	var head: Segment = heads[0] if not heads.is_empty() else built[-1].last
+	for h in heads:
+		if h.z_end < head.z_end:
+			head = h
+	custom_log.append({"name": lname, "zb": zb, "ox": ox, "oy": oy, "entry_z": prev.z_end, "exit_z": head.z_end,
+		"travelled": travelled})
+	pattern_counts["özel:" + lname] = int(pattern_counts.get("özel:" + lname, 0)) + 1
+	return head
+
+
+## Engel bu parçanın üstünde mi (tasarım koordinatlarında)
+func _custom_on(o: Dictionary, p: Dictionary) -> bool:
+	var z0 := float(p.get("z0", 0.0))
+	var oz := float(o.get("z0", 0.0))
+	return oz >= z0 - 0.5 and oz <= z0 + float(p.get("len", 0.0)) + 0.5 \
+		and absf(float(o.get("x", 0.0)) - float(p.get("x", 0.0))) <= float(p.get("w", 8.0)) * 0.5 + 0.5
+
+
+## Bu parçanın ucunda boşluksuz devam eden parça (aynı yükseklikte, yan yana örtüşen)
+func _custom_successor(p: Dictionary, pieces: Array) -> Variant:
+	var end := float(p.get("z0", 0.0)) + float(p.get("len", 0.0))
+	var h_end := float(p.get("h1", p.get("h0", 0.0)))
+	for q in pieces:
+		if q == p:
+			continue
+		if absf(float(q.get("z0", 0.0)) - end) < 0.6 and absf(float(q.get("h0", 0.0)) - h_end) < 0.3 \
+				and absf(float(q.get("x", 0.0)) - float(p.get("x", 0.0))) < (float(q.get("w", 8.0)) + float(p.get("w", 8.0))) * 0.5 - 1.0:
+			return q
+	return null
+
+
+## Dünya konumunu, kurulmuş son tasarımın koordinatlarına çevirir (test raporu için)
+func to_design(pos: Vector3, index := 0) -> Vector2:
+	if custom_log.is_empty():
+		return Vector2.ZERO
+	var c: Dictionary = custom_log[clampi(index, 0, custom_log.size() - 1)]
+	return Vector2(pos.x - float(c.ox), float(c.zb) - pos.z)
