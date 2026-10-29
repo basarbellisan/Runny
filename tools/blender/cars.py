@@ -633,7 +633,8 @@ def build_yarisci():
     slab("strut_r", strut, lambda y: 14.5, out)
     slab("strut_l", strut, lambda y: -out(y), lambda y: -14.5)
 
-    # Koyu yüzeyler: burun ağzı, kokpit açıklığı, motor kapağının ön yüzü ve arkadaki menfez
+    # Kırmızı yüzeyler (siyah gövdede far ve camlar): burun ağzı, kokpit açıklığı,
+    # motor kapağının ön yüzü ve arkadaki menfez
     bm = bmesh.new()
 
     def quad(pts, face_dir):
@@ -664,7 +665,7 @@ def build_yarisci():
         Y, Z = P(x, y)
         pts.append((w(hw), Y, Z + 0.006))
     quad(pts, (0, -0.4, 1))
-    g = new_object("dark", bm, ["Dark"])
+    g = new_object("red", bm, ["Tail"])
     flat(g)
 
     # Akslar
@@ -722,7 +723,7 @@ BUILDERS = {"kutu": build_kutu, "dragster": build_dragster, "yarisci": build_yar
 ## Figma çizimli arabalar: yan görünüşte arabanın ortası ve yer çizgisi (piksel)
 ORTHO = {"dragster": (D_MID, 334.0), "yarisci": (300.0, 326.0)}
 ## Modelin gövde rengi (oyun bu rengi alır)
-PAINTS = {"dragster": ((1.0, 0.549, 0.255), 0.6, 0.0), "yarisci": ((1.0, 0.549, 0.255), 0.6, 0.0)}
+PAINTS = {"dragster": ((1.0, 0.549, 0.255), 0.6, 0.0), "yarisci": ((0.11, 0.11, 0.12), 0.45, 0.0)}
 
 
 # ---------------------------------------------------------------- çıktı
