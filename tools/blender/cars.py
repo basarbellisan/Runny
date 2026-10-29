@@ -304,8 +304,9 @@ def poly_wheel(name, pos, r, w, seg=8, hub_ratio=0.56):
     return tire
 
 
-def build_dragster():
-    """Dragster: uzun dar burun, kabine doğru yontularak genişleyen gövde, kabinin
+def build_dragster_foto():
+    """(İlk deneme, fotoğraftan; yerine Figma çiziminden yapılan build_dragster geldi.)
+    Dragster: uzun dar burun, kabine doğru yontularak genişleyen gövde, kabinin
     önünde üç parçalı koyu hava girişi, öne taşan düz tavan, arkada sivri kuyruk,
     sekizgen iri tekerler (öndekiler buruna çubuklarla bağlı)."""
     rf, wf, rr, wr = 0.45, 0.36, 0.54, 0.48
@@ -379,6 +380,179 @@ def build_dragster():
                              ("wheel_RL", -xr, yr, rr, wr), ("wheel_RR", xr, yr, rr, wr)):
         poly_wheel(name, (x, y, r), r, w)
     stretch_y(1.18)
+
+
+# Figma "RUNNY / Araba 01" çizimi (yan, arka, ön görünüş; aynı ölçek). Ölçüler çizimin
+# piksel koordinatlarıdır: yan görünüşte x arabanın boyu (burun solda, x=147), y aşağı
+# (yer y=334); ön/arka görünüşte x yarı genişlik (orta çizgiden uzaklık).
+DS = 0.0125          # metre / piksel (toplam genişlik ~2.3 m, boy ~3.7 m)
+D_MID = 296.0        # yan görünüşte arabanın ortası
+
+
+def dp(x, y):
+    """Yan görünüş pikseli -> (Y, Z) metre."""
+    return (D_MID - x) * DS, (334.0 - y) * DS
+
+
+def build_dragster():
+    """Dragster (Figma çiziminden): uzun dar burun; geniş arka gövdenin eğik ön yüzü
+    burunla çapraz bir çizgide birleşir; kabinin önünde üç hava girişi; öne taşan,
+    öne doğru daralan tavan; yan, ön ve arka camlar; kalın arka tekerler."""
+    w = lambda px: px * DS
+
+    def prism(name, pts, hw_of_y, mat="Paint"):
+        bm = bmesh.new()
+        left, right = [], []
+        for x, y in pts:
+            Y, Z = dp(x, y)
+            hw = w(hw_of_y(y))
+            left.append(bm.verts.new((-hw, Y, Z)))
+            right.append(bm.verts.new((hw, Y, Z)))
+        n = len(pts)
+        bm.faces.new(left)
+        bm.faces.new(list(reversed(right)))
+        for i in range(n):
+            j = (i + 1) % n
+            bm.faces.new((left[i], left[j], right[j], right[i]))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        ob = new_object(name, bm, [mat])
+        flat(ob)
+        return ob
+
+    # Burun: önden 79 px geniş, ön yüzü hafif geriye yatık
+    prism("nose", [(147, 283.55), (323.5, 270), (420, 270), (420, 313.11), (155.36, 313.11)], lambda y: 39.5)
+
+    # Geniş arka gövde: ön yüzü yan görünüşteki çapraz çizgi; üst kenarları pahlı
+    # (önden görünüşteki küçük üçgenler), alta doğru hafif daralır
+    def body_hw(y):
+        return 60.3 - (271 - y) * 0.833 if y < 271 else 60.3 - (y - 271) * 0.1395
+    prism("deck", [(323.5, 270), (381, 261.6), (436, 261.6), (434.4, 271), (325.5, 271)], body_hw)
+    prism("body", [(325.5, 271), (434.4, 271), (430.4, 295), (445, 297.8), (445, 313.11), (411.6, 313.11)], body_hw)
+
+    # Kabin: ön cam eğik, yanlar arkaya doğru genişler, arka direk eğimle güverteye iner
+    def st(x, hb, ht, zb, zt):
+        Y, Zb = dp(x, zb)
+        _, Zt = dp(x, zt)
+        return (Y, w(hb), w(ht), Zb, Zt)
+    cab = [st(322.5, 39, 39, 273, 271), st(330.7, 41, 37.5, 271.5, 251.1), st(383, 53.5, 46, 263.5, 251.1),
+           st(404.6, 53.75, 42.1, 263.5, 240.5), st(415.8, 53.75, 53, 264, 261.6)]
+    loft("cabin", cab)
+    # Tavan: öne taşan siperlik, plan görünüşte öne doğru daralır
+    bm = bmesh.new()
+    def rv(x, y, hw):
+        Y, Z = dp(x, y)
+        return [bm.verts.new((-w(hw), Y, Z)), bm.verts.new((w(hw), Y, Z))]
+    tf, tr = rv(325.3, 244.2, 33.5), rv(404.6, 240, 42.1)
+    bf, br = rv(321.8, 251.1, 35.5), rv(404.6, 251.1, 42.1)
+    for q in ((tf[0], tf[1], tr[1], tr[0]), (bf[0], br[0], br[1], bf[1]), (tf[0], bf[0], bf[1], tf[1]),
+              (tr[0], tr[1], br[1], br[0]), (tf[0], tr[0], br[0], bf[0]), (tf[1], bf[1], br[1], tr[1])):
+        bm.faces.new(q)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    roof = new_object("roof", bm, ["Paint"])
+    flat(roof)
+
+    # Camlar (kabin yüzeylerinin biraz dışında koyu paneller)
+    bm = bmesh.new()
+
+    def glass(pts):
+        f = bm.faces.new([bm.verts.new(p) for p in pts])
+        f.normal_update()
+        return f
+
+    def cab_side(x, y, side):
+        # Kabinin S1-S2 yan yüzü üstünde nokta (çift doğrusal), biraz dışarı
+        u = (x - 330.7) / (383 - 330.7)
+        zb = 271.5 + u * (263.5 - 271.5)
+        v = (zb - y) / (zb - 251.1)
+        hb = 41 + u * (53.5 - 41)
+        ht = 37.5 + u * (46 - 37.5)
+        Y, Z = dp(x, y)
+        return (side * (w(hb + (ht - hb) * v) + 0.012), Y, Z)
+
+    for side in (-1, 1):
+        f = glass([cab_side(337.0, 252.6, side), cab_side(381, 252.6, side),
+                   cab_side(381, 262.8, side), cab_side(330.6, 269.6, side)])
+        if f.normal.x * side < 0:
+            f.normal_flip()
+
+    def on_line(hw, y, a, b, push):
+        # (a, b): yan görünüşte yüzeyin iki ucu (x, y); push: yüzeyden dışarı (m, +Y ön)
+        x = a[0] + (y - a[1]) / (b[1] - a[1]) * (b[0] - a[0])
+        Y, Z = dp(x, y)
+        return (w(hw), Y + push, Z)
+
+    def mirrored(pts):
+        # Sağ yarının noktalarından simetrik dörtgen (sol alt, sağ alt, sağ üst, sol üst)
+        (x0, y0, z0), (x1, y1, z1) = pts
+        return [(-x0, y0, z0), (x0, y0, z0), (x1, y1, z1), (-x1, y1, z1)]
+
+    # Ön cam: kabinin eğik ön yüzünde (önden görünüşte 35-38.5 px yarı genişlik)
+    ws_a, ws_b = (322.5, 271), (330.7, 251.1)
+    f = glass(mirrored([on_line(38.5, 270, ws_a, ws_b, 0.006), on_line(35.3, 252, ws_a, ws_b, 0.006)]))
+    if f.normal.y < 0:
+        f.normal_flip()
+    # Arka cam: arka direkte ince yarık (arka görünüş y 247-255)
+    rw_a, rw_b = (404.6, 240.5), (415.8, 261.6)
+    f = glass(mirrored([on_line(41.6, 255, rw_a, rw_b, -0.006), on_line(38.0, 247, rw_a, rw_b, -0.006)]))
+    if f.normal.y > 0:
+        f.normal_flip()
+    g = new_object("glass", bm, ["Glass"])
+    flat(g)
+
+    # Hava girişleri: yan görünüşte art arda üç kule
+    for x0 in (250.05, 262.82, 275.58):
+        Y, Z = dp(x0 + 4.64, (262.98 + 279.69) / 2)
+        box("blower", (w(9.28), w(9.28), w(16.71)), (0, Y, Z), "Dark")
+
+    # Farlar (burnun eğik ön yüzünde) ve stop lambaları (arka yüzde)
+    tilt_f = math.atan2(155.36 - 147, 313.11 - 283.55)
+    for x in (-15.9, 15.9):
+        Y, Z = dp(151.2 - 0.6, 298.5)
+        box("headlight", (w(18.46), 0.02, w(11)), (w(x), Y, Z), "Light", rot=(-tilt_f, 0, 0))
+    tilt_r = math.atan2(436 - 430.4, 295 - 261.6)
+    for x in (-35.2, 35.2):
+        Y, Z = dp(433.3 + 0.6, 278)
+        box("taillight", (w(24.27), 0.02, w(8)), (w(x), Y, Z), "Tail", rot=(-tilt_r, 0, 0))
+
+    # Ön aks çubukları (burundan tekere), arka aks (boydan boya)
+    yf, _ = dp(203.94, 0)
+    yr, _ = dp(393.49, 0)
+    rf, rr = w(29.94), w(33.42)
+    for sx in (-1, 1):
+        box("rod", (w(16), w(4), w(4)), (sx * w(39.5 + 8), yf, rf), "Dark")
+    box("axle", (w(150), w(5), w(5)), (0, yr, rr), "Dark")
+
+    # Tekerler: yuvarlak lastik (köşeleri yuvarlatılmış), düz beyaz göbek diski,
+    # dışarı taşan göbek kapağı ve ortada koyu somun
+    def round_wheel(name, pos, r, tw, hub_r, cap_r, cap_out, nut_r):
+        seg = 16
+        bm = bmesh.new()
+        bmesh.ops.create_cone(bm, cap_ends=True, segments=seg, radius1=r, radius2=r, depth=tw)
+        bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
+        tire = new_object(name, bm, ["Tire"])
+        bevel(tire, w(4), 2)
+        flat(tire)
+        for side in (-1, 1):
+            parts = ((hub_r, 0.01, tw / 2, "Hub"), (cap_r, cap_out + 0.004, tw / 2 + cap_out / 2, "Hub"),
+                     (nut_r, 0.01, tw / 2 + cap_out + 0.003, "Dark"))
+            for k, (rad, depth, off, mat) in enumerate(parts):
+                bm = bmesh.new()
+                bmesh.ops.create_cone(bm, cap_ends=True, segments=seg if k < 2 else 8, radius1=rad, radius2=rad, depth=depth)
+                bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
+                bmesh.ops.translate(bm, verts=bm.verts, vec=(side * off, 0, 0))
+                ob = new_object(name + "_p", bm, [mat])
+                ob.parent = tire
+                flat(ob)
+        tire.location = pos
+        return tire
+
+    xf, xr = w(66.7), w(77.8)
+    for name, x, y, r, tw, hub, cap, out, nut in (
+            ("wheel_FL", -xf, yf, rf, w(27.73), w(17.4), w(8.5), w(3.75), w(4.9)),
+            ("wheel_FR", xf, yf, rf, w(27.73), w(17.4), w(8.5), w(3.75), w(4.9)),
+            ("wheel_RL", -xr, yr, rr, w(30.97), w(19.43), w(9.5), w(4.18), w(5.44)),
+            ("wheel_RR", xr, yr, rr, w(30.97), w(19.43), w(9.5), w(4.18), w(5.44))):
+        round_wheel(name, (x, y, r), r, tw, hub, cap, out, nut)
 
 
 def stretch_y(k):
@@ -489,6 +663,35 @@ def render(dirpath, name, studio=False):
     floor.select_set(True)
 
 
+def render_ortho(dirpath, name, views, scale, size=300):
+    """Dik (ortografik) görünüşler: views = {ad: (kamera konumu, bakılan nokta)}; 1 piksel = scale m."""
+    scene = bpy.context.scene
+    scene.render.engine = "CYCLES"
+    scene.cycles.samples = 16
+    scene.render.resolution_x = size
+    scene.render.resolution_y = size
+    scene.view_settings.view_transform = "Standard"
+    world = bpy.data.worlds.new("wo")
+    world.use_nodes = True
+    world.node_tree.nodes["Background"].inputs[0].default_value = (1, 1, 1, 1)
+    world.node_tree.nodes["Background"].inputs[1].default_value = 1.0
+    scene.world = world
+    sun = bpy.data.objects.new("sun_o", bpy.data.lights.new("sun_o", "SUN"))
+    sun.data.energy = 2.5
+    sun.rotation_euler = (math.radians(35), math.radians(-20), math.radians(-35))
+    scene.collection.objects.link(sun)
+    cam = bpy.data.objects.new("cam_o", bpy.data.cameras.new("cam_o"))
+    cam.data.type = "ORTHO"
+    cam.data.ortho_scale = size * scale
+    scene.collection.objects.link(cam)
+    scene.camera = cam
+    for view, (loc, target) in views.items():
+        cam.location = loc
+        cam.rotation_euler = (Vector(target) - Vector(loc)).to_track_quat("-Z", "Y").to_euler()
+        scene.render.filepath = os.path.join(dirpath, "%s_%s.png" % (name, view))
+        bpy.ops.render.render(write_still=True)
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
     ap = argparse.ArgumentParser()
@@ -496,6 +699,7 @@ def main():
     ap.add_argument("--render", default="")
     ap.add_argument("--only", default="")
     ap.add_argument("--studio", action="store_true")
+    ap.add_argument("--ortho", action="store_true")
     a = ap.parse_args(argv)
     os.makedirs(a.out, exist_ok=True)
     for name, build in BUILDERS.items():
@@ -509,7 +713,17 @@ def main():
         export(os.path.join(a.out, name + ".glb"))
         if a.render:
             os.makedirs(a.render, exist_ok=True)
-            render(a.render, name, a.studio)
+            if a.ortho and name == "dragster":
+                # Figma çizimiyle aynı ölçek ve çerçeve (her görünüş 300 px kare)
+                _, zc = dp(296.5, 281.5)
+                yc, _ = dp(296.5, 0)
+                render_ortho(a.render, name, {
+                    "o_yan": ((-20, yc, zc), (0, yc, zc)),
+                    "o_on": ((-(980.5 - 980.3) * DS, 20, zc), (-(980.5 - 980.3) * DS, 0, zc)),
+                    "o_arka": (((636.5 - 636.5) * DS, -20, zc), (0, 0, zc)),
+                }, DS)
+            else:
+                render(a.render, name, a.studio)
 
 
 if __name__ == "__main__":
