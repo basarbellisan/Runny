@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Runny Bölüm Tasarımcısı</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="editor.css">
+</head>
+<body>
+<div class="top">
+  <div class="logo">RUNNY<span>Bölüm Tasarımcısı</span></div>
+  <label class="name"><small>Kalıp</small><input id="name" spellcheck="false"></label>
+  <div class="menu">
+    <button class="btn ghost" id="fileBtn">Dosya ▾</button>
+    <div class="dropdown" id="fileMenu">
+      <button data-act="new">Yeni kalıp</button>
+      <button data-act="open">Kaydedilenler…</button>
+      <button data-act="import">Dosyadan aç (.json)…</button>
+      <button data-act="export">Dosya olarak indir</button>
+      <hr>
+      <button data-act="mirror">Aynala (sağ ↔ sol)</button>
+      <button data-act="sample">Örnek kalıbı yükle</button>
+    </div>
+  </div>
+  <button class="btn ghost icon" id="undoBtn" title="Geri al (Ctrl+Z)">↶</button>
+  <button class="btn ghost icon" id="redoBtn" title="Yinele (Ctrl+Shift+Z)">↷</button>
+  <div class="sp"></div>
+  <label class="toggle" title="Kristalleri oyun kendi algoritmasıyla dizer"><input type="checkbox" id="crystals" checked><span class="sw"></span>Kristaller otomatik</label>
+  <button class="btn test" id="testBtn">⟳ Test et (otomatik pilot)</button>
+  <button class="btn" id="saveBtn" title="Kaydedilenlere ekle (Ctrl+S)">Kaydet</button>
+  <button class="btn" id="copyBtn" title="Tasarımı panoya kopyala: sohbete yapıştırabilirsin">Kopyala</button>
+  <button class="btn primary" id="playBtn">▶ Oyna</button>
+</div>
+
+<div class="main">
+  <aside class="left">
+    <input class="search" id="search" placeholder="Parça ara…" spellcheck="false">
+    <h3>Yollar</h3>
+    <div class="tiles" data-group="roads"></div>
+    <h3>Engeller</h3>
+    <div class="tiles" data-group="obstacles"></div>
+    <h3>Hazır kalıplar</h3>
+    <div class="tiles" data-group="patterns"></div>
+    <p class="hint">Parçayı tuvale sürükle. Yolu bir önceki yolun ardına bırakırsan, boşluk o hızda atlanacak şekilde kendiliğinden ayarlanır.</p>
+  </aside>
+
+  <section class="center">
+    <div class="canvas" id="canvasWrap">
+      <svg id="top"></svg>
+      <div class="legend">
+        <span><i style="background:var(--road-low)"></i>alçak</span>
+        <span><i style="background:var(--road-mid)"></i>orta</span>
+        <span><i style="background:var(--road-high)"></i>yüksek</span>
+        <span><i style="background:rgba(58,166,91,.45)"></i>iniş bölgesi</span>
+        <span><i style="background:var(--energy)"></i>kristal</span>
+        <span><i style="background:#e23c30"></i>pist ışıkları</span>
+      </div>
+      <div class="zoom"><button id="zoomOut">−</button><button id="zoomFit" title="Tümünü göster">⤢</button><button id="zoomIn">+</button></div>
+      <div class="empty" id="empty">Soldan bir yolu buraya sürükle<br><small>ya da Dosya ▸ Örnek kalıbı yükle</small></div>
+    </div>
+    <div class="profile"><div class="ptitle">YANDAN GÖRÜNÜŞ</div><svg id="side"></svg></div>
+  </section>
+
+  <aside class="right">
+    <h3>Seçili parça</h3>
+    <div class="card" id="props"></div>
+    <h3>Bölüm</h3>
+    <div class="card" id="levelCard">
+      <div class="stats" id="stats"></div>
+      <div class="row" style="margin-top:10px"><label>Oyunda nerede</label><b id="atLabel"></b></div>
+      <input type="range" id="at" min="0" max="8000" step="50">
+      <div class="row"><label>O andaki hız</label><b id="speedLabel"></b></div>
+      <div class="row" style="margin-top:4px"><label>Zorluk</label><b id="diffLabel"></b></div>
+      <div class="diff" id="diff"></div>
+    </div>
+    <h3>Kontrol</h3>
+    <div class="card checks" id="checks"></div>
+    <h3>Test</h3>
+    <div class="card" id="results"></div>
+  </aside>
+</div>
+
+<div class="dragghost" id="ghost"></div>
+<div class="toast" id="toast"></div>
+
+<div class="modal" id="gameModal">
+  <div class="mbox game">
+    <div class="mhead"><b id="gameTitle">Oyna</b><span id="gameInfo"></span><div class="sp"></div><button class="btn" id="gameClose">Kapat</button></div>
+    <iframe id="gameFrame" allow="autoplay; fullscreen"></iframe>
+  </div>
+</div>
+<div class="modal" id="libModal">
+  <div class="mbox lib">
+    <div class="mhead"><b>Kaydedilen kalıplar</b><div class="sp"></div><button class="btn" id="libClose">Kapat</button></div>
+    <div id="libList"></div>
+  </div>
+</div>
+<input type="file" id="fileInput" accept=".json,application/json" hidden>
+
+<script src="physics.js"></script>
+<script src="editor.js"></script>
+</body>
+</html>

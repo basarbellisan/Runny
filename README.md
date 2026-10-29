@@ -288,6 +288,32 @@ hesaplanır. Renkler: her 1 km'de bir bölge tonu
 Yokuş yukarı rampalar: turuncu kenar çizgileri, turuncu oklar (^) ve
 turuncuya çalan duvarlar; yokuş aşağılar biraz daha koyu.
 
+## Bölüm Tasarımcısı
+https://basarbellisan.github.io/Runny/editor/ (masaüstü tarayıcı) — `editor/` klasörü.
+Soldan yolları (alçak / orta / yüksek, yokuş, yatık, dar) ve engelleri (rampa, eğik
+rampa, tümsek, çakıl, blok, çıkmaz) tuvale sürükleyerek el yapımı kalıp çizilir.
+Kristalleri oyun kendi algoritmasıyla dizer. Sağdaki **Kontrol** listesi oyunun
+fiziğiyle (`editor/physics.js`, oyundaki sabitlerle aynı) her atlamayı, iniş
+bölgesini, rampa/tümsek uçuşunu ve yan yol dönüşlerini denetler.
+- **Test et**: tasarım oyunda otomatik pilotla 6 kez (6 araba) sürülür; düşülen yerler tuvalde ✕.
+- **Oyna**: tasarımı oyunda kendin sür.
+- **Kaydet / Kopyala / Dosya olarak indir**: tasarım `runny-level` JSON'u olur.
+
+Oyuna eklemek: JSON'u `levels/` klasörüne koy. Oyun bu kalıpları sonsuz koşuya karıştırır:
+kalıbın `at` metresinden sonra ve o andaki hız tasarımdakinden çok fazla değilse,
+bir önceki yoldan atlanabilir bir boşlukla girilir. Eklemeden önce test:
+```
+python3 tools/level_test.py levels/kalip.json --runs 12   # fizik kontrolleri + başsız oyunda otomatik pilot
+godot --path . -- --level=levels/kalip.json               # kalıp başlangıçtan hemen sonra gelir
+```
+Biçim (metre; z ileri, x yana, h ana yol seviyesine göre yükseklik):
+```
+{ "format": "runny-level", "version": 1, "name": "...", "at": 800, "crystals": true,
+  "pieces":    [{ "id": 1, "x": 0, "w": 9, "z0": 0, "len": 160, "h0": 0, "h1": 0, "bank": 0, "side": false }],
+  "obstacles": [{ "id": 6, "kind": "ramp|kick|bump|gravel|block|deadend", "x": 0, "w": 4, "z0": 64, "len": 8,
+                  "rise": 1.6, "dir": 1, "dx": 8 }] }
+```
+
 ## Yapı
 - `scripts/menu.gd` — garaj (başlangıç ekranı)
 - `scripts/car_model.gd` — araba görünümü (4 model: kutu, gezgin, konsept, roadster) ve tekerler
@@ -301,6 +327,8 @@ turuncuya çalan duvarlar; yokuş aşağılar biraz daha koyu.
 - `scripts/game.gd` — skor, çarpan, kanat enerjisi, katmanlar arası renk geçişi, oyun sonu
 - `scripts/audio.gd` — ses yöneticisi (autoload `Audio`): müzik katmanlar arası geçiş yapar, motor/rüzgâr hıza göre değişir
 - `scripts/autopilot.gd` — test için otomatik sürücü
+- `editor/` — Bölüm Tasarımcısı (web): `physics.js` kontroller, `editor.js` tuval; `levels/*.json` el yapımı kalıplar
+- `tools/level_test.py` — kalıbı fizik kontrolü + başsız oyunda otomatik pilotla test eder
 - `tools/make_sounds.py` — tüm sesleri ve müziği sıfırdan sentezler (`pip install numpy soundfile`, sonra `python3 tools/make_sounds.py`)
 - `scripts/follow_camera.gd`, `scripts/hud.gd`
 

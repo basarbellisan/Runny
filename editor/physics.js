@@ -139,13 +139,55 @@
         if (dh < 4) add('error', 'Üst üste binen yollar: aralarında en az 4 m yükseklik farkı olmalı ya da yan yana dursunlar.', [a.id, b.id], dz);
       }
     }
+    // Atlamanın inişi: tam roketle yolu aşmasın, iniş bölgesinde engel olmasın
+    function landing(J, B) {
+      const A = J.A;
+      const landFar = J.landFar - B.z0;
+      if (J.landFar > pEnd(B) - 2) {
+        add('error', `Tam roketle yolun ötesine iniliyor: ${landFar.toFixed(0)} m'ye kadar, yol ${B.len.toFixed(0)} m. Yolu uzat ya da boşluğu büyüt.`, [B.id], B.z0);
+      } else if (pEnd(B) - J.landFar < J.v * 1.2 && !successor(level, B)) {
+        const left = pEnd(B) - J.landFar;
+        add(left < J.v * 0.6 ? 'error' : 'warn', `İnişten sonra gaz için az yol kalıyor (${left.toFixed(0)} m): roket basmaya vakit yok, sonraki boşluğa düşülür.`, [B.id], B.z0);
+      }
+      if (J.need > J.lateral * 0.8) {
+        J.bad = true;
+        add('error', `Yana çok uzak: havada ancak ${J.lateral.toFixed(1)} m kayılır, ${J.need.toFixed(1)} m gerek.`, [A.id, B.id], pEnd(A));
+      }
+      // İniş bölgesinde engel olmasın (roket hâlâ yanar)
+      const vB = speedAt(at + B.z0);
+      const calm = B.z0 + clearStart(vB, landFar);
+      zones.push({ id: B.id, kind: 'calm', z0: B.z0, z1: Math.min(calm, pEnd(B)) });
+      // Tam roketli inişten ~0.3 sn sonrasına kadar: araba hâlâ roket hızında (hata);
+      // oyunun kendi yollarındaki temkinli boş bölge (uyarı)
+      const hot = J.landFar + J.vb * 0.3;
+      for (const o of obstacles) {
+        if (o.kind !== 'deadend' && hostOf(level, o) === B && o.z0 < calm) {
+          const strong = (o.kind === 'bump' || o.kind === 'ramp' || o.kind === 'kick' || o.kind === 'block') && o.z0 < hot;
+          add(strong ? 'error' : 'warn', strong
+            ? `${KIND_NAMES[o.kind] || 'Engel'} iniş noktasının hemen ardında: roketle inen araba buna çarpar ya da fırlar. En az ${(hot - B.z0).toFixed(0)} m içeri al.`
+            : `${KIND_NAMES[o.kind] || 'Engel'} inişe yakın: oyun kendi yollarında ilk ${(calm - B.z0).toFixed(0)} metreyi boş bırakır.`, [o.id], o.z0);
+        }
+      }
+    }
     // Ana yol boyunca atlamalar
     let speedSum = 0;
     for (let i = 0; i + 1 < path.length; i++) {
       const A = path[i];
       if (successor(level, A)) continue;
-      const B = path.slice(i + 1).find((q) => q.z0 > pEnd(A) - 0.6);
-      if (!B) continue;
+      // Sonraki yol: ileride, en az kaymayla ulaşılan (yan yana ana yollar ayrı hatlar)
+      let B = null, best = Infinity;
+      for (const q of path) {
+        if (q === A || q.z0 < pEnd(A) - 0.6 || q.z0 > pEnd(A) + 150) continue;
+        const lat = Math.max(0, Math.abs(q.x - A.x) - (q.w + A.w) / 2);
+        if (lat > 8) continue;  // yana bu kadar uzak yol ayrı bir hat
+        const cost = (q.z0 - pEnd(A)) + lat * 12;
+        if (cost < best) { best = cost; B = q; }
+      }
+      if (!B) {
+        if (pEnd(A) < Math.max(...path.map(pEnd)) - 1)
+          add('warn', 'Bu yolun sonundan inilecek yol yok: araba uçuşa düşer (çıkmaz istiyorsan Çıkmaz koy).', [A.id], pEnd(A));
+        continue;
+      }
       if (B.z0 - pEnd(A) < 0.6) continue;
       const J = jump(level, A, B);
       jumps.push(J);
@@ -160,34 +202,7 @@
         J.easy = true;
         add('ok', `${g.toFixed(0)} m boşluk gazsız da geçiliyor (kolay).`, [A.id, B.id], pEnd(A));
       }
-      if (!J.bad) {
-        const landFar = J.landFar - B.z0;
-        if (J.landFar > pEnd(B) - 2) {
-          add('error', `Tam roketle yolun ötesine iniliyor: ${landFar.toFixed(0)} m'ye kadar, yol ${B.len.toFixed(0)} m. Yolu uzat ya da boşluğu büyüt.`, [B.id], B.z0);
-        } else if (pEnd(B) - J.landFar < J.v * 1.2 && !successor(level, B)) {
-          const left = pEnd(B) - J.landFar;
-          add(left < J.v * 0.6 ? 'error' : 'warn', `İnişten sonra gaz için az yol kalıyor (${left.toFixed(0)} m): roket basmaya vakit yok, sonraki boşluğa düşülür.`, [B.id], B.z0);
-        }
-        if (J.need > J.lateral * 0.8) {
-          J.bad = true;
-          add('error', `Yana çok uzak: havada ancak ${J.lateral.toFixed(1)} m kayılır, ${J.need.toFixed(1)} m gerek.`, [A.id, B.id], pEnd(A));
-        }
-        // İniş bölgesinde engel olmasın (roket hâlâ yanar)
-        const vB = speedAt(at + B.z0);
-        const calm = B.z0 + clearStart(vB, landFar);
-        zones.push({ id: B.id, kind: 'calm', z0: B.z0, z1: Math.min(calm, pEnd(B)) });
-        // Tam roketli inişten ~0.3 sn sonrasına kadar: araba hâlâ roket hızında (hata);
-        // oyunun kendi yollarındaki temkinli boş bölge (uyarı)
-        const hot = J.landFar + J.vb * 0.3;
-        for (const o of obstacles) {
-          if (o.kind !== 'deadend' && hostOf(level, o) === B && o.z0 < calm) {
-            const strong = (o.kind === 'bump' || o.kind === 'ramp' || o.kind === 'kick' || o.kind === 'block') && o.z0 < hot;
-            add(strong ? 'error' : 'warn', strong
-              ? `${KIND_NAMES[o.kind] || 'Engel'} iniş noktasının hemen ardında: roketle inen araba buna çarpar ya da fırlar. En az ${(hot - B.z0).toFixed(0)} m içeri al.`
-              : `${KIND_NAMES[o.kind] || 'Engel'} inişe yakın: oyun kendi yollarında ilk ${(calm - B.z0).toFixed(0)} metreyi boş bırakır.`, [o.id], o.z0);
-          }
-        }
-      }
+      if (!J.bad) landing(J, B);
       speedSum += 1;
     }
     // Her ana yolun sonunda pist bölgesi: engel olmasın (hizalanıp gaz)
@@ -207,7 +222,8 @@
       const host = hostOf(level, o);
       if (!host) { add('error', `${KIND_NAMES[o.kind]} bir yolun üstünde değil.`, [o.id], o.z0); continue; }
       const F = rampFlight(level, o, host);
-      flights.push({ o, host, ...F });
+      F.o = o; F.host = host;
+      flights.push(F);
       if (isNaN(F.t)) continue;
       // İnilen yol: uçuş yayının indiği ilk (en yüksek) yol; yay yukarı da çıkar,
       // daha yüksek bir yola da konulabilir
@@ -239,7 +255,14 @@
         const lat = CAR.steerSpeed * CAR.airControl * (isNaN(t) ? 0 : t);
         return Math.abs(q.x - p.x) - (q.w + p.w) / 2 + 2 * CAR.halfWidth < lat * 0.8;
       });
-      if (!ok) add('warn', 'Yan yolun sonundan inilecek ana yol yok: çıkmaz yapmak istiyorsan Çıkmaz koy.', [p.id], pEnd(p));
+      if (!ok) { add('warn', 'Yan yolun sonundan inilecek ana yol yok: çıkmaz yapmak istiyorsan Çıkmaz koy.', [p.id], pEnd(p)); continue; }
+      // Yan yoldan ana yola iniş de ana yoldaki atlamalar gibi denetlenir
+      const B = path.filter((q) => q.z0 <= pEnd(p) + 60 && pEnd(q) >= pEnd(p) + 4)
+        .sort((a, b) => Math.abs(a.x - p.x) - Math.abs(b.x - p.x) || a.z0 - b.z0)[0];
+      const J = jump(level, p, B);
+      J.side = true;
+      jumps.push(J);
+      if (!isNaN(J.reachB)) landing(J, B);
     }
     // Çıkış yolu
     const exit = path[path.length - 1];
@@ -253,12 +276,12 @@
     const vMid = speedAt(at + length / 2);
     const nObs = obstacles.length;
     const narrow = pieces.filter((p) => p.w < 5).length;
-    const hard = jumps.filter((j) => !j.easy).length;
+    const hard = jumps.filter((j) => !j.easy && !j.side).length;
     let diff = 1 + hard * 0.45 + nObs * 0.18 + narrow * 0.4 + (vMid > 45 ? 0.6 : 0) + flights.length * 0.2;
     diff = Math.max(1, Math.min(5, Math.round(diff)));
     const crystals = crystalPreview(level, analyzeLite(level, jumps)).length;
     if (!issues.some((i) => i.level !== 'ok')) add('ok', 'Kontrollerde sorun yok.');
-    return { issues, jumps, flights, zones, stats: { length, time: length / vMid, jumps: jumps.length, crystals, difficulty: diff, speed: vMid } };
+    return { issues, jumps, flights, zones, stats: { length, time: length / vMid, jumps: jumps.filter((j) => !j.side).length, crystals, difficulty: diff, speed: vMid } };
   }
   const analyzeLite = (level, jumps) => ({ jumps });
 
