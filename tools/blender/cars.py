@@ -24,7 +24,7 @@ COLORS = {
     "Dark": ((0.165, 0.173, 0.188), 0.85, 0.0),
     "Tire": ((0.11, 0.114, 0.125), 0.95, 0.0),
     "Glass": ((0.137, 0.145, 0.161), 0.15, 0.0),
-    "Light": ((1.0, 1.0, 1.0), 0.3, 2.0),
+    "Light": ((1.0, 1.0, 1.0), 0.3, 0.6),
     "Tail": ((0.847, 0.196, 0.165), 0.4, 1.5),
     "Hub": ((0.984, 0.98, 0.969), 0.5, 0.0),
 }
@@ -258,7 +258,143 @@ def build_kutu():
     return wheels
 
 
-BUILDERS = {"kutu": build_kutu}
+# ---------------------------------------------------------------- Dragster
+def loft(name, stations, mat="Paint", cap=True):
+    """Kesitlerden gövde: her kesit (y, alt yarı genişlik, üst yarı genişlik, z alt, z üst)
+    dikdörtgen/yamuk; ardışık kesitler düz yüzlerle bağlanır (köşeli, yontulmuş görünüm)."""
+    bm = bmesh.new()
+    rings = []
+    for y, hb, ht, zb, zt in stations:
+        rings.append([bm.verts.new((-hb, y, zb)), bm.verts.new((hb, y, zb)),
+                      bm.verts.new((ht, y, zt)), bm.verts.new((-ht, y, zt))])
+    for a, b in zip(rings, rings[1:]):
+        for i in range(4):
+            j = (i + 1) % 4
+            bm.faces.new((a[i], a[j], b[j], b[i]))
+    if cap:
+        bm.faces.new(rings[0])
+        bm.faces.new(list(reversed(rings[-1])))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    ob = new_object(name, bm, [mat])
+    flat(ob)
+    return ob
+
+
+def poly_wheel(name, pos, r, w, seg=8, hub_ratio=0.56):
+    """Sekizgen lastik (kenarları pahlı) ve iki yanda düz beyaz göbek diski."""
+    bm = bmesh.new()
+    bmesh.ops.create_cone(bm, cap_ends=True, segments=seg, radius1=r, radius2=r, depth=w)
+    bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
+    # Sekizgenin bir kenarı yere otursun
+    bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / seg, 3, "X"), cent=(0, 0, 0))
+    tire = new_object(name, bm, ["Tire"])
+    bevel(tire, r * 0.13, 1)
+    flat(tire)
+    for side in (-1, 1):
+        bm = bmesh.new()
+        hr = r * hub_ratio
+        bmesh.ops.create_cone(bm, cap_ends=True, segments=seg, radius1=hr, radius2=hr, depth=0.02)
+        bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
+        bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / seg, 3, "X"), cent=(0, 0, 0))
+        bmesh.ops.translate(bm, verts=bm.verts, vec=(side * (w * 0.5 + 0.005), 0, 0))
+        hub = new_object(name + "_hub%d" % side, bm, ["Hub"])
+        hub.parent = tire
+        flat(hub)
+    tire.location = pos
+    return tire
+
+
+def build_dragster():
+    """Dragster: uzun dar burun, kabine doğru yontularak genişleyen gövde, kabinin
+    önünde üç parçalı koyu hava girişi, öne taşan düz tavan, arkada sivri kuyruk,
+    sekizgen iri tekerler (öndekiler buruna çubuklarla bağlı)."""
+    rf, wf, rr, wr = 0.45, 0.36, 0.54, 0.48
+    yf, yr = 1.62, -1.38
+    xf, xr = 0.78, 0.95
+    # Gövde: burun (sabit dar), yontulu genişleme, arka gövde (alt kenarı içe çekik)
+    loft("body", [
+        (2.02, 0.29, 0.29, 0.47, 0.77),
+        (0.55, 0.29, 0.29, 0.46, 0.86),
+        (0.05, 0.34, 0.52, 0.45, 0.93),
+        (-0.45, 0.38, 0.62, 0.45, 0.97),
+        (-1.35, 0.40, 0.64, 0.47, 0.99),
+        (-1.75, 0.34, 0.56, 0.52, 0.97),
+    ])
+    # Kabin: eğik ön cam, düz tavan, arkaya inen sırt
+    cab = loft("cabin", [
+        (-0.10, 0.50, 0.50, 0.91, 0.93),
+        (-0.40, 0.52, 0.48, 0.93, 1.34),
+        (-1.00, 0.56, 0.52, 0.95, 1.36),
+        (-1.55, 0.56, 0.54, 0.96, 1.02),
+    ])
+    # Camlar: ön cam ve yan camlar (kabin yüzlerine oturan koyu paneller)
+    bm = bmesh.new()
+    def quad(pts):
+        f = bm.faces.new([bm.verts.new(p) for p in pts])
+        return f
+    k = 0.92  # cam, kabin yüzünün içinde kalsın
+    quad([(-0.46 * k, -0.13, 0.96), (0.46 * k, -0.13, 0.96), (0.44 * k, -0.38, 1.30), (-0.44 * k, -0.38, 1.30)])
+    for sx in (-1, 1):
+        pts = [(sx * 0.51, -0.18, 0.98), (sx * 0.54, -0.95, 0.99), (sx * 0.52, -0.95, 1.30), (sx * 0.49, -0.44, 1.30)]
+        f = quad([(x + sx * 0.012, y, z) for x, y, z in pts])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    for f in bm.faces:
+        c = f.calc_center_median()
+        if (abs(c.x) > 0.3 and f.normal.x * c.x < 0) or (abs(c.x) <= 0.3 and f.normal.y < 0):
+            f.normal_flip()
+    g = new_object("glass", bm, ["Glass"])
+    flat(g)
+    # Tavan: öne taşan düz plaka (siperlik)
+    loft("roof", [
+        (-0.14, 0.48, 0.48, 1.34, 1.42),
+        (-1.10, 0.53, 0.53, 1.34, 1.42),
+    ])
+    # Sivri kuyruk: arka köşelerden yukarı-geri kalkan kanatçıklar
+    for sx in (-1, 1):
+        bm = bmesh.new()
+        v = [bm.verts.new(p) for p in [
+            (sx * 0.40, -1.05, 0.96), (sx * 0.62, -1.05, 0.96), (sx * 0.56, -1.75, 0.94), (sx * 0.38, -1.75, 0.94),
+            (sx * 0.50, -1.80, 1.36)]]
+        bm.faces.new((v[0], v[1], v[2], v[3]))
+        for a, b in ((0, 1), (1, 2), (2, 3), (3, 0)):
+            bm.faces.new((v[a], v[b], v[4]))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        fin = new_object("fin", bm, ["Paint"])
+        flat(fin)
+    # Hava girişi (blower): alçak taban + üç koyu blok, öndeki basamak
+    box("blower_base", (0.46, 0.42, 0.06), (0, 0.32, 0.87), "Dark")
+    for i, x in enumerate((-0.15, 0.0, 0.15)):
+        h = (0.36, 0.32, 0.28)[i]
+        box("blower", (0.12, 0.26, h), (x, 0.26, 0.9 + h / 2), "Dark")
+    box("blower_step", (0.40, 0.12, 0.08), (0, 0.50, 0.94), "Dark")
+    # Farlar
+    for x in (-0.13, 0.13):
+        box("headlight", (0.15, 0.03, 0.13), (x, 2.025, 0.58), "Light")
+    # Ön aks çubukları (iki), arka aks göbeği
+    for sx in (-1, 1):
+        for dy in (-0.07, 0.07):
+            box("rod", ((xf - wf / 2) - 0.28, 0.05, 0.05), (sx * (0.28 + (xf - wf / 2 - 0.28) / 2), yf + dy, rf), "Dark")
+        box("stub", (xr - wr / 2 - 0.6, 0.16, 0.16), (sx * (0.6 + (xr - wr / 2 - 0.6) / 2), yr, rr), "Dark")
+    for name, x, y, r, w in (("wheel_FL", -xf, yf, rf, wf), ("wheel_FR", xf, yf, rf, wf),
+                             ("wheel_RL", -xr, yr, rr, wr), ("wheel_RR", xr, yr, rr, wr)):
+        poly_wheel(name, (x, y, r), r, w)
+    stretch_y(1.18)
+
+
+def stretch_y(k):
+    """Arabayı boyuna uzatır (tekerler büyümez, yalnız yerleri kayar)."""
+    for ob in bpy.context.scene.objects:
+        if ob.parent is not None or ob.type != "MESH":
+            continue
+        ob.location.y *= k
+        if not ob.name.startswith("wheel_"):
+            for v in ob.data.vertices:
+                v.co.y *= k
+
+
+BUILDERS = {"kutu": build_kutu, "dragster": build_dragster}
+## Modelin gövde rengi (oyun bu rengi alır)
+PAINTS = {"dragster": ((1.0, 0.549, 0.255), 0.6, 0.0)}
 
 
 # ---------------------------------------------------------------- çıktı
@@ -309,7 +445,7 @@ def export(path):
                               export_lights=False)
 
 
-def render(dirpath, name):
+def render(dirpath, name, studio=False):
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
     scene.cycles.samples = 48
@@ -320,28 +456,33 @@ def render(dirpath, name):
     world = bpy.data.worlds.new("w")
     world.use_nodes = True
     world.node_tree.nodes["Background"].inputs[0].default_value = srgb_to_linear((0.949, 0.941, 0.922)) + (1,)
-    world.node_tree.nodes["Background"].inputs[1].default_value = 0.9
+    world.node_tree.nodes["Background"].inputs[1].default_value = 0.45 if studio else 0.9
     scene.world = world
     bm = bmesh.new()
-    bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=30)
+    bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=300)
     floor = new_object("floor", bm, [])
     fm = bpy.data.materials.new("floor")
     fm.use_nodes = True
-    fm.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = srgb_to_linear((0.165, 0.173, 0.188)) + (1,)
+    floor_c = (0.8, 0.79, 0.77) if studio else (0.165, 0.173, 0.188)
+    fm.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = srgb_to_linear(floor_c) + (1,)
     floor.data.materials.append(fm)
     sun = bpy.data.objects.new("sun", bpy.data.lights.new("sun", "SUN"))
-    sun.data.energy = 3.5
-    sun.data.angle = math.radians(8)
-    sun.rotation_euler = (math.radians(40), math.radians(-20), math.radians(-35))
+    sun.data.energy = 3.4 if studio else 3.5
+    sun.data.angle = math.radians(25 if studio else 8)
+    sun.rotation_euler = (math.radians(18 if studio else 30), math.radians(-12 if studio else -25), math.radians(-35))
     scene.collection.objects.link(sun)
     cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam"))
     cam.data.lens = 50
     scene.collection.objects.link(cam)
     scene.camera = cam
-    views = {"on": (6.2, 6.0, 2.6), "yan": (8.5, 0.0, 1.4), "arka": (-5.5, -6.5, 3.0), "ust": (4.0, 2.0, 9.0)}
+    views = {"on": (6.2, 6.0, 2.6), "yan": (8.5, 0.0, 1.4), "arka": (-5.5, -6.5, 3.0), "ust": (4.0, 2.0, 9.0),
+             "ref": (-11.8, 9.4, 5.0)}
     for view, loc in views.items():
         cam.location = loc
-        d = Vector((0, 0, 0.75)) - Vector(loc)
+        cam.data.lens = 118 if view == "ref" else 50
+        scene.render.resolution_x = 700 if view == "ref" else 900
+        scene.render.resolution_y = 700 if view == "ref" else 600
+        d = Vector((0, 0, 0.75 if view != "ref" else 0.55)) - Vector(loc)
         cam.rotation_euler = d.to_track_quat("-Z", "Y").to_euler()
         scene.render.filepath = os.path.join(dirpath, "%s_%s.png" % (name, view))
         bpy.ops.render.render(write_still=True)
@@ -354,19 +495,21 @@ def main():
     ap.add_argument("--out", default="models/cars")
     ap.add_argument("--render", default="")
     ap.add_argument("--only", default="")
+    ap.add_argument("--studio", action="store_true")
     a = ap.parse_args(argv)
     os.makedirs(a.out, exist_ok=True)
     for name, build in BUILDERS.items():
         if a.only and name != a.only:
             continue
         clear_scene()
+        COLORS["Paint"] = PAINTS.get(name, ((1.0, 0.353, 0.122), 0.5, 0.0))
         build()
         join_body()
         print("%s: %d üçgen" % (name, triangles()))
         export(os.path.join(a.out, name + ".glb"))
         if a.render:
             os.makedirs(a.render, exist_ok=True)
-            render(a.render, name)
+            render(a.render, name, a.studio)
 
 
 if __name__ == "__main__":
