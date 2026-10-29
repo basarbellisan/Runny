@@ -54,7 +54,8 @@ var crystal_energy := 15.0
 ## Kanat yedeği: uçarken depo bitince kanatlar bu kadar yedek enerjiyle "çısss" diye
 ## açılır (kanat uçlarından iz çıkar, yedek bittikçe kısalır); bitince uçuruma düşülür.
 ## Aşağıda kristal yok: düşerkenki depo + bu yedek, aşağıdaki hayat süresidir.
-var wing_reserve := 15.0
+## Süre olarak verilir: düz uçuşta yedek bu kadar saniye yeter (yükselmek daha hızlı yakar).
+var wing_reserve_time := 10.0
 ## Uçarken yükselirken (iki parmak) enerji bu kat hızlı harcanır
 var boost_drain_factor := 2.5
 
@@ -155,7 +156,7 @@ func _physics_process(delta: float) -> void:
 			if car.energy > 0.0:
 				car.energy = maxf(car.energy - burn, 0.0)
 			elif not car.reserve_on:
-				car.start_reserve(wing_reserve)
+				car.start_reserve(energy_drain * wing_reserve_time)
 				hud.popup("YEDEK", true)
 				Audio.play("hiss")
 			else:
