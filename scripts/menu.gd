@@ -5,11 +5,13 @@ extends Node3D
 
 const SAVE_PATH := "user://save.cfg"
 const GAME_SCENE := "res://scenes/main.tscn"
+## [ad, açıklama, CarModel.variant]
 const MODELS := [
-	["KUTU", "Köşeli ve dengeli"],
-	["GEZGİN", "İri tekerler, geniş iz"],
-	["KONSEPT", "Alçak ve uzun"],
-	["ROADSTER", "Sivri burun, yuvarlak sırt"],
+	["KUTU", "Köşeli ve dengeli", 1],
+	["GEZGİN", "İri tekerler, geniş iz", 2],
+	["KONSEPT", "Alçak ve uzun", 3],
+	["ROADSTER", "Sivri burun, yuvarlak sırt", 4],
+	["DRAGSTER", "Uzun burun, kalın arka teker", 6],
 ]
 ## Platformlar arası mesafe (m)
 const SPACING := 7.0
@@ -45,7 +47,11 @@ func _ready() -> void:
 		return
 	var cfg := ConfigFile.new()
 	cfg.load(SAVE_PATH)
-	index = clampi(int(cfg.get_value("car", "model", 1)) - 1, 0, MODELS.size() - 1)
+	index = 0
+	var saved := int(cfg.get_value("car", "model", 1))
+	for i in MODELS.size():
+		if MODELS[i][2] == saved:
+			index = i
 	_build_world()
 	_build_ui(int(cfg.get_value("score", "best", 0)))
 	_carousel.position.x = -index * SPACING
@@ -124,7 +130,7 @@ func start() -> void:
 	_starting = true
 	var cfg := ConfigFile.new()
 	cfg.load(SAVE_PATH)
-	cfg.set_value("car", "model", index + 1)
+	cfg.set_value("car", "model", MODELS[index][2])
 	cfg.save(SAVE_PATH)
 	Audio.play("return", -4.0)
 	var tw := create_tween()
@@ -216,7 +222,7 @@ func _build_world() -> void:
 		stand.add_child(table)
 		table.rotation.y = 0.6 + i * 0.9
 		var model := CarModel.new()
-		model.variant = i + 1
+		model.variant = MODELS[i][2]
 		table.add_child(model)
 		_turntables.append(stand)
 

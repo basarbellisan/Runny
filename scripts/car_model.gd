@@ -8,19 +8,20 @@ extends Node3D
 ##             arkaya doğru kavisle inen kubbe, iri tekerler dışarıda
 ## variant 5 – Formül: ince uzun burun ve ön kanat, açık kokpit, yan paneller,
 ##             iki eğik ayakla taşınan büyük arka kanat, sekizgen iri tekerler
+## variant 6 – Dragster: Blender modeli (models/cars/dragster.glb, Figma çiziminden)
 ##
 ## Tekerler (wheels) fizik için de kullanılır: her birinin yerdeki
 ## temas noktası (contact), yarıçapı ve süspansiyon/dönüş düğümleri var.
 
-@export_range(1, 5) var variant := 1:
+@export_range(1, 6) var variant := 1:
 	set(v):
 		variant = v
 		if is_node_ready():
 			_build()
 
 ## Blender'da yapılmış modeller (tools/blender/cars.py): variant -> .glb yolu.
-## Onaylanana kadar yalnız önizlemede (vitrin aracı) doldurulur.
-static var glb_models := {}
+## Onaylanmamış modeller yalnız önizlemede (vitrin aracı --glb) eklenir.
+static var glb_models := {6: "res://models/cars/dragster.glb"}
 
 ## Her teker: { contact: Vector3 (yerel, y=0), radius, front, mount, steer, spin }
 var wheels: Array[Dictionary] = []
