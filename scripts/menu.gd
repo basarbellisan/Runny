@@ -32,7 +32,8 @@ var _starting := false
 var _name: Label
 var _desc: Label
 var _info: Control
-var _dots: Array[ColorRect] = []
+## Sayfa noktaları (yuvarlak; seçili araba turuncu)
+var _dots: Array[StyleBoxFlat] = []
 ## Arabanın özellikleri (hız, tutuş, çakıl, denge)
 var _stats: Control
 var _fade: ColorRect
@@ -151,7 +152,7 @@ func _refresh(animate: bool) -> void:
 		_desc.text = MODELS[index][1]
 		_fill_stats(MODELS[index][2])
 		for i in _dots.size():
-			_dots[i].color = Palette.ACCENT if i == index else Color(Palette.INK_DARK, 0.25)
+			_dots[i].bg_color = Palette.ACCENT if i == index else Color(Palette.INK_DARK, 0.25)
 	if not animate:
 		apply.call()
 		return
@@ -267,16 +268,19 @@ func _build_ui(best: int) -> void:
 	dots.add_theme_constant_override("separation", 14)
 	dots.alignment = BoxContainer.ALIGNMENT_CENTER
 	dots.anchor_right = 1.0
-	dots.offset_top = 300
+	dots.offset_top = 298
 	dots.offset_bottom = 310
 	dots.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(dots)
 	for i in MODELS.size():
-		var dot := ColorRect.new()
-		dot.custom_minimum_size = Vector2(28, 4)
+		var dot := Panel.new()
+		dot.custom_minimum_size = Vector2(12, 12)
 		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var sb := StyleBoxFlat.new()
+		sb.set_corner_radius_all(6)
+		dot.add_theme_stylebox_override("panel", sb)
 		dots.add_child(dot)
-		_dots.append(dot)
+		_dots.append(sb)
 
 	for side in [-1, 1]:
 		var arrow := Button.new()
