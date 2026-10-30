@@ -32,6 +32,20 @@ const MOODS := {
 	"cloud:albedo_color": [Color(0.97, 0.96, 0.95, 0.35), Color(0.78, 0.77, 0.75, 0.55)],
 }
 
+## Işık denemeleri (--light=N): üst katmanın ışığı ve ton eşleme. "tone": [mod, pozlama, beyaz]
+## mod: 0 doğrusal, 2 filmik, 3 ACES, 4 AgX. "sun_rot": güneşin yönü (derece)
+const LIGHT_PRESETS := [
+	{},
+	{"name": "Yumuşak gün", "sun:light_energy": 0.72, "env:ambient_light_energy": 0.42},
+	{"name": "Serin sabah", "sun:light_energy": 0.8, "sun:light_color": Color("e6eeff"),
+		"env:ambient_light_color": Color("f2e6d2"), "env:ambient_light_energy": 0.42, "sun_rot": Vector3(-40, -35, 0)},
+	{"name": "Altın saat", "sun:light_energy": 0.85, "sun:light_color": Color("ffd8a8"),
+		"env:ambient_light_color": Color("d4dceb"), "env:ambient_light_energy": 0.45, "sun_rot": Vector3(-28, 62, 0)},
+	{"name": "Bulutlu", "sun:light_energy": 0.38, "env:ambient_light_energy": 0.72, "shadow_blur": 4.0},
+	{"name": "Öğle kontrast", "sun:light_energy": 0.82, "env:ambient_light_energy": 0.28, "sun_rot": Vector3(-72, 30, 0)},
+]
+var _moods := MOODS.duplicate(true)
+
 @onready var car: Car = $Car
 @onready var roads: RoadGenerator = $RoadGenerator
 @onready var lower: LowerLayer = $LowerLayer
@@ -132,6 +146,7 @@ func _ready() -> void:
 	_landings_total = int(_load_save().get_value("tutorial", "landings", 0))
 	roads.set_crystal_color(roads.crystal_color)
 	roads.start(car, seed_value)
+	_apply_light_preset(int(_args.get("light", "0")))
 	_apply_mood(0.0)
 
 
@@ -206,13 +221,32 @@ func _process(delta: float) -> void:
 		_capture_shots()
 
 
+## Işık denemesi: üst katmanın değerlerini ve ton eşlemeyi değiştirir (0 = oyunun şu anki ışığı)
+func _apply_light_preset(i: int) -> void:
+	if i <= 0 or i >= LIGHT_PRESETS.size():
+		return
+	var p: Dictionary = LIGHT_PRESETS[i]
+	for key: String in p:
+		if _moods.has(key):
+			_moods[key] = [p[key], _moods[key][1]]
+	var env: Environment = _mood_targets.env
+	if p.has("tone"):
+		env.tonemap_mode = p.tone[0]
+		env.tonemap_exposure = p.tone[1]
+		env.tonemap_white = p.tone[2]
+	if p.has("sun_rot"):
+		$Sun.rotation_degrees = p.sun_rot
+	if p.has("shadow_blur"):
+		$Sun.shadow_blur = p.shadow_blur
+
+
 ## 0 = üst katman, 1 = alt katman
 func _apply_mood(m: float) -> void:
 	_mood = m
 	hud.set_mood(m)
-	for key: String in MOODS:
+	for key: String in _moods:
 		var parts := key.split(":")
-		var pair: Array = MOODS[key]
+		var pair: Array = _moods[key]
 		_mood_targets[parts[0]].set(parts[1], lerp(pair[0], pair[1], m))
 
 
