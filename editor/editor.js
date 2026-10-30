@@ -1158,7 +1158,7 @@
     localStorage.setItem('runny_editor_result_for', key);
     results = []; resultsFor = key;
     if (variant) { variant.test = { running: true }; saveJSON(KEY.current, baseLevel()); }
-    const runs = 8;
+    const runs = 5;
     $('gameTitle').textContent = auto ? 'Test: otomatik pilot' : 'Oyna';
     const kmh = (P.speedAt(level.at || 0) * 3.6).toFixed(0);
     $('gameInfo').textContent = auto ? `0/${runs} koşu` : `Başlangıç hızı ${kmh} km/sa (oyunda ${(level.at || 0).toLocaleString('tr-TR')}. metredeki hız)`;
