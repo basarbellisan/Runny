@@ -296,8 +296,9 @@ func _build_ui(best: int) -> void:
 		arrow.anchor_right = arrow.anchor_left
 		arrow.offset_left = 10 if side < 0 else -110
 		arrow.offset_right = 110 if side < 0 else -10
-		arrow.offset_top = -80
-		arrow.offset_bottom = 40
+		# Platformun (elipsin) ortası hizasında
+		arrow.offset_top = -112
+		arrow.offset_bottom = 8
 		arrow.pressed.connect(func(): select(index + side))
 		ui.add_child(arrow)
 
