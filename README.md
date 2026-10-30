@@ -295,6 +295,8 @@ rampa, tümsek, çakıl, blok, çıkmaz) tuvale sürükleyerek el yapımı kalı
 Kristalleri oyun kendi algoritmasıyla dizer. Sağdaki **Kontrol** listesi oyunun
 fiziğiyle (`editor/physics.js`, oyundaki sabitlerle aynı) her atlamayı, iniş
 bölgesini, rampa/tümsek uçuşunu ve yan yol dönüşlerini denetler.
+- **Çoğaltma (aynı boyda)**: Alt+sürükle kopyasını sürükler; Ctrl+D ya da Çoğalt / 1×-5× ardına ekler
+  (kopyayı taşıyıp yine çoğaltınca aynı aralıkla sürer); Ctrl+C / Ctrl+V imlecin olduğu yere yapıştırır.
 - **Test et**: tasarım oyunda otomatik pilotla 6 kez (6 araba) sürülür; düşülen yerler tuvalde ✕.
 - **Oyna**: tasarımı oyunda kendin sür.
 - **Kaydet / Kopyala / Dosya olarak indir**: tasarım `runny-level` JSON'u olur.
