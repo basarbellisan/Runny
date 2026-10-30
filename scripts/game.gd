@@ -131,6 +131,9 @@ func _ready() -> void:
 		"camera": $Camera, "audio": Audio, "trail": car.trail, "speedo": hud.speedometer})
 	# Garajda seçilen araba
 	car.model.variant = int(_args.get("model", _load_save().get_value("car", "model", 1)))
+	# Test: gövde koruması kapalı (karşılaştırma için)
+	if _args.has("nohull"):
+		car.hull_guard = false
 	if _args.has("trail"):
 		car.trail.style = int(_args.trail)
 	roads.keep_history = _args.has("dump_roads")

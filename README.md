@@ -47,7 +47,15 @@ beyaz lastikler, turuncu jantlar.
 
 Araba tekerlerinden hisseder: bir yanın tekerleri boşluğa çıkınca araba o
 yana yatar, boşluğa doğru çekilir ve tutuşu azalır; ağırlık merkezi kenarı
-geçerse (~50°) kenardan devrilip düşer. İniş yardımı varsayılan olarak kapalı.
+geçerse (~50°) kenardan devrilip düşer.
+Gövde yolların içine girmez: çarpışma omurgası ince bir kapsül, görünen gövde
+ise döner; bu yüzden her karede gövdenin dış noktaları (modelin 26 yöndeki en
+uç noktaları) yollara karşı denetlenir. Kenardan devrilirken gövde yolun
+kenarının üstünde kalkar, havadan yola yan ya da ters değince araba o anda
+çakılır (gömüldükten sonra değil), yolun yan yüzüne giren gövde dışarı itilir.
+Test: `godot --headless --path . --fixed-fps 60 --script res://tools/hull_test.gd`
+(her araba için kenardan devrilme, ters/yan/burun üstü düşüş, yolun yanından
+dönerek düşme; koruma kapalı/açık en derin giriş). `--nohull` oyunu korumasız açar. İniş yardımı varsayılan olarak kapalı.
 
 Havada araba gerçek bir duruşla uçar: yandan düşerken dönmeye devam eder
 (kendini düzeltmez), kanatlar açılınca düzelir. Havada direksiyon arabayı o

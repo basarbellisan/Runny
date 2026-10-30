@@ -134,6 +134,8 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 @export var abyss_depth := 30.0
 ## Açık kanatların yandan uzanabildiği mesafe (duvar kontrolü için)
 @export var wing_half_span := 3.6
+## Gövde yolun içine girmesin (devrilirken, takla atarken, kenardan düşerken)
+@export var hull_guard := true
 
 var mode := Mode.DRIVE
 var alive: bool:
@@ -232,6 +234,12 @@ var reserve := 0.0
 var reserve_max := 15.0
 var reserve_on := false
 var _launch_vz := 0.0
+## Gövdenin dış noktaları (Body'ye göre; model değişince yeniden hesaplanır)
+var _hull_body := PackedVector3Array()
+var _hull_wheels := PackedVector3Array()
+var _hull_model := -1
+## Gövdenin yolun içine girmemesi için görsel kaldırma (m)
+var _hull_lift := 0.0
 var _default_mask := 1
 var _wing_tween: Tween
 var _touches := {}  # dokunma index -> ekran x
@@ -911,6 +919,8 @@ func _update_visual(delta: float) -> void:
 	_bounce_v += (-suspension_stiffness * _bounce - suspension_damping * _bounce_v) * delta
 	_bounce = clampf(_bounce + _bounce_v * delta, -0.42, 0.18)
 	_body.position.y = _bounce + _part_lift
+	_keep_hull_out(delta)
+	_body.position.y += _hull_lift
 	_update_wheels(delta)
 	_update_scrape()
 
@@ -974,6 +984,138 @@ func _update_attitude(delta: float) -> void:
 	pitch += pitch_rate * delta
 
 
+## Çarpışma omurgası ince bir kapsül; görünen gövde ise yerdeki orta noktasının
+## etrafında döner. Döndükçe gövdenin köşeleri yolların içine girebilir. Burada
+## gövdenin dış noktaları yollara karşı denetlenir:
+## - yolun üstüne giren nokta: yerdeyken gövde kaldırılır (kenarın üstünde devrilir
+##   gibi), havadayken önce bir teker ya da köşe değer; yolun üstüne kötü duruşla
+##   (yan ya da ters) değdiyse araba o anda çakılır (eskiden gövde yola gömülünce çakılırdı)
+## - yolun yan yüzüne giren nokta: araba yandan dışarı itilir
+func _keep_hull_out(delta: float) -> void:
+	var want := 0.0
+	var active := hull_guard and model != null and collision_mask != 0 \
+		and (mode == Mode.DRIVE or mode == Mode.FALLING)
+	var grounded := mode == Mode.DRIVE and is_on_floor()
+	if active and grounded and absf(_tip) < 0.5:
+		# Yolda düz giderken gövde yola oturur: denetim gerekmez
+		var n := get_floor_normal()
+		active = absf(wrapf(roll - atan2(-n.x, n.y), -PI, PI)) > 0.15 \
+			or absf(wrapf(pitch - atan2(n.z, n.y), -PI, PI)) > 0.15
+	if active:
+		var c := _hull_contacts(global_transform * _body.transform, not grounded)
+		want = c.floor
+		if c.left > 0.0 or c.right > 0.0:
+			# Yan yüze girdik: dışarı it, duvara doğru hız söner
+			global_position.x += c.right - c.left
+			if velocity.x < 0.0 and c.right > 0.0 or velocity.x > 0.0 and c.left > 0.0:
+				velocity.x = 0.0
+		if not grounded and want > 0.05 and _over_road():
+			# Havadan yolun üstüne değdik: yan ya da ters değdiysek çakıldık
+			var n: Vector3 = c.normal
+			var roll_err := absf(wrapf(roll - atan2(-n.x, n.y), -PI, PI))
+			var pitch_err := absf(wrapf(pitch - atan2(n.z, n.y), -PI, PI))
+			if rad_to_deg(maxf(roll_err, pitch_err * 0.5)) > crash_landing_deg:
+				crash("TAKLA ATTIN!" if roll_err > pitch_err else "ÇAKILDIN!")
+				return
+	want = minf(want, 2.0)
+	# Hemen kalkar, yavaşça iner (titremesin)
+	_hull_lift = maxf(want, move_toward(_hull_lift, want, 4.0 * delta))
+
+
+## Arabanın altında (yakında) yol var mı
+func _over_road() -> bool:
+	var from := global_position + Vector3(0, 0.3, 0)
+	var hit := _ray(get_world_3d().direct_space_state, from, from - Vector3(0, 3.0, 0))
+	return not hit.is_empty() and hit.normal.y > 0.6
+
+
+## Gövdenin (xf: Body'nin dünya dönüşümü) yollara girme derinlikleri:
+## floor: yolun üstüne en çok giriş (yukarı kaldırma), normal: o yüzün normali,
+## right/left: sağa/sola itilmesi gereken mesafe (yan yüzlere giriş)
+func _hull_contacts(xf: Transform3D, wheels_too: bool) -> Dictionary:
+	if _hull_model != model.variant or _hull_body.is_empty():
+		_build_hull()
+	var out := {"floor": 0.0, "normal": Vector3.UP, "left": 0.0, "right": 0.0}
+	var space := get_world_3d().direct_space_state
+	# Işınlar kapsülün ortasından (yolların dışında olduğu bilinen nokta) gövde noktalarına
+	var src := global_position + Vector3(0, 0.3, 0)
+	var pts := _hull_body + _hull_wheels if wheels_too else _hull_body
+	for lp in pts:
+		var p: Vector3 = xf * lp
+		var hit := _ray(space, src, p)
+		if hit.is_empty():
+			continue
+		# Işın yolun bir yüzüne girip başka bir yüzünden çıkıyorsa nokta dışarıda
+		# (ör. kenarın ötesinde boşlukta): geriye atılan ışın o çıkış yüzüne çarpar
+		var back := _ray(space, p, src)
+		if not back.is_empty() and (back.position as Vector3).distance_to(hit.position) > 0.02:
+			continue
+		var n: Vector3 = hit.normal
+		var depth: float = ((hit.position as Vector3) - p).dot(n)
+		if depth <= 0.0:
+			continue
+		if n.y > 0.6:
+			if depth / n.y > out.floor:
+				out.floor = depth / n.y
+				out.normal = n
+		elif n.x > 0.6:
+			out.right = maxf(out.right, depth * n.x)
+		elif n.x < -0.6:
+			out.left = maxf(out.left, -depth * n.x)
+	return out
+
+
+## Yollara çarpan dış noktalar: modelin bütün köşelerinden 26 yönde en uçtakiler
+## (gövde ve tekerler ayrı: yolda giderken tekerler yere zaten değer)
+func _build_hull() -> void:
+	_hull_model = model.variant
+	var dirs: Array[Vector3] = []
+	for x in [-1, 0, 1]:
+		for y in [-1, 0, 1]:
+			for z in [-1, 0, 1]:
+				if x != 0 or y != 0 or z != 0:
+					dirs.append(Vector3(x, y, z).normalized())
+	var inv := _body.global_transform.affine_inverse()
+	var best := [[], []]
+	for k in 2:
+		for d in dirs:
+			best[k].append([-INF, Vector3.ZERO])
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null:
+			continue
+		var k := 0
+		for wh in model.wheels:
+			if (wh.mount as Node3D).is_ancestor_of(m):
+				k = 1
+		var t := inv * m.global_transform
+		for v in m.mesh.get_faces():
+			var p: Vector3 = t * v
+			for i in dirs.size():
+				var dot := p.dot(dirs[i])
+				if dot > best[k][i][0]:
+					best[k][i] = [dot, p]
+	_hull_body = PackedVector3Array()
+	_hull_wheels = PackedVector3Array()
+	for k in 2:
+		var arr := _hull_body if k == 0 else _hull_wheels
+		for b in best[k]:
+			if b[0] > -INF and not (b[1] in arr):
+				arr.append(b[1])
+		if k == 0:
+			_hull_body = arr
+		else:
+			_hull_wheels = arr
+
+
+## Test için: gövdenin şu anki duruşta yollara en çok giriş derinliği (m)
+func hull_depth() -> float:
+	if model == null or collision_mask == 0 or mode == Mode.DEAD:
+		return 0.0
+	var c := _hull_contacts(global_transform * _body.transform, false)
+	return maxf(c.floor, maxf(c.left, c.right))
+
+
 ## Bir yan boşluktayken gövde yolun kenarına sürtünür: kıvılcım
 func _update_scrape() -> void:
 	if fx == null:
@@ -998,7 +1140,7 @@ func _update_wheels(delta: float) -> void:
 			# Gövde yatınca/burun kalkınca teker yerde kalır: yay uzar ya da kısalır
 			var c: Vector3 = wh.contact
 			var lift := c.x * sin(roll) - c.z * sin(pitch)
-			target = r + clampf(_wheel_ground[i] - lift - _bounce - _part_lift, -suspension_travel, 0.15)
+			target = r + clampf(_wheel_ground[i] - lift - _bounce - _part_lift - _hull_lift, -suspension_travel, 0.15)
 		else:
 			target -= _bounce
 		var mount: Node3D = wh.mount
