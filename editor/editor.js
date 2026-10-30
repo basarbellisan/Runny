@@ -263,8 +263,21 @@
     if (w > 10) for (const ex of [x + 3, x + w - 3])
       out.push(`<line x1="${ex}" y1="${y + 2}" x2="${ex}" y2="${y + h - 2}" stroke="#fff" stroke-width="1.3" stroke-dasharray="7 5" opacity=".85"/>`);
     if (p.bank) {
-      const a = p.bank > 0 ? x + w - 2 : x + 2;
-      out.push(`<line x1="${a}" y1="${y + h * 0.3}" x2="${a}" y2="${y + h * 0.7}" stroke="#fff" stroke-width="3" opacity=".9"/>`);
+      // Yatık yol (oyundaki gibi): boydan boya yatık, başta ve uçta kısa geçiş. Alçak kenarda
+      // kırmızı-beyaz bordür; yüzeyde alçak kenara doğru koyulaşan gölge. bank > 0: sağ kenar yukarı
+      const low = p.bank > 0 ? -1 : 1;
+      const ramp = Math.min(Math.max(p.len * 0.1, 8), 25, p.len * 0.3);
+      const zA = p.z0 + ramp * 0.3, zB = P.pEnd(p) - ramp * 0.3;
+      const gid = `b${p.id}`;
+      out.push(`<defs><linearGradient id="${gid}" x1="${low < 0 ? 1 : 0}" y1="0" x2="${low < 0 ? 0 : 1}" y2="0"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="${Math.min(Math.abs(p.bank) / 15, 1) * 0.28}"/></linearGradient></defs>`);
+      out.push(`<rect x="${x}" y="${pz(zB)}" width="${w}" height="${(zB - zA) * view.sz}" fill="url(#${gid})" pointer-events="none"/>`);
+      const kw = Math.max(0.75 * view.sx, 3);
+      const kx = low < 0 ? x + 1 : x + w - 1 - kw;
+      const step = Math.max(1.6, 5 / view.sz);
+      for (let z = zA, k = 0; z < zB; z += step, k++) {
+        const z1 = Math.min(z + step, zB);
+        out.push(`<rect x="${kx}" y="${pz(z1)}" width="${kw}" height="${(z1 - z) * view.sz}" fill="${k % 2 ? '#fff' : '#e23c30'}" pointer-events="none"/>`);
+      }
     }
     if (Math.abs(h1 - h0) > 0.05) {
       const cx = x + w / 2, dir = h1 > h0 ? -1 : 1;

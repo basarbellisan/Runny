@@ -1062,8 +1062,15 @@ func _add_runway_lights(body: Node3D, s: Segment, slope_len: float) -> void:
 		# Işığın dizideki sırası: 0 bölgenin başı, 1 yolun ucu. Mesafeye değil sıraya
 		# göre: akan bant her an aynı sayıda ışığı yakar (uçta sıkışıp kalmaz)
 		var along := 1.0 - float(j) / maxf(dists.size() - 1, 1)
+		# Yatık yolda ışıklar yüzeyi izler (yatık yol gövdesi döndürülmez: yokuşu da eklenir)
+		var bank := 0.0
+		var lift := 0.0
+		if not s.bank_z.is_empty():
+			bank = s.bank_at(body.position.z + lz)
+			lift = s.top_at(body.position.z + lz) - s.top
 		for sx in [-1.0, 1.0]:
-			var pos := Vector3(sx * (s.width * 0.5 - 0.22), 0.18, lz)
+			var dx: float = sx * (s.width * 0.5 - 0.22)
+			var pos := Vector3(dx * cos(bank), dx * sin(bank) + 0.18 + lift, lz)
 			for mm in [dots, halos]:
 				mm.set_instance_transform(i, Transform3D(Basis(), pos))
 				mm.set_instance_custom_data(i, Color(body.position.z + lz * cos_a, along, 0, 0))
@@ -2515,11 +2522,13 @@ func gravel_at(pos: Vector3) -> bool:
 ## Yatık yol: yüzey boyunca yana yatar (bükülür) ve düzelir. Kutu değil, ızgara
 ## hâlinde kurulmuş tek parça bir yüzey; çarpışma da aynı yüzeyden. Orta çizgi
 ## düz kalır (yol orta çizgisi etrafında döner), kenarlar iner/kalkar.
-func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_end: float, pts: Array) -> Segment:
+## top_end verilirse yatık yol aynı zamanda yokuştur (yükseklik boyunca doğrusal değişir)
+func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_end: float, pts: Array,
+		top_end := NAN) -> Segment:
 	var s := Segment.new()
 	s.x = x
 	s.top = top
-	s.top_end = top
+	s.top_end = top if is_nan(top_end) else top_end
 	s.width = width
 	s.z_start = z_start
 	s.z_end = z_end
@@ -2528,7 +2537,8 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 		s.bank_z.append(p[0])
 		s.bank_a.append(p[1])
 	var length := z_start - z_end
-	var depth := clampf(_rng.randf_range(6.0, 28.0), 4.0, top + WALL_FLOOR)
+	var rise := s.top_end - top
+	var depth := clampf(_rng.randf_range(6.0, 28.0), 4.0, minf(top, s.top_end) + WALL_FLOOR)
 	var body := StaticBody3D.new()
 	body.position = Vector3(x, top, (z_start + z_end) * 0.5)
 	add_child(body)
@@ -2538,7 +2548,7 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 	var at := func(d: float, i: int, lift: float) -> Vector3:
 		var z := z_start - length * i / rows
 		var a := s.bank_at(z)
-		return Vector3(d * cos(a), d * sin(a) + lift, z - cz)
+		return Vector3(d * cos(a), d * sin(a) + lift + rise * i / rows, z - cz)
 	var hw := width * 0.5
 	var wall := SurfaceTool.new()
 	wall.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -2606,7 +2616,7 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 		var c := j % 2
 		var p := func(d: float, z: float) -> Vector3:
 			var b := s.bank_at(z)
-			return Vector3(d * cos(b), d * sin(b) + 0.05, z - cz)
+			return Vector3(d * cos(b), d * sin(b) + 0.05 + rise * (z_start - z) / length, z - cz)
 		var outer: float = side * (hw - 0.05)
 		var inner: float = side * (hw - 0.8)
 		_quad(kerbs[c], unused, p.call(outer, z0), p.call(inner, z0), p.call(inner, z1), p.call(outer, z1), Vector3.UP)
@@ -2631,8 +2641,8 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 	s.node = body
 	segments.append(s)
 	_remember(s)
-	stats.min_top = minf(stats.min_top, top)
-	stats.max_top = maxf(stats.max_top, top)
+	stats.min_top = minf(stats.min_top, minf(top, s.top_end))
+	stats.max_top = maxf(stats.max_top, maxf(top, s.top_end))
 	stats.banked = int(stats.get("banked", 0)) + 1
 	stats.max_bank_deg = maxf(float(stats.get("max_bank_deg", 0.0)), rad_to_deg(absf(s.bank_a[2])))
 	return s
@@ -2867,15 +2877,13 @@ func _build_custom(prev: Segment, level: Dictionary, travelled: float, vary := f
 		for o in obstacles:
 			if o.get("kind", "") == "bump" and _custom_on(o, p):
 				bumps.append(o)
-		if absf(bank) > 0.5 and absf(h1 - h0) < 0.01:
+		if absf(bank) > 0.5:
+			# Tasarımcının yatık yolu boydan boya yatık: yalnız başta ve uçta kısa geçiş
+			# (uçta düzelir: araba yoldan düz kalkar; pist ışıkları yatıklığı izler)
 			var a := deg_to_rad(clampf(bank, -max_bank_deg, max_bank_deg))
-			var flat_in := minf(10.0, plen * 0.2)
-			var flat_out := minf(clampf(v * lights_time, 18.0, 70.0), plen * 0.3)
-			var t0 := zs - flat_in
-			var t1 := ze + flat_out
-			var m := t0 - t1
-			var pts: Array = [[zs, 0.0], [t0, 0.0], [t0 - m * 0.3, a], [t0 - m * 0.7, a], [t1, 0.0], [ze, 0.0]]
-			first = _add_banked_segment(x, oy + h0, w, zs, ze, pts)
+			var ramp := minf(clampf(plen * 0.1, 8.0, 25.0), plen * 0.3)
+			var pts: Array = [[zs, 0.0], [zs - ramp, a], [ze + ramp, a], [ze, 0.0]]
+			first = _add_banked_segment(x, oy + h0, w, zs, ze, pts, oy + h1)
 			first.main = is_main
 			last = first
 		elif not bumps.is_empty() and absf(h1 - h0) < 0.01:
