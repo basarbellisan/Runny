@@ -264,6 +264,22 @@
       jumps.push(J);
       if (!isNaN(J.reachB)) landing(J, B);
     }
+    // Bloklar yolu kapatmasın: her blok sırasında arabanın geçeceği bir geçit kalmalı
+    const needLane = 2 * CAR.halfWidth + 1.0;
+    for (const p of pieces) {
+      const blocks = obstacles.filter((o) => o.kind === 'block' && hostOf(level, o) === p).sort((a, b) => a.z0 - b.z0);
+      const seen = new Set();
+      for (const o of blocks) {
+        if (seen.has(o)) continue;
+        const row = blocks.filter((b) => Math.abs(b.z0 - o.z0) < CAR.carLen + 2);
+        row.forEach((b) => seen.add(b));
+        const ivs = row.map((b) => [b.x - b.w / 2, b.x + b.w / 2]).sort((a, b) => a[0] - b[0]);
+        let left = p.x - p.w / 2, best = 0;
+        for (const [a, b] of ivs) { best = Math.max(best, a - left); left = Math.max(left, b); }
+        best = Math.max(best, p.x + p.w / 2 - left);
+        if (best < needLane) add('error', `Bloklar yolu kapatıyor: araba için en az ${needLane.toFixed(1)} m geçit gerek, ${Math.max(best, 0).toFixed(1)} m var.`, row.map((b) => b.id), o.z0);
+      }
+    }
     // Çıkış yolu
     const exit = path[path.length - 1];
     if (exit && obstacles.some((o) => hostOf(level, o) === exit && o.kind !== 'deadend' && o.z0 > pEnd(exit) - clearEnd(speedAt(at + pEnd(exit)))))
@@ -334,10 +350,145 @@
     return Math.ceil(Math.max(landFar, 0) + v * 1.2 + 4);
   }
 
+  // ------------------------------------------------------------------ türevler
+  // Kalıptan güvenli çeşitleme. Oyun da her gelişte aynı kurallarla gerçek zamanlı türetir
+  // (scripts/level_check.gd); kurallar değişirse ikisi birlikte güncellenir.
+  function rng32(seed) {
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const r1v = (v) => Math.round(v * 10) / 10;
+  const VARY_OPS = ['gap', 'len', 'width', 'rows', 'swap', 'rise'];
+  const VARY_TAGS = { gap: 'boşluklar', len: 'yollar uzun', width: 'genişlik', rows: 'engel düzeni', swap: 'çakıl ↔ blok', rise: 'rampa yüksekliği' };
+  // Bir kez çeşitle: ops listesindeki işlemler (sırayla: yerel olanlar önce, z kaydıranlar sonra)
+  function varyOnce(level, rnd, ops) {
+    const L = JSON.parse(JSON.stringify(level));
+    delete L.variants;
+    const U = (a, b) => a + (b - a) * rnd();
+    const changed = new Set(), tags = [];
+    // Z'den sonra başlayan yolları ve üstlerindeki engelleri d kadar ileri al
+    const shiftFrom = (Z, d) => {
+      const H = new Map(L.obstacles.map((o) => [o, hostOf(L, o)]));
+      const moved = new Set(L.pieces.filter((p) => p.z0 >= Z - 0.01));
+      for (const p of moved) { p.z0 = r1v(p.z0 + d); changed.add(p.id); }
+      for (const o of L.obstacles) {
+        const h = H.get(o);
+        if (h ? moved.has(h) : o.z0 >= Z - 0.01) { o.z0 = r1v(o.z0 + d); changed.add(o.id); }
+      }
+    };
+    const has = (op) => ops.includes(op);
+    if (has('rise')) {
+      const n0 = changed.size;
+      for (const o of L.obstacles) if (['ramp', 'kick', 'bump'].includes(o.kind)) {
+        o.rise = Math.round(Math.min(Math.max(num(o.rise, 1.6) * U(0.85, 1.15), 0.3), 4) * 20) / 20; changed.add(o.id);
+      }
+      if (changed.size > n0) tags.push(VARY_TAGS.rise);
+    }
+    if (has('swap')) {
+      const n0 = changed.size;
+      for (const o of L.obstacles) {
+        if (o.kind === 'block' && o.w <= 3 && rnd() < 0.4) { o.kind = 'gravel'; o.w = 3; o.z0 = r1v(o.z0 - 4); o.len = 10; changed.add(o.id); }
+        else if (o.kind === 'gravel' && o.w <= 3.5 && rnd() < 0.4) { o.kind = 'block'; o.w = 2; o.z0 = r1v(o.z0 + num(o.len, 10) / 2); o.len = 1.2; changed.add(o.id); }
+      }
+      if (changed.size > n0) tags.push(VARY_TAGS.swap);
+    }
+    if (has('rows')) {
+      const n0 = changed.size;
+      for (const p of L.pieces) {
+        const on = L.obstacles.filter((o) => o.kind !== 'kick' && o.kind !== 'deadend' && hostOf(L, o) === p).sort((a, b) => a.z0 - b.z0);
+        const seen = new Set();
+        for (const o of on) {
+          if (seen.has(o)) continue;
+          const row = on.filter((b) => Math.abs(b.z0 - o.z0) < 10);
+          row.forEach((b) => seen.add(b));
+          // Eğik rampanın sırası taşınmaz (yan yola atar)
+          if (L.obstacles.some((k) => k.kind === 'kick' && hostOf(L, k) === p && Math.abs(k.z0 - o.z0) < 12)) continue;
+          if (rnd() < 0.5) for (const b of row) { b.x = r1v(2 * p.x - b.x); changed.add(b.id); }
+          if (rnd() < 0.5) {
+            const lo = Math.max(...row.map((b) => p.z0 + 1 - b.z0)), hi = Math.min(...row.map((b) => pEnd(p) - 1 - num(b.len, 1) - b.z0));
+            const dz = Math.round(Math.min(Math.max(U(-8, 8), lo), hi));
+            if (dz) for (const b of row) { b.z0 = r1v(b.z0 + dz); changed.add(b.id); }
+          }
+        }
+      }
+      if (changed.size > n0) tags.push(VARY_TAGS.rows);
+    }
+    if (has('width')) {
+      const n0 = changed.size;
+      for (const p of L.pieces) {
+        if (p.side) continue;
+        const nw = Math.max(4.5, Math.round(p.w * U(0.86, 1.14) * 2) / 2);
+        if (nw === p.w) continue;
+        for (const o of L.obstacles.filter((q) => hostOf(L, q) === p)) {
+          o.x = r1v(p.x + (o.x - p.x) * nw / p.w);
+          if (o.kind === 'bump' || o.kind === 'deadend') o.w = nw;
+          changed.add(o.id);
+        }
+        p.w = nw; changed.add(p.id);
+      }
+      if (changed.size > n0) tags.push(VARY_TAGS.width);
+    }
+    const path = () => mainPath(L);
+    if (has('len')) {
+      const n0 = changed.size;
+      const pp = path();
+      for (const p of pp.slice(0, -1).reverse()) {
+        if (successor(L, p)) continue;
+        const ext = Math.round(p.len * U(0, 0.15));
+        if (ext < 2) continue;
+        shiftFrom(pEnd(p) + 0.01, ext);
+        p.len += ext; changed.add(p.id);
+      }
+      if (changed.size > n0) tags.push(VARY_TAGS.len);
+    }
+    if (has('gap')) {
+      const n0 = changed.size;
+      const pp = path();
+      for (let i = pp.length - 2; i >= 0; i--) {
+        const A = pp[i], B = pp[i + 1];
+        const g = B.z0 - pEnd(A);
+        if (g < 0.6 || successor(L, A)) continue;
+        const d = Math.round(g * (U(0.85, 1.15) - 1));
+        if (d) shiftFrom(B.z0, d);
+      }
+      if (changed.size > n0) tags.push(VARY_TAGS.gap);
+    }
+    return { level: L, tags, changed: [...changed] };
+  }
+  const issueCount = (A, lvl) => A.issues.filter((i) => i.level === lvl).length;
+  // Kalıbın imzası: aynı türev iki kez gelmesin
+  const signature = (l) => JSON.stringify([l.pieces.map((p) => [p.x, p.w, p.z0, p.len, num(p.h0, 0), num(p.h1, 0)]),
+    l.obstacles.map((o) => [o.kind, o.x, o.w, o.z0, o.len, num(o.rise, 0)])]);
+  // Geçerli bir türev: hata yok, uyarı asıl kalıptan fazla değil, asıl kalıptan farklı
+  function vary(level, seed, avoid) {
+    const base = analyze(level);
+    const baseWarn = issueCount(base, 'warn');
+    const seen = new Set(avoid || []);
+    seen.add(signature(level));
+    for (let t = 0; t < 40; t++) {
+      const rnd = rng32((seed * 7919 + t * 104729) >>> 0);
+      const ops = VARY_OPS.filter(() => rnd() < 0.45);
+      if (!ops.length) ops.push(VARY_OPS[Math.floor(rnd() * VARY_OPS.length)]);
+      const V = varyOnce(level, rnd, ops);
+      const sig = signature(V.level);
+      if (!V.tags.length || seen.has(sig)) continue;
+      const A = analyze(V.level);
+      if (issueCount(A, 'error') === 0 && issueCount(A, 'warn') <= baseWarn) return { ...V, sig };
+    }
+    return null;
+  }
+
   const KIND_NAMES = { ramp: 'Rampa', kick: 'Eğik rampa', bump: 'Tümsek', gravel: 'Çakıl', block: 'Blok', deadend: 'Çıkmaz' };
 
   const api = { CAR, TIERS, speedAt, vBoost, vFull, flightTime, clearEnd, clearStart, jump, rampFlight,
-    analyze, crystalPreview, suggestGap, minRoadLength, mainPath, successor, hostOf, isOn, hAt, pEnd, KIND_NAMES };
+    analyze, crystalPreview, suggestGap, minRoadLength, mainPath, successor, hostOf, isOn, hAt, pEnd, KIND_NAMES,
+    vary, varyOnce, signature, rng32 };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RunnyPhysics = api;
 })(typeof window !== 'undefined' ? window : this);
