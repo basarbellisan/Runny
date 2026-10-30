@@ -333,64 +333,23 @@ func _build_ui(best: int) -> void:
 const STAT_NAMES := ["HIZ", "TUTUŞ", "ÇAKIL", "DENGE"]
 
 
-## Özellikler (CarModel.STATS, 1-5): tasarım taslakları --stats_style=1/2/3
+## Özellikler (CarModel.STATS, 1-5), 2x2: AD  ▮▮▮▮▯  4
 func _fill_stats(variant: int) -> void:
 	for c in _stats.get_children():
 		c.queue_free()
 	var st: Array = CarModel.STATS.get(variant, [3, 3, 3, 3])
-	var style := int(_args.get("stats_style", "1"))
-	if style == 1:
-		# 2x2: AD  ▮▮▮▮▯  4
-		var grid := GridContainer.new()
-		grid.columns = 2
-		grid.add_theme_constant_override("h_separation", 56)
-		grid.add_theme_constant_override("v_separation", 18)
-		_center(grid)
-		for i in 4:
-			var row := HBoxContainer.new()
-			row.add_theme_constant_override("separation", 12)
-			row.add_child(_small(STAT_NAMES[i], 17, 0.55, 74))
-			row.add_child(_bar(st[i], Vector2(18, 10), 4))
-			row.add_child(_small(str(st[i]), 20, 1.0, 18))
-			grid.add_child(row)
-	elif style == 2:
-		# Dört sütun: büyük sayı, altında beşli çizgi ve ad
-		var cols := HBoxContainer.new()
-		cols.add_theme_constant_override("separation", 46)
-		_center(cols)
-		for i in 4:
-			var col := VBoxContainer.new()
-			col.add_theme_constant_override("separation", 6)
-			col.alignment = BoxContainer.ALIGNMENT_CENTER
-			var n := _small(str(st[i]), 40, 1.0, 0)
-			n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			if st[i] >= 4:
-				n.add_theme_color_override("font_color", Palette.ACCENT)
-			col.add_child(n)
-			var b := _bar(st[i], Vector2(12, 5), 3)
-			b.alignment = BoxContainer.ALIGNMENT_CENTER
-			col.add_child(b)
-			var l := _small(STAT_NAMES[i], 15, 0.55, 0)
-			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			col.add_child(l)
-			cols.add_child(col)
-	else:
-		# Satırlar: ad, çubuk, gerçek değer
-		var v: int = variant
-		var real := ["%d km/sa" % roundi(40.0 * CarModel.speed_mul_of(v) * 3.6),
-			"%+d%% direksiyon" % roundi(20.0 * CarModel.stat(v, 1)),
-			"%+d%% savrulma" % roundi(-40.0 * CarModel.stat(v, 2)),
-			"%d° devrilme" % roundi(50.0 + 10.0 * CarModel.stat(v, 3))]
-		var list := VBoxContainer.new()
-		list.add_theme_constant_override("separation", 6)
-		_center(list)
-		for i in 4:
-			var row := HBoxContainer.new()
-			row.add_theme_constant_override("separation", 14)
-			row.add_child(_small(STAT_NAMES[i], 16, 0.55, 76))
-			row.add_child(_bar(st[i], Vector2(26, 8), 4))
-			row.add_child(_small(real[i], 17, 0.85, 170))
-			list.add_child(row)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 56)
+	grid.add_theme_constant_override("v_separation", 18)
+	_center(grid)
+	for i in 4:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 12)
+		row.add_child(_small(STAT_NAMES[i], 17, 0.55, 74))
+		row.add_child(_bar(st[i], Vector2(18, 10), 4))
+		row.add_child(_small(str(st[i]), 20, 1.0, 18))
+		grid.add_child(row)
 
 
 ## Kabı özellik alanının ortasına yerleştirir
