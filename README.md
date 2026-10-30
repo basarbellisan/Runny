@@ -18,7 +18,7 @@ kendi malzemeleriyle değiştirir). Üretmek: `python tools/blender/cars.py --ou
 models/cars --render <klasör>`. Önizleme: `tools/showroom.gd -- --glb=1:res://models/cars/kutu.glb`.
 Gövde rengi modelden gelir (Blender'daki Paint rengi).
 
-Garajda 7 araba var: Kutu, Gezgin, Konsept, Roadster, Dragster, Dark Rose ve Latte. Dragster
+Garajda 8 araba var: Kutu, Gezgin, Konsept, Roadster, Dragster, Dark Rose, Latte ve Falcon. Dragster
 (model 6) Blender modeli: Figma'daki "RUNNY / Araba 01" çiziminin yan, ön ve
 arka görünüşünden birebir kuruldu (`--ortho` ile çizimle aynı ölçekte dik
 görünüşler çıkar). Uzun dar burun, eğik ön yüzlü geniş arka gövde, öne taşan
@@ -34,6 +34,11 @@ Latte (model 8) Blender modeli: Figma'daki "RUNNY / Araba 3" çiziminden
 öne siperlik gibi uzanan tavan (ön ve arka cam siyah), arkada ince yüksek
 yüzgeç, lambasız kutu tampon (yeşil iz oradan çıkar), gövde dışında akslı
 turuncu lastikler.
+Falcon (model 9) Blender modeli: Figma'daki "RUNNY / Araba 4" çiziminden
+(`falcon`; yandan, arkadan ve üstten görünüş). Turuncu; burundan arkaya dümdüz
+kenarlı kama: ortada sırtlı çatı, iki yanda dar üst şeritli yan bloklar, düz
+burun yüzü, arka tekerin girdiği kaporta kemeri, arkada sivri ok ucu ve yüzgeç;
+beyaz lastikler, turuncu jantlar.
 
 ## Kontroller
 - Mobil: ekranın sol yarısına dokun → sola, sağ yarısına → sağa

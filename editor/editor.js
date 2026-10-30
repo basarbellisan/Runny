@@ -6,7 +6,7 @@
   const KEY = { current: 'runny_editor_current', library: 'runny_editor_library',
     test: 'runny_level_test', result: 'runny_level_result' };
   const GAME_URL = '../index.html';
-  const MODEL_NAMES = { 1: 'Kutu', 2: 'Gezgin', 3: 'Konsept', 4: 'Roadster', 6: 'Dragster', 7: 'Dark Rose', 8: 'Latte' };
+  const MODEL_NAMES = { 1: 'Kutu', 2: 'Gezgin', 3: 'Konsept', 4: 'Roadster', 6: 'Dragster', 7: 'Dark Rose', 8: 'Latte', 9: 'Falcon' };
   const $ = (id) => document.getElementById(id);
   const r1 = (v) => Math.round(v * 10) / 10;
   const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
@@ -1158,7 +1158,7 @@
     localStorage.setItem('runny_editor_result_for', key);
     results = []; resultsFor = key;
     if (variant) { variant.test = { running: true }; saveJSON(KEY.current, baseLevel()); }
-    const runs = 7;
+    const runs = 8;
     $('gameTitle').textContent = auto ? 'Test: otomatik pilot' : 'Oyna';
     const kmh = (P.speedAt(level.at || 0) * 3.6).toFixed(0);
     $('gameInfo').textContent = auto ? `0/${runs} koşu` : `Başlangıç hızı ${kmh} km/sa (oyunda ${(level.at || 0).toLocaleString('tr-TR')}. metredeki hız)`;

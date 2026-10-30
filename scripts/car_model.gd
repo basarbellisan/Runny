@@ -13,11 +13,13 @@ extends Node3D
 ##             siyah, iki dikmeli arka kanat, kırmızı lastikler
 ## variant 8 – Latte: Blender modeli (models/cars/latte.glb, Figma "Araba 3"):
 ##             krem, öne uzanan siperlik tavan, arka yüzgeç, turuncu lastikler ve motor çıkıntıları
+## variant 9 – Falcon: Blender modeli (models/cars/falcon.glb, Figma "Araba 4"):
+##             turuncu kama gövde, sırtlı çatı, arka teker kemeri, beyaz lastikler, turuncu jantlar
 ##
 ## Tekerler (wheels) fizik için de kullanılır: her birinin yerdeki
 ## temas noktası (contact), yarıçapı ve süspansiyon/dönüş düğümleri var.
 
-@export_range(1, 8) var variant := 1:
+@export_range(1, 9) var variant := 1:
 	set(v):
 		variant = v
 		if is_node_ready():
@@ -26,7 +28,7 @@ extends Node3D
 ## Blender'da yapılmış modeller (tools/blender/cars.py): variant -> .glb yolu.
 ## Onaylanmamış modeller yalnız önizlemede (vitrin aracı --glb) eklenir.
 static var glb_models := {6: "res://models/cars/dragster.glb", 7: "res://models/cars/yarisci.glb",
-	8: "res://models/cars/latte.glb"}
+	8: "res://models/cars/latte.glb", 9: "res://models/cars/falcon.glb"}
 
 ## Her teker: { contact: Vector3 (yerel, y=0), radius, front, mount, steer, spin }
 var wheels: Array[Dictionary] = []

@@ -99,7 +99,7 @@ var _level_auto := false
 const LEVEL_KEY := "runny_level_test"
 const RESULT_KEY := "runny_level_result"
 ## Otomatik pilot testinde koşular sırayla bu arabalarla yapılır
-const TEST_MODELS := [1, 2, 3, 4, 6, 7, 8]
+const TEST_MODELS := [1, 2, 3, 4, 6, 7, 8, 9]
 ## JavaScript'ten yeniden başlatma çağrısı (silinirse çağrı kaybolur, bu yüzden tutulur)
 var _restart_cb: JavaScriptObject
 

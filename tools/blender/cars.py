@@ -853,8 +853,9 @@ def build_latte():
         wheel3(name, (x, y, r))
 
 
-def build_araba4():
-    """Araba 4 (Figma "RUNNY / Araba 4" çiziminden; yandan, arkadan ve üstten görünüş):
+def build_falcon():
+    """Falcon (Figma "RUNNY / Araba 4" çiziminden; yandan, arkadan ve üstten görünüş;
+    turuncu, beyaz lastikler, turuncu jantlar):
     kama gibi alçak sivri burun; altta arkaya doğru genişleyen gövde (arkadan iki yan
     blok, dışa doğru eğik); onun üstünde arkaya doğru yükselen, ortası sırtlı çatı
     biçimli güverte (arkadan beşgen: omuzlar ve tepede sırt); güvertenin üstünde ok
@@ -1030,8 +1031,9 @@ def build_araba4():
         bevel(tire, w(4), 2)
         flat(tire)
         for side in (-1, 1):
-            for rad, depth, off, mat, sg in ((r * 0.58, 0.01, tw / 2, "Hub", seg),
-                                             (hub_r, hub_out, tw / 2 + hub_out / 2, "Hub", 12),
+            # Jantlar gövde renginde (turuncu)
+            for rad, depth, off, mat, sg in ((r * 0.58, 0.01, tw / 2, "Paint", seg),
+                                             (hub_r, hub_out, tw / 2 + hub_out / 2, "Paint", 12),
                                              (nut_r, 0.01, tw / 2 + hub_out + 0.003, "Dark", 8)):
                 bm = bmesh.new()
                 bmesh.ops.create_cone(bm, cap_ends=True, segments=sg, radius1=rad, radius2=rad, depth=depth)
@@ -1066,18 +1068,19 @@ def stretch_y(k):
 
 
 A3_MID = 277.0       # Latte (Araba 3): yan görünüşte arabanın ortası (burun 140.5, arka 414)
-A4_MID = 291.0       # Araba 4: yan görünüşte arabanın ortası (burun 128, arka 454)
+A4_MID = 291.0       # Falcon (Araba 4): yan görünüşte arabanın ortası (burun 128, arka 454)
 BUILDERS = {"kutu": build_kutu, "dragster": build_dragster, "yarisci": build_yarisci, "latte": build_latte,
-            "araba4": build_araba4}
+            "falcon": build_falcon}
 ## Figma çizimli arabalar: yan görünüşte arabanın ortası ve yer çizgisi (piksel)
 ## (isteğe bağlı 3. değer: yan görünüşte kameranın baktığı x; yoksa 296.5)
 ORTHO = {"dragster": (D_MID, 334.0), "yarisci": (300.0, 326.0), "latte": (A3_MID, 326.0, 284.5),
-         "araba4": (A4_MID, 320.0, 291.0)}
+         "falcon": (A4_MID, 320.0, 291.0)}
 ## Modelin gövde rengi (oyun bu rengi alır)
 PAINTS = {"dragster": ((1.0, 0.549, 0.255), 0.6, 0.0), "yarisci": ((0.11, 0.11, 0.12), 0.45, 0.0),
           "latte": ((0.886, 0.776, 0.596), 0.55, 0.0)}
 ## Lastik rengi (oyun bu rengi alır); yoksa koyu gri
-TIRES = {"yarisci": ((0.82, 0.16, 0.13), 0.8, 0.0), "latte": ((1.0, 0.353, 0.122), 0.8, 0.0)}
+TIRES = {"yarisci": ((0.82, 0.16, 0.13), 0.8, 0.0), "latte": ((1.0, 0.353, 0.122), 0.8, 0.0),
+         "falcon": ((0.95, 0.945, 0.93), 0.9, 0.0)}
 
 
 # ---------------------------------------------------------------- çıktı
@@ -1234,10 +1237,10 @@ def main():
                     "o_on": ((0, 20, zc), (0, 0, zc)),
                     "o_arka": ((0, -20, zc), (0, 0, zc)),
                 }
-                if name == "araba4":
+                if name == "falcon":
                     # Bu çizimde önden görünüş yok, üstten görünüş var
                     views = {"o_yan": views["o_yan"], "o_arka": views["o_arka"], "o_ust": ((0, yc, 20), (0, yc, 0))}
-                render_ortho(a.render, name, views, DS, 360 if name == "araba4" else 300)
+                render_ortho(a.render, name, views, DS, 360 if name == "falcon" else 300)
             else:
                 render(a.render, name, a.studio)
 
