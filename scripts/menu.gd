@@ -7,11 +7,11 @@ const SAVE_PATH := "user://save.cfg"
 const GAME_SCENE := "res://scenes/main.tscn"
 ## [ad, açıklama, CarModel.variant]
 const MODELS := [
-	["GEZGİN", "Yavaş ama çakılda tank gibi", 2],
-	["DRAGSTER", "Hızlı ve sağlam, direksiyonu ağır", 6],
-	["DARK ROSE", "En iyi direksiyon, kolay devrilir", 7],
-	["LATTE", "Dengeli, her işi iyi yapar", 8],
-	["FALCON", "En hızlı, çakılda buz pateni", 9],
+	["GEZGİN", "Çakılda savrulmaz, direksiyonu iyi. Ama en yavaşı: uzun boşluklarda çok gaz yakar.", 2],
+	["DRAGSTER", "Hızlı, çakılda ve kenarda sağlam. Ama direksiyonu ağır, dar yerlerde zorlanır.", 6],
+	["DARK ROSE", "Direksiyonu en iyi araba, hızlı da. Ama izi dar: kenarda kolay devrilir.", 7],
+	["LATTE", "Dengeli: çakılda ve kenarda sağlam, atlamalarda ne az ne çok gaz ister.", 8],
+	["FALCON", "En hızlısı: az gazla atlar, enerjisi kanatlara kalır. Ama çakılda buz pateni.", 9],
 ]
 ## Platformlar arası mesafe (m)
 const SPACING := 7.0
@@ -59,6 +59,8 @@ func _ready() -> void:
 	cfg.load(SAVE_PATH)
 	index = 0
 	var saved := int(cfg.get_value("car", "model", MODELS[0][2]))
+	if _args.has("car"):
+		saved = int(_args.car)  # görüntü almak için: --car=8
 	for i in MODELS.size():
 		if MODELS[i][2] == saved:
 			index = i
@@ -199,7 +201,7 @@ func _build_world() -> void:
 	cam.position = Vector3(0, 2.7, 8.0)
 	cam.look_at(Vector3(0, 0.25, 0))
 	# Araba biraz yukarıda: altında özelliklere yer kalsın
-	cam.v_offset = -1.25
+	cam.v_offset = -0.3
 
 	var disc := CylinderMesh.new()
 	disc.top_radius = 2.9
@@ -258,22 +260,28 @@ func _build_ui(best: int) -> void:
 	_info.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_info.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(_info)
-	_name = _label(_info, "", 38, 735, true)
-	_desc = _label(_info, "", 20, 787, false)
+	_name = _label(_info, "", 50, 822, true)
+	_desc = _label(_info, "", 20, 890, false)
+	# Açıklama iki satıra sarılır
+	_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_desc.offset_left = 90
+	_desc.offset_right = -90
+	_desc.offset_top = 866
+	_desc.offset_bottom = 926
 	_desc.modulate.a = 0.6
 	_stats = Control.new()
 	_stats.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_stats.anchor_right = 1.0
-	_stats.offset_top = 825
-	_stats.offset_bottom = 950
+	_stats.offset_top = 950
+	_stats.offset_bottom = 1050
 	ui.add_child(_stats)
 
 	var dots := HBoxContainer.new()
 	dots.add_theme_constant_override("separation", 14)
 	dots.alignment = BoxContainer.ALIGNMENT_CENTER
 	dots.anchor_right = 1.0
-	dots.offset_top = 348
-	dots.offset_bottom = 360
+	dots.offset_top = 405
+	dots.offset_bottom = 417
 	dots.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(dots)
 	for i in MODELS.size():
@@ -301,8 +309,8 @@ func _build_ui(best: int) -> void:
 		arrow.offset_left = 10 if side < 0 else -110
 		arrow.offset_right = 110 if side < 0 else -10
 		# Platformun (elipsin) ortası hizasında
-		arrow.offset_top = -112
-		arrow.offset_bottom = 8
+		arrow.offset_top = -22
+		arrow.offset_bottom = 98
 		arrow.pressed.connect(func(): select(index + side))
 		ui.add_child(arrow)
 
@@ -327,8 +335,8 @@ func _build_ui(best: int) -> void:
 	start_btn.anchor_bottom = 1.0
 	start_btn.offset_left = -210
 	start_btn.offset_right = 210
-	start_btn.offset_top = -290
-	start_btn.offset_bottom = -180
+	start_btn.offset_top = -195
+	start_btn.offset_bottom = -90
 	start_btn.pressed.connect(start)
 	ui.add_child(start_btn)
 
