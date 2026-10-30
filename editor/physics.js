@@ -481,10 +481,14 @@
   // Kalıbın imzası: aynı türev iki kez gelmesin
   const signature = (l) => JSON.stringify([l.pieces.map((p) => [p.x, p.w, p.z0, p.len, num(p.h0, 0), num(p.h1, 0)]),
     l.obstacles.map((o) => [o.kind, o.x, o.w, o.z0, o.len, num(o.rise, 0)])]);
-  // Geçerli bir türev: hata yok, uyarı asıl kalıptan fazla değil, asıl kalıptan farklı
+  // Hatanın kimliği: türü ve ilgili parçalar (metindeki ölçüler hariç)
+  const errorKeys = (A) => A.issues.filter((i) => i.level === 'error').map((i) => i.text.replace(/[\d.,]+/g, '#') + '|' + i.ids.join(','));
+  // Geçerli bir türev: tasarımcının kalıbında olmayan yeni hata yok (kalıbın bilerek zor yerleri
+  // türevde de olabilir), uyarı asıl kalıptan fazla değil, daha önce görülmemiş
   function vary(level, seed, avoid) {
     const base = analyze(level);
     const baseWarn = issueCount(base, 'warn');
+    const baseErr = new Set(errorKeys(base));
     const seen = new Set(avoid || []);
     seen.add(signature(level));
     for (let t = 0; t < 40; t++) {
@@ -495,7 +499,7 @@
       const sig = signature(V.level);
       if (!V.tags.length || seen.has(sig)) continue;
       const A = analyze(V.level);
-      if (issueCount(A, 'error') === 0 && issueCount(A, 'warn') <= baseWarn) return { ...V, sig };
+      if (errorKeys(A).every((k) => baseErr.has(k)) && issueCount(A, 'warn') <= baseWarn) return { ...V, sig };
     }
     return null;
   }

@@ -822,7 +822,6 @@
   function generateVariants() {
     if (viewing) exitView();
     if (!level.pieces.length) { toast('Önce bir kalıp çiz.'); return; }
-    if (analysis.issues.some((i) => i.level === 'error')) { toast('Önce kontrol listesindeki hataları düzelt: türevler hatasız kalıptan üretilir.'); return; }
     const sig = baseSig(level);
     // İşaretli ya da test edilmiş ve kalıbı değişmemiş türevler kalır, gerisi yenilenir
     const keep = (level.variants || []).filter((v) => v.base === sig && (v.on || (v.test && v.test.n)));
