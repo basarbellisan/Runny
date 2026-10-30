@@ -534,6 +534,9 @@ func _plan_pattern(travelled: float, level: float) -> void:
 			_custom_recent.append(str(chosen.name))
 			if _custom_recent.size() > maxi(custom_levels.size() - 1, 1):
 				_custom_recent.pop_front()
+			# Yarı yarıya aynalı gelir (sağ ↔ sol): fizik simetrik, test edilen kalıbın aynası da geçer
+			if _rng.randf() < 0.5:
+				chosen = mirror_level(chosen)
 			_plan.append({"custom": chosen})
 		"çatal":
 			# Önce geniş bir yol: iki kola da buradan atlanır
@@ -2966,7 +2969,7 @@ func _build_custom(prev: Segment, level: Dictionary, travelled: float) -> Segmen
 		if h.z_end < head.z_end:
 			head = h
 	custom_log.append({"name": lname, "zb": zb, "ox": ox, "oy": oy, "entry_z": prev.z_end, "exit_z": head.z_end,
-		"travelled": travelled})
+		"travelled": travelled, "mirrored": level.get("mirrored", false)})
 	pattern_counts["özel:" + lname] = int(pattern_counts.get("özel:" + lname, 0)) + 1
 	return head
 
@@ -2997,4 +3000,20 @@ func to_design(pos: Vector3, index := 0) -> Vector2:
 	if custom_log.is_empty():
 		return Vector2.ZERO
 	var c: Dictionary = custom_log[clampi(index, 0, custom_log.size() - 1)]
-	return Vector2(pos.x - float(c.ox), float(c.zb) - pos.z)
+	var x := pos.x - float(c.ox)
+	return Vector2(-x if c.get("mirrored", false) else x, float(c.zb) - pos.z)
+
+
+## Kalıbın sağ ↔ sol aynası (yollar, yatıklık, engeller, eğik rampanın yönü)
+static func mirror_level(level: Dictionary) -> Dictionary:
+	var m := level.duplicate(true)
+	m["mirrored"] = not level.get("mirrored", false)
+	for p in m.pieces:
+		p["x"] = -float(p.get("x", 0.0))
+		if p.has("bank"):
+			p["bank"] = -float(p.bank)
+	for o in m.obstacles:
+		o["x"] = -float(o.get("x", 0.0))
+		if o.has("dir"):
+			o["dir"] = -float(o.dir)
+	return m

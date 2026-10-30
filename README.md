@@ -303,7 +303,8 @@ bölgesini, rampa/tümsek uçuşunu ve yan yol dönüşlerini denetler.
 
 Oyuna eklemek: JSON'u `levels/` klasörüne koy. Oyun bu kalıpları sonsuz koşuya karıştırır:
 kalıbın `at` metresinden sonra ve o andaki hız tasarımdakinden çok fazla değilse,
-bir önceki yoldan atlanabilir bir boşlukla girilir. Eklemeden önce test:
+bir önceki yoldan atlanabilir bir boşlukla girilir. Yarı yarıya sağ ↔ sol aynalı gelir
+(`level_test.py` koşuların yarısını aynalı sürer; `--mirror` ile tek koşu da aynalı denenir). Eklemeden önce test:
 ```
 python3 tools/level_test.py levels/kalip.json --runs 12   # fizik kontrolleri + başsız oyunda otomatik pilot
 godot --path . -- --level=levels/kalip.json               # kalıp başlangıçtan hemen sonra gelir

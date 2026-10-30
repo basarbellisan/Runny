@@ -6,7 +6,8 @@ Kullanım:
 
 1) editor/physics.js ile kontroller (atlama, iniş bölgesi, rampa/tümsek uçuşu...).
 2) Oyun başsız çalışır: tasarım başlangıç pistinden hemen sonra gelir, araba tasarımın
-   hızıyla başlar; her koşu farklı tohum ve araba ile. Geçti / düştü (tasarımdaki metre).
+   hızıyla başlar; her koşu farklı tohum ve araba ile, yarısı aynalı (oyunda olduğu gibi).
+   Geçti / düştü (tasarımdaki metre).
 """
 import argparse
 import json
@@ -32,9 +33,11 @@ def physics_check(path):
     return json.loads(out.stdout)
 
 
-def run_game(path, seed, model, frames):
+def run_game(path, seed, model, frames, mirror=False):
     cmd = ["godot", "--headless", "--path", ROOT, "--fixed-fps", "60", "--quit-after", str(frames), "--",
            "--autopilot", "--seed=%d" % seed, "--model=%d" % model, "--level=%s" % os.path.abspath(path)]
+    if mirror:
+        cmd.append("--mirror")
     try:
         out = subprocess.run(cmd, capture_output=True, text=True, timeout=600).stdout
     except subprocess.TimeoutExpired:
@@ -67,8 +70,10 @@ def main():
     ok = 0
     for i in range(a.runs):
         model = models[i % len(models)]
-        r = run_game(a.level, i + 1, model, frames)
-        name = MODEL_NAMES.get(model, str(model))
+        # Oyunda kalıp yarı yarıya aynalı gelir: koşuların yarısı aynalı
+        mirror = i % 2 == 1
+        r = run_game(a.level, i + 1, model, frames, mirror)
+        name = MODEL_NAMES.get(model, str(model)) + (", aynalı" if mirror else "")
         if r is None:
             print("  koşu %d (%s): sonuç yok (zaman aşımı ya da tasarım kurulamadı)" % (i + 1, name))
             continue

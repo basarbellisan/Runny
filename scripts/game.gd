@@ -442,6 +442,8 @@ func _setup_level_test() -> void:
 	var level := RoadGenerator.parse_level(text)
 	if level.is_empty():
 		return
+	if _args.has("mirror"):
+		level = RoadGenerator.mirror_level(level)
 	roads.test_level = level
 	_level_test = true
 	if OS.has_feature("web") and not _level_auto:
