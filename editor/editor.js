@@ -387,7 +387,8 @@
     const el = $('props');
     if (!it) {
       el.innerHTML = `<div class="muted">Bir yola ya da engele tıkla. Taşımak için sürükle, uçlarındaki tutamaklarla uzat ya da genişlet.<br><br>
-        <b>Kısayollar:</b> Sil (Delete), Geri al (Ctrl+Z), Çoğalt (Ctrl+D), ok tuşlarıyla kaydır (Shift: 5 m). Tekerlek: kaydır, Ctrl+tekerlek: yakınlaştır.</div>`;
+        <b>Çoğaltmak (aynı boyda):</b> Alt+sürükle (Mac'te Option), Ctrl+D ardına ekler, Ctrl+C / Ctrl+V imlecin olduğu yere yapıştırır.<br><br>
+        <b>Kısayollar:</b> Sil (Delete), Geri al (Ctrl+Z), ok tuşlarıyla kaydır (Shift: 5 m). Tekerlek: kaydır, Ctrl+tekerlek: yakınlaştır.</div>`;
       return;
     }
     const out = [];
@@ -395,7 +396,7 @@
       const h0 = it.h0 || 0, h1 = it.h1 ?? h0;
       const t = tierOf((h0 + h1) / 2);
       const slope = Math.atan2(h1 - h0, it.len) * 180 / Math.PI;
-      out.push(`<div class="sel"><div class="dot" style="background:${ROAD_COLOR[t]}"></div>${it.side ? 'Yan yol' : 'Yol'} #${it.id}<button class="del" data-act="delete">Sil</button></div>`);
+      out.push(`<div class="sel"><div class="dot" style="background:${ROAD_COLOR[t]}"></div>${it.side ? 'Yan yol' : 'Yol'} #${it.id}<button class="dup" data-act="dup" title="Aynı boyda kopyası ardına (Ctrl+D)">Çoğalt</button><button class="del" data-act="delete">Sil</button></div>`);
       out.push(`<div class="row"><label>Kat</label><div class="seg">${['low', 'mid', 'high'].map((k) => `<button data-tier="${k}" class="${t === k && Math.abs(h1 - h0) < 0.05 ? 'on' : ''}">${{ low: 'Alçak', mid: 'Orta', high: 'Yüksek' }[k]}</button>`).join('')}</div></div>`);
       out.push(numRow('Uzunluk', 'len', it.len, 'm', 1, 4));
       out.push(numRow('Genişlik', 'w', it.w, 'm', 0.5, 2.5, 16));
@@ -410,7 +411,7 @@
       if (on.length) out.push(`<div class="row"><label>Üstünde</label><b>${on.join(', ')}</b></div>`);
     } else {
       const host = P.hostOf(level, it);
-      out.push(`<div class="sel"><div class="dot" style="background:${it.kind === 'gravel' ? '#b9a98f' : it.kind === 'block' || it.kind === 'deadend' ? '#232529' : '#f4d9a8'}"></div>${P.KIND_NAMES[it.kind]} #${it.id}<button class="del" data-act="delete">Sil</button></div>`);
+      out.push(`<div class="sel"><div class="dot" style="background:${it.kind === 'gravel' ? '#b9a98f' : it.kind === 'block' || it.kind === 'deadend' ? '#232529' : '#f4d9a8'}"></div>${P.KIND_NAMES[it.kind]} #${it.id}<button class="dup" data-act="dup" title="Aynı boyda kopyası ardına (Ctrl+D)">Çoğalt</button><button class="del" data-act="delete">Sil</button></div>`);
       if (it.kind !== 'deadend') {
         if (it.kind !== 'block') out.push(numRow('Uzunluk', 'len', it.len, 'm', 0.5, 1));
         if (it.kind !== 'bump') out.push(numRow('Genişlik', 'w', it.w, 'm', 0.5, 0.8));
@@ -427,6 +428,8 @@
       const F = analysis && analysis.flights.find((f) => f.o === it);
       if (F && !isNaN(F.t)) out.push(`<div class="row"><label>Uçuş</label><b>${(F.land - F.from).toFixed(0)} m, ${F.t.toFixed(2)} sn</b></div>`);
     }
+    out.push(`<div class="row dups"><label>Ardına çoğalt</label><div class="seg">${[1, 2, 3, 5].map((n) => `<button data-act="dup" data-n="${n}">${n}×</button>`).join('')}</div></div>`);
+    out.push(`<div class="muted" style="margin-top:4px">Kopyayı taşıyıp yine çoğaltırsan aynı aralıkla devam eder. Alt+sürükle: kopyasını sürükle.</div>`);
     el.innerHTML = out.join('');
   }
   $('props').addEventListener('change', (e) => {
@@ -455,6 +458,7 @@
     const b = e.target.closest('button');
     if (!b) return;
     if (b.dataset.act === 'delete') return deleteSelected();
+    if (b.dataset.act === 'dup') return duplicateSelected(+b.dataset.n || 1);
     if (b.dataset.tier) commit(() => { it.h0 = it.h1 = P.TIERS[b.dataset.tier]; });
     if (b.dataset.dir) commit(() => { it.dir = +b.dataset.dir; });
   });
@@ -524,9 +528,20 @@
     } else if (gEl) {
       const type = gEl.dataset.type, id = +gEl.dataset.id;
       sel = { type, id };
-      const it = selected();
-      drag = { mode: 'move', start: w, orig: { ...it }, snap: snapshot(), moved: false,
-        carry: type === 'piece' ? carried(it).map((o) => ({ o, x: o.x, z0: o.z0 })) : [] };
+      let it = selected();
+      const snap = snapshot();
+      let carry = type === 'piece' ? carried(it) : [];
+      let dup = null;
+      if (e.altKey) {
+        // Alt+sürükle: aynı boyda kopyasını sürükle (asıl yerinde kalır)
+        const c = cloneItem(type, it, 0, 0);
+        dup = id;
+        it = c.copy;
+        carry = c.kids;
+        sel = { type, id: it.id };
+      }
+      drag = { mode: 'move', start: w, orig: { ...it }, snap, moved: false, dup,
+        carry: carry.map((o) => ({ o, x: o.x, z0: o.z0 })) };
       render();
     } else {
       sel = null;
@@ -536,7 +551,9 @@
     }
     svgTop.setPointerCapture(e.pointerId);
   });
+  svgTop.addEventListener('pointerleave', () => { hover = null; });
   svgTop.addEventListener('pointermove', (e) => {
+    hover = clientToWorld(e);
     if (!drag) return;
     if (drag.mode === 'pan') {
       view.cx = drag.cx - (e.clientX - drag.sx) / view.sx;
@@ -574,7 +591,11 @@
   });
   svgTop.addEventListener('pointerup', () => {
     wrap.classList.remove('panning');
-    if (drag && drag.moved && drag.mode !== 'pan') {
+    if (drag && drag.dup && !drag.moved) {
+      // Alt+tık (sürüklemeden): kopya üst üste kalmasın
+      level = JSON.parse(drag.snap);
+      sel = { type: sel.type, id: drag.dup };
+    } else if (drag && drag.moved && drag.mode !== 'pan') {
       undoStack.push(drag.snap);
       redoStack.length = 0;
       changed();
@@ -767,30 +788,80 @@
       sel = null;
     });
   }
-  function duplicateSelected() {
+  // Kopya (aynı boyda): yolsa üstündeki engellerle birlikte, dx/dz kadar ötede
+  function cloneItem(type, it, dx, dz) {
+    let id = nextId();
+    const copy = { ...it, id: id++, x: r1(it.x + dx), z0: r1(it.z0 + dz) };
+    const kids = [];
+    if (type === 'piece') {
+      for (const o of carried(it)) kids.push({ ...o, id: id++, x: r1(o.x + dx), z0: r1(o.z0 + dz) });
+      level.obstacles.push(...kids);
+      level.pieces.push(copy);
+    } else level.obstacles.push(copy);
+    lastDup = { type, src: it.id, copy: copy.id };
+    return { copy, kids };
+  }
+  // Çoğalt: kopya ardına gelir. Kopyayı taşıyıp yine çoğaltırsan aynı aralıkla sürer (Figma gibi)
+  let lastDup = null;
+  function dupOffset(type, it) {
+    const src = lastDup && lastDup.type === type && lastDup.copy === it.id &&
+      (type === 'piece' ? findPiece(lastDup.src) : findObs(lastDup.src));
+    if (src && (src.x !== it.x || src.z0 !== it.z0)) return [it.x - src.x, it.z0 - src.z0];
+    if (type === 'piece') return [0, it.len + P.suggestGap(level, it, 0)];
+    return [0, Math.max(it.len, 2) + 6];
+  }
+  function duplicateSelected(times) {
     const it = selected();
     if (!it) return;
     commit(() => {
-      let id = nextId();
-      if (sel.type === 'piece') {
-        const copy = { ...it, id: id++, z0: P.pEnd(it) + P.suggestGap(level, it, 0) };
-        for (const o of carried(it)) level.obstacles.push({ ...o, id: id++, z0: o.z0 + (copy.z0 - it.z0) });
-        level.pieces.push(copy);
-        sel = { type: 'piece', id: copy.id };
-      } else {
-        const copy = { ...it, id, z0: it.z0 + Math.max(it.len, 2) + 6 };
-        level.obstacles.push(copy);
-        sel = { type: 'obstacle', id };
+      let cur = it;
+      for (let i = 0; i < (times || 1); i++) {
+        const [dx, dz] = dupOffset(sel.type, cur);
+        cur = cloneItem(sel.type, cur, dx, dz).copy;
       }
+      sel = { type: sel.type, id: cur.id };
     });
   }
+  // Kopyala / yapıştır (Ctrl+C / Ctrl+V): fare tuvaldeyse imlecin olduğu yere
+  let clip = null, hover = null;
+  function copySelected() {
+    const it = selected();
+    if (!it) return;
+    clip = { type: sel.type, it: { ...it }, kids: sel.type === 'piece' ? carried(it).map((o) => ({ ...o })) : [] };
+    toast(`${sel.type === 'piece' ? 'Yol' : P.KIND_NAMES[it.kind]} kopyalandı: Ctrl+V ile imlecin olduğu yere yapıştır.`);
+  }
+  function paste() {
+    if (!clip) return;
+    const it = clip.it;
+    const at = hover || { x: it.x, z: it.z0 + (clip.type === 'piece' ? it.len + 10 : Math.max(it.len, 2) + 6) };
+    commit(() => {
+      const dx = snapX(at.x) - it.x, dz = snapZ(at.z) - it.z0;
+      let id = nextId();
+      const copy = { ...it, id: id++, x: r1(it.x + dx), z0: r1(it.z0 + dz) };
+      for (const o of clip.kids) level.obstacles.push({ ...o, id: id++, x: r1(o.x + dx), z0: r1(o.z0 + dz) });
+      if (clip.type === 'piece') level.pieces.push(copy);
+      else {
+        level.obstacles.push(copy);
+        const host = P.hostOf(level, copy);
+        if (host && (copy.kind === 'bump' || copy.kind === 'deadend')) { copy.x = host.x; copy.w = host.w; }
+      }
+      sel = { type: clip.type, id: copy.id };
+    });
+  }
+  // Alt basılıyken imleç "kopya" olur: Alt+sürükle çoğaltır
+  const altCursor = (e) => wrap.classList.toggle('alt', e.altKey);
+  document.addEventListener('keyup', altCursor);
+  window.addEventListener('blur', () => wrap.classList.remove('alt'));
   document.addEventListener('keydown', (e) => {
+    altCursor(e);
     if (e.target.tagName === 'INPUT') return;
     const k = e.key.toLowerCase();
     const mod = e.ctrlKey || e.metaKey;
     if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
     else if (mod && k === 'y') { e.preventDefault(); redo(); }
     else if (mod && k === 'd') { e.preventDefault(); duplicateSelected(); }
+    else if (mod && k === 'c') { copySelected(); }
+    else if (mod && k === 'v') { e.preventDefault(); paste(); }
     else if (mod && k === 's') { e.preventDefault(); saveToLibrary(); }
     else if (k === 'delete' || k === 'backspace') { e.preventDefault(); deleteSelected(); }
     else if (k === 'escape') { sel = null; render(); }
