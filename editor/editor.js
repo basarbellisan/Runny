@@ -986,6 +986,26 @@
   $('playBtn').onclick = () => openGame(false);
   $('testBtn').onclick = () => openGame(true);
   $('gameClose').onclick = () => { $('gameFrame').src = 'about:blank'; $('gameModal').classList.remove('open'); };
+  // Baştan: oyun sahnesi anında yeniden kurulur (motor yeniden yüklenmez); testte bütün koşular baştan
+  function restartGame() {
+    const auto = +$('gameModal').dataset.runs > 0;
+    if (auto) return openGame(true);
+    const w = $('gameFrame').contentWindow;
+    if (w && typeof w.runnyRestart === 'function') w.runnyRestart();
+    else $('gameFrame').src = `${GAME_URL}?level=test&t=${Date.now()}`;
+    $('gameFrame').focus();
+  }
+  $('gameRestart').onclick = restartGame;
+  // R tuşu: odak oyundayken de çalışsın (aynı adres: oyunun penceresi dinlenebilir)
+  const onRestartKey = (e) => {
+    if ((e.key === 'r' || e.key === 'R') && !e.ctrlKey && !e.metaKey && $('gameModal').classList.contains('open')) {
+      e.preventDefault(); e.stopPropagation(); restartGame();
+    }
+  };
+  $('gameFrame').addEventListener('load', () => {
+    try { $('gameFrame').contentWindow.addEventListener('keydown', onRestartKey, true); } catch (err) { /* başka adres */ }
+  });
+  document.addEventListener('keydown', onRestartKey);
   // Oyun (aynı adres) sonuçları tarayıcı hafızasına yazar: burada dinlenir
   function pollResults() {
     const r = loadJSON(KEY.result) || [];
