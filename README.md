@@ -42,6 +42,9 @@ varsayılan 1 m; ayar panelinde "En yavaş araba konma payı"); iniş yolları e
 arabanın tam roketini taşıyacak kadar uzun. Editör de en yavaş arabayı hesaplar:
 yetişemediği atlamada "En yavaş araba (Gezgin) yetişemez" uyarısı verir (bilerek
 yapıldıysa yanına alternatif yol konur).
+Editörde "Oyna" her seferinde garajdan rastgele bir araba seçer (bir öncekinden
+farklı; adı ve başlangıç hızı pencerenin üstünde yazar, oyun `?model=` ile açılır);
+"Baştan" aynı arabayla yeniden başlatır.
 
 Dragster
 (model 6) Blender modeli: Figma'daki "RUNNY / Araba 01" çiziminin yan, ön ve

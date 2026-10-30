@@ -7,6 +7,9 @@
     test: 'runny_level_test', result: 'runny_level_result' };
   const GAME_URL = '../index.html';
   const MODEL_NAMES = { 1: 'Kutu', 2: 'Gezgin', 3: 'Konsept', 4: 'Roadster', 6: 'Dragster', 7: 'Dark Rose', 8: 'Latte', 9: 'Falcon' };
+  // Garajdaki arabalar ve hız katları (scripts/car_model.gd GARAGE / STATS): "Oyna" rastgele birini seçer
+  const GARAGE = { 2: 0.96, 6: 1.04, 7: 1.04, 8: 1.0, 9: 1.08 };
+  let playModel = 0;
   const $ = (id) => document.getElementById(id);
   const r1 = (v) => Math.round(v * 10) / 10;
   const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
@@ -1160,9 +1163,14 @@
     if (variant) { variant.test = { running: true }; saveJSON(KEY.current, baseLevel()); }
     const runs = 5;
     $('gameTitle').textContent = auto ? 'Test: otomatik pilot' : 'Oyna';
-    const kmh = (P.speedAt(level.at || 0) * 3.6).toFixed(0);
-    $('gameInfo').textContent = auto ? `0/${runs} koşu` : `Başlangıç hızı ${kmh} km/sa (oyunda ${(level.at || 0).toLocaleString('tr-TR')}. metredeki hız)`;
-    $('gameFrame').src = `${GAME_URL}?level=test${auto ? `&autopilot=1&runs=${runs}` : ''}&t=${Date.now()}`;
+    if (!auto) {
+      // Her "Oyna"da garajdan rastgele bir araba (bir öncekinden farklı); "Baştan" aynı arabayla
+      const ids = Object.keys(GARAGE).map(Number).filter((m) => m !== playModel);
+      playModel = ids[Math.floor(Math.random() * ids.length)];
+    }
+    const kmh = (P.speedAt(level.at || 0) * (GARAGE[playModel] || 1) * 3.6).toFixed(0);
+    $('gameInfo').textContent = auto ? `0/${runs} koşu` : `Araba: ${MODEL_NAMES[playModel]} · başlangıç hızı ${kmh} km/sa (oyunda ${(level.at || 0).toLocaleString('tr-TR')}. metredeki hız)`;
+    $('gameFrame').src = `${GAME_URL}?level=test${auto ? `&autopilot=1&runs=${runs}` : `&model=${playModel}`}&t=${Date.now()}`;
     $('gameModal').classList.add('open');
     $('gameModal').dataset.runs = auto ? runs : 0;
     render();
@@ -1176,7 +1184,7 @@
     if (auto) return openGame(true, lastGame && lastGame.variant);
     const w = $('gameFrame').contentWindow;
     if (w && typeof w.runnyRestart === 'function') w.runnyRestart();
-    else $('gameFrame').src = `${GAME_URL}?level=test&t=${Date.now()}`;
+    else $('gameFrame').src = `${GAME_URL}?level=test&model=${playModel}&t=${Date.now()}`;
     $('gameFrame').focus();
   }
   $('gameRestart').onclick = restartGame;

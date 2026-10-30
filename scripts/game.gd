@@ -134,6 +134,9 @@ func _ready() -> void:
 	if not saved_model in CarModel.GARAGE:
 		saved_model = CarModel.GARAGE[0]  # garajdan çıkan araba seçiliydi
 	car.model.variant = int(_args.get("model", saved_model))
+	# Editörde "Oyna": editör her seferinde rastgele bir araba seçer (?model=)
+	if _web_param("model") != "":
+		car.model.variant = int(_web_param("model"))
 	# Test: gövde koruması kapalı (karşılaştırma için)
 	if _args.has("nohull"):
 		car.hull_guard = false
