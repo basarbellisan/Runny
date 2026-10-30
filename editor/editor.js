@@ -1087,13 +1087,7 @@
     } catch (e) { /* dosya yoksa gömülü örnek */ }
     useLevel(SAMPLE);
   }
-  const SAMPLE = { format: 'runny-level', version: 1, name: 'Örnek: Ada Atlayışı', at: 800, crystals: true,
-    pieces: [{ id: 1, x: 0, w: 9, z0: 0, len: 160, h0: 0, h1: 0 }, { id: 2, x: -2, w: 8, z0: 188, len: 120, h0: 0, h1: 0 },
-      { id: 3, x: 8, w: 5, z0: 268, len: 70, h0: 3, h1: 3, side: true }, { id: 4, x: 1, w: 8, z0: 336, len: 220, h0: 0, h1: 0 },
-      { id: 5, x: 0, w: 9, z0: 584, len: 70, h0: 0, h1: 0 }],
-    obstacles: [{ id: 6, kind: 'ramp', x: 0, w: 4, z0: 64, len: 8, rise: 1.6 }, { id: 7, kind: 'kick', x: 0, w: 3, z0: 258, len: 7, rise: 1.4, dir: 1, dx: 8 },
-      { id: 8, kind: 'gravel', x: -3.5, w: 3, z0: 250, len: 12 }, { id: 9, kind: 'block', x: -1, w: 2, z0: 440, len: 1.2 },
-      { id: 10, kind: 'bump', x: 1, w: 8, z0: 456, len: 12, rise: 1 }] };
+  const SAMPLE = {"format":"runny-level","version":1,"name":"Örnek: Ada Atlayışı","at":0,"crystals":true,"pieces":[{"id":1,"x":0,"w":9,"z0":0,"len":216,"h0":0,"h1":0},{"id":2,"x":-2,"w":8,"z0":254,"len":162,"h0":0,"h1":0},{"id":3,"x":8,"w":5,"z0":362,"len":94,"h0":3,"h1":3,"side":true},{"id":4,"x":1,"w":8,"z0":454,"len":297,"h0":0,"h1":0},{"id":5,"x":0,"w":9,"z0":788,"len":94,"h0":0,"h1":0}],"obstacles":[{"id":6,"kind":"ramp","x":0,"w":4,"z0":86,"len":10.8,"rise":1.6},{"id":7,"kind":"kick","x":0,"w":3,"z0":348,"len":9.5,"rise":1.4,"dir":1,"dx":8},{"id":8,"kind":"gravel","x":-3.5,"w":3,"z0":338,"len":16.2},{"id":9,"kind":"block","x":-1,"w":2,"z0":594,"len":1.2},{"id":10,"kind":"bump","x":1,"w":8,"z0":616,"len":16.2,"rise":1.0}]};
 
   // ------------------------------------------------------------------ kayıt
   function cleanLevel() {
