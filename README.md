@@ -125,7 +125,7 @@ Yine de fizik motoru arabayı bir noktada tutarsa (yerdeyken ~0.12 sn ileri
 gidemezse) araba hafifçe kaldırılıp ileri itilir.
 
 ## Hız
-Temel hız 22 m/s'den (79 km/sa) başlar, her saniye 0.35 m/s artar ve ~94 sn'de
+Temel hız 39.5 m/s'den (142 km/sa) başlar, her saniye 0.35 m/s artar ve ~44 sn'de
 55 m/s'ye (198 km/sa) varır; sonra durmaz, saniyede 0.08 m/s ile 75 m/s'ye
 (270 km/sa) kadar artmaya devam eder (ayar panelinde "Zamanla hızlanma", "En
 yüksek hız"; sonraki artış `late_acceleration` / `top_speed`). Yollar tahmini

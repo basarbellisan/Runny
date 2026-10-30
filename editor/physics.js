@@ -5,7 +5,7 @@
   'use strict';
 
   const CAR = {
-    startSpeed: 22, maxSpeed: 55, acceleration: 0.35, lateAcceleration: 0.08, topSpeed: 75,
+    startSpeed: 39.5, maxSpeed: 55, acceleration: 0.35, lateAcceleration: 0.08, topSpeed: 75,
     gravity: 28, launchVelocity: 8, boostBonus: 1.35, boostMaxExtra: 45,
     carLen: 3.9, halfWidth: 1.1, steerSpeed: 11, airControl: 0.6, bumpLaunch: 1.4,
     lightsTime: 1.1, maxSlopeDeg: 18, maxBankDeg: 15,

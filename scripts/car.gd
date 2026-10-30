@@ -26,7 +26,7 @@ signal died(reason: String)
 
 enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 
-@export var start_speed := 22.0
+@export var start_speed := 39.5  # 142 km/sa
 @export var max_speed := 55.0
 ## En yüksek hıza varınca hız yavaşça artmaya devam eder (m/s, her saniye), top_speed'e kadar
 @export var late_acceleration := 0.08

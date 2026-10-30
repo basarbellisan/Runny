@@ -108,6 +108,8 @@ const ZONES: Array[Color] = [
 	Color("fbfaf7"), Color("b3c4a5"), Color("a5bccf"), Color("dcc8a6"), Color("9da7b1"),
 ]
 
+## Yol uzunlukları hızla orantılı (süre olarak aynı kalır): bu hızda temel uzunluk
+const LENGTH_REF_SPEED := 22.0
 @export var view_distance := 450.0
 @export var cleanup_distance := 40.0
 ## Düz yollarda yükseklik bu bandın içinde kalır
@@ -646,7 +648,7 @@ func _next_from(prev: Segment) -> Segment:
 		# Çıkmazın olduğu taraftan uzaklaş: çıkmazdan düşen araba ana yola çarpmasın
 		dx = -_avoid_side * _rng.randf_range(0.0, max_dx)
 		_avoid_count -= 1
-	var length := _rng.randf_range(40.0, 100.0) * (v / car.start_speed) * float(spec.get("len", 1.0))
+	var length := _rng.randf_range(40.0, 100.0) * (v / LENGTH_REF_SPEED) * float(spec.get("len", 1.0))
 	# Düz, geniş yollar bazen engelli olur: sağ-sol oynanacak yer için uzar
 	var banked: bool = spec.has("bank")
 	var plain: bool = not (banked or spec.has("angle") or spec.has("rise_to") or spec.has("rise") or spec.get("dead_end", false))
@@ -944,7 +946,7 @@ func _add_dead_end(prev: Segment, main_seg: Segment, side: float, v: float, vy_b
 		if absf(x - main_seg.x) >= gap and signf(x - main_seg.x) == side:
 			options.append(x)
 	var main_len := main_seg.z_start - main_seg.z_end
-	var length := minf(_rng.randf_range(60.0, 90.0) * (v / car.start_speed), main_len - 35.0)
+	var length := minf(_rng.randf_range(60.0, 90.0) * (v / LENGTH_REF_SPEED), main_len - 35.0)
 	if options.is_empty() or length < 40.0:
 		return
 	var x: float = options[_rng.randi() % options.size()]

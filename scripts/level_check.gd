@@ -4,7 +4,7 @@ extends RefCounted
 ## editor/physics.js'deki analyze() ve vary() ile aynı kurallar (değişirse ikisi birlikte).
 ## Kalıp: { at, pieces: [{id,x,w,z0,len,h0,h1,bank,side}], obstacles: [{id,kind,x,w,z0,len,rise,dir,dx}] }
 
-const START_SPEED := 22.0
+const START_SPEED := 39.5
 const MAX_SPEED := 55.0
 const ACCELERATION := 0.35
 const LATE_ACCELERATION := 0.08
