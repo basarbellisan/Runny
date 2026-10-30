@@ -24,23 +24,24 @@ const MOODS := {
 	"env:fog_light_color": [Palette.PAPER, Color("26282c")],
 	"env:fog_density": [0.0028, 0.005],
 	"env:fog_height": [-30.0, -160.0],
-	"env:ambient_light_color": [Color("ebe8e2"), Color("8a8f97")],
-	"env:ambient_light_energy": [0.6, 0.95],
-	"sun:light_color": [Color("fffaf2"), Color("dfe4ea")],
-	"sun:light_energy": [1.0, 0.95],
+	# Üst katman "altın saat": sıcak alçak güneş, serin ortam ışığı (açık renkler beyaza patlamaz)
+	"env:ambient_light_color": [Color("d4dceb"), Color("8a8f97")],
+	"env:ambient_light_energy": [0.45, 0.95],
+	"sun:light_color": [Color("ffd8a8"), Color("dfe4ea")],
+	"sun:light_energy": [0.85, 0.95],
 	# Bulut tabakası: üstten bakınca sise karışır, alttan açık gri bir tavan olur
 	"cloud:albedo_color": [Color(0.97, 0.96, 0.95, 0.35), Color(0.78, 0.77, 0.75, 0.55)],
 }
 
-## Işık denemeleri (--light=N): üst katmanın ışığı ve ton eşleme. "tone": [mod, pozlama, beyaz]
+## Işık denemeleri (--light=N; 0 = oyunun ışığı, altın saat): üst katmanın ışığı ve ton eşleme. "tone": [mod, pozlama, beyaz]
 ## mod: 0 doğrusal, 2 filmik, 3 ACES, 4 AgX. "sun_rot": güneşin yönü (derece)
 const LIGHT_PRESETS := [
 	{},
 	{"name": "Yumuşak gün", "sun:light_energy": 0.72, "env:ambient_light_energy": 0.42},
 	{"name": "Serin sabah", "sun:light_energy": 0.8, "sun:light_color": Color("e6eeff"),
 		"env:ambient_light_color": Color("f2e6d2"), "env:ambient_light_energy": 0.42, "sun_rot": Vector3(-40, -35, 0)},
-	{"name": "Altın saat", "sun:light_energy": 0.85, "sun:light_color": Color("ffd8a8"),
-		"env:ambient_light_color": Color("d4dceb"), "env:ambient_light_energy": 0.45, "sun_rot": Vector3(-28, 62, 0)},
+	{"name": "Eski gün ışığı", "sun:light_energy": 1.0, "sun:light_color": Color("fffaf2"),
+		"env:ambient_light_color": Color("ebe8e2"), "env:ambient_light_energy": 0.6, "sun_rot": Vector3(-51.6, 43.0, 0)},
 	{"name": "Bulutlu", "sun:light_energy": 0.38, "env:ambient_light_energy": 0.72, "shadow_blur": 4.0},
 	{"name": "Öğle kontrast", "sun:light_energy": 0.82, "env:ambient_light_energy": 0.28, "sun_rot": Vector3(-72, 30, 0)},
 ]

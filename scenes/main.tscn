@@ -22,9 +22,9 @@ sky_material = SubResource("SkyMat")
 background_mode = 2
 sky = SubResource("Sky")
 ambient_light_source = 2
-ambient_light_color = Color(0.922, 0.91, 0.886, 1)
+ambient_light_color = Color(0.831, 0.863, 0.922, 1)
 ambient_light_sky_contribution = 0.35
-ambient_light_energy = 0.75
+ambient_light_energy = 0.45
 tonemap_mode = 0
 fog_enabled = true
 fog_light_color = Color(0.949, 0.941, 0.922, 1)
@@ -68,10 +68,10 @@ script = ExtResource("1_game")
 environment = SubResource("Env")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
-rotation = Vector3(-0.9, 0.75, 0)
-light_color = Color(1, 0.98, 0.949, 1)
+rotation = Vector3(-0.488692, 1.082104, 0)
+light_color = Color(1, 0.847, 0.659, 1)
 sky_mode = 1
-light_energy = 1.25
+light_energy = 0.85
 shadow_enabled = true
 directional_shadow_max_distance = 150.0
 

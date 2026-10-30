@@ -167,7 +167,7 @@ func _build_world() -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Palette.PAPER
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("ebe8e2")
+	env.ambient_light_color = Color("d4dceb")
 	# Arabalar soluk görünmesin: ortam ışığı ve sis kısık (sis yalnız uzaktaki
 	# platformları yumuşatır, öndeki arabanın rengini bozmaz)
 	env.ambient_light_energy = 0.38
@@ -178,7 +178,9 @@ func _build_world() -> void:
 	we.environment = env
 	add_child(we)
 	var sun := DirectionalLight3D.new()
-	sun.rotation = Vector3(-0.95, 0.6, 0)
+	# Oyunla aynı "altın saat": sıcak, alçaktan gelen güneş
+	sun.rotation = Vector3(-0.55, 0.6, 0)
+	sun.light_color = Color("ffd8a8")
 	sun.light_energy = 0.9
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 40.0
