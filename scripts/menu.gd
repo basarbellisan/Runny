@@ -36,6 +36,9 @@ var _info: Control
 var _dots: Array[StyleBoxFlat] = []
 ## Arabanın özellikleri (hız, tutuş, çakıl, denge)
 var _stats: Control
+## Özellik çubuklarının parçaları: [özellik][0..4]
+var _segs: Array = []
+var _bar_tween: Tween
 var _fade: ColorRect
 var _args := {}
 
@@ -147,10 +150,11 @@ func start() -> void:
 
 ## Model adı, açıklaması ve noktalar; değişince kısa bir geçişle
 func _refresh(animate: bool) -> void:
+	# Özellikler ekranda kalır: çubuklar yeni arabaya göre dolar/boşalır
+	_fill_stats(MODELS[index][2], animate)
 	var apply := func():
 		_name.text = MODELS[index][0]
 		_desc.text = MODELS[index][1]
-		_fill_stats(MODELS[index][2])
 		for i in _dots.size():
 			_dots[i].bg_color = Palette.ACCENT if i == index else Color(Palette.INK_DARK, 0.25)
 	if not animate:
@@ -262,7 +266,7 @@ func _build_ui(best: int) -> void:
 	_stats.anchor_right = 1.0
 	_stats.offset_top = 825
 	_stats.offset_bottom = 950
-	_info.add_child(_stats)
+	ui.add_child(_stats)
 
 	var dots := HBoxContainer.new()
 	dots.add_theme_constant_override("separation", 14)
@@ -339,21 +343,38 @@ const STAT_NAMES := ["HIZ", "TUTUŞ", "ÇAKIL", "DENGE"]
 
 
 ## Özellikler (CarModel.STATS, 1-5), 2x2: AD  ▮▮▮▮▯
-func _fill_stats(variant: int) -> void:
-	for c in _stats.get_children():
-		c.queue_free()
+func _fill_stats(variant: int, animate := false) -> void:
 	var st: Array = CarModel.STATS.get(variant, [3, 3, 3, 3])
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 56)
-	grid.add_theme_constant_override("v_separation", 18)
-	_center(grid)
+	if _segs.is_empty():
+		var grid := GridContainer.new()
+		grid.columns = 2
+		grid.add_theme_constant_override("h_separation", 56)
+		grid.add_theme_constant_override("v_separation", 18)
+		_center(grid)
+		for i in 4:
+			var row := HBoxContainer.new()
+			row.add_theme_constant_override("separation", 12)
+			row.add_child(_small(STAT_NAMES[i], 17, 0.55, 74))
+			var bar := _bar(0, Vector2(18, 10), 4)
+			row.add_child(bar)
+			_segs.append(bar.get_children())
+			grid.add_child(row)
+	if _bar_tween:
+		_bar_tween.kill()
+	_bar_tween = null
 	for i in 4:
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 12)
-		row.add_child(_small(STAT_NAMES[i], 17, 0.55, 74))
-		row.add_child(_bar(st[i], Vector2(18, 10), 4))
-		grid.add_child(row)
+		for k in 5:
+			var seg: ColorRect = _segs[i][k]
+			var want := Palette.ACCENT if k < int(st[i]) else Color(Palette.INK_DARK, 0.15)
+			if not animate:
+				seg.color = want
+			elif not seg.color.is_equal_approx(want):
+				# Dolarken soldan sağa, boşalırken sağdan sola sırayla
+				var filling := k < int(st[i])
+				var delay := (k if filling else 4 - k) * 0.07
+				if _bar_tween == null:
+					_bar_tween = create_tween().set_parallel()
+				_bar_tween.tween_property(seg, "color", want, 0.2).set_delay(delay)
 
 
 ## Kabı özellik alanının ortasına yerleştirir
