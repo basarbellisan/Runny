@@ -18,7 +18,31 @@ kendi malzemeleriyle değiştirir). Üretmek: `python tools/blender/cars.py --ou
 models/cars --render <klasör>`. Önizleme: `tools/showroom.gd -- --glb=1:res://models/cars/kutu.glb`.
 Gövde rengi modelden gelir (Blender'daki Paint rengi).
 
-Garajda 8 araba var: Kutu, Gezgin, Konsept, Roadster, Dragster, Dark Rose, Latte ve Falcon. Dragster
+Garajda 5 araba var: Gezgin, Dragster, Dark Rose, Latte ve Falcon (Kutu, Konsept ve
+Roadster garajdan çıktı; kodları duruyor, `--model=1` gibi testlerde açılabilir).
+Her arabanın özellikleri var (`CarModel.STATS`, 1-5, 3 = standart):
+
+| Araba | Hız | Tutuş | Çakıl | Denge |
+|---|---|---|---|---|
+| Gezgin | 2 | 4 | 5 | 3 |
+| Dragster | 4 | 2 | 4 | 4 |
+| Dark Rose | 4 | 5 | 3 | 2 |
+| Latte | 3 | 3 | 4 | 4 |
+| Falcon | 5 | 3 | 1 | 5 |
+
+Hız: başlangıç/en yüksek/tavan hız −%8..+%8. Tutuş: direksiyon tepkisi −%20..+%20,
+boştaki teker başına tutuş kaybı ve yatık yolda kayma +%40..−%40. Çakıl: savrulma
++%40..−%40, sendeleme +%30..−%30. Denge: kenardan devrilme açısı 40°..60°. Ayar
+panelindeki değerler standart arabanın; özellikler onların katı olarak uygulanır.
+Yollar herkes için aynı: standart arabanın hızıyla üretilir (`car.ref_speed`), hızlı
+araba aynı boşlukları daha az gazla geçer (enerjisi kanatlara kalır). En uzun
+boşluklara garajın en yavaş arabası tam gazla kıl payı yetişir (`roads.slow_margin`,
+varsayılan 1 m; ayar panelinde "En yavaş araba konma payı"); iniş yolları en hızlı
+arabanın tam roketini taşıyacak kadar uzun. Editör de en yavaş arabayı hesaplar:
+yetişemediği atlamada "En yavaş araba (Gezgin) yetişemez" uyarısı verir (bilerek
+yapıldıysa yanına alternatif yol konur).
+
+Dragster
 (model 6) Blender modeli: Figma'daki "RUNNY / Araba 01" çiziminin yan, ön ve
 arka görünüşünden birebir kuruldu (`--ortho` ile çizimle aynı ölçekte dik
 görünüşler çıkar). Uzun dar burun, eğik ön yüzlü geniş arka gövde, öne taşan

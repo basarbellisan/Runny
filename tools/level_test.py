@@ -2,7 +2,7 @@
 """Bölüm Tasarımcısı tasarımını test eder: fizik kontrolleri + oyunda otomatik pilot koşuları.
 
 Kullanım:
-    python3 tools/level_test.py levels/kalip.json [--runs 6] [--models 1,2,3,4,6,7,8,9]
+    python3 tools/level_test.py levels/kalip.json [--runs 6] [--models 2,6,7,8,9]
 
 1) editor/physics.js ile kontroller (atlama, iniş bölgesi, rampa/tümsek uçuşu...).
 2) Oyun başsız çalışır: tasarım başlangıç pistinden hemen sonra gelir, araba tasarımın
@@ -57,7 +57,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("level")
     ap.add_argument("--runs", type=int, default=6)
-    ap.add_argument("--models", default="1,2,3,4,6,7,8,9")
+    ap.add_argument("--models", default="2,6,7,8,9")
     a = ap.parse_args()
     level = json.load(open(a.level, encoding="utf-8"))
     print("Tasarım: %s (oyunda %s m'den sonra)" % (level.get("name"), level.get("at", 0)))

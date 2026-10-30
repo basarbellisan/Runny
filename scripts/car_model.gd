@@ -30,6 +30,41 @@ extends Node3D
 static var glb_models := {6: "res://models/cars/dragster.glb", 7: "res://models/cars/yarisci.glb",
 	8: "res://models/cars/latte.glb", 9: "res://models/cars/falcon.glb"}
 
+## Garajdaki arabalar (sırayla). Kutu, Konsept ve Roadster garajdan çıktı (kodları duruyor).
+const GARAGE := [2, 6, 7, 8, 9]
+## Arabaların özellikleri, 1-5 (3 = standart): [hız, tutuş, çakıl, denge].
+## Hız: başlangıç/en yüksek/tavan hız -%8..+%8. Tutuş: direksiyon tepkisi -%20..+%20,
+## boştaki teker tutuş kaybı ve yatık yolda kayma +%40..-%40. Çakıl: savrulma +%40..-%40,
+## sendeleme +%30..-%30. Denge: kenardan devrilme açısı 40°..60°.
+## Yollar herkes için standart (3) hızla üretilir; en yavaş araba en uzun boşluklara
+## tam gazla kıl payı yetişir (editor/physics.js ve level_check.gd'deki SLOW/FAST ile aynı).
+const STATS := {
+	2: [2, 4, 5, 3],  # Gezgin: yavaş, çakılda tank gibi
+	6: [4, 2, 4, 4],  # Dragster: hızlı ve sağlam, direksiyonu ağır
+	7: [4, 5, 3, 2],  # Dark Rose: en iyi direksiyon, dar iz yüzünden kolay devrilir
+	8: [3, 3, 4, 4],  # Latte: dengeli (standart hız)
+	9: [5, 3, 1, 5],  # Falcon: en hızlı, en zor devrilen, çakılda buz pateni
+}
+
+
+## Arabanın özelliği: -1 (1) .. 0 (3) .. +1 (5); i: 0 hız, 1 tutuş, 2 çakıl, 3 denge
+static func stat(v: int, i: int) -> float:
+	return (float(STATS.get(v, [3, 3, 3, 3])[i]) - 3.0) / 2.0
+
+
+## Hız katı (standart arabaya göre)
+static func speed_mul_of(v: int) -> float:
+	return 1.0 + 0.08 * stat(v, 0)
+
+
+## Garajın en yavaş ve en hızlı arabasının hız katı
+static func slowest_mul() -> float:
+	return GARAGE.map(func(v): return speed_mul_of(v)).min()
+
+
+static func fastest_mul() -> float:
+	return GARAGE.map(func(v): return speed_mul_of(v)).max()
+
 ## Her teker: { contact: Vector3 (yerel, y=0), radius, front, mount, steer, spin }
 var wheels: Array[Dictionary] = []
 ## Gövde ve tekerlerin yandan en dış noktası (duvar kontrolü için)

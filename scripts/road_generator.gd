@@ -120,6 +120,9 @@ const ZONES: Array[Color] = [
 ## Boşluğun, gazsız ulaşılamayan en kısa ile tam gazla ulaşılan en uzun
 ## arasındaki yeri (0: az gaz yeter, 1: tam gaz şart)
 @export var gap_difficulty := Vector2(0.1, 0.8)
+## Garajın en yavaş arabası en uzun boşluklara tam gazla iniş yolunun bu kadar içine konar (m):
+## kıl payı. Yollar standart arabaya göre; hızlı araba aynı boşlukları daha az gazla geçer.
+@export var slow_margin := 1.0
 ## Kalıpların açıldığı mesafeler (m). Başlangıç pistinden hemen sonra hepsi
 ## kolay hâlleriyle gelebilir (her oyun farklı başlar); ease_distance'a kadar
 ## açılar ve yükseklikler yavaşça tam değerine çıkar.
@@ -330,10 +333,18 @@ func _v_boost(v: float) -> float:
 	return v + 0.9 * minf(v * car.boost_bonus, car.boost_max_extra)
 
 
+## Tam roketle hız, garajın en hızlı arabasıyla (v standart hız): iniş yolları bunu
+## taşıyacak kadar uzun olur, hızlı araba fazla gazla yolu aşıp gitmez
+func _v_full(v: float) -> float:
+	var vf := v * CarModel.fastest_mul()
+	return vf + minf(vf * car.boost_bonus, car.boost_max_extra)
+
+
 ## Arabanın dist_ahead metre ileride ulaşacağı tahmini hız
 func estimate_speed(dist_ahead: float) -> float:
-	var t := dist_ahead / maxf(car.speed, 1.0)
-	var v := car.speed
+	# Yollar herkes için standart arabanın hızıyla üretilir (araba hızlıysa yol uzamaz)
+	var t := dist_ahead / maxf(car.ref_speed, 1.0)
+	var v := car.ref_speed
 	if v < car.max_speed:
 		v = minf(v + car.acceleration * t, car.max_speed)
 	else:
@@ -467,7 +478,7 @@ func _plan_pattern(travelled: float, level: float) -> void:
 	if travelled >= network_from:
 		var dens := clampf((travelled - network_from) / maxf(network_full_at - network_from, 1.0), 0.0, 1.0)
 		options.append(["ağ", lerpf(network_weight.x, network_weight.y, dens)])
-	var custom := _eligible_levels(travelled, car.speed)
+	var custom := _eligible_levels(travelled, car.ref_speed)
 	if not custom.is_empty() and not low:
 		options.append(["özel", custom_weight])
 	# Tekrar yok: son kalıp hiç gelmez, son birkaç kalıbın şansı düşer.
@@ -673,7 +684,7 @@ func _next_from(prev: Segment) -> Segment:
 			width = maxf(width, 6.0 if mood == "orta" else 6.6)
 
 	# Tam roketle bile yolun üstüne inilsin, yolu aşıp gidilmesin
-	var v_full := v + minf(v * car.boost_bonus, car.boost_max_extra)
+	var v_full := _v_full(v)
 	var vy_full := car.launch_velocity + v_full * slope
 	var land_far := car_len + v_full * _flight_time(dh, vy_full) - gap
 	length = maxf(length, land_far + v * 1.2)
@@ -756,13 +767,20 @@ func _last_of(s: Segment) -> Segment:
 	return s
 
 
-## (en kısa, en uzun) boşluk: gazsız ulaşılamaz, tam gazla iniş yolun en az 2.5 m içinde
+## (en kısa, en uzun) boşluk: standart araba gazsız ulaşamaz; garajın en yavaş arabası
+## tam gazla iniş yolunun en az slow_margin içine konar (kıl payı)
 func _gap_window(dh: float, v: float, v_boost: float, vy: float, vy_b: float, car_len: float) -> Vector2:
 	var lo := car_len + v * _flight_time(dh, vy) + 1.5
 	if dh > 0.0:
 		# Yukarı basamak: tam gazla bile ön uç, araba yeterince yükselmeden yola varmasın
 		lo = maxf(lo, car_len + v_boost * _rise_time(dh, vy_b) + 1.0)
-	var hi := car_len + v_boost * _flight_time(dh, vy_b) - 2.5
+	# En yavaş araba: aynı gazla, hızı katı kadar düşük (gazın ek hızı aynı)
+	var dv := v * (1.0 - CarModel.slowest_mul())
+	var slope := (vy_b - car.launch_velocity) / maxf(v_boost, 0.01)
+	var vb_s := v_boost - dv
+	var hi := car_len + vb_s * _flight_time(dh, vy_b - dv * slope) - slow_margin
+	# Standart araba için eski sınır (en az 2.5 m içine) de geçerli
+	hi = minf(hi, car_len + v_boost * _flight_time(dh, vy_b) - 2.5)
 	return Vector2(lo, hi)
 
 
@@ -878,7 +896,7 @@ func _add_fork(prev: Segment) -> Segment:
 				var left := _rng.randf() < 0.5
 				_add_gravel(seg, seg.x - seg.width * 0.5 if left else seg.x, seg.x if left else seg.x + seg.width * 0.5, gz, gl)
 	var m_w := absf(x_l - x_h) + maxf(end_l.w, end_h.w)
-	var v_full := v + minf(v * car.boost_bonus, car.boost_max_extra)
+	var v_full := _v_full(v)
 	var m_len := v * _rng.randf_range(2.0, 2.6)
 	for e in [[end_h, g_h], [end_l, g_l]]:
 		var far: float = car_len + v_full * _flight_time(m_top - e[0].end, car.launch_velocity) - e[1]
@@ -923,7 +941,7 @@ func _pick_gap(slope: float, dh: float, v: float, frac: Vector2) -> Dictionary:
 		w = _gap_window(dh, v, v_reach, vy, vy_reach, car_len)
 	var gap := lerpf(w.x, w.y, _rng.randf_range(frac.x, frac.y))
 	# Sonraki yolun en az bu kadar uzun olması gerek (tam roketle aşılmasın)
-	var v_full := v + minf(v * car.boost_bonus, car.boost_max_extra)
+	var v_full := _v_full(v)
 	var land_far := car_len + v_full * _flight_time(dh, car.launch_velocity + v_full * slope) - gap
 	return {"gap": gap, "dh": dh, "min_len": land_far + v * 1.2}
 
@@ -1102,7 +1120,7 @@ func _clear_end(v: float) -> float:
 
 ## Tam roketle bu boşluğu atlayan arabanın yeni yolun başından ne kadar ileride ineceği
 func _land_far_estimate(v: float, dh: float, gap: float, slope: float) -> float:
-	var v_full := v + minf(v * car.boost_bonus, car.boost_max_extra)
+	var v_full := _v_full(v)
 	return car.half_length * 2.0 + v_full * _flight_time(dh, car.launch_velocity + v_full * slope) - gap
 
 

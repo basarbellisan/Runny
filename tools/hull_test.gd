@@ -19,7 +19,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	var models := Array(_args.get("models", "1,2,3,4,6,7,8,9").split(",")).map(func(m): return int(m))
+	var models := Array(_args.get("models", "2,6,7,8,9").split(",")).map(func(m): return int(m))
 	var cases: Array = Array(_args["cases"].split(",")) if _args.has("cases") else CASES
 	for model in models:
 		for c in cases:

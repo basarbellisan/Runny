@@ -234,6 +234,23 @@ var reserve := 0.0
 var reserve_max := 15.0
 var reserve_on := false
 var _launch_vz := 0.0
+## Arabanın özellik katları (CarModel.STATS'tan; model değişince yenilenir)
+var _stats_variant := -1
+var _k_speed := 1.0
+var _k_steer := 1.0
+var _k_grip := 1.0
+var _k_shove := 1.0
+var _k_after := 1.0
+var _tip_deg := 50.0
+## Hız katı: bu araba standart arabadan ne kadar hızlı
+var speed_mul: float:
+	get:
+		_refresh_stats()
+		return _k_speed
+## Standart arabanın bu andaki karşılık hızı (yollar bu hızla üretilir)
+var ref_speed: float:
+	get:
+		return speed / speed_mul
 ## Gövdenin dış noktaları (Body'ye göre; model değişince yeniden hesaplanır)
 var _hull_body := PackedVector3Array()
 var _hull_wheels := PackedVector3Array()
@@ -282,10 +299,12 @@ func _physics_process(delta: float) -> void:
 		_dead_motion(delta)
 		return
 	_mode_time += delta
-	if speed < max_speed:
-		speed = minf(speed + acceleration * delta, max_speed)
+	# Arabanın hızı standart hızın katı: her an standart arabadan aynı oranda hızlı/yavaş
+	_refresh_stats()
+	if speed < max_speed * _k_speed:
+		speed = minf(speed + acceleration * _k_speed * delta, max_speed * _k_speed)
 	else:
-		speed = minf(speed + late_acceleration * delta, maxf(top_speed, max_speed))
+		speed = minf(speed + late_acceleration * _k_speed * delta, maxf(top_speed, max_speed) * _k_speed)
 	var input := autopilot.input() if autopilot else _read_input()
 	_steer = input.x
 	boosting = input.y > 0.5
@@ -377,7 +396,7 @@ func _drive(delta: float) -> void:
 		var right_off := int(not wheel_contact[1]) + int(not wheel_contact[3])
 		_tip = (right_off - left_off) * 0.5
 		_nose = (int(not wheel_contact[0]) + int(not wheel_contact[1])) * 0.5
-		control *= 1.0 - grip_loss * (left_off + right_off)
+		control *= 1.0 - grip_loss * _k_grip * (left_off + right_off)
 		on_gravel = roads != null and roads.gravel_at(global_position)
 		if on_gravel:
 			control *= gravel_grip
@@ -385,12 +404,12 @@ func _drive(delta: float) -> void:
 			_gravel_timer -= delta
 			if _gravel_timer <= 0.0:
 				_gravel_timer = randf_range(0.15, 0.35)
-				_gravel_push_target = randf_range(-1.0, 1.0) * gravel_shove * _gravel_gain()
+				_gravel_push_target = randf_range(-1.0, 1.0) * gravel_shove * _k_shove * _gravel_gain()
 			_bounce_v += randf_range(-1.0, 1.0) * 70.0 * delta * _gravel_gain()
 			roll_rate += randf_range(-1.0, 1.0) * 14.0 * delta * _gravel_gain()
 			# Çakıldan çıkınca da bir süre sendeler
 			_stumble = maxf(_stumble if _stumble_time > 0.0 else 0.0, 0.45)
-			_stumble_time = maxf(_stumble_time, gravel_after)
+			_stumble_time = maxf(_stumble_time, gravel_after * _k_after)
 		else:
 			_gravel_push_target = 0.0
 		_gravel_push = lerpf(_gravel_push, _gravel_push_target, 1.0 - exp(-8.0 * delta))
@@ -422,22 +441,22 @@ func _drive(delta: float) -> void:
 	if on_floor:
 		var fn := get_floor_normal()
 		surface_roll = atan2(-fn.x, fn.y)
-		slide = fn.x * bank_slide
+		slide = fn.x * bank_slide * _k_grip
 	else:
 		surface_roll = 0.0
 	if _kick_hold > 0.0 and not on_floor:
 		# Eğik rampadan atıldık: yana hız korunur; direksiyon yalnız ona ekler ya da ters basınca keser
 		_kick_hold -= delta
 		if _steer != 0.0 and signf(_steer) != signf(velocity.x):
-			velocity.x = move_toward(velocity.x, _steer * steer_speed, steer_accel * control * delta)
+			velocity.x = move_toward(velocity.x, _steer * steer_speed, steer_accel * _k_steer * control * delta)
 		elif _steer != 0.0:
-			velocity.x = move_toward(velocity.x, signf(_steer) * maxf(absf(velocity.x), steer_speed), steer_accel * control * delta)
+			velocity.x = move_toward(velocity.x, signf(_steer) * maxf(absf(velocity.x), steer_speed), steer_accel * _k_steer * control * delta)
 	else:
 		if on_floor and _kick_hold > 0.0:
 			# Eğik rampa inişi: lastikler tutar, yana kalan hız çoğunlukla söner (kısa adadan kaymasın)
 			_kick_hold = 0.0
 			velocity.x *= 0.35
-		velocity.x = move_toward(velocity.x, _steer * steer_speed + slide, steer_accel * control * delta)
+		velocity.x = move_toward(velocity.x, _steer * steer_speed + slide, steer_accel * _k_steer * control * delta)
 	surface_drag = move_toward(surface_drag, gravel_speed if on_gravel and on_floor else 1.0,
 		delta * (1.5 if on_gravel else 1.4))
 	if on_floor:
@@ -518,7 +537,7 @@ func _drive(delta: float) -> void:
 
 func _falling(delta: float) -> void:
 	velocity.y -= gravity * delta
-	velocity.x = move_toward(velocity.x, _steer * steer_speed, steer_accel * air_control * delta)
+	velocity.x = move_toward(velocity.x, _steer * steer_speed, steer_accel * _k_steer * air_control * delta)
 	velocity.z = move_toward(velocity.z, -speed, 25.0 * delta)
 	var vy_before := velocity.y
 	move_and_slide()
@@ -760,7 +779,7 @@ func _sense_wheels() -> void:
 ## Yoldan önden mi (yolun sonu) yoksa yandan mı çıktık
 ## Çakıl etkisinin hıza göre katı (başlangıç hızında 1)
 func _gravel_gain() -> float:
-	return lerpf(1.0, gravel_speed_gain, clampf(inverse_lerp(start_speed, max_speed, speed), 0.0, 1.0))
+	return lerpf(1.0, gravel_speed_gain, clampf(inverse_lerp(start_speed, max_speed, ref_speed), 0.0, 1.0))
 
 
 func add_energy(amount: float) -> void:
@@ -962,7 +981,7 @@ func _update_attitude(delta: float) -> void:
 		roll_rate += roll_acc * delta
 		pitch_rate += pitch_acc * delta
 		# Ağırlık merkezi kenarı geçti: araba artık yolda tutunamaz, devrilip düşer
-		if absf(_tip) >= 1.0 and absf(roll) > deg_to_rad(50.0):
+		if absf(_tip) >= 1.0 and absf(roll) > deg_to_rad(_tip_deg):
 			velocity.x = signf(_tip) * maxf(absf(velocity.x), 7.0)
 			roll = clampf(roll, -1.3, 1.3)
 	else:
@@ -982,6 +1001,20 @@ func _update_attitude(delta: float) -> void:
 	pitch_rate = clampf(pitch_rate, -9.0, 9.0)
 	roll += roll_rate * delta
 	pitch += pitch_rate * delta
+
+
+## Arabanın özellikleri (CarModel.STATS): hız, tutuş, çakıl, denge katları
+func _refresh_stats() -> void:
+	if model == null or model.variant == _stats_variant:
+		return
+	var v := model.variant
+	_stats_variant = v
+	_k_speed = CarModel.speed_mul_of(v)
+	_k_steer = 1.0 + 0.2 * CarModel.stat(v, 1)
+	_k_grip = 1.0 - 0.4 * CarModel.stat(v, 1)
+	_k_shove = 1.0 - 0.4 * CarModel.stat(v, 2)
+	_k_after = 1.0 - 0.3 * CarModel.stat(v, 2)
+	_tip_deg = 50.0 + 10.0 * CarModel.stat(v, 3)
 
 
 ## Çarpışma omurgası ince bir kapsül; görünen gövde ise yerdeki orta noktasının

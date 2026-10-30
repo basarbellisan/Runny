@@ -99,7 +99,7 @@ var _level_auto := false
 const LEVEL_KEY := "runny_level_test"
 const RESULT_KEY := "runny_level_result"
 ## Otomatik pilot testinde koşular sırayla bu arabalarla yapılır
-const TEST_MODELS := [1, 2, 3, 4, 6, 7, 8, 9]
+const TEST_MODELS := CarModel.GARAGE
 ## JavaScript'ten yeniden başlatma çağrısı (silinirse çağrı kaybolur, bu yüzden tutulur)
 var _restart_cb: JavaScriptObject
 
@@ -130,7 +130,10 @@ func _ready() -> void:
 	Tuning.register({"game": self, "car": car, "roads": roads, "lower": lower,
 		"camera": $Camera, "audio": Audio, "trail": car.trail, "speedo": hud.speedometer})
 	# Garajda seçilen araba
-	car.model.variant = int(_args.get("model", _load_save().get_value("car", "model", 1)))
+	var saved_model := int(_load_save().get_value("car", "model", CarModel.GARAGE[0]))
+	if not saved_model in CarModel.GARAGE:
+		saved_model = CarModel.GARAGE[0]  # garajdan çıkan araba seçiliydi
+	car.model.variant = int(_args.get("model", saved_model))
 	# Test: gövde koruması kapalı (karşılaştırma için)
 	if _args.has("nohull"):
 		car.hull_guard = false
@@ -142,7 +145,7 @@ func _ready() -> void:
 	hud.gauge.color = roads.crystal_color
 	if _args.has("nohud"):
 		hud.visible = false  # tasarım taslakları için temiz arka plan
-	car.speed = car.start_speed
+	car.speed = car.start_speed * car.speed_mul
 	car.energy = car.max_energy
 	roads.car = car
 	roads.load_levels()
@@ -494,7 +497,7 @@ func _setup_level_test() -> void:
 		JavaScriptBridge.get_interface("window").runnyRestart = _restart_cb
 	if car.autopilot:
 		car.autopilot.full_ramps = true
-	car.speed = roads.speed_at_distance(float(level.get("at", 0.0)))
+	car.speed = roads.speed_at_distance(float(level.get("at", 0.0))) * car.speed_mul
 
 
 func _js_restart(_args: Array) -> void:

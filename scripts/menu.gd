@@ -7,14 +7,11 @@ const SAVE_PATH := "user://save.cfg"
 const GAME_SCENE := "res://scenes/main.tscn"
 ## [ad, açıklama, CarModel.variant]
 const MODELS := [
-	["KUTU", "Köşeli ve dengeli", 1],
-	["GEZGİN", "İri tekerler, geniş iz", 2],
-	["KONSEPT", "Alçak ve uzun", 3],
-	["ROADSTER", "Sivri burun, yuvarlak sırt", 4],
-	["DRAGSTER", "Uzun burun, kalın arka teker", 6],
-	["DARK ROSE", "Arka kanat, kırmızı lastikler", 7],
-	["LATTE", "Siperlik tavan, turuncu lastikler", 8],
-	["FALCON", "Kama gövde, beyaz lastikler", 9],
+	["GEZGİN", "Yavaş ama çakılda tank gibi", 2],
+	["DRAGSTER", "Hızlı ve sağlam, direksiyonu ağır", 6],
+	["DARK ROSE", "En iyi direksiyon, kolay devrilir", 7],
+	["LATTE", "Dengeli, her işi iyi yapar", 8],
+	["FALCON", "En hızlı, çakılda buz pateni", 9],
 ]
 ## Platformlar arası mesafe (m)
 const SPACING := 7.0
@@ -55,7 +52,7 @@ func _ready() -> void:
 	var cfg := ConfigFile.new()
 	cfg.load(SAVE_PATH)
 	index = 0
-	var saved := int(cfg.get_value("car", "model", 1))
+	var saved := int(cfg.get_value("car", "model", MODELS[0][2]))
 	for i in MODELS.size():
 		if MODELS[i][2] == saved:
 			index = i

@@ -21,6 +21,11 @@ const BUMP_LAUNCH := 1.4
 const LIGHTS_TIME := 1.1
 const MAX_SLOPE_DEG := 21.0
 const MAX_BANK_DEG := 17.0
+## Garajın en yavaş ve en hızlı arabasının hız katı (CarModel.STATS); en yavaş araba en uzun
+## boşluklara tam gazla en az SLOW_MARGIN payla konmalı (kıl payı)
+const SLOW_MUL := 0.96
+const FAST_MUL := 1.08
+const SLOW_MARGIN := 1.0
 
 const VARY_OPS := ["gap", "len", "width", "rows", "swap", "rise"]
 
@@ -45,8 +50,10 @@ static func v_boost(v: float) -> float:
 	return v + 0.9 * minf(v * BOOST_BONUS, BOOST_MAX_EXTRA)
 
 
+## Tam roket, garajın en hızlı arabasıyla (iniş en uzak: yol bunu taşımalı)
 static func v_full(v: float) -> float:
-	return v + minf(v * BOOST_BONUS, BOOST_MAX_EXTRA)
+	var fv := v * FAST_MUL
+	return fv + minf(fv * BOOST_BONUS, BOOST_MAX_EXTRA)
 
 
 ## Kalkıştan (dikey hız vy) dh yüksekliğine inene kadar süre; çıkılamıyorsa NAN
@@ -141,9 +148,12 @@ static func jump(at: float, a: Dictionary, b: Dictionary) -> Dictionary:
 	var reach0 := CAR_LEN + v * t0
 	var reach_b := CAR_LEN + vb * tb
 	var reach_f := CAR_LEN + vf * tf
+	# En yavaş araba: aynı gazla, hızı katı kadar düşük (gazın ek hızı aynı)
+	var dv_s := v * (1.0 - SLOW_MUL)
+	var reach_s := CAR_LEN + (vb - dv_s) * flight_time(dh, LAUNCH_VELOCITY + vb * slope - dv_s * slope)
 	var lateral := STEER_SPEED * AIR_CONTROL * (0.0 if is_nan(tb) else tb)
 	var need := maxf(0.0, absf(f(b, "x") - f(a, "x")) - (f(a, "w") + f(b, "w")) * 0.5 + 2.0 * HALF_WIDTH + 0.5)
-	return {"a": a, "b": b, "v": v, "vb": vb, "gap": gap, "dh": dh, "reach0": reach0, "reach_b": reach_b,
+	return {"a": a, "b": b, "v": v, "vb": vb, "gap": gap, "dh": dh, "reach0": reach0, "reach_b": reach_b, "reach_s": reach_s,
 		"lateral": lateral, "need": need,
 		"land_far": p_end(a) + (reach_b if is_nan(reach_f) else reach_f)}
 
@@ -263,6 +273,8 @@ static func analyze(level: Dictionary) -> Dictionary:
 		if jd.gap > jd.reach_b - 2.5:
 			add.call(true, "atlanamaz boşluk #%s" % b.id)
 			continue
+		if not (jd.gap <= jd.reach_s - SLOW_MARGIN):
+			add.call(false, "en yavaş araba yetişemez #%s" % b.id)
 		landing.call(jd, b)
 	# Her ana yolun sonunda pist bölgesi
 	for p in path:

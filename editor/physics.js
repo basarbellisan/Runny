@@ -9,6 +9,9 @@
     gravity: 28, launchVelocity: 8, boostBonus: 1.35, boostMaxExtra: 45,
     carLen: 3.9, halfWidth: 1.1, steerSpeed: 11, airControl: 0.8, bumpLaunch: 1.4,
     lightsTime: 1.1, maxSlopeDeg: 21, maxBankDeg: 17,
+    // Garajın en yavaş (Gezgin) ve en hızlı (Falcon) arabasının hız katı (scripts/car_model.gd STATS);
+    // en yavaş araba en uzun boşluklara tam gazla en az slowMargin payla konmalı (kıl payı)
+    slowMul: 0.96, fastMul: 1.08, slowMargin: 1.0, slowName: 'Gezgin',
   };
 
   // Kat ön ayarları (yükseklik m, ana seviye 0)
@@ -26,7 +29,8 @@
   }
   // Roketle hız: hesapta %90 gaz (oyundaki gibi), tam roket ayrıca
   const vBoost = (v) => v + 0.9 * Math.min(v * CAR.boostBonus, CAR.boostMaxExtra);
-  const vFull = (v) => v + Math.min(v * CAR.boostBonus, CAR.boostMaxExtra);
+  // Tam roket, garajın en hızlı arabasıyla (iniş en uzak: yol bunu taşımalı)
+  const vFull = (v) => { const f = v * CAR.fastMul; return f + Math.min(f * CAR.boostBonus, CAR.boostMaxExtra); };
   // Kalkıştan (dikey hız vy) dh yüksekliğine inene kadar süre; çıkılamıyorsa NaN
   function flightTime(dh, vy) {
     const d = vy * vy - 2 * CAR.gravity * dh;
@@ -80,9 +84,12 @@
     const reach0 = CAR.carLen + v * t0;          // gazsız en uzak (ön uç)
     const reachB = CAR.carLen + vb * tB;         // roketle en uzak
     const reachF = CAR.carLen + vf * tF;         // tam roket (iniş en uzak)
+    // En yavaş araba: aynı gazla, hızı katı kadar düşük (gazın ek hızı aynı)
+    const dvS = v * (1 - CAR.slowMul);
+    const reachS = CAR.carLen + (vb - dvS) * flightTime(dh, vyB - dvS * slope);
     const lateral = CAR.steerSpeed * CAR.airControl * (isNaN(tB) ? 0 : tB);
     const need = Math.max(0, Math.abs(B.x - A.x) - (A.w / 2 + B.w / 2) + 2 * CAR.halfWidth + 0.5);
-    return { A, B, v, vb, gap, dh, t0, tB, reach0, reachB, reachF, lateral, need,
+    return { A, B, v, vb, gap, dh, t0, tB, reach0, reachB, reachF, reachS, lateral, need,
       landNear: Math.max(B.z0, pEnd(A) + Math.min(reach0, reachB)),
       landFar: pEnd(A) + (isNaN(reachF) ? reachB : reachF) };
   }
@@ -214,6 +221,9 @@
       } else if (g > J.reachB - 2.5) {
         J.bad = true;
         add('error', `Atlanamaz: ${g.toFixed(0)} m boşluk, bu hızda en çok ${(J.reachB - 2.5).toFixed(0)} m (roketle). Yolları yaklaştır.`, [A.id, B.id], pEnd(A));
+      } else if (!(g <= J.reachS - CAR.slowMargin)) {
+        J.slow = true;
+        add('warn', `En yavaş araba (${CAR.slowName}) yetişemez: ${g.toFixed(0)} m boşluk, tam gazla en çok ${(J.reachS - CAR.slowMargin).toFixed(0)} m. Bilerek yaptıysan yanına alternatif yol koy.`, [A.id, B.id], pEnd(A));
       } else if (g < J.reach0 - 1) {
         J.easy = true;
         add('ok', `${g.toFixed(0)} m boşluk gazsız da geçiliyor (kolay).`, [A.id, B.id], pEnd(A));
