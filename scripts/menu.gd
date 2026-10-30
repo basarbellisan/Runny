@@ -212,7 +212,7 @@ func _build_world() -> void:
 	arm.size = Vector3(0.42, 0.07, 0.07)
 	for side in [-1.0, 1.0]:
 		var head := Node3D.new()
-		head.position = Vector3(side * 3.75, -0.15, -1.6)
+		head.position = Vector3(side * 4.7, -0.15, -1.6)
 		add_child(head)
 		for up in [-1.0, 1.0]:
 			var a := MeshInstance3D.new()
