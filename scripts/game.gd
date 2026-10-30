@@ -84,6 +84,8 @@ const LEVEL_KEY := "runny_level_test"
 const RESULT_KEY := "runny_level_result"
 ## Otomatik pilot testinde koşular sırayla bu arabalarla yapılır
 const TEST_MODELS := [1, 2, 3, 4, 6, 7]
+## JavaScript'ten yeniden başlatma çağrısı (silinirse çağrı kaybolur, bu yüzden tutulur)
+var _restart_cb: JavaScriptObject
 
 
 func _ready() -> void:
@@ -442,9 +444,17 @@ func _setup_level_test() -> void:
 		return
 	roads.test_level = level
 	_level_test = true
+	if OS.has_feature("web") and not _level_auto:
+		# Editördeki "Baştan" düğmesi (ve R tuşu) bölümü sayfayı yenilemeden yeniden başlatır
+		_restart_cb = JavaScriptBridge.create_callback(_js_restart)
+		JavaScriptBridge.get_interface("window").runnyRestart = _restart_cb
 	if car.autopilot:
 		car.autopilot.full_ramps = true
 	car.speed = roads.speed_at_distance(float(level.get("at", 0.0)))
+
+
+func _js_restart(_args: Array) -> void:
+	get_tree().reload_current_scene.call_deferred()
 
 
 ## Web adresindeki parametre (?ad=değer); yoksa ya da web değilse boş
