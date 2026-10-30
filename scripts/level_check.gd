@@ -115,6 +115,17 @@ static func main_path(level: Dictionary) -> Array:
 	return path
 
 
+## Bir yolun ardına önerilen boşluk (oyunun seçtiği gibi: pencerenin ~%35'i; physics.js suggestGap)
+static func suggest_gap(at: float, a: Dictionary, dh: float) -> float:
+	var v := speed_at(at + p_end(a))
+	var slope := (h1(a) - h0(a)) / maxf(f(a, "len"), 0.01)
+	var lo := CAR_LEN + v * flight_time(dh, LAUNCH_VELOCITY + v * slope) + 1.5
+	var hi := CAR_LEN + v_boost(v) * flight_time(dh, LAUNCH_VELOCITY + v_boost(v) * slope) - 2.5
+	if is_nan(lo) or is_nan(hi):
+		return 25.0
+	return roundf(lo + (maxf(hi, lo) - lo) * 0.35)
+
+
 ## A'nın sonundan B'ye atlama
 static func jump(at: float, a: Dictionary, b: Dictionary) -> Dictionary:
 	var v := speed_at(at + p_end(a))
@@ -207,6 +218,17 @@ static func analyze(level: Dictionary) -> Dictionary:
 			if o.get("kind", "") != "deadend" and is_same(host_of(level, o), b) and f(o, "z0") < calm:
 				var strong: bool = o.get("kind", "") in ["bump", "ramp", "kick", "block"] and f(o, "z0") < hot
 				add.call(strong, "engel inişe yakın #%s" % o.id)
+	# Giriş: oyun kalıba önceki yoldan atlayarak girer; ilk yolun başı da iniş bölgesi
+	if not path.is_empty():
+		var e: Dictionary = path[0]
+		var pre := {"id": 0, "x": f(e, "x"), "w": f(e, "w"), "z0": f(e, "z0") - 100.0, "len": 100.0, "h0": h0(e), "h1": h0(e)}
+		pre["z0"] = f(pre, "z0") - suggest_gap(at, pre, 0.0)
+		var je := jump(at, pre, e)
+		if not is_nan(je.reach_b):
+			var calm_e := f(e, "z0") + clear_start(speed_at(at + f(e, "z0")), je.land_far - f(e, "z0"))
+			for o in obstacles:
+				if o.get("kind", "") != "deadend" and is_same(host_of(level, o), e) and f(o, "z0") < calm_e:
+					add.call(o.get("kind", "") != "gravel", "engel girişin iniş bölgesinde #%s" % o.id)
 	# Ana yol boyunca atlamalar
 	var path_end := 0.0
 	for q in path:
@@ -322,7 +344,7 @@ static func analyze(level: Dictionary) -> Dictionary:
 				widest = maxf(widest, iv.x - left)
 				left = maxf(left, iv.y)
 			widest = maxf(widest, f(p, "x") + f(p, "w") * 0.5 - left)
-			if widest < need_lane:
+			if widest < need_lane - 1e-6:
 				add.call(true, "bloklar yolu kapatıyor #%s" % o.id)
 	# Çıkış yolunun sonu boş
 	if not path.is_empty():

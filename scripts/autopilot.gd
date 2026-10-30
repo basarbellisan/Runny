@@ -87,6 +87,11 @@ func _drive_input() -> Vector2:
 					and absf(s.x - kicked.x) > 1.0 and s.z_start > reach and s.z_end < pos.z:
 				target = s
 				break
+	var ref: RoadGenerator.Segment = current if current != null else car._last_segment
+	if target == null and ref != null and ref.pattern == "özel" and not ref.ramp:
+		# El yapımı kalıpta yan yana birden çok hat olabilir: editörün kontrolü gibi en yakın
+		# ve en az kaymayla ulaşılan yola git (ilk sıradaki öbür hattın yolu olabilir)
+		target = _custom_next(ref, pos)
 	if target == null and current == null:
 		# Havadayken tam altımızda bir yol varsa (ör. portaldan sonra yan yol) ona in
 		for s in roads.segments:
@@ -176,6 +181,25 @@ func _drive_input() -> Vector2:
 	return Vector2(steer, 0.0)
 
 
+## El yapımı kalıpta bu yoldan sonra gidilecek ana yol (physics.js analyze ile aynı seçim)
+func _custom_next(ref: RoadGenerator.Segment, pos: Vector3) -> RoadGenerator.Segment:
+	if ref.next_flush != null and ref.next_flush.main:
+		return ref.next_flush
+	var best: RoadGenerator.Segment = null
+	var best_cost := INF
+	for s in roads.main_segments_ahead(pos.z + 2.0):
+		if s == ref or s.ramp or s.z_start > ref.z_end + 0.6 or s.z_start < ref.z_end - 150.0:
+			continue
+		var lat := maxf(0.0, absf(s.x - ref.x) - (s.width + ref.width) * 0.5)
+		if lat > 8.0:
+			continue
+		var cost := (ref.z_end - s.z_start) + lat * 12.0
+		if cost < best_cost:
+			best_cost = cost
+			best = s
+	return best
+
+
 ## Yan yol testi: yan yoldaysak ortada kal (sonundaki rampa ana yola atar); ana yolda
 ## önümüzde yana atan rampa varsa ona gir; yanımızda alçak yol varsa kenardan ona düş.
 ## Karışmayacaksa NAN.
@@ -240,8 +264,13 @@ func _dodge(seg: RoadGenerator.Segment, pos: Vector3) -> float:
 			if o.z1 < pos.z + car.half_length and o.z0 > pos.z - look:
 				near_z = maxf(near_z, o.z0)
 		if near_z > -INF:
+			# Uzun çakılın boyunca gelen engeller de aynı sıradır (çakıldan çıkınca kaçmaya vakit yok)
+			var far := near_z - 10.0
 			for o in on.obstacles:
-				if o.z1 < pos.z + car.half_length and o.z0 > near_z - 10.0:
+				if o.gravel and o.z0 > far and o.z1 < pos.z + car.half_length:
+					far = minf(far, o.z1 - 2.0)
+			for o in on.obstacles:
+				if o.z1 < pos.z + car.half_length and o.z0 > far:
 					row.append(o)
 			row_seg = on
 			break

@@ -169,6 +169,22 @@
         }
       }
     }
+    // Giriş: oyun kalıba önceki yoldan atlayarak girer (önerilen boşlukla, aynı hizada);
+    // ilk yolun başı da iniş bölgesidir. Roket hâlâ yanarken gelinir: engel hata, çakıl uyarı.
+    if (path.length) {
+      const E = path[0];
+      const pre = { id: 0, x: E.x, w: E.w, z0: E.z0 - 100, len: 100, h0: h0(E), h1: h0(E) };
+      pre.z0 -= suggestGap(level, pre, 0);
+      const J = jump(level, pre, E);
+      if (!isNaN(J.reachB)) {
+        const calm = E.z0 + clearStart(speedAt(at + E.z0), J.landFar - E.z0);
+        zones.push({ id: E.id, kind: 'calm', z0: E.z0, z1: Math.min(calm, pEnd(E)) });
+        for (const o of obstacles) {
+          if (o.kind === 'deadend' || hostOf(level, o) !== E || o.z0 >= calm) continue;
+          add(o.kind === 'gravel' ? 'warn' : 'error', `${KIND_NAMES[o.kind] || 'Engel'} girişin iniş bölgesinde: oyun bu kalıba önceki yoldan roketle atlayarak girer, ilk ${(calm - E.z0).toFixed(0)} metre boş kalmalı.`, [o.id], o.z0);
+        }
+      }
+    }
     // Ana yol boyunca atlamalar
     let speedSum = 0;
     for (let i = 0; i + 1 < path.length; i++) {
@@ -277,7 +293,7 @@
         let left = p.x - p.w / 2, best = 0;
         for (const [a, b] of ivs) { best = Math.max(best, a - left); left = Math.max(left, b); }
         best = Math.max(best, p.x + p.w / 2 - left);
-        if (best < needLane) add('error', `Bloklar yolu kapatıyor: araba için en az ${needLane.toFixed(1)} m geçit gerek, ${Math.max(best, 0).toFixed(1)} m var.`, row.map((b) => b.id), o.z0);
+        if (best < needLane - 1e-6) add('error', `Bloklar yolu kapatıyor: araba için en az ${needLane.toFixed(1)} m geçit gerek, ${Math.max(best, 0).toFixed(1)} m var.`, row.map((b) => b.id), o.z0);
       }
     }
     // Çıkış yolu

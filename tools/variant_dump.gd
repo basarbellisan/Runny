@@ -36,7 +36,7 @@ func _init() -> void:
 				o["z0"] = float(o.z0) + rng.randf_range(-30.0, 30.0)
 		out.append({"level": lv, "check": LevelCheck.analyze(lv), "tags": ["karışık"]})
 	var fa := FileAccess.open(out_path, FileAccess.WRITE)
-	fa.store_string(JSON.stringify(out))
+	fa.store_string(JSON.stringify(out, "", true, true))
 	fa.close()
 	print("VARIANTS valid=%d/%d written=%d" % [ok, n, out.size()])
 	quit()
