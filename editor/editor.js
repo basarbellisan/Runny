@@ -520,7 +520,8 @@
     ].map(([b, s]) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`).join('');
     $('at').value = level.at || 0;
     $('atLabel').textContent = `${(level.at || 0).toLocaleString('tr-TR')} m'den sonra`;
-    $('speedLabel').textContent = `${P.speedAt(level.at || 0).toFixed(0)} m/sn`;
+    // Oyundaki hız göstergesiyle aynı birim (km/sa)
+    $('speedLabel').textContent = `${(P.speedAt(level.at || 0) * 3.6).toFixed(0)} km/sa`;
     $('diffLabel').textContent = level.pieces.length ? `${st.difficulty} / 5` : '–';
     $('diff').innerHTML = [1, 2, 3, 4, 5].map((i) => `<div class="${i <= st.difficulty ? 'on' : ''}"></div>`).join('');
   }
@@ -665,7 +666,7 @@
       const target = end + gap;
       if (Math.abs(p.z0 - target) < 10 / Math.max(view.sz / 2.2, 0.4) && (!best || Math.abs(p.z0 - target) < best.d)) {
         best = { d: Math.abs(p.z0 - target), z0: target, x: Math.abs(p.x - A.x) < 2 ? A.x : undefined,
-          guide: { z: target, text: `önerilen boşluk ${gap} m (${P.speedAt((level.at || 0) + end).toFixed(0)} m/sn)` } };
+          guide: { z: target, text: `önerilen boşluk ${gap} m (${(P.speedAt((level.at || 0) + end) * 3.6).toFixed(0)} km/sa)` } };
       }
     }
     return best;
@@ -1165,7 +1166,8 @@
     if (variant) { variant.test = { running: true }; saveJSON(KEY.current, baseLevel()); }
     const runs = 7;
     $('gameTitle').textContent = auto ? 'Test: otomatik pilot' : 'Oyna';
-    $('gameInfo').textContent = auto ? `0/${runs} koşu` : 'Tasarım başlangıç pistinden sonra gelir';
+    const kmh = (P.speedAt(level.at || 0) * 3.6).toFixed(0);
+    $('gameInfo').textContent = auto ? `0/${runs} koşu` : `Başlangıç hızı ${kmh} km/sa (oyunda ${(level.at || 0).toLocaleString('tr-TR')}. metredeki hız)`;
     $('gameFrame').src = `${GAME_URL}?level=test${auto ? `&autopilot=1&runs=${runs}` : ''}&t=${Date.now()}`;
     $('gameModal').classList.add('open');
     $('gameModal').dataset.runs = auto ? runs : 0;
