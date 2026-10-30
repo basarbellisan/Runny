@@ -423,7 +423,7 @@
       out.push(numRow('Başta yükseklik', 'h0', h0, 'm', 0.5, -18, 12));
       out.push(numRow('Sonda yükseklik', 'h1', h1, 'm', 0.5, -18, 12));
       out.push(`<div class="row"><label>Eğim</label><b>${r1(slope)}°</b></div>`);
-      out.push(numRow('Yatıklık', 'bank', it.bank || 0, '°', 1, -15, 15));
+      out.push(numRow('Yatıklık', 'bank', it.bank || 0, '°', 1, -P.CAR.maxBankDeg, P.CAR.maxBankDeg));
       out.push(numRow('Yan konum (x)', 'x', it.x, 'm', 0.5));
       out.push(numRow('Başlangıç (z)', 'z0', it.z0, 'm', 1));
       out.push(`<div class="row"><label class="chk"><input type="checkbox" data-key="side" ${it.side ? 'checked' : ''}> Yan yol</label><span class="muted">ana yolun dışı, isteğe bağlı</span></div>`);
@@ -493,7 +493,7 @@
     if (k === 'len') v = Math.max(v, sel.type === 'piece' ? 4 : 0.5);
     if (k === 'w') v = clamp(v, sel.type === 'piece' ? 2.5 : 0.6, 20);
     if (k === 'rise') v = clamp(v, 0.3, 4);
-    if (k === 'bank') v = clamp(v, -15, 15);
+    if (k === 'bank') v = clamp(v, -P.CAR.maxBankDeg, P.CAR.maxBankDeg);
     // Yolu taşırken üstündekiler de gelsin
     if (sel.type === 'piece' && (k === 'x' || k === 'z0')) {
       const d = v - it[k];
