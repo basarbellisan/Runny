@@ -201,7 +201,27 @@ func _build_world() -> void:
 	cam.position = Vector3(0, 2.7, 8.0)
 	cam.look_at(Vector3(0, 0.25, 0))
 	# Araba biraz yukarıda: altında özelliklere yer kalsın
-	cam.v_offset = -0.3
+	cam.v_offset = -0.72
+
+	# Oklar sahnede, kaidelerin arkasında: araba kayarken önlerinden geçer.
+	# Geniş açılı, ince ok başı (iki ince çubuk)
+	var arrow_mat := StandardMaterial3D.new()
+	arrow_mat.albedo_color = Palette.INK_DARK.lerp(Palette.PAPER, 0.6)
+	arrow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var arm := BoxMesh.new()
+	arm.size = Vector3(0.42, 0.07, 0.07)
+	for side in [-1.0, 1.0]:
+		var head := Node3D.new()
+		head.position = Vector3(side * 3.75, -0.15, -1.6)
+		add_child(head)
+		for up in [-1.0, 1.0]:
+			var a := MeshInstance3D.new()
+			a.mesh = arm
+			a.material_override = arrow_mat
+			# Uçtan geriye ±40° açılan iki kol
+			a.rotation.z = -up * deg_to_rad(40.0) * side
+			a.position = Vector3(-side * 0.16, up * 0.135, 0)
+			head.add_child(a)
 
 	var disc := CylinderMesh.new()
 	disc.top_radius = 2.9
@@ -209,18 +229,19 @@ func _build_world() -> void:
 	disc.height = 0.25
 	disc.radial_segments = 48
 	disc.rings = 0
+	# Kaide: kenarı turuncu, üstü beyaz
 	var disc_mat := StandardMaterial3D.new()
-	disc_mat.albedo_color = Palette.SNOW
-	disc_mat.roughness = 1.0
-	var rim := CylinderMesh.new()
-	rim.top_radius = 2.95
-	rim.bottom_radius = 2.95
-	rim.height = 0.06
-	rim.radial_segments = 48
-	rim.rings = 0
-	var rim_mat := StandardMaterial3D.new()
-	rim_mat.albedo_color = Palette.ACCENT
-	rim_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	disc_mat.albedo_color = Palette.ACCENT
+	disc_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var top := CylinderMesh.new()
+	top.top_radius = 2.9
+	top.bottom_radius = 2.9
+	top.height = 0.01
+	top.radial_segments = 48
+	top.rings = 0
+	var top_mat := StandardMaterial3D.new()
+	top_mat.albedo_color = Palette.SNOW
+	top_mat.roughness = 1.0
 
 	_carousel = Node3D.new()
 	add_child(_carousel)
@@ -231,13 +252,13 @@ func _build_world() -> void:
 		var d := MeshInstance3D.new()
 		d.mesh = disc
 		d.material_override = disc_mat
-		d.position.y = -0.125
+		d.position.y = -0.135
 		stand.add_child(d)
-		var r := MeshInstance3D.new()
-		r.mesh = rim
-		r.material_override = rim_mat
-		r.position.y = -0.2
-		stand.add_child(r)
+		var t := MeshInstance3D.new()
+		t.mesh = top
+		t.material_override = top_mat
+		t.position.y = -0.005
+		stand.add_child(t)
 		var table := Node3D.new()
 		stand.add_child(table)
 		table.rotation.y = 0.6 + i * 0.9
@@ -260,28 +281,28 @@ func _build_ui(best: int) -> void:
 	_info.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_info.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(_info)
-	_name = _label(_info, "", 50, 822, true)
-	_desc = _label(_info, "", 20, 890, false)
+	_name = _label(_info, "", 50, 782, true)
+	_desc = _label(_info, "", 20, 850, false)
 	# Açıklama iki satıra sarılır
 	_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_desc.offset_left = 90
 	_desc.offset_right = -90
-	_desc.offset_top = 866
-	_desc.offset_bottom = 926
+	_desc.offset_top = 826
+	_desc.offset_bottom = 886
 	_desc.modulate.a = 0.6
 	_stats = Control.new()
 	_stats.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_stats.anchor_right = 1.0
-	_stats.offset_top = 950
-	_stats.offset_bottom = 1050
+	_stats.offset_top = 910
+	_stats.offset_bottom = 1010
 	ui.add_child(_stats)
 
 	var dots := HBoxContainer.new()
 	dots.add_theme_constant_override("separation", 14)
 	dots.alignment = BoxContainer.ALIGNMENT_CENTER
 	dots.anchor_right = 1.0
-	dots.offset_top = 405
-	dots.offset_bottom = 417
+	dots.offset_top = 365
+	dots.offset_bottom = 377
 	dots.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(dots)
 	for i in MODELS.size():
@@ -295,13 +316,12 @@ func _build_ui(best: int) -> void:
 		_dots.append(sb)
 
 	for side in [-1, 1]:
+		# Görünmez dokunma alanı: ok sahnede (kaidelerin arkasında) çizilir
 		var arrow := Button.new()
-		arrow.text = "<" if side < 0 else ">"
 		arrow.flat = true
 		arrow.focus_mode = Control.FOCUS_NONE
-		arrow.add_theme_font_size_override("font_size", 56)
-		for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
-			arrow.add_theme_color_override(state, Color(Palette.INK_DARK, 0.35))
+		for st in ["normal", "hover", "pressed", "focus"]:
+			arrow.add_theme_stylebox_override(st, StyleBoxEmpty.new())
 		arrow.anchor_top = 0.5
 		arrow.anchor_bottom = 0.5
 		arrow.anchor_left = 0.0 if side < 0 else 1.0
@@ -309,8 +329,8 @@ func _build_ui(best: int) -> void:
 		arrow.offset_left = 10 if side < 0 else -110
 		arrow.offset_right = 110 if side < 0 else -10
 		# Platformun (elipsin) ortası hizasında
-		arrow.offset_top = -22
-		arrow.offset_bottom = 98
+		arrow.offset_top = -62
+		arrow.offset_bottom = 58
 		arrow.pressed.connect(func(): select(index + side))
 		ui.add_child(arrow)
 
