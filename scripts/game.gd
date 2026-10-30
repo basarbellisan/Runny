@@ -69,8 +69,9 @@ var crystal_energy := 15.0
 ## Kanat yedeği: uçarken depo bitince kanatlar bu kadar yedek enerjiyle "çısss" diye
 ## açılır (kanat uçlarından iz çıkar, yedek bittikçe kısalır); bitince uçuruma düşülür.
 ## Aşağıda kristal yok: düşerkenki depo + bu yedek, aşağıdaki hayat süresidir.
-## Süre olarak verilir: düz uçuşta yedek bu kadar saniye yeter (yükselmek daha hızlı yakar).
-var wing_reserve_time := 10.0
+## Enerji olarak verilir ve enerji göstergesinde "YEDEK" diye görünür (düz uçuşta ~10 sn;
+## yükselmek daha hızlı yakar).
+var wing_reserve := 60.0
 ## Uçarken yükselirken (iki parmak) enerji bu kat hızlı harcanır
 var boost_drain_factor := 2.5
 
@@ -187,7 +188,7 @@ func _physics_process(delta: float) -> void:
 			if car.energy > 0.0:
 				car.energy = maxf(car.energy - burn, 0.0)
 			elif not car.reserve_on:
-				car.start_reserve(energy_drain * wing_reserve_time)
+				car.start_reserve(wing_reserve)
 				hud.popup("YEDEK", true)
 				Audio.play("hiss")
 			else:
@@ -205,7 +206,9 @@ func _physics_process(delta: float) -> void:
 		_energy_warned = false
 	hud.set_score(int(score), multiplier)
 	hud.gauge.collect_hint = not lower.active
-	hud.set_energy_value(car.energy, car.max_energy)
+	# Kanat yedeği açıksa göstergede kalan yedek görünür
+	hud.gauge.reserve = car.reserve_on
+	hud.set_energy_value(car.reserve if car.reserve_on else car.energy, car.max_energy)
 	var driving := car.mode == Car.Mode.DRIVE
 	hud.set_speed(car.forward_speed * car.surface_drag if driving else -car.velocity.z, car.speed, car.boost_level, driving)
 	_update_hint()

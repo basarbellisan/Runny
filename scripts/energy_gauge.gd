@@ -12,6 +12,8 @@ const LOW_AT := 20.0
 
 ## Halka ve kristal ikonunun rengi (yol kristalleriyle aynı)
 var color := Palette.ENERGY
+## Kanat yedeği gösteriliyor: halka ve sayı kalan yedek, yazı "YEDEK" (turuncu)
+var reserve := false
 ## Enerji ve depo büyüklüğü
 var value := 100.0
 var max_value := 100.0
@@ -69,6 +71,9 @@ func _draw() -> void:
 	var low := _shown <= LOW_AT
 	var col := LOW if low else color
 	var ink := LOW if low else BLACK
+	if reserve:
+		col = LOW if low else Palette.ACCENT
+		ink = col
 	var t := Time.get_ticks_msec() / 1000.0
 	if low:
 		var pulse := 0.5 + 0.5 * sin(t * 8.0)
@@ -83,8 +88,8 @@ func _draw() -> void:
 			Color(1, 1, 1, 0.9 * a), 4.0, true)
 	_crystal(c + Vector2(0, -30), 7.0, col)
 	_text(str(int(round(_shown))), c + Vector2(0, 6), 36, ink)
-	_text("ENERJİ", c + Vector2(0, 34), 11, Color(BLACK, 0.5))
-	if low and collect_hint:
+	_text("YEDEK" if reserve else "ENERJİ", c + Vector2(0, 34), 11, Color(ink, 0.8) if reserve else Color(BLACK, 0.5))
+	if low and collect_hint and not reserve:
 		_text("KRİSTAL TOPLA!", c + Vector2(0, -R - 26), 14, LOW)
 	if _gain_t < 0.8:
 		var a := 1.0 - smoothstep(0.45, 0.8, _gain_t)

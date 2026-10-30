@@ -88,8 +88,9 @@ limon yeşili halka (tepeden saat yönünde dolar). 20'nin altında kırmızı n
 İki kadran da yalnız oynarken görünür: oyun bitince kaybolur.
 Tek enerji: roket ve kanatlar aynı depodan yer. **Aşağıda kristal yok**: düştüğün
 andaki depo, aşağıdaki hayat süren olur (uçuş 6/s, yükselirken 15/s yakar). Depo
-bitince kanat yedeği "çısss" diye açılır: düz uçuşta 10 sn yeter (yükselirken
-2.5 kat hızlı yanar). Kanat uçlarından iki yeşil iz çıkar, yedek yandıkça
+bitince kanat yedeği "çısss" diye açılır: 60 enerji, düz uçuşta ~10 sn yeter
+(yükselirken 2.5 kat hızlı yanar); kalan yedek enerji göstergesinde turuncu
+"YEDEK" olarak görünür. Kanat uçlarından iki yeşil iz çıkar, yedek yandıkça
 kısalır; bitince kanatlar kapanır, uçuruma düşülür. Her roket basışı bu
 sigortadan yer. İlk portal 2–9 sn hedeflenir ama yukarıda uygun iniş yolu
 aranınca çoğu zaman ileri kayar (ölçülen 7–14 sn): boş depoyla düşen yaklaşık

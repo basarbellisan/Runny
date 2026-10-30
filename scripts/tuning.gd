@@ -40,7 +40,7 @@ const PARAMS := [
 	["ENERJİ", "roads", "crystal_spacing", "Kristal aralığı (m)", 3, 15, 0.5],
 	["YOLLAR", "roads", "max_empty_time", "En uzun boş düzlük (sn)", 0.6, 4, 0.1],
 	["YOLLAR", "roads", "fill_after_landing", "İnişten sonra ilk engel (sn)", 0.4, 3, 0.1],
-	["ENERJİ", "game", "wing_reserve_time", "Kanat yedeği (sn)", 0, 30, 0.5],
+	["ENERJİ", "game", "wing_reserve", "Kanat yedeği (enerji)", 0, 100, 1],
 	["GAZ", "car", "gravel_speed", "Çakılda hız oranı", 0.3, 1, 0.02],
 	["GAZ", "car", "gravel_grip", "Çakılda tutuş", 0.05, 1, 0.05],
 	["GAZ", "car", "gravel_shove", "Çakıl savurması", 0, 100, 1],
