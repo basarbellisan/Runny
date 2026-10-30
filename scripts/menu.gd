@@ -267,8 +267,8 @@ func _build_ui(best: int) -> void:
 	dots.add_theme_constant_override("separation", 14)
 	dots.alignment = BoxContainer.ALIGNMENT_CENTER
 	dots.anchor_right = 1.0
-	dots.offset_top = 995
-	dots.offset_bottom = 1005
+	dots.offset_top = 300
+	dots.offset_bottom = 310
 	dots.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(dots)
 	for i in MODELS.size():
@@ -318,8 +318,8 @@ func _build_ui(best: int) -> void:
 	start_btn.anchor_bottom = 1.0
 	start_btn.offset_left = -210
 	start_btn.offset_right = 210
-	start_btn.offset_top = -210
-	start_btn.offset_bottom = -100
+	start_btn.offset_top = -290
+	start_btn.offset_bottom = -180
 	start_btn.pressed.connect(start)
 	ui.add_child(start_btn)
 
