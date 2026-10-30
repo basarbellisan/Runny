@@ -298,13 +298,21 @@ bölgesini, rampa/tümsek uçuşunu ve yan yol dönüşlerini denetler.
 - **Çoğaltma (aynı boyda)**: Alt+sürükle kopyasını sürükler; Ctrl+D ya da Çoğalt / 1×-5× ardına ekler
   (kopyayı taşıyıp yine çoğaltınca aynı aralıkla sürer); Ctrl+C / Ctrl+V imlecin olduğu yere yapıştırır.
 - **Test et**: tasarım oyunda otomatik pilotla 6 kez (6 araba) sürülür; düşülen yerler tuvalde ✕.
+- **Türevler**: kalıptan oyunun kurallarıyla 4 versiyon türetir (boşluklar, yol uzunluğu, genişlik,
+  engel düzeni, çakıl ↔ blok, rampa yüksekliği); yalnız kontrolden hatasız ve asıl kalıptan fazla
+  uyarısız geçenler gösterilir. Karta tıkla: tuvalde gösterilir; Test: otomatik pilot; "oyuna girsin"
+  işaretlenenler kalıpla birlikte kaydedilir (`variants`) ve oyunda kalıbın yerine de gelebilir.
 - **Oyna**: tasarımı oyunda kendin sür.
 - **Kaydet / Kopyala / Dosya olarak indir**: tasarım `runny-level` JSON'u olur.
 
 Oyuna eklemek: JSON'u `levels/` klasörüne koy. Oyun bu kalıpları sonsuz koşuya karıştırır:
 kalıbın `at` metresinden sonra ve o andaki hız tasarımdakinden çok fazla değilse,
-bir önceki yoldan atlanabilir bir boşlukla girilir. Yarı yarıya sağ ↔ sol aynalı gelir
-(`level_test.py` koşuların yarısını aynalı sürer; `--mirror` ile tek koşu da aynalı denenir). Eklemeden önce test:
+bir önceki yoldan atlanabilir bir boşlukla girilir. Hiçbiri iki kez aynı gelmez: kalıp (ya da
+onaylı türevi) bir oyunda ilk kez olduğu gibi, sonra her gelişinde o anki hızda kontrolden geçen
+yeni bir türeviyle gelir (`scripts/level_check.gd`: physics.js'in aynısı), yarı yarıya da aynalı.
+`level_test.py` koşuları sırayla olduğu gibi / aynalı / türev / aynalı türev sürer (`--mirror`, `--vary`).
+Oyunun ve editörün kontrolleri aynı mı: `godot --headless --path . -s tools/variant_dump.gd -- levels/kalip.json 50 /tmp/t.json`
+sonra `node tools/variant_compare.js /tmp/t.json`. Eklemeden önce test:
 ```
 python3 tools/level_test.py levels/kalip.json --runs 12   # fizik kontrolleri + başsız oyunda otomatik pilot
 godot --path . -- --level=levels/kalip.json               # kalıp başlangıçtan hemen sonra gelir
@@ -314,7 +322,8 @@ Biçim (metre; z ileri, x yana, h ana yol seviyesine göre yükseklik):
 { "format": "runny-level", "version": 1, "name": "...", "at": 800, "crystals": true,
   "pieces":    [{ "id": 1, "x": 0, "w": 9, "z0": 0, "len": 160, "h0": 0, "h1": 0, "bank": 0, "side": false }],
   "obstacles": [{ "id": 6, "kind": "ramp|kick|bump|gravel|block|deadend", "x": 0, "w": 4, "z0": 64, "len": 8,
-                  "rise": 1.6, "dir": 1, "dx": 8 }] }
+                  "rise": 1.6, "dir": 1, "dx": 8 }],
+  "variants":  [{ "id": 1, "on": true, "tags": ["boşluklar"], "pieces": [...], "obstacles": [...] }] }
 ```
 
 ## Yapı
@@ -332,6 +341,7 @@ Biçim (metre; z ileri, x yana, h ana yol seviyesine göre yükseklik):
 - `scripts/autopilot.gd` — test için otomatik sürücü
 - `editor/` — Bölüm Tasarımcısı (web): `physics.js` kontroller, `editor.js` tuval; `levels/*.json` el yapımı kalıplar
 - `tools/level_test.py` — kalıbı fizik kontrolü + başsız oyunda otomatik pilotla test eder
+- `scripts/level_check.gd` — kalıp kontrolü ve gerçek zamanlı türetme (physics.js ile aynı kurallar)
 - `tools/make_sounds.py` — tüm sesleri ve müziği sıfırdan sentezler (`pip install numpy soundfile`, sonra `python3 tools/make_sounds.py`)
 - `scripts/follow_camera.gd`, `scripts/hud.gd`
 

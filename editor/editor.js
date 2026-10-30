@@ -39,6 +39,7 @@
   // Her değişiklik geri alınabilir; tasarım tarayıcıda otomatik saklanır
   function snapshot() { return JSON.stringify(level); }
   function commit(fn, keepRedo) {
+    if (viewing) { toast('Türev gösteriliyor: düzenlemek için asıl kalıba dön ya da ayrı kalıp olarak aç.'); return; }
     undoStack.push(snapshot());
     if (undoStack.length > 200) undoStack.shift();
     if (!keepRedo) redoStack.length = 0;
@@ -46,7 +47,7 @@
     changed();
   }
   function changed() {
-    saveJSON(KEY.current, level);
+    saveJSON(KEY.current, viewing ? viewing.base : level);
     render();
   }
   function undo() {
@@ -164,6 +165,7 @@
     renderTop();
     renderSide();
     renderProps();
+    renderVariants();
     renderLevelCard();
     renderChecks();
     renderResults();
@@ -232,7 +234,7 @@
       s.push(`<circle cx="${px(F.x)}" cy="${pz(F.land)}" r="4" fill="${bad ? '#e23b3b' : '#ff5a1f'}" pointer-events="none"/>`);
     }
     // Test sonuçları: düşülen/çakılan yerler
-    if (resultsFor === level.name) {
+    if (resultsFor === resultsKey()) {
       for (const r of results) if (!r.ok) {
         s.push(`<g transform="translate(${px(r.x)},${pz(r.z)})" pointer-events="none"><circle r="8" fill="#e23b3b" opacity=".85"/><path d="M-3 -3 L3 3 M3 -3 L-3 3" stroke="#fff" stroke-width="2"/></g>`);
       }
@@ -533,7 +535,7 @@
 
   function renderResults() {
     const el = $('results');
-    const mine = resultsFor === level.name ? results : [];
+    const mine = resultsFor === resultsKey() ? results : [];
     if (!mine.length) {
       el.innerHTML = `<div class="muted">"Test et" tasarımı oyunda otomatik pilotla 6 kez, farklı arabalarla sürer. Düşülen yerler tuvalde ✕ ile işaretlenir.</div>`;
       return;
@@ -554,8 +556,8 @@
   svgTop.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
     const w = clientToWorld(e);
-    const hEl = e.target.closest('[data-handle]');
-    const gEl = e.target.closest('[data-type]');
+    const hEl = viewing ? null : e.target.closest('[data-handle]');
+    const gEl = viewing ? null : e.target.closest('[data-type]');
     if (hEl && sel) {
       const it = selected();
       drag = { mode: 'resize', handle: hEl.dataset.handle, start: w, orig: { ...it }, snap: snapshot(), moved: false };
@@ -809,6 +811,130 @@
     return out;
   }
 
+  // ------------------------------------------------------------------ türevler
+  // Kalıptan türetilen versiyonlar (physics.js vary: oyunun kurallarıyla, kontrolden geçenler).
+  // Oyun her gelişte kendisi de yeni türev üretir; burada işaretlenenler ayrıca oyuna girer.
+  let viewing = null;                    // { base, v }: tuvalde gösterilen türev
+  const baseLevel = () => (viewing ? viewing.base : level);
+  const variantKey = (v) => `${baseLevel().name}#${v.id}`;
+  const resultsKey = () => (viewing ? variantKey(viewing.v) : level.name);
+  const baseSig = (l) => P.signature(l);
+  function generateVariants() {
+    if (viewing) exitView();
+    if (!level.pieces.length) { toast('Önce bir kalıp çiz.'); return; }
+    if (analysis.issues.some((i) => i.level === 'error')) { toast('Önce kontrol listesindeki hataları düzelt: türevler hatasız kalıptan üretilir.'); return; }
+    const sig = baseSig(level);
+    // İşaretli ya da test edilmiş ve kalıbı değişmemiş türevler kalır, gerisi yenilenir
+    const keep = (level.variants || []).filter((v) => v.base === sig && (v.on || (v.test && v.test.n)));
+    const avoid = keep.map((v) => P.signature(v));
+    let id = keep.reduce((m, v) => Math.max(m, v.id), 0) + 1;
+    const fresh = [];
+    for (let t = 0; t < 12 && keep.length + fresh.length < 4; t++) {
+      const V = P.vary(level, (Math.random() * 1e9) >>> 0, avoid);
+      if (!V) continue;
+      avoid.push(V.sig);
+      fresh.push({ id: id++, tags: V.tags, changed: V.changed, on: false, test: null, base: sig,
+        pieces: V.level.pieces, obstacles: V.level.obstacles });
+    }
+    if (!fresh.length && !keep.length) { toast('Bu kalıptan güvenli türev bulunamadı: boşluklar ya da yollar sınırda olabilir.'); return; }
+    commit(() => { level.variants = [...keep, ...fresh]; });
+  }
+  function viewVariant(v) {
+    const base = baseLevel();
+    viewing = { base, v };
+    level = { ...base, pieces: JSON.parse(JSON.stringify(v.pieces)), obstacles: JSON.parse(JSON.stringify(v.obstacles)) };
+    sel = null;
+    render();
+  }
+  function exitView() {
+    if (!viewing) return;
+    level = viewing.base;
+    viewing = null;
+    render();
+  }
+  function openVariantAsLevel() {
+    const { base, v } = viewing;
+    exitView();
+    saveToLibrary();
+    useLevel({ ...base, name: `${base.name} — türev ${v.id}`, pieces: JSON.parse(JSON.stringify(v.pieces)),
+      obstacles: JSON.parse(JSON.stringify(v.obstacles)), variants: [] });
+    toast(`Türev ${v.id} ayrı kalıp olarak açıldı; asıl kalıp Kaydedilenler'de.`);
+  }
+  function thumbSVG(l, changed) {
+    const ps = l.pieces;
+    if (!ps.length) return '';
+    const zMin = Math.min(...ps.map((p) => p.z0)), zMax = Math.max(...ps.map(P.pEnd));
+    const xMin = Math.min(...ps.map((p) => p.x - p.w / 2)), xMax = Math.max(...ps.map((p) => p.x + p.w / 2));
+    const TW = 112, TH = 150, sz = (TH - 8) / Math.max(zMax - zMin, 1), sx = Math.min((TW - 10) / Math.max(xMax - xMin, 1), 4);
+    const X = (x) => TW / 2 + (x - (xMin + xMax) / 2) * sx, Y = (z) => TH - 4 - (z - zMin) * sz;
+    const ch = new Set(changed || []);
+    const hi = (id, w) => (ch.has(id) ? ` stroke="#ff5a1f" stroke-width="${w}"` : '');
+    const out = [`<svg viewBox="0 0 ${TW} ${TH}" width="${TW}" height="${TH}">`];
+    for (const p of ps) {
+      const t = tierOf(Math.max(p.h0 || 0, p.h1 ?? p.h0 ?? 0));
+      out.push(`<rect x="${X(p.x - p.w / 2)}" y="${Y(P.pEnd(p))}" width="${p.w * sx}" height="${p.len * sz}" fill="${ROAD_COLOR[t]}" rx="1"${hi(p.id, 1.6)}/>`);
+    }
+    for (const o of l.obstacles) {
+      const c = o.kind === 'gravel' ? '#b9a98f' : o.kind === 'block' || o.kind === 'deadend' ? '#e23b3b' : '#f4d9a8';
+      const len = Math.max(o.len || 1, 3 / sz);
+      out.push(`<rect x="${X(o.x - o.w / 2)}" y="${Y(o.z0 + len)}" width="${Math.max(o.w * sx, 2)}" height="${len * sz}" fill="${c}"${hi(o.id, 1.1)}/>`);
+    }
+    return out.join('') + '</svg>';
+  }
+  function renderVariants() {
+    const base = baseLevel();
+    const vs = base.variants || [];
+    const sig = baseSig(base);
+    const ban = $('variantBanner');
+    ban.style.display = viewing ? 'flex' : 'none';
+    if (viewing) $('variantBannerText').textContent = `Türev ${viewing.v.id} · ${viewing.v.tags.join(', ')}`;
+    const on = vs.filter((v) => v.on).length;
+    const cards = vs.map((v) => {
+      const t = v.test;
+      const out = t && t.n && t.ok / t.n < 0.8;
+      const stale = v.base !== sig;
+      const res = !t ? `<span class="ok" title="Fizik kontrolünden geçti">✓ kontrol</span><button class="vtest" data-vtest="${v.id}" title="Oyunda otomatik pilotla 6 kez sür">Test</button>`
+        : t.running ? '<span class="muted">test ediliyor…</span>'
+        : `<span class="${t.ok === t.n ? 'ok' : out ? 'no' : 'warn'}">${out ? '✕' : '✓'} ${t.ok}/${t.n}</span>`;
+      const chk = out ? '<span class="no">elendi</span>'
+        : `<label class="vchk"><input type="checkbox" data-von="${v.id}" ${v.on ? 'checked' : ''}>oyuna girsin</label>`;
+      return `<div class="vcard ${viewing && viewing.v.id === v.id ? 'cur' : ''} ${out ? 'bad' : ''}" data-vid="${v.id}">
+        ${thumbSVG(v, v.changed)}<b>Türev ${v.id}${stale ? ' <span class="stale" title="Asıl kalıp sonradan değişti">eski</span>' : ''}</b>
+        <div class="vtags">${v.tags.map((x) => `<span>${esc(x)}</span>`).join('')}</div>
+        <div class="vres">${res}</div><div class="vres">${chk}</div></div>`;
+    }).join('');
+    $('variants').innerHTML = `<div class="vhead"><span class="muted">${vs.length ? `${vs.length} türev, ${on} tanesi oyuna giriyor.` : 'Kalıbından oyunun kurallarıyla güvenli versiyonlar türet.'}</span>
+      <button class="btn" id="varGen">⟳ ${vs.length ? 'Yeniden' : 'Türet'}</button></div>
+      ${vs.length ? `<div class="vgrid">${cards}</div>` : ''}
+      <div class="muted" style="margin-top:8px">Oyun bu kalıbı her getirişinde ayrıca yeni bir türev üretir ve yarı yarıya aynalar: aynısı iki kez gelmez. Turuncu çerçeve: değişen parçalar.</div>`;
+  }
+  $('variants').addEventListener('click', (e) => {
+    if (e.target.closest('#varGen')) return generateVariants();
+    const tb = e.target.closest('[data-vtest]');
+    if (tb) {
+      const v = (baseLevel().variants || []).find((x) => x.id === +tb.dataset.vtest);
+      if (v) openGame(true, v);
+      return;
+    }
+    if (e.target.closest('label, input')) return;
+    const card = e.target.closest('[data-vid]');
+    if (!card) return;
+    const v = (baseLevel().variants || []).find((x) => x.id === +card.dataset.vid);
+    if (!v) return;
+    if (viewing && viewing.v === v) exitView(); else viewVariant(v);
+  });
+  $('variants').addEventListener('change', (e) => {
+    const id = +e.target.dataset.von;
+    if (!id) return;
+    const v = (baseLevel().variants || []).find((x) => x.id === id);
+    if (!v) return;
+    v.on = e.target.checked;
+    saveJSON(KEY.current, baseLevel());
+    render();
+  });
+  $('vbBack').onclick = exitView;
+  $('vbOpen').onclick = openVariantAsLevel;
+
   // ------------------------------------------------------------------ klavye ve menü
   function deleteSelected() {
     if (!sel) return;
@@ -898,7 +1024,7 @@
     else if (mod && k === 'v') { e.preventDefault(); paste(); }
     else if (mod && k === 's') { e.preventDefault(); saveToLibrary(); }
     else if (k === 'delete' || k === 'backspace') { e.preventDefault(); deleteSelected(); }
-    else if (k === 'escape') { sel = null; render(); }
+    else if (k === 'escape') { if (viewing) exitView(); else { sel = null; render(); } }
     else if (sel && k.startsWith('arrow')) {
       e.preventDefault();
       const st = e.shiftKey ? 5 : 0.5;
@@ -959,8 +1085,14 @@
   // ------------------------------------------------------------------ kayıt
   function cleanLevel() {
     const r = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === 'number' ? r1(v) : v]));
-    return { format: 'runny-level', version: 1, name: level.name, at: level.at || 0, crystals: level.crystals !== false,
-      pieces: level.pieces.map(r), obstacles: level.obstacles.map(r) };
+    const L = viewing ? viewing.base : level;
+    const out = { format: 'runny-level', version: 1, name: L.name, at: L.at || 0, crystals: L.crystals !== false,
+      pieces: L.pieces.map(r), obstacles: L.obstacles.map(r) };
+    if ((L.variants || []).length) {
+      out.variants = L.variants.map((v) => ({ id: v.id, tags: v.tags, on: !!v.on, test: v.test || null, base: v.base,
+        changed: v.changed, pieces: v.pieces.map(r), obstacles: v.obstacles.map(r) }));
+    }
+    return out;
   }
   function saveToLibrary() {
     const lib = loadJSON(KEY.library) || {};
@@ -1001,14 +1133,24 @@
   };
 
   // ------------------------------------------------------------------ oyunla bağlantı
-  function openGame(auto) {
+  let lastGame = null;
+  // variant verilirse o türev denenir (sonucu türev kartına yazılır)
+  function openGame(auto, variant) {
     if (!level.pieces.length) { toast('Önce bir yol koy.'); return; }
-    const errs = analysis.issues.filter((i) => i.level === 'error').length;
-    if (errs && !confirm(`${errs} hata var; oyunda düşebilirsin. Yine de açılsın mı?`)) return;
-    saveJSON(KEY.test, cleanLevel());
+    if (!variant && !viewing) {
+      const errs = analysis.issues.filter((i) => i.level === 'error').length;
+      if (errs && !confirm(`${errs} hata var; oyunda düşebilirsin. Yine de açılsın mı?`)) return;
+    }
+    if (!variant && viewing) variant = viewing.v;
+    lastGame = { auto, variant };
+    const base = cleanLevel();
+    delete base.variants;
+    const key = variant ? variantKey(variant) : level.name;
+    saveJSON(KEY.test, variant ? { ...base, pieces: variant.pieces, obstacles: variant.obstacles } : base);
     saveJSON(KEY.result, []);
-    localStorage.setItem('runny_editor_result_for', level.name);
-    results = []; resultsFor = level.name;
+    localStorage.setItem('runny_editor_result_for', key);
+    results = []; resultsFor = key;
+    if (variant) { variant.test = { running: true }; saveJSON(KEY.current, baseLevel()); }
     const runs = 6;
     $('gameTitle').textContent = auto ? 'Test: otomatik pilot' : 'Oyna';
     $('gameInfo').textContent = auto ? `0/${runs} koşu` : 'Tasarım başlangıç pistinden sonra gelir';
@@ -1023,7 +1165,7 @@
   // Baştan: oyun sahnesi anında yeniden kurulur (motor yeniden yüklenmez); testte bütün koşular baştan
   function restartGame() {
     const auto = +$('gameModal').dataset.runs > 0;
-    if (auto) return openGame(true);
+    if (auto) return openGame(true, lastGame && lastGame.variant);
     const w = $('gameFrame').contentWindow;
     if (w && typeof w.runnyRestart === 'function') w.runnyRestart();
     else $('gameFrame').src = `${GAME_URL}?level=test&t=${Date.now()}`;
@@ -1047,6 +1189,13 @@
       results = r;
       const runs = +$('gameModal').dataset.runs || 0;
       if (runs) $('gameInfo').textContent = `${r.length}/${runs} koşu, ${r.filter((x) => x.ok).length} geçti`;
+      // Türev testi bitti: sonucu karta yaz
+      const v = (baseLevel().variants || []).find((x) => variantKey(x) === resultsFor);
+      if (v && runs && r.length >= runs) {
+        v.test = { ok: r.filter((x) => x.ok).length, n: r.length };
+        if (v.test.ok / v.test.n < 0.8) v.on = false;
+        saveJSON(KEY.current, baseLevel());
+      }
       render();
     }
   }

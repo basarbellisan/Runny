@@ -6,7 +6,8 @@ Kullanım:
 
 1) editor/physics.js ile kontroller (atlama, iniş bölgesi, rampa/tümsek uçuşu...).
 2) Oyun başsız çalışır: tasarım başlangıç pistinden hemen sonra gelir, araba tasarımın
-   hızıyla başlar; her koşu farklı tohum ve araba ile, yarısı aynalı (oyunda olduğu gibi).
+   hızıyla başlar; her koşu farklı tohum ve araba ile, sırayla olduğu gibi /
+   aynalı / türev / aynalı türev (oyunda olduğu gibi).
    Geçti / düştü (tasarımdaki metre).
 """
 import argparse
@@ -33,11 +34,13 @@ def physics_check(path):
     return json.loads(out.stdout)
 
 
-def run_game(path, seed, model, frames, mirror=False):
+def run_game(path, seed, model, frames, mirror=False, vary=False):
     cmd = ["godot", "--headless", "--path", ROOT, "--fixed-fps", "60", "--quit-after", str(frames), "--",
            "--autopilot", "--seed=%d" % seed, "--model=%d" % model, "--level=%s" % os.path.abspath(path)]
     if mirror:
         cmd.append("--mirror")
+    if vary:
+        cmd.append("--vary")
     try:
         out = subprocess.run(cmd, capture_output=True, text=True, timeout=600).stdout
     except subprocess.TimeoutExpired:
@@ -45,7 +48,9 @@ def run_game(path, seed, model, frames, mirror=False):
     m = re.search(r"LEVEL_(PASS|FAIL) reason=(.+?) x=(-?[\d.]+) z=(-?[\d.]+)", out)
     if not m:
         return None
-    return {"ok": m.group(1) == "PASS", "reason": m.group(2), "x": float(m.group(3)), "z": float(m.group(4))}
+    t = re.search(r"LEVEL_\w+ .* tags=(.*)", out)
+    return {"ok": m.group(1) == "PASS", "reason": m.group(2), "x": float(m.group(3)), "z": float(m.group(4)),
+            "tags": t.group(1).strip() if t else ""}
 
 
 def main():
@@ -70,16 +75,18 @@ def main():
     ok = 0
     for i in range(a.runs):
         model = models[i % len(models)]
-        # Oyunda kalıp yarı yarıya aynalı gelir: koşuların yarısı aynalı
-        mirror = i % 2 == 1
-        r = run_game(a.level, i + 1, model, frames, mirror)
-        name = MODEL_NAMES.get(model, str(model)) + (", aynalı" if mirror else "")
+        # Oyunda kalıp aynalı ve her seferinde yeni bir türevi gelir: koşular sırayla
+        # olduğu gibi / aynalı / türev / aynalı türev (her türev farklı: tohum farklı)
+        mirror, vary = i % 2 == 1, i % 4 >= 2
+        r = run_game(a.level, i + 1, model, frames, mirror, vary)
+        name = MODEL_NAMES.get(model, str(model)) + (", aynalı" if mirror else "") + (", türev" if vary else "")
         if r is None:
             print("  koşu %d (%s): sonuç yok (zaman aşımı ya da tasarım kurulamadı)" % (i + 1, name))
             continue
         ok += r["ok"]
         where = "" if r["ok"] else " — %s, %.0f. metre (x %.1f)" % (r["reason"].rstrip("!").lower(), r["z"], r["x"])
-        print("  koşu %d (%s): %s%s" % (i + 1, name, "geçti" if r["ok"] else "düştü", where))
+        tags = " [%s]" % r["tags"].replace(",", ", ") if r["tags"] else ""
+        print("  koşu %d (%s): %s%s%s" % (i + 1, name, "geçti" if r["ok"] else "düştü", where, tags))
     print("Sonuç: %d/%d geçti" % (ok, a.runs))
     sys.exit(0 if ok == a.runs else 1)
 

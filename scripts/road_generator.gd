@@ -436,7 +436,9 @@ func _plan_pattern(travelled: float, level: float) -> void:
 	# Test: başlangıç pistinden hemen sonra denenen el yapımı kalıp
 	if not test_level.is_empty() and not _test_used:
 		_test_used = true
-		_plan.append({"custom": test_level})
+		if vary_test:
+			_custom_seen[LevelCheck.signature(test_level)] = true
+		_plan.append({"custom": test_level, "vary": vary_test})
 		return
 	# Yükseklik sınırlı kalsın: alçaktayken inen, yüksekteyken çıkan kalıp yok
 	var low := level < MAIN_LEVEL - 3.0
@@ -534,10 +536,21 @@ func _plan_pattern(travelled: float, level: float) -> void:
 			_custom_recent.append(str(chosen.name))
 			if _custom_recent.size() > maxi(custom_levels.size() - 1, 1):
 				_custom_recent.pop_front()
+			# Tasarımcının "oyuna girsin" dediği türevler de kalıbın yerine gelebilir
+			var bases: Array[Dictionary] = [chosen]
+			for vr in chosen.get("variants", []):
+				if vr is Dictionary and vr.get("on", false) and vr.get("pieces") is Array:
+					var b: Dictionary = chosen.duplicate()
+					b.erase("variants")
+					b["pieces"] = vr.pieces.duplicate(true)
+					b["obstacles"] = vr.get("obstacles", []).duplicate(true)
+					bases.append(b)
+			chosen = bases[_rng.randi() % bases.size()]
 			# Yarı yarıya aynalı gelir (sağ ↔ sol): fizik simetrik, test edilen kalıbın aynası da geçer
 			if _rng.randf() < 0.5:
 				chosen = mirror_level(chosen)
-			_plan.append({"custom": chosen})
+			# Kurulurken her seferinde yeni bir türev türetilir (aynısı iki kez gelmez)
+			_plan.append({"custom": chosen, "vary": true})
 		"çatal":
 			# Önce geniş bir yol: iki kola da buradan atlanır
 			_plan.append({"width": 1.6, "len": 0.8, "dh": _rng.randf_range(-1.0, 0.0)})
@@ -560,7 +573,7 @@ func _next_from(prev: Segment) -> Segment:
 	if spec.get("islands", false):
 		return _build_islands(prev, travelled)
 	if spec.has("custom"):
-		return _build_custom(prev, spec.custom, travelled)
+		return _build_custom(prev, spec.custom, travelled, spec.get("vary", false))
 
 	# Araba bu yolun sonuna vardığında ne hızda olacak (tahmini)
 	var v := estimate_speed(dist_ahead)
@@ -2742,6 +2755,10 @@ var custom_log: Array[Dictionary] = []
 @export var custom_speed_margin := 1.25
 var _test_used := false
 var _custom_recent: Array[String] = []
+## Test: denenen kalıp da türetilerek gelsin (--vary)
+var vary_test := false
+## Bu oyunda gelmiş kalıp/türev imzaları: aynısı iki kez gelmez
+var _custom_seen := {}
 
 const LEVEL_DIR := "res://levels"
 
@@ -2791,8 +2808,10 @@ func _eligible_levels(travelled: float, v: float) -> Array[Dictionary]:
 
 
 ## Tasarımı önceki yolun ardına kurar; çıkış yolunu (sonraki kalıbın başlayacağı) döndürür
-func _build_custom(prev: Segment, level: Dictionary, travelled: float) -> Segment:
+func _build_custom(prev: Segment, level: Dictionary, travelled: float, vary := false) -> Segment:
 	var v := estimate_speed(car.global_position.z - prev.z_end)
+	if vary:
+		level = _fresh_variant(level, v)
 	var v_boost := _v_boost(v)
 	var slope := prev.slope()
 	var vy := car.launch_velocity + v * slope
@@ -2969,7 +2988,7 @@ func _build_custom(prev: Segment, level: Dictionary, travelled: float) -> Segmen
 		if h.z_end < head.z_end:
 			head = h
 	custom_log.append({"name": lname, "zb": zb, "ox": ox, "oy": oy, "entry_z": prev.z_end, "exit_z": head.z_end,
-		"travelled": travelled, "mirrored": level.get("mirrored", false)})
+		"travelled": travelled, "mirrored": level.get("mirrored", false), "tags": level.get("tags", [])})
 	pattern_counts["özel:" + lname] = int(pattern_counts.get("özel:" + lname, 0)) + 1
 	return head
 
@@ -3002,6 +3021,22 @@ func to_design(pos: Vector3, index := 0) -> Vector2:
 	var c: Dictionary = custom_log[clampi(index, 0, custom_log.size() - 1)]
 	var x := pos.x - float(c.ox)
 	return Vector2(-x if c.get("mirrored", false) else x, float(c.zb) - pos.z)
+
+
+## Kalıbın bu oyunda daha önce gelmemiş hali: ilk kez geliyorsa olduğu gibi, yoksa o andaki
+## hızda kontrolden geçen yeni bir türev (bulunamazsa olduğu gibi)
+func _fresh_variant(level: Dictionary, v: float) -> Dictionary:
+	var sig := LevelCheck.signature(level)
+	if not _custom_seen.has(sig):
+		_custom_seen[sig] = true
+		return level
+	var res := LevelCheck.vary(level, _rng, _custom_seen, v)
+	if res.is_empty():
+		return level
+	_custom_seen[res.sig] = true
+	var lv: Dictionary = res.level
+	lv["tags"] = res.tags
+	return lv
 
 
 ## Kalıbın sağ ↔ sol aynası (yollar, yatıklık, engeller, eğik rampanın yönü)

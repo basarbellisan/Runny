@@ -444,6 +444,7 @@ func _setup_level_test() -> void:
 		return
 	if _args.has("mirror"):
 		level = RoadGenerator.mirror_level(level)
+	roads.vary_test = _args.has("vary")
 	roads.test_level = level
 	_level_test = true
 	if OS.has_feature("web") and not _level_auto:
@@ -471,7 +472,8 @@ func _web_param(key: String) -> String:
 func _level_result(ok: bool, reason: String) -> void:
 	_level_done = true
 	var d := roads.to_design(car.global_position)
-	print("LEVEL_%s reason=%s x=%.1f z=%.1f model=%d" % ["PASS" if ok else "FAIL", reason, d.x, d.y, car.model.variant])
+	var tags: Array = roads.custom_log[0].get("tags", []) if not roads.custom_log.is_empty() else []
+	print("LEVEL_%s reason=%s x=%.1f z=%.1f model=%d tags=%s" % ["PASS" if ok else "FAIL", reason, d.x, d.y, car.model.variant, ",".join(tags)])
 	if ok:
 		hud.popup("TASARIM GEÇİLDİ", true)
 	if not OS.has_feature("web"):
