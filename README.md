@@ -299,8 +299,8 @@ bölgesini, rampa/tümsek uçuşunu ve yan yol dönüşlerini denetler.
   (kopyayı taşıyıp yine çoğaltınca aynı aralıkla sürer); Ctrl+C / Ctrl+V imlecin olduğu yere yapıştırır.
 - **Test et**: tasarım oyunda otomatik pilotla 6 kez (6 araba) sürülür; düşülen yerler tuvalde ✕.
 - **Türevler**: kalıptan oyunun kurallarıyla 4 versiyon türetir (boşluklar, yol uzunluğu, genişlik,
-  engel düzeni, çakıl ↔ blok, rampa yüksekliği); yalnız kontrolden hatasız ve asıl kalıptan fazla
-  uyarısız geçenler gösterilir. Karta tıkla: tuvalde gösterilir; Test: otomatik pilot; "oyuna girsin"
+  engel düzeni, çakıl ↔ blok, rampa yüksekliği); asıl kalıpta olmayan yeni bir hata çıkarmayan ve
+  asıl kalıptan fazla uyarısı olmayanlar gösterilir (kalıbın bilerek zor yerleri türevde de kalabilir). Karta tıkla: tuvalde gösterilir; Test: otomatik pilot; "oyuna girsin"
   işaretlenenler kalıpla birlikte kaydedilir (`variants`) ve oyunda kalıbın yerine de gelebilir.
 - **Oyna**: tasarımı oyunda kendin sür.
 - **Kaydet / Kopyala / Dosya olarak indir**: tasarım `runny-level` JSON'u olur.

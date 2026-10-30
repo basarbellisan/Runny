@@ -474,7 +474,8 @@ static func vary_once(level: Dictionary, rng: RandomNumberGenerator, ops: Array)
 	return {"level": lv, "tags": tags}
 
 
-## Geçerli bir türev (hata yok, uyarı asıl kalıptan fazla değil, daha önce görülmemiş); yoksa {}.
+## Geçerli bir türev (asıl kalıpta olmayan yeni hata yok, uyarı asıl kalıptan fazla değil, daha önce
+## görülmemiş); yoksa {}.
 ## speed > 0 ise kontrol o hızda yapılır (kalıp oyunda tasarımdakinden hızlı gelebilir).
 static func vary(level: Dictionary, rng: RandomNumberGenerator, seen: Dictionary, speed := 0.0, tries := 30) -> Dictionary:
 	var check := func(l: Dictionary) -> Dictionary:
@@ -483,7 +484,9 @@ static func vary(level: Dictionary, rng: RandomNumberGenerator, seen: Dictionary
 			c["at"] = distance_for_speed(speed)
 			return analyze(c)
 		return analyze(l)
-	var base_warns: int = check.call(level).warns
+	var base: Dictionary = check.call(level)
+	var base_warns: int = base.warns
+	var base_errors: Array = base.issues.filter(func(t): return t.begins_with("hata: "))
 	for t in tries:
 		var ops: Array = VARY_OPS.filter(func(_op): return rng.randf() < 0.45)
 		if ops.is_empty():
@@ -495,7 +498,9 @@ static func vary(level: Dictionary, rng: RandomNumberGenerator, seen: Dictionary
 		if seen.has(sig):
 			continue
 		var a: Dictionary = check.call(res.level)
-		if a.errors == 0 and a.warns <= base_warns:
+		# Tasarımcının kalıbında olmayan yeni hata olmasın (kalıbın bilerek zor yerleri kalabilir)
+		var new_error: bool = a.issues.any(func(t): return t.begins_with("hata: ") and not t in base_errors)
+		if not new_error and a.warns <= base_warns:
 			res["sig"] = sig
 			return res
 	return {}
