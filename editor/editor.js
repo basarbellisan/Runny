@@ -380,7 +380,12 @@
 
   // ------------------------------------------------------------------ sağ panel
   function numRow(label, key, val, unit, step, min, max) {
-    return `<div class="row"><label>${label}</label><div class="val"><input type="number" data-key="${key}" value="${r1(val)}" step="${step || 0.5}" ${min !== undefined ? `min="${min}"` : ''} ${max !== undefined ? `max="${max}"` : ''}><span class="unit">${unit || ''}</span></div></div>`;
+    const lim = `${min !== undefined ? `min="${min}"` : ''} ${max !== undefined ? `max="${max}"` : ''}`;
+    return `<div class="row"><label>${label}</label><div class="val"><div class="stepper">` +
+      `<button type="button" data-step="-1" data-for="${key}" tabindex="-1" title="Azalt (Shift: 5 kat)">−</button>` +
+      `<input type="number" data-key="${key}" value="${r1(val)}" step="${step || 0.5}" ${lim}>` +
+      `<button type="button" data-step="1" data-for="${key}" tabindex="-1" title="Artır (Shift: 5 kat)">+</button>` +
+      `</div><span class="unit">${unit || ''}</span></div></div>`;
   }
   function renderProps() {
     const it = selected();
@@ -433,25 +438,54 @@
     el.innerHTML = out.join('');
   }
   $('props').addEventListener('change', (e) => {
-    const it = selected();
     const k = e.target.dataset.key;
-    if (!it || !k) return;
-    commit(() => {
-      if (k === 'side') { it.side = e.target.checked; return; }
-      let v = parseFloat(e.target.value);
-      if (!isFinite(v)) return;
-      if (k === 'len') v = Math.max(v, sel.type === 'piece' ? 4 : 0.5);
-      if (k === 'w') v = clamp(v, sel.type === 'piece' ? 2.5 : 0.6, 20);
-      if (k === 'rise') v = clamp(v, 0.3, 4);
-      if (k === 'bank') v = clamp(v, -15, 15);
-      // Yolu taşırken üstündekiler de gelsin
-      if (sel.type === 'piece' && (k === 'x' || k === 'z0')) {
-        const d = v - it[k];
-        for (const o of carried(it)) o[k] += d;
-      }
-      it[k] = r1(v);
-    });
+    if (!selected() || !k) return;
+    if (k === 'side') { const it = selected(); commit(() => { it.side = e.target.checked; }); return; }
+    commit(() => setProp(k, parseFloat(e.target.value)));
   });
+  // −/+ düğmeleri: tıkla bir adım, basılı tut sürekli (bir basış tek geri alma adımı)
+  let stepHold = null;
+  function stepOnce(k, dir, big) {
+    const inp = $('props').querySelector(`input[data-key="${k}"]`);
+    if (!inp || !selected()) return false;
+    const st = parseFloat(inp.step) || 0.5;
+    let v = r1((parseFloat(inp.value) || 0) + dir * st * (big ? 5 : 1));
+    if (inp.min !== '') v = Math.max(v, parseFloat(inp.min));
+    if (inp.max !== '') v = Math.min(v, parseFloat(inp.max));
+    setProp(k, v);
+    changed();
+    return true;
+  }
+  $('props').addEventListener('pointerdown', (e) => {
+    const b = e.target.closest('button[data-step]');
+    if (!b || e.button !== 0) return;
+    e.preventDefault();
+    const k = b.dataset.for, dir = +b.dataset.step, big = e.shiftKey;
+    undoStack.push(snapshot());
+    redoStack.length = 0;
+    stepOnce(k, dir, big);
+    const stop = () => { if (stepHold) { clearTimeout(stepHold); stepHold = null; } };
+    stop();
+    const again = (delay) => { stepHold = setTimeout(() => { if (stepOnce(k, dir, big)) again(60); }, delay); };
+    again(380);
+    window.addEventListener('pointerup', stop, { once: true });
+    window.addEventListener('pointercancel', stop, { once: true });
+  });
+  function setProp(k, v) {
+    const it = selected();
+    if (!it) return;
+    if (!isFinite(v)) return;
+    if (k === 'len') v = Math.max(v, sel.type === 'piece' ? 4 : 0.5);
+    if (k === 'w') v = clamp(v, sel.type === 'piece' ? 2.5 : 0.6, 20);
+    if (k === 'rise') v = clamp(v, 0.3, 4);
+    if (k === 'bank') v = clamp(v, -15, 15);
+    // Yolu taşırken üstündekiler de gelsin
+    if (sel.type === 'piece' && (k === 'x' || k === 'z0')) {
+      const d = v - it[k];
+      for (const o of carried(it)) o[k] += d;
+    }
+    it[k] = r1(v);
+  }
   $('props').addEventListener('click', (e) => {
     const it = selected();
     if (!it) return;
