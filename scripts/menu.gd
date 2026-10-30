@@ -33,6 +33,8 @@ var _name: Label
 var _desc: Label
 var _info: Control
 var _dots: Array[ColorRect] = []
+## Arabanın özellikleri (hız, tutuş, çakıl, denge)
+var _stats: Control
 var _fade: ColorRect
 var _args := {}
 
@@ -147,6 +149,7 @@ func _refresh(animate: bool) -> void:
 	var apply := func():
 		_name.text = MODELS[index][0]
 		_desc.text = MODELS[index][1]
+		_fill_stats(MODELS[index][2])
 		for i in _dots.size():
 			_dots[i].color = Palette.ACCENT if i == index else Color(Palette.INK_DARK, 0.25)
 	if not animate:
@@ -190,6 +193,8 @@ func _build_world() -> void:
 	add_child(cam)
 	cam.position = Vector3(0, 2.7, 8.0)
 	cam.look_at(Vector3(0, 0.25, 0))
+	# Araba biraz yukarıda: altında özelliklere yer kalsın
+	cam.v_offset = -0.55
 
 	var disc := CylinderMesh.new()
 	disc.top_radius = 2.9
@@ -248,16 +253,22 @@ func _build_ui(best: int) -> void:
 	_info.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_info.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(_info)
-	_name = _label(_info, "", 38, 870, true)
-	_desc = _label(_info, "", 20, 925, false)
+	_name = _label(_info, "", 38, 800, true)
+	_desc = _label(_info, "", 20, 852, false)
 	_desc.modulate.a = 0.6
+	_stats = Control.new()
+	_stats.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_stats.anchor_right = 1.0
+	_stats.offset_top = 885
+	_stats.offset_bottom = 1010
+	_info.add_child(_stats)
 
 	var dots := HBoxContainer.new()
 	dots.add_theme_constant_override("separation", 14)
 	dots.alignment = BoxContainer.ALIGNMENT_CENTER
 	dots.anchor_right = 1.0
-	dots.offset_top = 980
-	dots.offset_bottom = 990
+	dots.offset_top = 1030
+	dots.offset_bottom = 1040
 	dots.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(dots)
 	for i in MODELS.size():
@@ -317,6 +328,105 @@ func _build_ui(best: int) -> void:
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(_fade)
+
+
+const STAT_NAMES := ["HIZ", "TUTUŞ", "ÇAKIL", "DENGE"]
+
+
+## Özellikler (CarModel.STATS, 1-5): tasarım taslakları --stats_style=1/2/3
+func _fill_stats(variant: int) -> void:
+	for c in _stats.get_children():
+		c.queue_free()
+	var st: Array = CarModel.STATS.get(variant, [3, 3, 3, 3])
+	var style := int(_args.get("stats_style", "1"))
+	if style == 1:
+		# 2x2: AD  ▮▮▮▮▯  4
+		var grid := GridContainer.new()
+		grid.columns = 2
+		grid.add_theme_constant_override("h_separation", 56)
+		grid.add_theme_constant_override("v_separation", 18)
+		_center(grid)
+		for i in 4:
+			var row := HBoxContainer.new()
+			row.add_theme_constant_override("separation", 12)
+			row.add_child(_small(STAT_NAMES[i], 17, 0.55, 74))
+			row.add_child(_bar(st[i], Vector2(18, 10), 4))
+			row.add_child(_small(str(st[i]), 20, 1.0, 18))
+			grid.add_child(row)
+	elif style == 2:
+		# Dört sütun: büyük sayı, altında beşli çizgi ve ad
+		var cols := HBoxContainer.new()
+		cols.add_theme_constant_override("separation", 46)
+		_center(cols)
+		for i in 4:
+			var col := VBoxContainer.new()
+			col.add_theme_constant_override("separation", 6)
+			col.alignment = BoxContainer.ALIGNMENT_CENTER
+			var n := _small(str(st[i]), 40, 1.0, 0)
+			n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			if st[i] >= 4:
+				n.add_theme_color_override("font_color", Palette.ACCENT)
+			col.add_child(n)
+			var b := _bar(st[i], Vector2(12, 5), 3)
+			b.alignment = BoxContainer.ALIGNMENT_CENTER
+			col.add_child(b)
+			var l := _small(STAT_NAMES[i], 15, 0.55, 0)
+			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			col.add_child(l)
+			cols.add_child(col)
+	else:
+		# Satırlar: ad, çubuk, gerçek değer
+		var v: int = variant
+		var real := ["%d km/sa" % roundi(40.0 * CarModel.speed_mul_of(v) * 3.6),
+			"%+d%% direksiyon" % roundi(20.0 * CarModel.stat(v, 1)),
+			"%+d%% savrulma" % roundi(-40.0 * CarModel.stat(v, 2)),
+			"%d° devrilme" % roundi(50.0 + 10.0 * CarModel.stat(v, 3))]
+		var list := VBoxContainer.new()
+		list.add_theme_constant_override("separation", 6)
+		_center(list)
+		for i in 4:
+			var row := HBoxContainer.new()
+			row.add_theme_constant_override("separation", 14)
+			row.add_child(_small(STAT_NAMES[i], 16, 0.55, 76))
+			row.add_child(_bar(st[i], Vector2(26, 8), 4))
+			row.add_child(_small(real[i], 17, 0.85, 170))
+			list.add_child(row)
+
+
+## Kabı özellik alanının ortasına yerleştirir
+func _center(c: Control) -> void:
+	var box := CenterContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_stats.add_child(box)
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(c)
+
+
+## Beş parçalı çubuk: n tanesi dolu
+func _bar(n: int, size: Vector2, gap: int) -> HBoxContainer:
+	var bar := HBoxContainer.new()
+	bar.add_theme_constant_override("separation", gap)
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for k in 5:
+		var seg := ColorRect.new()
+		seg.custom_minimum_size = size
+		seg.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		seg.color = Palette.ACCENT if k < n else Color(Palette.INK_DARK, 0.15)
+		seg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bar.add_child(seg)
+	return bar
+
+
+func _small(text: String, size: int, alpha: float, min_w: float) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", Color(Palette.INK_DARK, alpha))
+	l.custom_minimum_size.x = min_w
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return l
 
 
 func _label(parent: Node, text: String, size: int, y: float, spaced: bool) -> Label:
