@@ -709,9 +709,9 @@ def build_yarisci():
 
 
 def build_latte():
-    """Latte (Figma "RUNNY / Araba 3" çiziminden; krem beyaz, turuncu lastikler): keski gibi sivri burun, kaputta orta
-    çizgide üç küçük hava girişi, tavanı öne siperlik gibi uzanan kabin (önü ve arka camı
-    siyah), arkada orta çizgide ince yüksek yüzgeç, kutu arka tampon, gövdenin dışında
+    """Latte (Figma "RUNNY / Araba 3" çiziminden; krem, turuncu lastikler ve motor çıkıntıları): keski gibi sivri burun, kaputta orta
+    çizgide üç küçük motor çıkıntısı, tavanı öne siperlik gibi uzanan kabin (önü ve arka camı
+    siyah), arkada orta çizgide ince yüksek yüzgeç, lambasız kutu arka tampon, gövdenin dışında
     açıkta duran tekerler (akslarla). Ölçüler çizimin pikselleri: yan görünüşte x boy
     (burun solda), y aşağı (yer y=326); önden/arkadan görünüşte orta çizgi 994.3 / 634.3."""
     MID, GROUND = A3_MID, 326.0
@@ -760,9 +760,9 @@ def build_latte():
     hexa("cabin", (316.6, 380.5, 262.6, 38.75), (325.3, 368.3, 220.2, 27.5))
     # Tavanın öne uzanan siperliği (önden 55 px geniş)
     hexa("visor", (273.6, 326.8, 231.0, 27.5), (280.0, 332.9, 221.0, 25.5))
-    # Kaputta orta çizgide üç hava girişi (önden 11 px geniş)
+    # Kaputta orta çizgide üç motor çıkıntısı (önden 11 px geniş), lastiklerle aynı turuncu
     for x0, x1 in ((197, 208), (214, 226), (232, 243)):
-        hexa("scoop", (x0, x1, top_y((x0 + x1) / 2) + 1.5, 5.5), (x0, x1, 248.0, 5.5))
+        hexa("scoop", (x0, x1, top_y((x0 + x1) / 2) + 1.5, 5.5), (x0, x1, 248.0, 5.5), "Tire")
     # Arkada orta çizgide yüzgeç (arkadan 13 px geniş)
     bm = bmesh.new()
     pts = [(355.1, 241.0), (428.5, 241.0), (401.0, 283.0), (350.0, 283.0)]
@@ -809,20 +809,13 @@ def build_latte():
         q.append([(-w(hw), Y, Z), (w(hw), Y, Z)])
     rear_win = [q[0][0], q[0][1], q[1][1], q[1][0]]
     plate("glass", "Glass", [(windshield, (0, 1, 0.2)), (rear_win, (0, -1, 0.3))])
-    # Farlar: burnun alt pahında (önden 13 px), stoplar: tamponun arka yüzünde (26 px)
+    # Farlar: burnun alt pahında (önden 13 px); arkada lamba yok (yeşil iz oradan çıkar)
     n0, n1 = (140.5, 281.15), (154.0, 302.35)
     lights = []
     for c in (-33.8, 33.2):
         (Ya, Za), (Yb, Zb) = on_edge(n0, n1, 286.0, 0, 0.004), on_edge(n0, n1, 297.0, 0, 0.004)
         lights.append(([(w(c - 6.5), Ya, Za), (w(c + 6.5), Ya, Za), (w(c + 6.5), Yb, Zb), (w(c - 6.5), Yb, Zb)], (0, 1, -0.6)))
     plate("lights", "Light", lights)
-    Yr, _ = P(414.0, 0)
-    tails = []
-    for c in (-23.3, 23.7):
-        _, Za = P(0, 286.0)
-        _, Zb = P(0, 297.0)
-        tails.append(([(w(c - 13), Yr - 0.004, Za), (w(c + 13), Yr - 0.004, Za), (w(c + 13), Yr - 0.004, Zb), (w(c - 13), Yr - 0.004, Zb)], (0, -1, 0)))
-    plate("tails", "Tail", tails)
 
     # Tekerler: gövdenin dışında (iz yarısı 66.7 px), aks çubuklarıyla gövdeye bağlı
     yf, _ = P(190.98, 0)
@@ -878,7 +871,7 @@ BUILDERS = {"kutu": build_kutu, "dragster": build_dragster, "yarisci": build_yar
 ORTHO = {"dragster": (D_MID, 334.0), "yarisci": (300.0, 326.0), "latte": (A3_MID, 326.0, 284.5)}
 ## Modelin gövde rengi (oyun bu rengi alır)
 PAINTS = {"dragster": ((1.0, 0.549, 0.255), 0.6, 0.0), "yarisci": ((0.11, 0.11, 0.12), 0.45, 0.0),
-          "latte": ((0.953, 0.925, 0.851), 0.5, 0.0)}
+          "latte": ((0.886, 0.776, 0.596), 0.55, 0.0)}
 ## Lastik rengi (oyun bu rengi alır); yoksa koyu gri
 TIRES = {"yarisci": ((0.82, 0.16, 0.13), 0.8, 0.0), "latte": ((1.0, 0.353, 0.122), 0.8, 0.0)}
 

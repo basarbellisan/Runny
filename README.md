@@ -30,9 +30,10 @@ Dark Rose (model 7) Blender modeli: Figma'daki "RUNNY / Araba 2" çiziminden
 açık kokpit ve arka üstünde kısa koruma çubuğu, iki dikmeli büyük arka kanat;
 far, kokpit ve camlar kırmızı, lastikler kırmızı, jantlar siyah.
 Latte (model 8) Blender modeli: Figma'daki "RUNNY / Araba 3" çiziminden
-(`latte`). Krem beyaz; keski burun, kaputta orta çizgide üç hava girişi, öne
-siperlik gibi uzanan tavan (ön ve arka cam siyah), arkada ince yüksek yüzgeç,
-kutu tampon, gövde dışında akslı turuncu lastikler.
+(`latte`). Krem; keski burun, kaputta orta çizgide üç turuncu motor çıkıntısı,
+öne siperlik gibi uzanan tavan (ön ve arka cam siyah), arkada ince yüksek
+yüzgeç, lambasız kutu tampon (yeşil iz oradan çıkar), gövde dışında akslı
+turuncu lastikler.
 
 ## Kontroller
 - Mobil: ekranın sol yarısına dokun → sola, sağ yarısına → sağa

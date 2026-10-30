@@ -12,7 +12,7 @@ extends Node3D
 ## variant 7 – Dark Rose: Blender modeli (models/cars/yarisci.glb, Figma "Araba 2"):
 ##             siyah, iki dikmeli arka kanat, kırmızı lastikler
 ## variant 8 – Latte: Blender modeli (models/cars/latte.glb, Figma "Araba 3"):
-##             krem beyaz, öne uzanan siperlik tavan, arka yüzgeç, turuncu lastikler
+##             krem, öne uzanan siperlik tavan, arka yüzgeç, turuncu lastikler ve motor çıkıntıları
 ##
 ## Tekerler (wheels) fizik için de kullanılır: her birinin yerdeki
 ## temas noktası (contact), yarıçapı ve süspansiyon/dönüş düğümleri var.
