@@ -6,7 +6,7 @@
   const KEY = { current: 'runny_editor_current', library: 'runny_editor_library',
     test: 'runny_level_test', result: 'runny_level_result' };
   const GAME_URL = '../index.html';
-  const MODEL_NAMES = { 1: 'Kutu', 2: 'Gezgin', 3: 'Konsept', 4: 'Roadster', 6: 'Dragster', 7: 'Dark Rose' };
+  const MODEL_NAMES = { 1: 'Kutu', 2: 'Gezgin', 3: 'Konsept', 4: 'Roadster', 6: 'Dragster', 7: 'Dark Rose', 8: 'Latte' };
   const $ = (id) => document.getElementById(id);
   const r1 = (v) => Math.round(v * 10) / 10;
   const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
@@ -537,7 +537,7 @@
     const el = $('results');
     const mine = resultsFor === resultsKey() ? results : [];
     if (!mine.length) {
-      el.innerHTML = `<div class="muted">"Test et" tasarımı oyunda otomatik pilotla 6 kez, farklı arabalarla sürer. Düşülen yerler tuvalde ✕ ile işaretlenir.</div>`;
+      el.innerHTML = `<div class="muted">"Test et" tasarımı oyunda otomatik pilotla 7 kez, her arabayla bir kez sürer. Düşülen yerler tuvalde ✕ ile işaretlenir.</div>`;
       return;
     }
     const ok = mine.filter((r) => r.ok).length;
@@ -892,7 +892,7 @@
       const t = v.test;
       const out = t && t.n && t.ok / t.n < 0.8;
       const stale = v.base !== sig;
-      const res = !t ? `<span class="ok" title="Fizik kontrolünden geçti">✓ kontrol</span><button class="vtest" data-vtest="${v.id}" title="Oyunda otomatik pilotla 6 kez sür">Test</button>`
+      const res = !t ? `<span class="ok" title="Fizik kontrolünden geçti">✓ kontrol</span><button class="vtest" data-vtest="${v.id}" title="Oyunda otomatik pilotla 7 kez (her arabayla) sür">Test</button>`
         : t.running ? '<span class="muted">test ediliyor…</span>'
         : `<span class="${t.ok === t.n ? 'ok' : out ? 'no' : 'warn'}">${out ? '✕' : '✓'} ${t.ok}/${t.n}</span>`;
       const chk = out ? '<span class="no">elendi</span>'
@@ -1150,7 +1150,7 @@
     localStorage.setItem('runny_editor_result_for', key);
     results = []; resultsFor = key;
     if (variant) { variant.test = { running: true }; saveJSON(KEY.current, baseLevel()); }
-    const runs = 6;
+    const runs = 7;
     $('gameTitle').textContent = auto ? 'Test: otomatik pilot' : 'Oyna';
     $('gameInfo').textContent = auto ? `0/${runs} koşu` : 'Tasarım başlangıç pistinden sonra gelir';
     $('gameFrame').src = `${GAME_URL}?level=test${auto ? `&autopilot=1&runs=${runs}` : ''}&t=${Date.now()}`;
