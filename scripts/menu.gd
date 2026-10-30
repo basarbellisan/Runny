@@ -194,7 +194,7 @@ func _build_world() -> void:
 	cam.position = Vector3(0, 2.7, 8.0)
 	cam.look_at(Vector3(0, 0.25, 0))
 	# Araba biraz yukarıda: altında özelliklere yer kalsın
-	cam.v_offset = -0.55
+	cam.v_offset = -1.25
 
 	var disc := CylinderMesh.new()
 	disc.top_radius = 2.9
@@ -253,22 +253,22 @@ func _build_ui(best: int) -> void:
 	_info.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_info.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(_info)
-	_name = _label(_info, "", 38, 800, true)
-	_desc = _label(_info, "", 20, 852, false)
+	_name = _label(_info, "", 38, 735, true)
+	_desc = _label(_info, "", 20, 787, false)
 	_desc.modulate.a = 0.6
 	_stats = Control.new()
 	_stats.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_stats.anchor_right = 1.0
-	_stats.offset_top = 885
-	_stats.offset_bottom = 1010
+	_stats.offset_top = 825
+	_stats.offset_bottom = 950
 	_info.add_child(_stats)
 
 	var dots := HBoxContainer.new()
 	dots.add_theme_constant_override("separation", 14)
 	dots.alignment = BoxContainer.ALIGNMENT_CENTER
 	dots.anchor_right = 1.0
-	dots.offset_top = 1030
-	dots.offset_bottom = 1040
+	dots.offset_top = 995
+	dots.offset_bottom = 1005
 	dots.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(dots)
 	for i in MODELS.size():
