@@ -268,8 +268,8 @@ func _build_ui(best: int) -> void:
 	dots.add_theme_constant_override("separation", 14)
 	dots.alignment = BoxContainer.ALIGNMENT_CENTER
 	dots.anchor_right = 1.0
-	dots.offset_top = 298
-	dots.offset_bottom = 310
+	dots.offset_top = 348
+	dots.offset_bottom = 360
 	dots.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(dots)
 	for i in MODELS.size():
@@ -337,7 +337,7 @@ func _build_ui(best: int) -> void:
 const STAT_NAMES := ["HIZ", "TUTUŞ", "ÇAKIL", "DENGE"]
 
 
-## Özellikler (CarModel.STATS, 1-5), 2x2: AD  ▮▮▮▮▯  4
+## Özellikler (CarModel.STATS, 1-5), 2x2: AD  ▮▮▮▮▯
 func _fill_stats(variant: int) -> void:
 	for c in _stats.get_children():
 		c.queue_free()
@@ -352,7 +352,6 @@ func _fill_stats(variant: int) -> void:
 		row.add_theme_constant_override("separation", 12)
 		row.add_child(_small(STAT_NAMES[i], 17, 0.55, 74))
 		row.add_child(_bar(st[i], Vector2(18, 10), 4))
-		row.add_child(_small(str(st[i]), 20, 1.0, 18))
 		grid.add_child(row)
 
 

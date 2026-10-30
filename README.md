@@ -30,7 +30,7 @@ Her arabanın özellikleri var (`CarModel.STATS`, 1-5, 3 = standart):
 | Latte | 3 | 3 | 4 | 4 |
 | Falcon | 5 | 3 | 1 | 5 |
 
-Garajda her arabanın altında bu dört özellik çubuk ve sayıyla görünür.
+Garajda her arabanın altında bu dört özellik beşli çubukla görünür.
 Hız: başlangıç/en yüksek/tavan hız −%8..+%8. Tutuş: direksiyon tepkisi −%20..+%20,
 boştaki teker başına tutuş kaybı ve yatık yolda kayma +%40..−%40. Çakıl: savrulma
 +%40..−%40, sendeleme +%30..−%30. Denge: kenardan devrilme açısı 40°..60°. Ayar
