@@ -125,10 +125,12 @@ Yine de fizik motoru arabayı bir noktada tutarsa (yerdeyken ~0.12 sn ileri
 gidemezse) araba hafifçe kaldırılıp ileri itilir.
 
 ## Hız
-Temel hız 39.5 m/s'den (142 km/sa) başlar, her saniye 0.35 m/s artar ve ~44 sn'de
-55 m/s'ye (198 km/sa) varır; sonra durmaz, saniyede 0.08 m/s ile 75 m/s'ye
-(270 km/sa) kadar artmaya devam eder (ayar panelinde "Zamanla hızlanma", "En
-yüksek hız"; sonraki artış `late_acceleration` / `top_speed`). Yollar tahmini
+Temel hız 40 m/s'den (144 km/sa) başlar, her saniye 1.5 m/s artar ve ~27 sn'de
+80 m/s'ye (288 km/sa) varır; tavan hız da 80 m/s (ayar panelinde "Zamanla hızlanma",
+"En yüksek hız", `late_acceleration` / `top_speed`). Varsayılanlar, ayar panelinde
+denenip onaylanan değerlerdir (`car.gd`, `road_generator.gd`, `car_trail.gd`);
+editör (`editor/physics.js`) ve oyun içi kalıp kontrolü (`level_check.gd`) aynı hız
+değerlerini kullanır. Yollar tahmini
 hıza göre üretilir.
 
 ## Ayar paneli

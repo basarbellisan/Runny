@@ -108,20 +108,18 @@ const ZONES: Array[Color] = [
 	Color("fbfaf7"), Color("b3c4a5"), Color("a5bccf"), Color("dcc8a6"), Color("9da7b1"),
 ]
 
-## Yol uzunlukları hızla orantılı (süre olarak aynı kalır): bu hızda temel uzunluk
-const LENGTH_REF_SPEED := 22.0
 @export var view_distance := 450.0
 @export var cleanup_distance := 40.0
 ## Düz yollarda yükseklik bu bandın içinde kalır
 @export var height_band := Vector2(-4.0, 4.0)
-@export var min_width := Vector2(3.0, 5.0)    # (zor, kolay)
-@export var max_width := Vector2(6.5, 10.0)   # (zor, kolay)
+@export var min_width := Vector2(7.5, 5.0)    # (zor, kolay)
+@export var max_width := Vector2(10.0, 8.0)   # (zor, kolay)
 ## Bu mesafeye (metre) gelince zorluk tavan yapar
 @export var difficulty_distance := 3000.0
-@export_range(0.0, 1.0) var side_road_chance := 0.3
+@export_range(0.0, 1.0) var side_road_chance := 1.0
 ## Boşluğun, gazsız ulaşılamayan en kısa ile tam gazla ulaşılan en uzun
 ## arasındaki yeri (0: az gaz yeter, 1: tam gaz şart)
-@export var gap_difficulty := Vector2(0.1, 0.85)
+@export var gap_difficulty := Vector2(0.1, 0.8)
 ## Kalıpların açıldığı mesafeler (m). Başlangıç pistinden hemen sonra hepsi
 ## kolay hâlleriyle gelebilir (her oyun farklı başlar); ease_distance'a kadar
 ## açılar ve yükseklikler yavaşça tam değerine çıkar.
@@ -133,7 +131,7 @@ const LENGTH_REF_SPEED := 22.0
 ## Çıkmaz kalıbının seçilme ağırlığı (diğerleri ~0.5-1)
 @export var dead_end_weight := 0.5
 ## Çatal kalıbının seçilme ağırlığı
-@export var fork_weight := 0.6
+@export var fork_weight := 2.0
 ## Yol ağı (yol üstü rampalar, alçak/yüksek yan yollar, dönüş rampaları) bu mesafeden
 ## sonra gelir; düz uzun bir yolun bu olasılıkla ağ olması, mesafeyle artar (az -> çok)
 @export var network_from := 0.0
@@ -144,15 +142,15 @@ const LENGTH_REF_SPEED := 22.0
 @export var network_full_at := 4000.0
 ## Yatık yollar (yana yatıp düzelen) bu mesafeden sonra gelir; ağırlık ve en fazla açı
 @export var banks_from := 0.0
-@export var bank_weight := 1.0
-@export var max_bank_deg := 15.0
+@export var bank_weight := 2.0
+@export var max_bank_deg := 17.0
 ## Düz yollara engel (çarpınca patlar) ve çakıl (yavaşlatır) bu mesafeden sonra gelir
 @export var obstacles_from := 0.0
 ## Düz bir yolun engelli olma olasılığı (zorlukla bu değere çıkar)
 @export_range(0.0, 1.0) var obstacle_chance := 1.0
 ## Pist ışıkları: yolun sonundaki ışıklı bölgenin süresi (sn, o anki hızla)
 @export var lights_time := 1.1
-@export var max_slope_deg := 18.0
+@export var max_slope_deg := 21.0
 @export var zone_length := 1000.0
 
 var car: Car
@@ -648,7 +646,7 @@ func _next_from(prev: Segment) -> Segment:
 		# Çıkmazın olduğu taraftan uzaklaş: çıkmazdan düşen araba ana yola çarpmasın
 		dx = -_avoid_side * _rng.randf_range(0.0, max_dx)
 		_avoid_count -= 1
-	var length := _rng.randf_range(40.0, 100.0) * (v / LENGTH_REF_SPEED) * float(spec.get("len", 1.0))
+	var length := _rng.randf_range(40.0, 100.0) * (v / car.start_speed) * float(spec.get("len", 1.0))
 	# Düz, geniş yollar bazen engelli olur: sağ-sol oynanacak yer için uzar
 	var banked: bool = spec.has("bank")
 	var plain: bool = not (banked or spec.has("angle") or spec.has("rise_to") or spec.has("rise") or spec.get("dead_end", false))
@@ -946,7 +944,7 @@ func _add_dead_end(prev: Segment, main_seg: Segment, side: float, v: float, vy_b
 		if absf(x - main_seg.x) >= gap and signf(x - main_seg.x) == side:
 			options.append(x)
 	var main_len := main_seg.z_start - main_seg.z_end
-	var length := minf(_rng.randf_range(60.0, 90.0) * (v / LENGTH_REF_SPEED), main_len - 35.0)
+	var length := minf(_rng.randf_range(60.0, 90.0) * (v / car.start_speed), main_len - 35.0)
 	if options.is_empty() or length < 40.0:
 		return
 	var x: float = options[_rng.randi() % options.size()]
@@ -1155,7 +1153,7 @@ const EVENTS := {
 ## Aksiyon çarpanı: yoldaki olay sayısı ve sıklığı, yoğun yolların payı, kristal
 ## fırsatları bununla çarpılır (1 = eski yoğunluk). Olaylar arası tepki süresi
 ## yine de en az ~0.45 sn kalır.
-@export var action := 2.0
+@export var action := 4.0
 ## Aksiyon mesafeyle artar: çarpanın başta ve action_growth_at metrede aldığı kat
 @export var action_growth := Vector2(1.0, 2.0)
 @export var action_growth_at := 8000.0

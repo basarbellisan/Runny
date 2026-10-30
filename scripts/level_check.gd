@@ -4,11 +4,11 @@ extends RefCounted
 ## editor/physics.js'deki analyze() ve vary() ile aynı kurallar (değişirse ikisi birlikte).
 ## Kalıp: { at, pieces: [{id,x,w,z0,len,h0,h1,bank,side}], obstacles: [{id,kind,x,w,z0,len,rise,dir,dx}] }
 
-const START_SPEED := 39.5
-const MAX_SPEED := 55.0
-const ACCELERATION := 0.35
-const LATE_ACCELERATION := 0.08
-const TOP_SPEED := 75.0
+const START_SPEED := 40.0
+const MAX_SPEED := 80.0
+const ACCELERATION := 1.5
+const LATE_ACCELERATION := 0.15
+const TOP_SPEED := 80.0
 const GRAVITY := 28.0
 const LAUNCH_VELOCITY := 8.0
 const BOOST_BONUS := 1.35
@@ -16,10 +16,11 @@ const BOOST_MAX_EXTRA := 45.0
 const CAR_LEN := 3.9
 const HALF_WIDTH := 1.1
 const STEER_SPEED := 11.0
-const AIR_CONTROL := 0.6
+const AIR_CONTROL := 0.8
 const BUMP_LAUNCH := 1.4
 const LIGHTS_TIME := 1.1
-const MAX_SLOPE_DEG := 18.0
+const MAX_SLOPE_DEG := 21.0
+const MAX_BANK_DEG := 17.0
 
 const VARY_OPS := ["gap", "len", "width", "rows", "swap", "rise"]
 
@@ -188,7 +189,7 @@ static func analyze(level: Dictionary) -> Dictionary:
 			add.call(true, "dik yokuş #%s" % p.id)
 		if f(p, "w") < 3.0:
 			add.call(false, "dar yol #%s" % p.id)
-		if absf(f(p, "bank")) > 15.0:
+		if absf(f(p, "bank")) > MAX_BANK_DEG:
 			add.call(false, "yatıklık #%s" % p.id)
 	for i in pieces.size():
 		for j in range(i + 1, pieces.size()):

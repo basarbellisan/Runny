@@ -12,8 +12,8 @@ extends Node3D
 		style = v
 		_apply_style()
 ## Gazsızken ve tam gazdayken izin ömrü (sn)
-@export var min_life := 0.18
-@export var max_life := 1.1
+@export var min_life := 0.1
+@export var max_life := 0.25
 ## Tam gazda ışık izinin genişlik katı (boyunca eşit: uca doğru incelmez)
 @export var boost_width := 3.2
 

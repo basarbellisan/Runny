@@ -26,17 +26,17 @@ signal died(reason: String)
 
 enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 
-@export var start_speed := 39.5  # 142 km/sa
-@export var max_speed := 55.0
+@export var start_speed := 40.0  # 144 km/sa
+@export var max_speed := 80.0
 ## En yüksek hıza varınca hız yavaşça artmaya devam eder (m/s, her saniye), top_speed'e kadar
-@export var late_acceleration := 0.08
-@export var top_speed := 75.0
+@export var late_acceleration := 0.15
+@export var top_speed := 80.0
 ## Saniyede hız artışı (m/s)
-@export var acceleration := 0.35
+@export var acceleration := 1.5
 @export var steer_speed := 11.0
-@export var steer_accel := 70.0
+@export var steer_accel := 85.0
 ## Havadayken direksiyonun etkisi (0-1)
-@export_range(0.0, 1.0) var air_control := 0.6
+@export_range(0.0, 1.0) var air_control := 0.8
 @export var gravity := 28.0
 ## Yolun kenarından çıkarken verilen küçük yukarı itiş
 @export var launch_velocity := 8.0
@@ -52,7 +52,7 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 ## Süspansiyon: tekerin aşağı sarkabileceği mesafe (m)
 @export var suspension_travel := 0.42
 ## Süspansiyon yayı ve sönümü (gövdenin yatma/kalkma salınımı)
-@export var suspension_stiffness := 110.0
+@export var suspension_stiffness := 80.0
 @export var suspension_damping := 8.0
 ## Bir yanın iki tekeri boşta: araba kenarın üstünden devrilir (rad/sn²)
 @export var tip_roll_accel := 9.0
@@ -64,15 +64,15 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 
 @export_group("Havada")
 ## Havada direksiyon arabayı o yana yatırır (en fazla bu kadar derece)
-@export var air_lean_deg := 28.0
+@export var air_lean_deg := 40.0
 ## Direksiyon bırakılınca yatmanın sönme süresi (sn)
 @export var air_lean_time := 0.35
 ## Havada kendiliğinden düzelme (1/sn). 0: hiç yardım yok
-@export var air_self_level := 0.35
+@export var air_self_level := 0.0
 
 @export_group("İniş")
 ## Bu açıdan (derece) az sapmayla inersen temiz iniş
-@export var clean_landing_deg := 12.0
+@export var clean_landing_deg := 2.0
 ## Bu açıdan fazla yan/ters inersen araba patlar
 @export var crash_landing_deg := 75.0
 ## Bu dikey hızın üstünde (m/s) düzgün inişte bile sendeleme başlar
@@ -84,7 +84,7 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 ## Gazın ekleyebileceği en fazla hız (m/s)
 @export var boost_max_extra := 45.0
 ## Gazın tam güce çıkma ve sönme süreleri (sn)
-@export var boost_rise_time := 0.22
+@export var boost_rise_time := 0.5
 @export var boost_fall_time := 0.35
 ## Dolu yakıtla gaz bu kadar saniye yanar; erken basan yolun sonuna yakıtsız varır
 @export var boost_burn_time := 1.35
@@ -97,13 +97,13 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 
 @export_group("Zemin")
 ## Çakılda ileri hız bu orana düşer, direksiyon tutuşu bu orana iner
-@export var gravel_speed := 0.55
-@export var gravel_grip := 0.3
+@export var gravel_speed := 0.8
+@export var gravel_grip := 0.05
 ## Çakılda arabayı sağa sola savuran itiş (m/s²) ve çakıldan çıkınca süren sendeleme (sn)
-@export var gravel_shove := 38.0
-@export var gravel_after := 0.8
+@export var gravel_shove := 30.0
+@export var gravel_after := 1.3
 ## Çakıl etkisi hızla artar: en yüksek hızda savurma bu kat güçlü
-@export var gravel_speed_gain := 1.35
+@export var gravel_speed_gain := 1.4
 ## Arka savrulma (görsel): çakılda burun sağa sola bu kadar döner (rad)
 @export var gravel_fishtail := 0.22
 
@@ -127,7 +127,7 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 @export_range(0.0, 1.0) var dive_forward_scale := 0.4
 @export var flight_steer_accel := 45.0
 ## Uçarken iki parmakla uçuş yüksekliğinin en fazla bu kadar üstüne çıkılır (m)
-@export var climb_height := 8.0
+@export var climb_height := 8.5
 ## Yükselme hızı (m/s)
 @export var climb_speed := 9.0
 ## Kanatsız düşerken uçuş yüksekliğinin bu kadar altı: uçurum
