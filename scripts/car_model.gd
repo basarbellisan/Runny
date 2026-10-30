@@ -11,11 +11,13 @@ extends Node3D
 ## variant 6 – Dragster: Blender modeli (models/cars/dragster.glb, Figma çiziminden)
 ## variant 7 – Dark Rose: Blender modeli (models/cars/yarisci.glb, Figma "Araba 2"):
 ##             siyah, iki dikmeli arka kanat, kırmızı lastikler
+## variant 8 – Latte: Blender modeli (models/cars/latte.glb, Figma "Araba 3"):
+##             krem beyaz, öne uzanan siperlik tavan, arka yüzgeç, turuncu lastikler
 ##
 ## Tekerler (wheels) fizik için de kullanılır: her birinin yerdeki
 ## temas noktası (contact), yarıçapı ve süspansiyon/dönüş düğümleri var.
 
-@export_range(1, 7) var variant := 1:
+@export_range(1, 8) var variant := 1:
 	set(v):
 		variant = v
 		if is_node_ready():
@@ -23,7 +25,8 @@ extends Node3D
 
 ## Blender'da yapılmış modeller (tools/blender/cars.py): variant -> .glb yolu.
 ## Onaylanmamış modeller yalnız önizlemede (vitrin aracı --glb) eklenir.
-static var glb_models := {6: "res://models/cars/dragster.glb", 7: "res://models/cars/yarisci.glb"}
+static var glb_models := {6: "res://models/cars/dragster.glb", 7: "res://models/cars/yarisci.glb",
+	8: "res://models/cars/latte.glb"}
 
 ## Her teker: { contact: Vector3 (yerel, y=0), radius, front, mount, steer, spin }
 var wheels: Array[Dictionary] = []

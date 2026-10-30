@@ -18,7 +18,7 @@ kendi malzemeleriyle değiştirir). Üretmek: `python tools/blender/cars.py --ou
 models/cars --render <klasör>`. Önizleme: `tools/showroom.gd -- --glb=1:res://models/cars/kutu.glb`.
 Gövde rengi modelden gelir (Blender'daki Paint rengi).
 
-Garajda 6 araba var: Kutu, Gezgin, Konsept, Roadster, Dragster ve Dark Rose. Dragster
+Garajda 7 araba var: Kutu, Gezgin, Konsept, Roadster, Dragster, Dark Rose ve Latte. Dragster
 (model 6) Blender modeli: Figma'daki "RUNNY / Araba 01" çiziminin yan, ön ve
 arka görünüşünden birebir kuruldu (`--ortho` ile çizimle aynı ölçekte dik
 görünüşler çıkar). Uzun dar burun, eğik ön yüzlü geniş arka gövde, öne taşan
@@ -29,6 +29,10 @@ Dark Rose (model 7) Blender modeli: Figma'daki "RUNNY / Araba 2" çiziminden
 (`tools/blender/cars.py` içinde `yarisci`). Siyah gövde, dar yükselen burun,
 açık kokpit ve arka üstünde kısa koruma çubuğu, iki dikmeli büyük arka kanat;
 far, kokpit ve camlar kırmızı, lastikler kırmızı, jantlar siyah.
+Latte (model 8) Blender modeli: Figma'daki "RUNNY / Araba 3" çiziminden
+(`latte`). Krem beyaz; keski burun, kaputta orta çizgide üç hava girişi, öne
+siperlik gibi uzanan tavan (ön ve arka cam siyah), arkada ince yüksek yüzgeç,
+kutu tampon, gövde dışında akslı turuncu lastikler.
 
 ## Kontroller
 - Mobil: ekranın sol yarısına dokun → sola, sağ yarısına → sağa
@@ -297,7 +301,7 @@ fiziğiyle (`editor/physics.js`, oyundaki sabitlerle aynı) her atlamayı, iniş
 bölgesini, rampa/tümsek uçuşunu ve yan yol dönüşlerini denetler.
 - **Çoğaltma (aynı boyda)**: Alt+sürükle kopyasını sürükler; Ctrl+D ya da Çoğalt / 1×-5× ardına ekler
   (kopyayı taşıyıp yine çoğaltınca aynı aralıkla sürer); Ctrl+C / Ctrl+V imlecin olduğu yere yapıştırır.
-- **Test et**: tasarım oyunda otomatik pilotla 6 kez (6 araba) sürülür; düşülen yerler tuvalde ✕.
+- **Test et**: tasarım oyunda otomatik pilotla 7 kez (her arabayla bir kez) sürülür; düşülen yerler tuvalde ✕.
 - **Türevler**: kalıptan oyunun kurallarıyla 4 versiyon türetir (boşluklar, yol uzunluğu, genişlik,
   engel düzeni, çakıl ↔ blok, rampa yüksekliği); asıl kalıpta olmayan yeni bir hata çıkarmayan ve
   asıl kalıptan fazla uyarısı olmayanlar gösterilir (kalıbın bilerek zor yerleri türevde de kalabilir). Karta tıkla: tuvalde gösterilir; Test: otomatik pilot; "oyuna girsin"

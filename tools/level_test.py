@@ -18,7 +18,7 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MODEL_NAMES = {1: "Kutu", 2: "Gezgin", 3: "Konsept", 4: "Roadster", 6: "Dragster", 7: "Dark Rose"}
+MODEL_NAMES = {1: "Kutu", 2: "Gezgin", 3: "Konsept", 4: "Roadster", 6: "Dragster", 7: "Dark Rose", 8: "Latte"}
 
 
 def physics_check(path):
@@ -57,7 +57,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("level")
     ap.add_argument("--runs", type=int, default=6)
-    ap.add_argument("--models", default="1,2,3,4,6,7")
+    ap.add_argument("--models", default="1,2,3,4,6,7,8")
     a = ap.parse_args()
     level = json.load(open(a.level, encoding="utf-8"))
     print("Tasarım: %s (oyunda %s m'den sonra)" % (level.get("name"), level.get("at", 0)))

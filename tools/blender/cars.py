@@ -708,8 +708,8 @@ def build_yarisci():
         round_wheel(name, (x, y, r), r, tw, hub, cap, cout, nut)
 
 
-def build_araba3():
-    """Araba 3 (Figma "RUNNY / Araba 3" çiziminden): keski gibi sivri burun, kaputta orta
+def build_latte():
+    """Latte (Figma "RUNNY / Araba 3" çiziminden; krem beyaz, turuncu lastikler): keski gibi sivri burun, kaputta orta
     çizgide üç küçük hava girişi, tavanı öne siperlik gibi uzanan kabin (önü ve arka camı
     siyah), arkada orta çizgide ince yüksek yüzgeç, kutu arka tampon, gövdenin dışında
     açıkta duran tekerler (akslarla). Ölçüler çizimin pikselleri: yan görünüşte x boy
@@ -871,15 +871,16 @@ def stretch_y(k):
                 v.co.y *= k
 
 
-A3_MID = 277.0       # Araba 3: yan görünüşte arabanın ortası (burun 140.5, arka 414)
-BUILDERS = {"kutu": build_kutu, "dragster": build_dragster, "yarisci": build_yarisci, "araba3": build_araba3}
+A3_MID = 277.0       # Latte (Araba 3): yan görünüşte arabanın ortası (burun 140.5, arka 414)
+BUILDERS = {"kutu": build_kutu, "dragster": build_dragster, "yarisci": build_yarisci, "latte": build_latte}
 ## Figma çizimli arabalar: yan görünüşte arabanın ortası ve yer çizgisi (piksel)
 ## (isteğe bağlı 3. değer: yan görünüşte kameranın baktığı x; yoksa 296.5)
-ORTHO = {"dragster": (D_MID, 334.0), "yarisci": (300.0, 326.0), "araba3": (A3_MID, 326.0, 284.5)}
+ORTHO = {"dragster": (D_MID, 334.0), "yarisci": (300.0, 326.0), "latte": (A3_MID, 326.0, 284.5)}
 ## Modelin gövde rengi (oyun bu rengi alır)
-PAINTS = {"dragster": ((1.0, 0.549, 0.255), 0.6, 0.0), "yarisci": ((0.11, 0.11, 0.12), 0.45, 0.0)}
+PAINTS = {"dragster": ((1.0, 0.549, 0.255), 0.6, 0.0), "yarisci": ((0.11, 0.11, 0.12), 0.45, 0.0),
+          "latte": ((0.953, 0.925, 0.851), 0.5, 0.0)}
 ## Lastik rengi (oyun bu rengi alır); yoksa koyu gri
-TIRES = {"yarisci": ((0.82, 0.16, 0.13), 0.8, 0.0)}
+TIRES = {"yarisci": ((0.82, 0.16, 0.13), 0.8, 0.0), "latte": ((1.0, 0.353, 0.122), 0.8, 0.0)}
 
 
 # ---------------------------------------------------------------- çıktı
