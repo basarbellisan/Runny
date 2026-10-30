@@ -853,6 +853,157 @@ def build_latte():
         wheel3(name, (x, y, r))
 
 
+def build_araba4():
+    """Araba 4 (Figma "RUNNY / Araba 4" çiziminden; yandan ve üstten görünüş): kama gibi
+    alçak sivri burun; altta arkaya doğru genişleyen gövde (üstten dış şeritler), onun
+    üstünde daha dar ve arkaya doğru yükselen güverte (arka köşeleri en yüksek iki boynuz,
+    ortası V oyuk); güvertede ok biçimli siyah kokpit camı ve yanlarda siyah cam, arkada
+    boynuzlar arasında kanat ve ortada yüzgeç; arka tekerler büyük ve geniş.
+    Ölçüler çizimin pikselleri: yan görünüşte x boy (burun solda, 128 → 454), y aşağı
+    (yer y=320); üstten görünüşte orta çizgi x=970, burun aşağıda (y 450 → 121)."""
+    MID, GROUND = A4_MID, 320.0
+    w = lambda px: px * DS
+
+    def P(x, y):
+        return (MID - x) * DS, (GROUND - y) * DS
+
+    def side_x(ty):
+        """Üstten görünüşteki y → yan görünüşteki x (burun 450 → 128, arka 121 → 454)."""
+        return 128.0 + (450.0 - ty) * (326.0 / 329.0)
+
+    def plan_solid(name, plan, top_fn, bot_fn, mat="Paint"):
+        """Üstten görünüş çokgeni (x, y); her köşenin üst ve alt yüksekliği yan görünüşten
+        (yan görünüşteki x'e göre). Üst ve alt yüzler üçgenlenir (yükseklik değişken)."""
+        bm = bmesh.new()
+        top, bot = [], []
+        for px, ty in plan:
+            x = side_x(ty)
+            Y, Zt = P(x, top_fn(x))
+            _, Zb = P(x, bot_fn(x))
+            top.append(bm.verts.new((w(px - 970.0), Y, Zt)))
+            bot.append(bm.verts.new((w(px - 970.0), Y, Zb)))
+        ft = bm.faces.new(top)
+        fb = bm.faces.new(list(reversed(bot)))
+        n = len(plan)
+        for i in range(n):
+            k = (i + 1) % n
+            bm.faces.new((top[i], bot[i], bot[k], top[k]))
+        bmesh.ops.triangulate(bm, faces=[ft, fb])
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        ob = new_object(name, bm, [mat])
+        flat(ob)
+        return ob
+
+    def slab(name, pts, x_in, x_out, mat="Paint"):
+        bm = bmesh.new()
+        a, b = [], []
+        for x, y in pts:
+            Y, Z = P(x, y)
+            a.append(bm.verts.new((w(x_in(x)), Y, Z)))
+            b.append(bm.verts.new((w(x_out(x)), Y, Z)))
+        bm.faces.new(a)
+        bm.faces.new(list(reversed(b)))
+        n = len(pts)
+        for i in range(n):
+            j = (i + 1) % n
+            bm.faces.new((a[i], a[j], b[j], b[i]))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        ob = new_object(name, bm, [mat])
+        flat(ob)
+        return ob
+
+    # Alt gövde: yandan Rect 42 (burun 128,297; üst çizgi 402.4,233'e çıkar; arka eğik yüz 445,307;
+    # alt 307), üstten dış şeritlerin dış kenarı (arkada 858/1082, 173'te 867.5, burunda 926/1014)
+    crease = lambda x: 297.07 - (x - 128.0) * 64.07 / 274.44 if x <= 402.4 else 233.0 + (x - 402.4) * 74.0 / 42.6
+    plan_solid("body", [(858.0, 130.0), (1082.0, 130.0), (1072.5, 173.0), (1014.0, 439.0), (970.0, 450.0),
+                        (926.0, 439.0), (867.5, 173.0)],
+               crease, lambda x: 307.0 if x > 131.0 else 303.0)
+    # Güverte: yandan Rect 43 (üst çizgi burunda 142.5,287 → arka tepe 454,195; alt çizgi 132,307 →
+    # 423,269, arka kenar tepeye çıkar), üstten Rect 50/51 (arka köşeler 872/1068,121; V oyuk 970,146;
+    # burunda 930.5/1009.5,431 ve 970,442)
+    deck_top = lambda x: 287.0 - (x - 142.5) * 92.0 / 311.5
+    deck_bot = lambda x: (307.0 - (x - 132.0) * 38.0 / 291.0) if x <= 423.0 else 269.0 - (x - 423.0) * 74.0 / 31.0
+    plan_solid("deck", [(872.0, 121.0), (877.9, 152.3), (930.5, 431.0), (970.0, 442.0), (1009.5, 431.0),
+                        (1062.1, 152.3), (1068.0, 121.0), (970.0, 146.0)],
+               deck_top, lambda x: deck_bot(x) - 0.5)
+    # Kokpit camı: güvertenin üstünde ok biçimi (arka dış 922/1018,249; arka orta 970,268;
+    # ön 936.7/1003.3,321; ön orta 970,335)
+    plan_solid("canopy", [(922.0, 249.0), (970.0, 268.0), (1018.0, 249.0), (1003.3, 321.0), (970.0, 335.0),
+                          (936.7, 321.0)],
+               lambda x: deck_top(x) - 1.2, lambda x: deck_top(x) + 2.0, "Glass")
+    # Yan camlar: güvertenin yan yüzünde (yandan siyah dörtgen 240,271.5 / 254,254.5 / 325.5,234 / 310.5,254.5)
+    # Güvertenin o boydaki yarı genişliği (üstten kenar 877.9,152.3 → 930.5,431)
+    deck_edge = lambda x: 98.0 - (side_x(152.3) - x) / (side_x(152.3) - side_x(431.0)) * (98.0 - 39.5) \
+        if x <= side_x(152.3) else 98.0
+    bm = bmesh.new()
+    for sx in (-1, 1):
+        q = []
+        for x, y in ((240.0, 271.5), (310.5, 254.5), (325.5, 234.0), (254.0, 254.5)):
+            Y, Z = P(x, y)
+            q.append(bm.verts.new((sx * (w(deck_edge(x)) + 0.006), Y, Z)))
+        f = bm.faces.new(q)
+        f.normal_update()
+        if f.normal.x * sx < 0:
+            f.normal_flip()
+    flat(new_object("side_glass", bm, ["Glass"]))
+    # Arka kanat: boynuzlar arasında, güverte üst çizgisi yüksekliğinde ince plaka
+    # (üstten arkada 138, önde 36 px geniş)
+    xr, xf = side_x(130.0), side_x(174.0)
+    bm = bmesh.new()
+    vs = []
+    for x, half in ((xf, 18.0), (xr, 69.0)):
+        for dz in (0.0, 7.0):
+            Y, Z = P(x, deck_top(x) + dz)
+            vs.append((bm.verts.new((-w(half), Y, Z)), bm.verts.new((w(half), Y, Z))))
+    (fa, fb), (fc, fd), (ra, rb), (rc, rd) = vs
+    for f in ((fa, fb, rb, ra), (fc, rc, rd, fd), (fa, ra, rc, fc), (fb, fd, rd, rb), (fa, fc, fd, fb), (ra, rb, rd, rc)):
+        bm.faces.new(f)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    flat(new_object("wing", bm, ["Paint"]))
+    # Arka yüzgeç: yandan (398,250.5)-(454.5,250.5)-(435,294), üstten 33 px geniş; ortasında koyu şerit
+    slab("fin", [(398.0, 250.5), (454.5, 250.5), (435.0, 294.0)], lambda x: -16.5, lambda x: 16.5)
+    slab("fin_stripe", [(398.5, 249.8), (454.0, 249.8), (435.0, 293.0)], lambda x: -6.5, lambda x: 6.5, "Dark")
+
+    # Akslar
+    yf, _ = P(189.33, 0)
+    yr, _ = P(381.2, 0)
+    rf, rr = w(27.67), w(33.4)
+    box("axle_f", (w(44.25), w(3.67), w(3.67)), (w(-(970 - 868.33 - 22.1)), yf, rf), "Dark")
+    box("axle_f", (w(44.25), w(3.67), w(3.67)), (w(970 - 868.33 - 22.1), yf, rf), "Dark")
+    box("axle_r", (w(48.94), w(4.6), w(4.6)), (w(-(970 - 857.53 - 24.5)), yr, rr), "Dark")
+    box("axle_r", (w(48.94), w(4.6), w(4.6)), (w(970 - 857.53 - 24.5), yr, rr), "Dark")
+
+    def wheel4(name, pos, r, tw, hub_r, hub_out, nut_r):
+        seg = 18
+        bm = bmesh.new()
+        bmesh.ops.create_cone(bm, cap_ends=True, segments=seg, radius1=r, radius2=r, depth=tw)
+        bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
+        tire = new_object(name, bm, ["Tire"])
+        bevel(tire, w(4), 2)
+        flat(tire)
+        for side in (-1, 1):
+            for rad, depth, off, mat, sg in ((r * 0.58, 0.01, tw / 2, "Hub", seg),
+                                             (hub_r, hub_out, tw / 2 + hub_out / 2, "Hub", 12),
+                                             (nut_r, 0.01, tw / 2 + hub_out + 0.003, "Dark", 8)):
+                bm = bmesh.new()
+                bmesh.ops.create_cone(bm, cap_ends=True, segments=sg, radius1=rad, radius2=rad, depth=depth)
+                bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
+                bmesh.ops.translate(bm, verts=bm.verts, vec=(side * off, 0, 0))
+                ob = new_object(name + "_p", bm, [mat])
+                ob.parent = tire
+                flat(ob)
+        tire.location = pos
+        return tire
+
+    xf_, xr_ = w(970 - 881.95), w(970 - 872.58)
+    for name, x, y, r, tw, hub, out, nut in (
+            ("wheel_FL", -xf_, yf, rf, w(39.26), w(7.8), w(5.3), w(4.5)),
+            ("wheel_FR", xf_, yf, rf, w(39.26), w(7.8), w(5.3), w(4.5)),
+            ("wheel_RL", -xr_, yr, rr, w(43.43), w(9.8), w(5.9), w(5.4)),
+            ("wheel_RR", xr_, yr, rr, w(43.43), w(9.8), w(5.9), w(5.4))):
+        wheel4(name, (x, y, r), r, tw, hub, out, nut)
+
+
 def stretch_y(k):
     """Arabayı boyuna uzatır (tekerler büyümez, yalnız yerleri kayar)."""
     for ob in bpy.context.scene.objects:
@@ -865,10 +1016,13 @@ def stretch_y(k):
 
 
 A3_MID = 277.0       # Latte (Araba 3): yan görünüşte arabanın ortası (burun 140.5, arka 414)
-BUILDERS = {"kutu": build_kutu, "dragster": build_dragster, "yarisci": build_yarisci, "latte": build_latte}
+A4_MID = 291.0       # Araba 4: yan görünüşte arabanın ortası (burun 128, arka 454)
+BUILDERS = {"kutu": build_kutu, "dragster": build_dragster, "yarisci": build_yarisci, "latte": build_latte,
+            "araba4": build_araba4}
 ## Figma çizimli arabalar: yan görünüşte arabanın ortası ve yer çizgisi (piksel)
 ## (isteğe bağlı 3. değer: yan görünüşte kameranın baktığı x; yoksa 296.5)
-ORTHO = {"dragster": (D_MID, 334.0), "yarisci": (300.0, 326.0), "latte": (A3_MID, 326.0, 284.5)}
+ORTHO = {"dragster": (D_MID, 334.0), "yarisci": (300.0, 326.0), "latte": (A3_MID, 326.0, 284.5),
+         "araba4": (A4_MID, 320.0, 291.0)}
 ## Modelin gövde rengi (oyun bu rengi alır)
 PAINTS = {"dragster": ((1.0, 0.549, 0.255), 0.6, 0.0), "yarisci": ((0.11, 0.11, 0.12), 0.45, 0.0),
           "latte": ((0.886, 0.776, 0.596), 0.55, 0.0)}
@@ -1025,11 +1179,15 @@ def main():
                 mid, ground = ORTHO[name][:2]
                 cx = ORTHO[name][2] if len(ORTHO[name]) > 2 else 296.5
                 yc, zc = (mid - cx) * DS, (ground - 281.5) * DS
-                render_ortho(a.render, name, {
+                views = {
                     "o_yan": ((-20, yc, zc), (0, yc, zc)),
                     "o_on": ((0, 20, zc), (0, 0, zc)),
                     "o_arka": ((0, -20, zc), (0, 0, zc)),
-                }, DS)
+                }
+                if name == "araba4":
+                    # Bu çizimde önden/arkadan yok, üstten görünüş var
+                    views = {"o_yan": views["o_yan"], "o_ust": ((0, yc, 20), (0, yc, 0))}
+                render_ortho(a.render, name, views, DS, 360 if name == "araba4" else 300)
             else:
                 render(a.render, name, a.studio)
 
