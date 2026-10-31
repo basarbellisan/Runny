@@ -358,6 +358,8 @@ bölgesini ve rampa/tümsek uçuşunu denetler.
   hep var (oyun ardına atlamayla bağlar). "Engel pist bölgesinde" uyarısı da yalnız ışıklı
   yerde. Oyunda ışıklar editördeki kırmızı noktalarla aynı; ışıksız uçta otomatik pilot da
   gaza basmaz.
+- **Blok geçitleri en geniş arabaya göre**: bir sıradaki bloklar arasında garajın en geniş
+  arabası (Gezgin, tekerleriyle 2.54 m) + 1 m geçit kalmalı (3.5 m); kalmazsa hata.
 - **Boşluk**: Engeller bölümünden yolun üstüne sürüklenir; bırakıldığı yere yakın kenardan yolun
   yarısını 30 m boyunca kırpar (yol önü / dar orta / arkası diye üç yola bölünür; dar yolda,
   5 m ve altı, boydan boya keser). Kırpılan yerdeki engeller kalkar; kalan şerit tutamaklarla

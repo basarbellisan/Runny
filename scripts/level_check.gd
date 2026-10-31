@@ -26,6 +26,8 @@ const MAX_BANK_DEG := 17.0
 const SLOW_MUL := 0.96
 const FAST_MUL := 1.08
 const SLOW_MARGIN := 1.0
+## Garajın en geniş arabasının (Gezgin, tekerleriyle) yarı genişliği: blok geçitleri buna göre
+const WIDE_HALF := 1.27
 
 const VARY_OPS := ["gap", "len", "width", "rows", "swap", "rise"]
 
@@ -395,7 +397,7 @@ static func analyze(level: Dictionary) -> Dictionary:
 		if not seen.any(func(x): return is_same(x, exit_p)):
 			add.call(false, "akış kopuk")
 	# Bloklar yolu kapatmasın
-	var need_lane := 2.0 * HALF_WIDTH + 1.0
+	var need_lane := 2.0 * WIDE_HALF + 1.0
 	for p in pieces:
 		var blocks: Array = obstacles.filter(func(o): return o.get("kind", "") == "block" and is_same(host_of(level, o), p))
 		blocks.sort_custom(func(a, b): return f(a, "z0") < f(b, "z0"))
