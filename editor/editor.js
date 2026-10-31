@@ -6,9 +6,9 @@
   const KEY = { current: 'runny_editor_current', library: 'runny_editor_library',
     test: 'runny_level_test', result: 'runny_level_result' };
   const GAME_URL = '../index.html';
-  const MODEL_NAMES = { 1: 'Kutu', 2: 'Gezgin', 3: 'Konsept', 4: 'Roadster', 6: 'Dragster', 7: 'Dark Rose', 8: 'Latte', 9: 'Falcon' };
+  const MODEL_NAMES = { 1: 'Kutu', 2: 'Gezgin', 3: 'Konsept', 4: 'Roadster', 6: 'Dragster', 7: 'Dark Rose', 8: 'Latte', 9: 'Falcon', 10: 'GEM' };
   // Garajdaki arabalar ve hız katları (scripts/car_model.gd GARAGE / STATS): "Oyna" rastgele birini seçer
-  const GARAGE = { 2: 0.96, 6: 1.04, 7: 1.04, 8: 1.0, 9: 1.08 };
+  const GARAGE = { 2: 0.96, 6: 1.04, 7: 1.04, 8: 1.0, 9: 1.08, 10: 1.04 };
   let playModel = 0;
   const $ = (id) => document.getElementById(id);
   const r1 = (v) => Math.round(v * 10) / 10;
