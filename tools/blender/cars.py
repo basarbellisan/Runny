@@ -1103,57 +1103,80 @@ def build_araba5():
             bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
             flat(new_object(name, bm, [mat]))
 
-    # Gövde: üstten kenar burunda ±24.7 (ty 431), arkada ±65 (ty 147; arkası çamurlukların altında).
-    # Kesit beşgen: alt köşeler (±hb, 307.9), omuzlar, sırt. Burun önü eğik yüz (142.5 alt → 155.2 sırt);
-    # sırt 155.2,274.3 → 231.2,252.1 → 297.8,257.2; yüzgeç önü dik basamak, tepesi 367.4,211
-    # (önden: yüzgeç tabanı ±43, 273.7); arka yüz (424) arkadan: sırttan ±47.5, 286 köşelerine iner
-    hb = lambda x: 24.7 + (x - 140.0) * (65.0 - 24.7) / (424.0 - 140.0)
-    ring = lambda xb, xr, ridge, hs, ys: [(xb, -hb(xb), BOT), (xb, hb(xb), BOT), (xr, hs, ys), (xr, 0.0, ridge),
-                                          (xr, -hs, ys)]
-    loft3("body", [
-        ring(142.5, 155.2, 274.3, hb(150.0), 300.0),
-        ring(231.2, 231.2, 252.1, hb(231.2) * 0.98, 305.0),
-        ring(297.8, 297.8, 257.2, hb(297.8) * 0.98, 305.0),
-        ring(298.6, 296.5, 236.0, 40.0, 275.0),
-        ring(367.4, 367.4, 211.0, 43.0, 273.7),
-        ring(424.0, 424.0, 286.0, 47.5, 286.0),
-    ])
-    # Çatı yüksekliği (kokpit camı ve arka siyah üçgen için): sırttan omza düz iner
+    # Gövde: kesiti üçgen (sırt ortada, alt köşeler ±hb). Sırt burundan (155.2,274.3) yüzgeç tepesine
+    # (367.4,211) tek düz çizgi (yandan 231.2,252.1 ve 286.3,235.7 de üstünde); alt köşeler de düz:
+    # yan yüzler düz düzlem (sırt ile alt çizgi x 42.6'da buluşur). Burun önü üçgen yüz. Kokpit:
+    # sırtta üçgen kesik (yandan 231.2,252 → 297.8,257.2 tabanı → 286.3,235.7 öne eğik arka yüzü),
+    # içi siyah. Yüzgeç tepesinden arka yüze (424; arkadan sırttan ±47.5, 286 köşelerine) iner.
+    ridge = lambda x: 274.3 - (x - 155.2) * (274.3 - 211.0) / (367.4 - 155.2)
+    hb = lambda x: 0.1704 * (x - 42.6)
+    side_d = lambda x, y: hb(x) * (BOT - y) / (BOT - ridge(x))  # yan yüzde y yüksekliğinin yanal yeri
+    floor = lambda x: 251.6 + (257.2 - 251.6) * (x - 231.2) / (297.8 - 231.2)
+
+    def ring(xb, xs, ys, xt, yt, dt=None):
+        """Altı köşe: alt sol/sağ, omuz sağ, tepe sağ/sol, omuz sol (omuz ve tepe yan yüzde)."""
+        b = hb(xb)
+        ds = side_d(xs, ys)
+        if dt is None:
+            dt = side_d(xt, yt) if yt > ridge(xt) + 1e-6 else 0.0
+        return [(xb, -b, BOT), (xb, b, BOT), (xs, ds, ys), (xt, dt, yt), (xt, -dt, yt), (xs, -ds, ys)]
+
+    nose_mid = lambda xb, xt: (xb + xt) * 0.5
+    rings = [
+        # Burun önü: alt 142.5, sırt 155.2 (omuzlar ön yüzün kenarında)
+        [(142.5, -hb(142.5), BOT), (142.5, hb(142.5), BOT), (148.85, hb(142.5) * 0.5, (BOT + 274.3) * 0.5),
+         (155.2, 0.0, 274.3), (155.2, 0.0, 274.3), (148.85, -hb(142.5) * 0.5, (BOT + 274.3) * 0.5)],
+        ring(231.2, 231.2, 280.0, 231.2, ridge(231.2)),
+        ring(297.8, 297.8, 282.0, 297.8, floor(297.8)),
+        ring(298.4, 298.4, 282.0, 286.3, ridge(286.3)),
+        ring(367.4, 367.4, 273.7, 367.4, 211.0),
+        [(424.0, -65.0, BOT), (424.0, 65.0, BOT), (424.0, 47.5, 286.0), (424.0, 0.0, 286.0), (424.0, 0.0, 286.0),
+         (424.0, -47.5, 286.0)],
+    ]
+    bm = bmesh.new()
+    vs = [[bm.verts.new((w(z),) + P(x, y)) for x, z, y in r] for r in rings]
+    dark = []
+    for ri, (a, b) in enumerate(zip(vs, vs[1:])):
+        for k in range(6):
+            k2 = (k + 1) % 6
+            f = bm.faces.new((a[k], a[k2], b[k2], b[k]))
+            # Kokpit kesiğinin içi: tabanı (231→297.8) ve arka yüzü (297.8→298.4)
+            if (ri == 1 and k == 3) or (ri == 2 and k in (2, 3, 4)):
+                dark.append(f)
+    caps = [bm.faces.new(vs[0]), bm.faces.new(list(reversed(vs[-1])))]
+    for f in dark:
+        f.material_index = 1
+    bmesh.ops.triangulate(bm, faces=caps)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+    bmesh.ops.dissolve_degenerate(bm, edges=bm.edges, dist=1e-5)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    flat(new_object("body", bm, ["Paint", "Dark"]))
+
+    # Arka güverte yüksekliği (siyah üçgen için): yüzgeç tepesinden arka yüze
     def roof(x, d):
-        if x <= 298.6:
-            t = min(max((x - 231.2) / (297.8 - 231.2), 0.0), 1.0)
-            r = 252.1 + (257.2 - 252.1) * t
-            hs, ys = hb(x) * 0.98, 305.0
-        else:
-            t = (x - 367.4) / (424.0 - 367.4)
-            r = 211.0 + (286.0 - 211.0) * t
-            hs, ys = 43.0 + 4.5 * t, 273.7 + (286.0 - 273.7) * t
+        t = min(max((x - 367.4) / (424.0 - 367.4), 0.0), 1.0)
+        r = 211.0 + (286.0 - 211.0) * t
+        hs, ys = side_d(367.4, 273.7) + (47.5 - side_d(367.4, 273.7)) * t, 273.7 + (286.0 - 273.7) * t
         return r + (ys - r) * min(abs(d) / hs, 1.0)
 
     def decal(name, pts, mat, lift=1.2):
-        """Üstten (yanal, ty) noktalarıyla çatıya oturan ince parça; sırtın iki yanı ayrı."""
+        """Üstten (yanal, ty) noktalarıyla güverteye oturan ince parça (sırtın bir yanı)."""
         bm = bmesh.new()
-        halves = [pts] if all(d >= -1e-6 for d, _ in pts) or all(d <= 1e-6 for d, _ in pts) else None
-        for half in (halves or [[(max(d, 0.0), t) for d, t in pts], [(min(d, 0.0), t) for d, t in pts]]):
-            top, bot = [], []
-            for d, ty in half:
-                x = 571.0 - ty
-                Y, _ = P(x, 0)
-                top.append(bm.verts.new((w(d), Y, (GROUND - roof(x, d) + lift) * DS)))
-                bot.append(bm.verts.new((w(d), Y, (GROUND - roof(x, d) - 1.0) * DS)))
-            ft = bm.faces.new(top)
-            fb = bm.faces.new(list(reversed(bot)))
-            for i in range(len(half)):
-                k = (i + 1) % len(half)
-                bm.faces.new((top[i], bot[i], bot[k], top[k]))
-            bmesh.ops.triangulate(bm, faces=[ft, fb])
-        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+        top, bot = [], []
+        for d, ty in pts:
+            x = 571.0 - ty
+            Y, _ = P(x, 0)
+            top.append(bm.verts.new((w(d), Y, (GROUND - roof(x, d) + lift) * DS)))
+            bot.append(bm.verts.new((w(d), Y, (GROUND - roof(x, d) - 1.0) * DS)))
+        ft = bm.faces.new(top)
+        fb = bm.faces.new(list(reversed(bot)))
+        for i in range(len(pts)):
+            k = (i + 1) % len(pts)
+            bm.faces.new((top[i], bot[i], bot[k], top[k]))
+        bmesh.ops.triangulate(bm, faces=[ft, fb])
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         flat(new_object(name, bm, [mat]))
 
-    # Kokpit camı: üstten ok (arka köşeler ±26.6,273; arka çentik 288.3; ön uç 340.2)
-    for sgn in (-1.0, 1.0):
-        decal("canopy", [(sgn * 26.6, 273.0), (0.0, 288.3), (0.0, 340.2)], "Glass")
     # Arkada siyah üçgen (üstten 1097.9..1132.1, ty 161.5 → 181.8; arkadan tabanı 290'da, ±25):
     # arka kenara kadar uzatıldı, arkadan da görünsün
     for sgn in (-1.0, 1.0):
