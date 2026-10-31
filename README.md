@@ -32,7 +32,8 @@ Her arabanın özellikleri var (`CarModel.STATS`, 1-5, 3 = standart):
 | GEM | 4 | 4 | 2 | 4 |
 
 Garajda her arabanın altında bu dört özellik beşli çubukla görünür (etiketler İngilizce:
-SPEED, STEERING, GRAVEL, STABILITY; tutuş = STEERING, yani direksiyon).
+SPEED, STEERING, OFF-ROAD, STABILITY; tutuş = STEERING yani direksiyon, çakıl = OFF-ROAD:
+bozuk zemin; ileride eklenecek kum, buz gibi zeminler de bu özelliğe bağlanır).
 Hız: başlangıç/en yüksek/tavan hız −%8..+%8. Tutuş: direksiyon tepkisi −%20..+%20,
 boştaki teker başına tutuş kaybı ve yatık yolda kayma +%40..−%40. Çakıl: savrulma
 +%40..−%40, sendeleme +%30..−%30. Denge: kenardan devrilme açısı 40°..60°. Ayar

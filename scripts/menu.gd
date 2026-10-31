@@ -368,7 +368,7 @@ func _build_ui(best: int) -> void:
 	ui.add_child(_fade)
 
 
-const STAT_NAMES := ["SPEED", "STEERING", "GRAVEL", "STABILITY"]
+const STAT_NAMES := ["SPEED", "STEERING", "OFF-ROAD", "STABILITY"]
 
 
 ## Özellikler (CarModel.STATS, 1-5), 2x2: AD  ▮▮▮▮▯
