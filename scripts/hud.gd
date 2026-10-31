@@ -11,6 +11,7 @@ var _labels: Array[Label] = []
 var _score: Label
 var _mult: Label
 var _dist: Label
+var _captions: Array[Label] = []
 var _popup: Label
 var _hint: Label
 var _energy: Control
@@ -45,12 +46,21 @@ func _ready() -> void:
 	_spaced.spacing_glyph = 4
 	# Üstte iki köşe, aynı boy: solda gidilen mesafe (km), sağda puan.
 	# Çarpan (x2..x5) puanı etkiler ama ekranda gösterilmez
-	_dist = _make_label(TOP_SIZE, Vector2(0, 64))
+	_dist = _make_label(TOP_SIZE, Vector2(0, 84))
 	_dist.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_dist.offset_left = TOP_MARGIN
-	_score = _make_label(TOP_SIZE, Vector2(0, 64))
+	_score = _make_label(TOP_SIZE, Vector2(0, 84))
 	_score.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_score.offset_right = -TOP_MARGIN
+	# Rakamların üstünde ne olduklarını söyleyen küçük başlıklar
+	for c in [["DISTANCE", HORIZONTAL_ALIGNMENT_LEFT], ["SCORE", HORIZONTAL_ALIGNMENT_RIGHT]]:
+		var cap := _make_label(15, Vector2(0, 40), true)
+		cap.text = c[0]
+		cap.horizontal_alignment = c[1]
+		cap.offset_left = TOP_MARGIN + 2.0
+		cap.offset_right = -TOP_MARGIN - 2.0
+		cap.modulate.a = 0.55
+		_captions.append(cap)
 	_mult = _make_label(26, Vector2(0, 162), true)
 	_mult.visible = false
 	_popup = _make_label(40, Vector2(0, 420), true)
