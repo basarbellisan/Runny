@@ -39,10 +39,11 @@ func _ready() -> void:
 	_spaced = FontVariation.new()
 	_spaced.spacing_glyph = 4
 	_score = _make_label(76, Vector2(0, 56))
-	# Puanın altında gidilen mesafe, onun altında çarpan
+	# Puanın altında gidilen mesafe. Çarpan (x2..x5) puanı etkiler ama ekranda gösterilmez
 	_dist = _make_label(22, Vector2(0, 118), true)
 	_dist.modulate.a = 0.6
 	_mult = _make_label(26, Vector2(0, 162), true)
+	_mult.visible = false
 	_popup = _make_label(40, Vector2(0, 420), true)
 	_popup.modulate.a = 0.0
 	_hint = _make_label(20, Vector2(0, 330), true)

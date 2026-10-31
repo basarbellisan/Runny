@@ -193,7 +193,6 @@ func _physics_process(delta: float) -> void:
 			if _mult_timer >= multiplier_step_time and multiplier < max_multiplier:
 				_mult_timer = 0.0
 				multiplier += 1
-				hud.popup("x%d" % multiplier)
 				Audio.play("multiplier")
 		Car.Mode.FLYING:
 			var burn := energy_drain * delta * (boost_drain_factor if car.climbing else 1.0)
@@ -276,8 +275,6 @@ func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 			if previous == Car.Mode.DRIVE:
 				_stats.falls += 1
 				Audio.play("fall", -4.0)
-				if multiplier > 1:
-					hud.popup("x1")
 				multiplier = 1
 				_mult_timer = 0.0
 		Car.Mode.FLYING:
