@@ -10,6 +10,7 @@ signal garage_pressed
 var _labels: Array[Label] = []
 var _score: Label
 var _mult: Label
+var _dist: Label
 var _popup: Label
 var _hint: Label
 var _energy: Control
@@ -26,6 +27,7 @@ var _over_bg: ColorRect
 var _over_reason: Label
 var _over_score: Label
 var _over_best: Label
+var _over_dist: Label
 var _popup_tween: Tween
 var _ink := Palette.INK_DARK
 var _mood := -1.0
@@ -37,7 +39,10 @@ func _ready() -> void:
 	_spaced = FontVariation.new()
 	_spaced.spacing_glyph = 4
 	_score = _make_label(76, Vector2(0, 56))
-	_mult = _make_label(26, Vector2(0, 150), true)
+	# Puanın altında gidilen mesafe, onun altında çarpan
+	_dist = _make_label(22, Vector2(0, 118), true)
+	_dist.modulate.a = 0.6
+	_mult = _make_label(26, Vector2(0, 162), true)
 	_popup = _make_label(40, Vector2(0, 420), true)
 	_popup.modulate.a = 0.0
 	_hint = _make_label(20, Vector2(0, 330), true)
@@ -127,7 +132,9 @@ func _build_game_over() -> void:
 	_over_bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_over_reason = _make_label(26, Vector2(0, 480), true, _over)
 	_over_score = _make_label(110, Vector2(0, 600), false, _over)
-	_over_best = _make_label(20, Vector2(0, 700), true, _over)
+	_over_dist = _make_label(26, Vector2(0, 690), true, _over)
+	_over_best = _make_label(20, Vector2(0, 745), true, _over)
+	_over_best.modulate.a = 0.6
 	var again := _make_label(18, Vector2(0, 900), true, _over)
 	again.text = "TAP TO PLAY AGAIN"
 	again.modulate.a = 0.55
@@ -217,8 +224,19 @@ func set_energy(fraction: float) -> void:
 	_energy_fill.color = _ink if fraction > 0.3 else Palette.ACCENT
 
 
-func set_score(score: int, multiplier: int) -> void:
+## Mesafe: 1,234 m (binler virgülle)
+static func distance_text(meters: float) -> String:
+	var s := str(int(maxf(meters, 0.0)))
+	var out := ""
+	while s.length() > 3:
+		out = "," + s.right(3) + out
+		s = s.left(s.length() - 3)
+	return s + out + " m"
+
+
+func set_score(score: int, multiplier: int, meters := 0.0) -> void:
 	_score.text = str(score)
+	_dist.text = distance_text(meters)
 	_mult.text = "x%d" % multiplier
 	_mult.modulate.a = 1.0 if multiplier > 1 else 0.45
 
@@ -236,9 +254,10 @@ func popup(text: String, accent := false) -> void:
 	_popup_tween.tween_property(_popup, "modulate:a", 0.0, 0.3)
 
 
-func show_game_over(reason: String, score: int, best: int) -> void:
+func show_game_over(reason: String, score: int, best: int, meters := 0.0) -> void:
 	_over_reason.text = reason.trim_suffix("!")
 	_over_score.text = str(score)
+	_over_dist.text = distance_text(meters)
 	_over_best.text = "BEST  %d" % best
 	_over.visible = true
 	_over.modulate.a = 0.0

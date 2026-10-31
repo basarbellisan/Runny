@@ -216,7 +216,7 @@ func _physics_process(delta: float) -> void:
 		Audio.play("energy_low")
 	elif car.energy > EnergyGauge.LOW_AT + 10.0:
 		_energy_warned = false
-	hud.set_score(int(score), multiplier)
+	hud.set_score(int(score), multiplier, _start_z - car.global_position.z)
 	hud.gauge.collect_hint = not lower.active
 	# Kanat yedeği açıksa göstergede kalan yedek görünür
 	hud.gauge.reserve = car.reserve_on
@@ -437,7 +437,7 @@ func _on_game_over(reason: String) -> void:
 	cfg.set_value("tutorial", "landings", _landings_total)
 	cfg.save(SAVE_PATH)
 	# Patlamanın görülmesi için oyun sonu ekranı biraz gecikmeli gelir
-	get_tree().create_timer(1.0).timeout.connect(hud.show_game_over.bind(reason, final, best))
+	get_tree().create_timer(1.0).timeout.connect(hud.show_game_over.bind(reason, final, best, _start_z - car.global_position.z))
 	get_tree().create_timer(1.0).timeout.connect(Audio.play.bind("game_over"))
 	print("GAME_OVER reason=%s %s frame=%d" % [reason, _stats_text(), Engine.get_process_frames()])
 	if car.autopilot:
