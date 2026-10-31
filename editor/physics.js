@@ -130,6 +130,24 @@
     }
     return out;
   }
+  // Rampa/tümsek uçuşunun indiği yol: yayın indiği ilk (en yüksek) yol; yay yukarı da çıkar,
+  // daha yüksek bir yola da konulabilir. { p, z } ya da null
+  function flightLanding(level, o, F) {
+    const cands = level.pieces.filter((p) => Math.abs(F.x - p.x) <= p.w / 2 + 0.3)
+      .sort((a, b) => hAt(b, F.from) - hAt(a, F.from));
+    for (const p of cands) {
+      const t = flightTime(hAt(p, F.from + 10) - F.top, F.vy0);
+      if (isNaN(t)) continue;
+      const z = F.from + (o.kind === 'bump' ? 0 : CAR.carLen) + F.v * t;
+      if (z >= p.z0 - 1 && z <= pEnd(p)) return { p, z };
+    }
+    return null;
+  }
+  // Yolun sonundaki, yolu boydan boya kaplayan rampa (araba yolun ucuna gelmez, rampadan kalkar)
+  function endRamp(level, A) {
+    return (level.obstacles || []).find((o) => o.kind === 'ramp' && hostOf(level, o) === A &&
+      o.z0 + num(o.len, 8) >= pEnd(A) - 3 && num(o.w, 4) >= A.w - 0.6) || null;
+  }
   // Yolun ucundan asıl gidilen yol (tuvaldeki bağlantı çizgisi): ileride, en az yana kaymayla
   function primary(level, A) {
     let B = null, best = Infinity;
@@ -150,6 +168,14 @@
     if (s) return { lit: false, text: `bitişik yolla (#${s.id}) devam ediyor` };
     if (hasDeadend(level, A)) return { lit: false, text: 'çıkmaz' };
     if (A === exitOf(level)) return { lit: true, text: 'kalıbın çıkışı: oyun sonraki yolu atlamayla bağlar' };
+    // Sonda boydan boya rampa: araba rampadan uçar; Gezgin gazsız ileride bir yola iniyorsa ışık yok
+    const R = endRamp(level, A);
+    if (R) {
+      const F = rampFlight(level, R, A, CAR.slowMul);
+      const L = isNaN(F.t) ? null : flightLanding(level, R, F);
+      if (L && L.p !== A) return { lit: false, text: `sondaki rampa (#${R.id}) ${CAR.slowName}'i gazsız #${L.p.id} yoluna atar` };
+      return { lit: true, text: `sondaki rampa (#${R.id}) ${CAR.slowName}'i gazsız bir yola yetiştirmiyor (gaz gerek)` };
+    }
     const B = primary(level, A);
     if (!B) return { lit: true, text: 'ileride inilecek yol yok' };
     const o = onward(level, A).find((x) => x.q === B);
@@ -163,9 +189,9 @@
   const needsLights = (level, A) => lightsInfo(level, A).lit;
 
   // Rampa/tümsek uçuşu: ileri mesafe, uçuş süresi, iniş z'si
-  function rampFlight(level, o, host) {
+  function rampFlight(level, o, host, mul = 1) {
     const at = num(level.at, 0);
-    const v = speedAt(at + o.z0);
+    const v = speedAt(at + o.z0) * mul;
     const rise = num(o.rise, 1.6), len = Math.max(num(o.len, 8), 0.5);
     if (o.kind === 'bump') {
       const half = len / 2;
@@ -311,17 +337,9 @@
       F.o = o; F.host = host;
       flights.push(F);
       if (isNaN(F.t)) continue;
-      // İnilen yol: uçuş yayının indiği ilk (en yüksek) yol; yay yukarı da çıkar,
-      // daha yüksek bir yola da konulabilir
-      let landOn = null;
-      const cands = level.pieces.filter((p) => Math.abs(F.x - p.x) <= p.w / 2 + 0.3)
-        .sort((a, b) => hAt(b, F.from) - hAt(a, F.from));
-      for (const p of cands) {
-        const t = flightTime(hAt(p, F.from + 10) - F.top, F.vy0);
-        if (isNaN(t)) continue;
-        const z = F.from + (o.kind === 'bump' ? 0 : CAR.carLen) + F.v * t;
-        if (z >= p.z0 - 1 && z <= pEnd(p)) { landOn = p; F.land = z; break; }
-      }
+      const L = flightLanding(level, o, F);
+      const landOn = L ? L.p : null;
+      if (L) F.land = L.z;
       F.landOn = landOn;
       if (!landOn) {
         add('error', `${KIND_NAMES[o.kind]} boşluğa atıyor: ~${(F.land - F.from).toFixed(0)} m uçuşun sonunda yol yok.`, [o.id], o.z0);
