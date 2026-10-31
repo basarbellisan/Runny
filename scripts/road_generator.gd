@@ -2845,13 +2845,9 @@ func _build_custom(prev: Segment, level: Dictionary, travelled: float, vary := f
 	var vy := car.launch_velocity + v * slope
 	var vy_b := car.launch_velocity + v_boost * slope
 	var max_up := maxf(vy, 0.0) * maxf(vy, 0.0) / (2.0 * car.gravity) * 0.6
-	var pieces: Array = level.pieces.duplicate()
-	pieces.sort_custom(func(a, b): return float(a.z0) < float(b.z0))
+	# Yollar başlangıç sırasıyla ("yan yol" ayrımı yok); giriş en baştaki yol
+	var pieces: Array = LevelCheck.main_path(level)
 	var entry: Dictionary = pieces[0]
-	for p in pieces:
-		if not p.get("side", false):
-			entry = p
-			break
 	# Giriş: önceki yoldan normal bir boşlukla (gazsız ulaşılamaz, roketle ulaşılır)
 	var dh := minf(_rng.randf_range(-2.0, 0.5), max_up)
 	if vy < 2.0:
@@ -2885,9 +2881,9 @@ func _build_custom(prev: Segment, level: Dictionary, travelled: float, vary := f
 		var h1 := float(p.get("h1", h0))
 		var zs := zb - float(p.get("z0", 0.0))
 		var ze := zs - plen
-		var is_main: bool = not p.get("side", false)
-		# Ucunda bitişik devamı olan parçada pist ışıkları yok
-		var flush_next := _custom_successor(p, pieces) != null
+		var is_main := true
+		# Ucunda bitişik devamı olan parçada ve çıkmazda pist ışıkları yok
+		var flush_next := _custom_successor(p, pieces) != null or LevelCheck.has_deadend(level, p)
 		var bank := float(p.get("bank", 0.0))
 		var first: Segment
 		var last: Segment
@@ -2935,13 +2931,8 @@ func _build_custom(prev: Segment, level: Dictionary, travelled: float, vary := f
 		else:
 			first = _add_segment(x, oy + h0, oy + h1, w, zs, ze, is_main, false, -1.0, not flush_next)
 			last = first
-		var sg := first
-		while sg:
-			sg.side_road = not is_main
-			sg = sg.next_flush
 		built.append({"p": p, "first": first, "last": last})
-		if is_main:
-			heads.append(last)
+		heads.append(last)
 	# Bitişik parçalar (boşluksuz devam) birbirine bağlanır
 	for b in built:
 		var nxt: Variant = _custom_successor(b.p, pieces)
@@ -2954,12 +2945,14 @@ func _build_custom(prev: Segment, level: Dictionary, travelled: float, vary := f
 		var kind: String = o.get("kind", "")
 		if kind == "bump":
 			continue
+		# Üstünde durduğu yol: tasarımdaki sırayla ilk (editördeki hostOf gibi)
 		var host: Dictionary = {}
-		for b in built:
-			if _custom_on(o, b.p):
-				host = b
-				if not b.p.get("side", false):
-					break
+		for lp in level.pieces:
+			if _custom_on(o, lp):
+				for b in built:
+					if b.p == lp:
+						host = b
+				break
 		if host.is_empty():
 			continue
 		var wz := zb - float(o.get("z0", 0.0))
@@ -2990,22 +2983,24 @@ func _build_custom(prev: Segment, level: Dictionary, travelled: float, vary := f
 				_add_block(end_seg, end_seg.x - end_seg.width * 0.5, end_seg.x + end_seg.width * 0.5, end_seg.z_end + 1.4, 1.2)
 	# Kristaller: oyunun algoritmasıyla (iniş sırası, pist çizgisi, boşluk yayları)
 	if level.get("crystals", true):
-		var mains: Array[Dictionary] = []
 		for b in built:
-			if not b.p.get("side", false):
-				mains.append(b)
-		var prev_last: Segment = prev
-		for b in mains:
-			var dz: float = prev_last.z_end - b.first.z_start
-			if dz > 4.0 and _rng.randf() < 0.6:
-				_gap_crystals(prev_last, b.first.x, b.first.top - prev_last.top_end, dz, v)
+			# Boşluk yayı: bu yola atlanan en yakın yolun ucundan (yana kaymadan ulaşılan;
+			# kalıbın girişinde önceki yoldan)
+			var from: Segment = prev if b.p == entry else null
+			var best := INF
+			for c in built:
+				var dzc: float = c.last.z_end - b.first.z_start
+				if c == b or dzc < 0.6 or dzc > 150.0:
+					continue
+				var lat := maxf(0.0, absf(c.last.x - b.first.x) - (c.last.width + b.first.width) * 0.5)
+				if lat < 0.5 and dzc < best:
+					best = dzc
+					from = c.last
+			if from != null:
+				var dz: float = from.z_end - b.first.z_start
+				if dz > 4.0 and _rng.randf() < 0.6:
+					_gap_crystals(from, b.first.x, b.first.top - from.top_end, dz, v)
 			_road_crystals(b.first, v, travelled + float(b.p.get("z0", 0.0)))
-			prev_last = b.last
-		for b in built:
-			if b.p.get("side", false):
-				var s: Segment = b.first
-				var cxs := s.x
-				_crystal_line(s, cxs, s.z_start - 6.0, cxs, s.z_end + 6.0, mini(int((s.z_start - s.z_end) / crystal_spacing), 6))
 	for b in built:
 		_add_decor(b.first)
 	# Çıkış: en uzaktaki ana yol (sonraki kalıp buradan devam eder)

@@ -2,7 +2,7 @@ class_name LevelCheck
 extends RefCounted
 ## El yapımı kalıpların fizik kontrolü ve gerçek zamanlı türetilmesi.
 ## editor/physics.js'deki analyze() ve vary() ile aynı kurallar (değişirse ikisi birlikte).
-## Kalıp: { at, pieces: [{id,x,w,z0,len,h0,h1,bank,side}], obstacles: [{id,kind,x,w,z0,len,rise,dir,dx}] }
+## Kalıp: { at, pieces: [{id,x,w,z0,len,h0,h1,bank}], obstacles: [{id,kind,x,w,z0,len,rise,dir,dx}] }
 
 const START_SPEED := 40.0
 const MAX_SPEED := 80.0
@@ -102,7 +102,7 @@ static func is_on(o: Dictionary, p: Dictionary) -> bool:
 static func host_of(level: Dictionary, o: Dictionary) -> Variant:
 	var best = null
 	for p in level.pieces:
-		if is_on(o, p) and (best == null or (best.get("side", false) and not p.get("side", false))):
+		if is_on(o, p) and best == null:
 			best = p
 	return best
 
@@ -117,10 +117,24 @@ static func successor(level: Dictionary, p: Dictionary) -> Variant:
 	return null
 
 
+## Yollar başlangıç sırasıyla (girişten çıkışa). "Yan yol" ayrımı yok: hepsi yol
 static func main_path(level: Dictionary) -> Array:
-	var path: Array = level.pieces.filter(func(p): return not p.get("side", false))
-	path.sort_custom(func(a, b): return f(a, "z0") < f(b, "z0"))
+	var path: Array = level.pieces.duplicate()
+	path.sort_custom(func(a, b): return f(a, "z0") < f(b, "z0") or (f(a, "z0") == f(b, "z0") and f(a, "id") < f(b, "id")))
 	return path
+
+
+## Çıkış: en ileride biten yol (oyun sonraki yolları buradan bağlar)
+static func exit_of(level: Dictionary) -> Variant:
+	var best = null
+	for p in main_path(level):
+		if best == null or p_end(p) > p_end(best):
+			best = p
+	return best
+
+
+static func has_deadend(level: Dictionary, p: Dictionary) -> bool:
+	return level.get("obstacles", []).any(func(o): return o.get("kind", "") == "deadend" and is_same(host_of(level, o), p))
 
 
 ## Bir yolun ardına önerilen boşluk (oyunun seçtiği gibi: pencerenin ~%35'i; physics.js suggestGap)
@@ -191,8 +205,6 @@ static func analyze(level: Dictionary) -> Dictionary:
 		add.call(true, "yol yok")
 		return res
 	var path := main_path(level)
-	if path.is_empty():
-		add.call(true, "ana yol yok")
 	var tan_max := tan(deg_to_rad(MAX_SLOPE_DEG))
 	for p in pieces:
 		if absf(h1(p) - h0(p)) / maxf(f(p, "len"), 0.01) > tan_max + 1e-6:
@@ -261,7 +273,7 @@ static func analyze(level: Dictionary) -> Dictionary:
 				best = cost
 				b = q
 		if b == null:
-			if p_end(a) < path_end - 1.0:
+			if p_end(a) < path_end - 1.0 and not has_deadend(level, a):
 				add.call(false, "yolun sonundan inilecek yol yok #%s" % a.id)
 			continue
 		if f(b, "z0") - p_end(a) < 0.6:
@@ -284,7 +296,8 @@ static func analyze(level: Dictionary) -> Dictionary:
 		for o in obstacles:
 			if o.get("kind", "") != "deadend" and is_same(host_of(level, o), p) and f(o, "z0") + f(o, "len") > runway:
 				add.call(false, "engel pistte #%s" % o.id)
-	# Rampa ve tümsek uçuşları
+	# Rampa ve tümsek uçuşları (akış için: [kalkılan yol, inilen yol])
+	var fl_edges: Array = []
 	for o in obstacles:
 		if not o.get("kind", "") in ["ramp", "kick", "bump"]:
 			continue
@@ -307,37 +320,50 @@ static func analyze(level: Dictionary) -> Dictionary:
 				land_on = p
 				fl.land = z
 				break
+		if land_on != null:
+			fl_edges.append([host, land_on])
 		if land_on == null:
 			add.call(true, "rampa boşluğa atıyor #%s" % o.id)
 		elif successor(level, land_on) == null and p_end(land_on) - fl.land < clear_end(fl.v):
 			add.call(maxf(0.0, p_end(land_on) - fl.land) < fl.v * 0.6, "rampa sonrası az yol #%s" % o.id)
-	# Yan yolların sonu
-	for p in pieces:
-		if not p.get("side", false) or successor(level, p) != null:
-			continue
-		if obstacles.any(func(o): return o.get("kind", "") == "deadend" and is_same(host_of(level, o), p)):
-			continue
-		var v := speed_at(at + p_end(p))
-		var reach_ok := false
-		for q in path:
-			if f(q, "z0") > p_end(p) + 60.0 or p_end(q) < p_end(p) + 4.0:
-				continue
-			var t := flight_time(h_at(q, p_end(p)) - h1(p), LAUNCH_VELOCITY)
-			var lat := STEER_SPEED * AIR_CONTROL * (0.0 if is_nan(t) else t)
-			if absf(f(q, "x") - f(p, "x")) - (f(q, "w") + f(p, "w")) * 0.5 + 2.0 * HALF_WIDTH < lat * 0.8:
-				reach_ok = true
-				break
-		if not reach_ok:
-			add.call(false, "yan yoldan inilecek yol yok #%s" % p.id)
-			continue
-		var bs: Array = path.filter(func(q): return f(q, "z0") <= p_end(p) + 60.0 and p_end(q) >= p_end(p) + 4.0)
-		bs.sort_custom(func(a, b):
-			var da := absf(f(a, "x") - f(p, "x"))
-			var db := absf(f(b, "x") - f(p, "x"))
-			return da < db if da != db else f(a, "z0") < f(b, "z0"))
-		var jd2 := jump(at, p, bs[0])
-		if not is_nan(jd2.reach_b):
-			landing.call(jd2, bs[0])
+	# Akış: girişten çıkışa giden bir yol var mı (bitişik devam, atlanabilen boşluk, rampa uçuşu)
+	var exit_p = exit_of(level)
+	if path.size() > 1 and exit_p != null:
+		var seen: Array = [path[0]]
+		var todo: Array = [path[0]]
+		while not todo.is_empty():
+			var a: Dictionary = todo.pop_back()
+			var nxt: Array = []
+			var s = successor(level, a)
+			if s != null:
+				nxt.append(s)
+			else:
+				for q in pieces:
+					if is_same(q, a):
+						continue
+					var gap := f(q, "z0") - p_end(a)
+					if gap < -0.6 or gap > 150.0:
+						continue
+					var lat := maxf(0.0, absf(f(q, "x") - f(a, "x")) - (f(q, "w") + f(a, "w")) * 0.5)
+					if lat > 8.0:
+						continue
+					# Boşluksuz basamak: aşağı (ya da aynı) yola sürüp iner
+					if gap < 0.6:
+						if h0(q) <= h1(a) + 0.3:
+							nxt.append(q)
+						continue
+					var jq := jump(at, a, q)
+					if not is_nan(jq.reach_b) and gap <= jq.reach_b - 2.5:
+						nxt.append(q)
+			for e in fl_edges:
+				if is_same(e[0], a):
+					nxt.append(e[1])
+			for q in nxt:
+				if not seen.any(func(x): return is_same(x, q)):
+					seen.append(q)
+					todo.append(q)
+		if not seen.any(func(x): return is_same(x, exit_p)):
+			add.call(false, "akış kopuk")
 	# Bloklar yolu kapatmasın
 	var need_lane := 2.0 * HALF_WIDTH + 1.0
 	for p in pieces:
@@ -361,7 +387,7 @@ static func analyze(level: Dictionary) -> Dictionary:
 				add.call(true, "bloklar yolu kapatıyor #%s" % o.id)
 	# Çıkış yolunun sonu boş
 	if not path.is_empty():
-		var exit: Dictionary = path[-1]
+		var exit: Dictionary = exit_of(level)
 		var lim := p_end(exit) - clear_end(speed_at(at + p_end(exit)))
 		if obstacles.any(func(o): return is_same(host_of(level, o), exit) and o.get("kind", "") != "deadend" and f(o, "z0") > lim):
 			add.call(false, "çıkış yolunun sonu dolu")
@@ -449,8 +475,6 @@ static func vary_once(level: Dictionary, rng: RandomNumberGenerator, ops: Array)
 						_tag(tags, "engel düzeni")
 	if "width" in ops:
 		for p in lv.pieces:
-			if p.get("side", false):
-				continue
 			var nw := maxf(4.5, roundf(f(p, "w") * rng.randf_range(0.86, 1.14) * 2.0) / 2.0)
 			if nw == f(p, "w"):
 				continue

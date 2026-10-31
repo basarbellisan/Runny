@@ -265,7 +265,7 @@
     const fill = c0 !== c1 ? `url(#${id})` : c0;
     out.push(`<g data-type="piece" data-id="${p.id}" style="cursor:move" opacity="${ghost ? 0.55 : 1}">`);
     out.push(`<rect x="${x + 3}" y="${y + 4}" width="${w}" height="${h}" fill="rgba(0,0,0,.10)" rx="2"/>`);
-    out.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" rx="2" ${p.side ? 'stroke="#ff5a1f" stroke-width="1" stroke-dasharray="6 4"' : ''}/>`);
+    out.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" rx="2"/>`);
     if (w > 10) for (const ex of [x + 3, x + w - 3])
       out.push(`<line x1="${ex}" y1="${y + 2}" x2="${ex}" y2="${y + h - 2}" stroke="#fff" stroke-width="1.3" stroke-dasharray="7 5" opacity=".85"/>`);
     if (p.bank) {
@@ -296,7 +296,6 @@
     const lab = Math.abs(h1 - h0) > 0.05 ? `${fmtH(h0)}→${fmtH(h1)}` : fmtH(h0);
     const lw = lab.length * 6.4 + 14;
     out.push(`<rect x="${x + w + 6}" y="${y + 4}" width="${lw}" height="17" rx="8.5" fill="#fff" stroke="#dcd8d0"/><text x="${x + w + 6 + lw / 2}" y="${y + 16}" text-anchor="middle" font-size="10.5" font-weight="700" fill="#232529">${lab}</text>`);
-    if (p.side) out.push(`<text x="${x + w + 8}" y="${y + 34}" font-size="10" font-weight="600" fill="#ff5a1f">yan yol</text>`);
     out.push('</g>');
     return out.join('');
   }
@@ -338,7 +337,7 @@
   }
 
   function ghostSVG(g) {
-    if (g.type === 'piece') return pieceSVG({ id: 'ghost', side: g.item.side, ...g.item }, true);
+    if (g.type === 'piece') return pieceSVG({ id: 'ghost', ...g.item }, true);
     if (g.type === 'obstacle') return obstacleSVG({ id: 'ghost', ...g.item }, true);
     if (g.type === 'cut') {
       // Kırpılacak alan: kâğıt rengi, turuncu kesik çerçeve
@@ -365,10 +364,10 @@
     const stepZ = (z1 - z0) > 600 ? 100 : 50;
     for (let z = Math.ceil(z0 / stepZ) * stepZ; z <= z1; z += stepZ) s.push(`<text x="${qx(z)}" y="${h - 6}" font-size="10.5" fill="#7c8087" text-anchor="middle">${z} m</text>`);
     s.push(`<line x1="44" y1="${qy(0)}" x2="${w - 10}" y2="${qy(0)}" stroke="#ebe8e1" stroke-dasharray="3 4"/><text x="8" y="${qy(0) + 4}" font-size="10" fill="#7c8087">0 m</text>`);
-    for (const p of [...level.pieces].sort((a, b) => (a.side ? 1 : 0) - (b.side ? 1 : 0))) {
+    for (const p of level.pieces) {
       const isSel = sel && sel.type === 'piece' && sel.id === p.id;
       const h0 = p.h0 || 0, h1 = p.h1 ?? h0;
-      s.push(`<polygon points="${qx(p.z0)},${qy(h0)} ${qx(P.pEnd(p))},${qy(h1)} ${qx(P.pEnd(p))},${qy(h1) + 6} ${qx(p.z0)},${qy(h0) + 6}" fill="${ROAD_COLOR[tierOf((h0 + h1) / 2)]}" opacity="${p.side ? 0.55 : 1}" ${isSel ? 'stroke="#ff5a1f" stroke-width="2"' : ''}/>`);
+      s.push(`<polygon points="${qx(p.z0)},${qy(h0)} ${qx(P.pEnd(p))},${qy(h1)} ${qx(P.pEnd(p))},${qy(h1) + 6} ${qx(p.z0)},${qy(h0) + 6}" fill="${ROAD_COLOR[tierOf((h0 + h1) / 2)]}" ${isSel ? 'stroke="#ff5a1f" stroke-width="2"' : ''}/>`);
     }
     for (const o of level.obstacles) {
       const host = P.hostOf(level, o);
@@ -427,7 +426,7 @@
       const h0 = it.h0 || 0, h1 = it.h1 ?? h0;
       const t = tierOf((h0 + h1) / 2);
       const slope = Math.atan2(h1 - h0, it.len) * 180 / Math.PI;
-      out.push(`<div class="sel"><div class="dot" style="background:${ROAD_COLOR[t]}"></div>${it.side ? 'Yan yol' : 'Yol'} #${it.id}<button class="dup" data-act="dup" title="Aynı boyda kopyası ardına (Ctrl+D)">Çoğalt</button><button class="del" data-act="delete">Sil</button></div>`);
+      out.push(`<div class="sel"><div class="dot" style="background:${ROAD_COLOR[t]}"></div>Yol #${it.id}<button class="dup" data-act="dup" title="Aynı boyda kopyası ardına (Ctrl+D)">Çoğalt</button><button class="del" data-act="delete">Sil</button></div>`);
       out.push(`<div class="row"><label>Kat</label><div class="seg">${['low', 'mid', 'high'].map((k) => `<button data-tier="${k}" class="${t === k && Math.abs(h1 - h0) < 0.05 ? 'on' : ''}">${{ low: 'Alçak', mid: 'Orta', high: 'Yüksek' }[k]}</button>`).join('')}</div></div>`);
       out.push(numRow('Uzunluk', 'len', it.len, 'm', 1, 4));
       out.push(numRow('Genişlik', 'w', it.w, 'm', 0.5, 2.5, 16));
@@ -437,7 +436,6 @@
       out.push(numRow('Yatıklık', 'bank', it.bank || 0, '°', 1, -P.CAR.maxBankDeg, P.CAR.maxBankDeg));
       out.push(numRow('Yan konum (x)', 'x', it.x, 'm', 0.5));
       out.push(numRow('Başlangıç (z)', 'z0', it.z0, 'm', 1));
-      out.push(`<div class="row"><label class="chk"><input type="checkbox" data-key="side" ${it.side ? 'checked' : ''}> Yan yol</label><span class="muted">ana yolun dışı, isteğe bağlı</span></div>`);
       const on = level.obstacles.filter((o) => P.hostOf(level, o) === it).map((o) => P.KIND_NAMES[o.kind]);
       if (on.length) out.push(`<div class="row"><label>Üstünde</label><b>${on.join(', ')}</b></div>`);
     } else {
@@ -466,7 +464,6 @@
   $('props').addEventListener('change', (e) => {
     const k = e.target.dataset.key;
     if (!selected() || !k) return;
-    if (k === 'side') { const it = selected(); commit(() => { it.side = e.target.checked; }); return; }
     commit(() => setProp(k, parseFloat(e.target.value)));
   });
   // −/+ düğmeleri: tıkla bir adım, basılı tut sürekli (bir basış tek geri alma adımı)
@@ -669,7 +666,7 @@
   function magnet(p) {
     let best = null;
     for (const A of level.pieces) {
-      if (A === p || A.side || p.side) continue;
+      if (A === p) continue;
       const end = P.pEnd(A);
       if (end > p.z0 + 5) continue;
       const dh = (p.h0 || 0) - (A.h1 ?? A.h0 ?? 0);
@@ -744,8 +741,6 @@
       const p = { ...item.make(), x: snapX(w.x), z0: 0 };
       p.z0 = snapZ(w.z - p.len / 2);
       if (!level.pieces.length) { p.x = 0; p.z0 = 0; }
-      // Ana yolla aynı aralıkta ve yanında duruyorsa yan yol olur
-      p.side = level.pieces.some((q) => !q.side && Math.min(P.pEnd(q), P.pEnd(p)) - Math.max(q.z0, p.z0) > 5);
       const m = magnet(p);
       if (m) { p.z0 = m.z0; if (m.x !== undefined) p.x = m.x; }
       return { type: 'piece', item: p, guide: m && m.guide };
@@ -753,7 +748,7 @@
     if (item.key === 'cut') return makeCut(w);
     if (group === 'obstacles') {
       const o = { ...item.make(), x: snapX(w.x), z0: snapZ(w.z - (item.key === 'block' ? 0 : 4)) };
-      const host = level.pieces.filter((p) => P.isOn(o, p)).sort((a, b) => (a.side ? 1 : 0) - (b.side ? 1 : 0))[0];
+      const host = level.pieces.find((p) => P.isOn(o, p));
       if (!host) return { type: 'obstacle', item: o, error: 'Engeli bir yolun üstüne bırak.' };
       if (o.kind === 'bump') { o.x = host.x; o.w = host.w; }
       if (o.kind === 'deadend') { o.x = host.x; o.w = host.w; o.z0 = P.pEnd(host) - 1.5; }
@@ -765,8 +760,7 @@
   }
   // Boşluk: bırakılan yerdeki yolun yakın kenarından yarısını (dar yolda tamamını) 30 m kırpar
   function makeCut(w) {
-    const host = level.pieces.filter((p) => w.z >= p.z0 && w.z <= P.pEnd(p) && Math.abs(w.x - p.x) <= p.w / 2)
-      .sort((a, b) => (a.side ? 1 : 0) - (b.side ? 1 : 0))[0];
+    const host = level.pieces.find((p) => w.z >= p.z0 && w.z <= P.pEnd(p) && Math.abs(w.x - p.x) <= p.w / 2);
     if (!host) return { type: 'cut', item: { x: snapX(w.x), w: 4, z0: snapZ(w.z - 15), len: 30 }, error: 'Boşluğu bir yolun üstüne bırak.' };
     const len = Math.min(30, host.len);
     const z0 = clamp(snapZ(w.z - len / 2), host.z0, P.pEnd(host) - len);
@@ -826,12 +820,11 @@
     if (drop.type === 'piece') {
       level.pieces.push({ id, ...drop.item });
       sel = { type: 'piece', id };
-      if (drop.item.side) toast('Ana yolun yanına kondu: yan yol olarak işaretlendi.');
     } else if (drop.type === 'obstacle') {
       const o = { id, ...drop.item };
       delete o.host;
       level.obstacles.push(o);
-      if (o.kind === 'deadend' && drop.host) { drop.host.side = true; toast('Çıkmaz: bu yol yan yol oldu, sonunda blok var.'); }
+      if (o.kind === 'deadend' && drop.host) toast('Çıkmaz: bu yolun sonunda blok var, devamı yok.');
       sel = { type: 'obstacle', id };
     } else {
       for (const it of drop.items) {
@@ -879,7 +872,7 @@
       out.push({ kind: 'kick', x: x + 4, w: 4.5, z0: z + 70, len: 8, rise: 1.8, dir: 1, dx: 6 });
       const gap = P.suggestGap(tmp, a, -2);
       road({ x: x - 4, w: 7, z0: P.pEnd(a) + gap, len: 110, h0: -2, h1: -2 });
-      road({ x: x + 10, w: 4.5, z0: z + 100, len: 120, h0: 2, h1: 2, side: true });
+      road({ x: x + 10, w: 4.5, z0: z + 100, len: 120, h0: 2, h1: 2 });
     }
     return out;
   }
@@ -1150,7 +1143,8 @@
 
   // ------------------------------------------------------------------ kayıt
   function cleanLevel() {
-    const r = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === 'number' ? r1(v) : v]));
+    // "side" (eski yan yol işareti) artık yok: kaydedilmez
+    const r = (o) => Object.fromEntries(Object.entries(o).filter(([k]) => k !== 'side').map(([k, v]) => [k, typeof v === 'number' ? r1(v) : v]));
     const L = viewing ? viewing.base : level;
     const out = { format: 'runny-level', version: 1, name: L.name, at: L.at || 0, crystals: L.crystals !== false,
       pieces: L.pieces.map(r), obstacles: L.obstacles.map(r) };

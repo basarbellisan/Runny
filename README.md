@@ -343,10 +343,14 @@ Soldan yolları (alçak / orta / yüksek, yokuş, yatık, dar) ve engelleri (ram
 rampa, tümsek, çakıl, blok, çıkmaz) tuvale sürükleyerek el yapımı kalıp çizilir.
 Kristalleri oyun kendi algoritmasıyla dizer. Sağdaki **Kontrol** listesi oyunun
 fiziğiyle (`editor/physics.js`, oyundaki sabitlerle aynı) her atlamayı, iniş
-bölgesini, rampa/tümsek uçuşunu ve yan yol dönüşlerini denetler.
-- **Yan yollar**: yan yola giriş ve yan yoldan yan yola atlamalarda da yeşil iniş bölgesi ve
-  bağlantı çizgisi görünür (atlanamıyorsa çizgi kırmızı). Bunlar yalnız gösterimdir, kontrol
-  listesine eklenmez.
+bölgesini ve rampa/tümsek uçuşunu denetler.
+- **Yollar eşit ("yan yol" yok)**: her yolun sonunda en yakın ileri yol bulunur ve atlama
+  denetlenir; yanındaki yollara girişler de yeşil iniş bölgesi ve bağlantı çizgisiyle görünür
+  (atlanamıyorsa kırmızı). Giriş en baştaki yol, çıkış en ileride biten yol. **Akış**:
+  girişten çıkışa bitişik yol, atlanabilir boşluk, boşluksuz aşağı basamak ya da rampa
+  uçuşuyla gidilemiyorsa "Akış kopuk" uyarısı çıkar (bağlanamayan yollar işaretlenir). Eski
+  dosyalardaki `side` işareti yok sayılır, kaydedilmez. Oyun da kalıbı aynı kurallarla kurar
+  (`LevelCheck.main_path` / `exit_of`); çıkmaz yolların sonunda pist ışığı yok.
 - **Boşluk**: Engeller bölümünden yolun üstüne sürüklenir; bırakıldığı yere yakın kenardan yolun
   yarısını 30 m boyunca kırpar (yol önü / dar orta / arkası diye üç yola bölünür; dar yolda,
   5 m ve altı, boydan boya keser). Kırpılan yerdeki engeller kalkar; kalan şerit tutamaklarla
