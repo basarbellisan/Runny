@@ -154,13 +154,14 @@ static func onward(level: Dictionary, a: Dictionary) -> Array:
 		var jd := jump(f(level, "at"), a, q)
 		var t0 := flight_time(jd.dh, LAUNCH_VELOCITY + vs * slope)
 		var lat0 := STEER_SPEED * AIR_CONTROL * (0.0 if is_nan(t0) else t0)
+		# Yana kayma payı atlama kontrolündeki gibi (%80): yana yetişilemeyen yol seçenek değil
 		if gap < 0.6:
-			if h0(q) <= h1(a) + 0.3:
-				out.append({"q": q, "free": jd.need <= lat0})
+			if h0(q) <= h1(a) + 0.3 and jd.need <= lat0 * 0.8:
+				out.append({"q": q, "free": true})
 			continue
-		if is_nan(jd.reach_b) or gap > jd.reach_b - 2.5:
+		if is_nan(jd.reach_b) or gap > jd.reach_b - 2.5 or jd.need > jd.lateral * 0.8:
 			continue
-		out.append({"q": q, "free": not is_nan(t0) and gap <= CAR_LEN + vs * t0 - SLOW_MARGIN and jd.need <= lat0})
+		out.append({"q": q, "free": not is_nan(t0) and gap <= CAR_LEN + vs * t0 - SLOW_MARGIN and jd.need <= lat0 * 0.8})
 	return out
 
 
