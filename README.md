@@ -351,10 +351,12 @@ bölgesini ve rampa/tümsek uçuşunu denetler.
   uçuşuyla gidilemiyorsa "Akış kopuk" uyarısı çıkar (bağlanamayan yollar işaretlenir). Eski
   dosyalardaki `side` işareti yok sayılır, kaydedilmez. Oyun da kalıbı aynı kurallarla kurar
   (`LevelCheck.main_path` / `exit_of`); çıkmaz yolların sonunda pist ışığı yok.
-- **Pist ışıkları yalnız gaz gerekince**: yolun ucundan gidilebilen yollar bulunur (atlanabilir
-  boşluk ya da boşluksuz aşağı basamak; `onward`). Biri bile gaz istiyorsa (garajın en yavaş
-  arabası Gezgin gazsız en az 1 m payla yetişemiyorsa) kırmızı ışıklar konur, yanında gazsız
-  yetişilen yol olsa da; hepsi gazsız yetişiliyorsa ışık yok (`needs_lights`). Çıkış yolunda
+- **Pist ışıkları yalnız gaz gerekince**: yolun ucundan asıl gidilen yola (tuvaldeki bağlantı
+  çizgisi: ileride, en az yana kaymayla; `primary`) garajın en yavaş arabası Gezgin gazsız en
+  az 1 m payla yetişemiyorsa (ya da yana yetişemiyorsa) kırmızı ışıklar konur; yetişiyorsa ya
+  da boşluksuz aşağı iniliyorsa ışık yok (`needs_lights` / `lightsInfo`). Bir yol seçilince
+  panelde nedeni yazar ("Işık yok: #43 yoluna 34 m boşluk, Gezgin gazsız 71 m'ye kadar
+  yetişir"). Çıkış yolunda
   hep var (oyun ardına atlamayla bağlar). "Engel pist bölgesinde" uyarısı da yalnız ışıklı
   yerde. Oyunda ışıklar editördeki kırmızı noktalarla aynı; ışıksız uçta otomatik pilot da
   gaza basmaz.
