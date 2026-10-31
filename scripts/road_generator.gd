@@ -2542,7 +2542,7 @@ func gravel_at(pos: Vector3) -> bool:
 ## düz kalır (yol orta çizgisi etrafında döner), kenarlar iner/kalkar.
 ## top_end verilirse yatık yol aynı zamanda yokuştur (yükseklik boyunca doğrusal değişir)
 func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_end: float, pts: Array,
-		top_end := NAN) -> Segment:
+		top_end := NAN, lights := true) -> Segment:
 	var s := Segment.new()
 	s.x = x
 	s.top = top
@@ -2654,7 +2654,8 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 	lines_mi.material_override = _line_mat
 	lines_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	body.add_child(lines_mi)
-	_add_runway_lights(body, s, length)
+	if lights:
+		_add_runway_lights(body, s, length)
 
 	s.node = body
 	segments.append(s)
@@ -2882,8 +2883,9 @@ func _build_custom(prev: Segment, level: Dictionary, travelled: float, vary := f
 		var zs := zb - float(p.get("z0", 0.0))
 		var ze := zs - plen
 		var is_main := true
-		# Ucunda bitişik devamı olan parçada ve çıkmazda pist ışıkları yok
-		var flush_next := _custom_successor(p, pieces) != null or LevelCheck.has_deadend(level, p)
+		# Pist ışıkları yalnız gaz isteyen atlamadan önce (editördeki kırmızı noktalarla aynı):
+		# bitişik devamda, çıkmazda ve gazsız yetişilen yolda yok
+		var flush_next := not LevelCheck.needs_lights(level, p)
 		var bank := float(p.get("bank", 0.0))
 		var first: Segment
 		var last: Segment
@@ -2897,7 +2899,7 @@ func _build_custom(prev: Segment, level: Dictionary, travelled: float, vary := f
 			var a := deg_to_rad(clampf(bank, -max_bank_deg, max_bank_deg))
 			var ramp := minf(clampf(plen * 0.1, 8.0, 25.0), plen * 0.3)
 			var pts: Array = [[zs, 0.0], [zs - ramp, a], [ze + ramp, a], [ze, 0.0]]
-			first = _add_banked_segment(x, oy + h0, w, zs, ze, pts, oy + h1)
+			first = _add_banked_segment(x, oy + h0, w, zs, ze, pts, oy + h1, not flush_next)
 			first.main = is_main
 			last = first
 		elif not bumps.is_empty() and absf(h1 - h0) < 0.01:
@@ -2931,6 +2933,12 @@ func _build_custom(prev: Segment, level: Dictionary, travelled: float, vary := f
 		else:
 			first = _add_segment(x, oy + h0, oy + h1, w, zs, ze, is_main, false, -1.0, not flush_next)
 			last = first
+		# Işıksız uç: gazsız geçilir (otomatik pilot da gaza basmaz)
+		if flush_next:
+			var hs := first
+			while hs:
+				hs.hop = true
+				hs = hs.next_flush
 		built.append({"p": p, "first": first, "last": last})
 		heads.append(last)
 	# Bitişik parçalar (boşluksuz devam) birbirine bağlanır

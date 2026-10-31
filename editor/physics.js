@@ -101,6 +101,41 @@
       landFar: pEnd(A) + (isNaN(reachF) ? reachB : reachF) };
   }
 
+  // Yolun ucundan gidilebilen yollar: [{ q, free }]. Atlanabilir boşluk ya da boşluksuz aşağı
+  // basamak; free: garajın en yavaş arabası (Gezgin) gazsız yetişir (en az slowMargin payla)
+  function onward(level, A) {
+    const out = [];
+    const v = speedAt(num(level.at, 0) + pEnd(A));
+    const vs = v * CAR.slowMul;
+    const slope = (h1(A) - h0(A)) / Math.max(A.len, 0.01);
+    for (const q of level.pieces) {
+      if (q === A) continue;
+      const gap = q.z0 - pEnd(A);
+      if (gap < -0.6 || gap > 150) continue;
+      const lat = Math.max(0, Math.abs(q.x - A.x) - (q.w + A.w) / 2);
+      if (lat > 8) continue;
+      const J = jump(level, A, q);
+      const t0 = flightTime(J.dh, CAR.launchVelocity + vs * slope);
+      const lat0 = CAR.steerSpeed * CAR.airControl * (isNaN(t0) ? 0 : t0);
+      if (gap < 0.6) {
+        if (h0(q) <= h1(A) + 0.3) out.push({ q, free: J.need <= lat0 });
+        continue;
+      }
+      if (isNaN(J.reachB) || gap > J.reachB - 2.5) continue;
+      out.push({ q, free: !isNaN(t0) && gap <= CAR.carLen + vs * t0 - CAR.slowMargin && J.need <= lat0 });
+    }
+    return out;
+  }
+  // Pist ışıkları (gaz bölgesi): yolun ucundan gaz isteyen bir atlama varsa, yanında gazsız
+  // yetişilen yol olsa da. Bitişik devamı ya da çıkmazı olan yolda yok; çıkış yolunda hep var
+  // (oyun sonraki yolu ardına atlamayla bağlar); gidilecek yol yoksa da var
+  function needsLights(level, A) {
+    if (successor(level, A) || hasDeadend(level, A)) return false;
+    if (A === exitOf(level)) return true;
+    const on = onward(level, A);
+    return !on.length || on.some((o) => !o.free);
+  }
+
   // Rampa/tümsek uçuşu: ileri mesafe, uçuş süresi, iniş z'si
   function rampFlight(level, o, host) {
     const at = num(level.at, 0);
@@ -239,7 +274,7 @@
     }
     // Her ana yolun sonunda pist bölgesi: engel olmasın (hizalanıp gaz)
     for (const p of path) {
-      if (successor(level, p)) continue;
+      if (!needsLights(level, p)) continue;
       const v = speedAt(at + pEnd(p));
       const runway = pEnd(p) - clearEnd(v);
       zones.push({ id: p.id, kind: 'runway', z0: Math.max(runway, p.z0), z1: pEnd(p) });
@@ -279,7 +314,10 @@
     // Yan yola girişler (bir yolun ucundan, ana sıradaki atlamanın gitmediği yanındaki yola):
     // yalnız gösterim (iniş bölgesi ve bağlantı çizgisi; atlanamıyorsa kırmızı)
     for (const S of path) {
-      if (S === path[0] || jumps.some((j) => j.B === S) || pieces.some((r) => r !== S && successor(level, r) === S)) continue;
+      // Bir yolun ucundan boşluksuz (aynı ya da aşağı) devam eden yol: atlama yok
+      const touched = pieces.some((r) => r !== S && Math.abs(S.z0 - pEnd(r)) <= 0.6 &&
+        Math.abs(S.x - r.x) < (S.w + r.w) / 2 && h0(S) <= h1(r) + 0.3);
+      if (S === path[0] || touched || jumps.some((j) => j.B === S)) continue;
       let A = null, best = Infinity;
       for (const q of pieces) {
         if (q === S || successor(level, q)) continue;
@@ -299,22 +337,8 @@
     const exitP = exitOf(level);
     if (path.length > 1 && exitP) {
       const next = (A) => {
-        const out = [];
         const s = successor(level, A);
-        if (s) out.push(s);
-        else {
-          for (const q of pieces) {
-            if (q === A) continue;
-            const gap = q.z0 - pEnd(A);
-            if (gap < -0.6 || gap > 150) continue;
-            const lat = Math.max(0, Math.abs(q.x - A.x) - (q.w + A.w) / 2);
-            if (lat > 8) continue;
-            // Boşluksuz basamak: aşağı (ya da aynı) yola sürüp iner
-            if (gap < 0.6) { if (h0(q) <= h1(A) + 0.3) out.push(q); continue; }
-            const J = jump(level, A, q);
-            if (!isNaN(J.reachB) && gap <= J.reachB - 2.5) out.push(q);
-          }
-        }
+        const out = s ? [s] : onward(level, A).map((o) => o.q);
         for (const F of flights) if (F.host === A && F.landOn) out.push(F.landOn);
         return out;
       };
@@ -546,7 +570,7 @@
   const KIND_NAMES = { ramp: 'Rampa', kick: 'Eğik rampa', bump: 'Tümsek', gravel: 'Çakıl', block: 'Blok', deadend: 'Çıkmaz' };
 
   const api = { CAR, TIERS, speedAt, vBoost, vFull, flightTime, clearEnd, clearStart, jump, rampFlight,
-    analyze, crystalPreview, suggestGap, minRoadLength, mainPath, exitOf, successor, hostOf, isOn, hAt, pEnd, KIND_NAMES,
+    analyze, crystalPreview, suggestGap, minRoadLength, mainPath, exitOf, onward, needsLights, successor, hostOf, isOn, hAt, pEnd, KIND_NAMES,
     vary, varyOnce, signature, rng32 };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RunnyPhysics = api;

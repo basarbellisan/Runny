@@ -133,6 +133,47 @@ static func exit_of(level: Dictionary) -> Variant:
 	return best
 
 
+## Yolun ucundan gidilebilen yollar: [{ q, free }]. Atlanabilir boşluk ya da boşluksuz aşağı
+## basamak; free: garajın en yavaş arabası gazsız yetişir (en az SLOW_MARGIN payla)
+static func onward(level: Dictionary, a: Dictionary) -> Array:
+	var out: Array = []
+	var v := speed_at(f(level, "at") + p_end(a))
+	var vs := v * SLOW_MUL
+	var slope := (h1(a) - h0(a)) / maxf(f(a, "len"), 0.01)
+	for q in level.pieces:
+		if is_same(q, a):
+			continue
+		var gap := f(q, "z0") - p_end(a)
+		if gap < -0.6 or gap > 150.0:
+			continue
+		var lat := maxf(0.0, absf(f(q, "x") - f(a, "x")) - (f(q, "w") + f(a, "w")) * 0.5)
+		if lat > 8.0:
+			continue
+		var jd := jump(f(level, "at"), a, q)
+		var t0 := flight_time(jd.dh, LAUNCH_VELOCITY + vs * slope)
+		var lat0 := STEER_SPEED * AIR_CONTROL * (0.0 if is_nan(t0) else t0)
+		if gap < 0.6:
+			if h0(q) <= h1(a) + 0.3:
+				out.append({"q": q, "free": jd.need <= lat0})
+			continue
+		if is_nan(jd.reach_b) or gap > jd.reach_b - 2.5:
+			continue
+		out.append({"q": q, "free": not is_nan(t0) and gap <= CAR_LEN + vs * t0 - SLOW_MARGIN and jd.need <= lat0})
+	return out
+
+
+## Pist ışıkları (gaz bölgesi): yolun ucundan gaz isteyen bir atlama varsa, yanında gazsız
+## yetişilen yol olsa da. Bitişik devamı ya da çıkmazı olan yolda yok; çıkış yolunda hep var
+## (oyun sonraki yolu ardına atlamayla bağlar); gidilecek yol yoksa da var
+static func needs_lights(level: Dictionary, a: Dictionary) -> bool:
+	if successor(level, a) != null or has_deadend(level, a):
+		return false
+	if is_same(a, exit_of(level)):
+		return true
+	var on := onward(level, a)
+	return on.is_empty() or on.any(func(o): return not o.free)
+
+
 static func has_deadend(level: Dictionary, p: Dictionary) -> bool:
 	return level.get("obstacles", []).any(func(o): return o.get("kind", "") == "deadend" and is_same(host_of(level, o), p))
 
@@ -290,7 +331,7 @@ static func analyze(level: Dictionary) -> Dictionary:
 		landing.call(jd, b)
 	# Her ana yolun sonunda pist bölgesi
 	for p in path:
-		if successor(level, p) != null:
+		if not needs_lights(level, p):
 			continue
 		var runway := p_end(p) - clear_end(speed_at(at + p_end(p)))
 		for o in obstacles:
@@ -309,7 +350,11 @@ static func analyze(level: Dictionary) -> Dictionary:
 		if is_nan(fl.t):
 			continue
 		var cands: Array = pieces.filter(func(p): return absf(fl.x - f(p, "x")) <= f(p, "w") * 0.5 + 0.3)
-		cands.sort_custom(func(p, q): return h_at(p, fl.from) > h_at(q, fl.from))
+		# En yüksek önce; eşitse tasarımdaki sıra (editördeki kararlı sıralama gibi)
+		cands.sort_custom(func(p, q):
+			var hp := h_at(p, fl.from)
+			var hq := h_at(q, fl.from)
+			return hp > hq if hp != hq else pieces.find(p) < pieces.find(q))
 		var land_on = null
 		for p in cands:
 			var t := flight_time(h_at(p, fl.from + 10.0) - fl.top, fl.vy0)
@@ -338,23 +383,8 @@ static func analyze(level: Dictionary) -> Dictionary:
 			if s != null:
 				nxt.append(s)
 			else:
-				for q in pieces:
-					if is_same(q, a):
-						continue
-					var gap := f(q, "z0") - p_end(a)
-					if gap < -0.6 or gap > 150.0:
-						continue
-					var lat := maxf(0.0, absf(f(q, "x") - f(a, "x")) - (f(q, "w") + f(a, "w")) * 0.5)
-					if lat > 8.0:
-						continue
-					# Boşluksuz basamak: aşağı (ya da aynı) yola sürüp iner
-					if gap < 0.6:
-						if h0(q) <= h1(a) + 0.3:
-							nxt.append(q)
-						continue
-					var jq := jump(at, a, q)
-					if not is_nan(jq.reach_b) and gap <= jq.reach_b - 2.5:
-						nxt.append(q)
+				for o in onward(level, a):
+					nxt.append(o.q)
 			for e in fl_edges:
 				if is_same(e[0], a):
 					nxt.append(e[1])
