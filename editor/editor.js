@@ -87,6 +87,8 @@
       { key: 'gravel', name: 'Çakıl', make: () => ({ kind: 'gravel', w: 3.5, len: 12 }) },
       { key: 'block', name: 'Blok', make: () => ({ kind: 'block', w: 2, len: 1.2 }) },
       { key: 'deadend', name: 'Çıkmaz', make: () => ({ kind: 'deadend', w: 8, len: 1.2 }) },
+      // Boşluk: yolun yakın kenarını kırpar (yolu parçalara böler); dar yolda boydan boya keser
+      { key: 'cut', name: 'Boşluk', make: () => ({ len: 30 }) },
     ],
     patterns: [
       { key: 'stairs', name: 'Merdiven' }, { key: 'islands', name: 'Ada zinciri' },
@@ -107,6 +109,7 @@
       bump: base + `<rect x="34" y="10" width="16" height="10" fill="#e9e3d6"/><line x1="42" y1="10" x2="42" y2="20" stroke="#c9c5bd"/>`,
       gravel: base + `<rect x="18" y="10" width="28" height="10" fill="#b9a98f"/>` + gr,
       block: base + `<rect x="28" y="11" width="8" height="8" fill="#232529"/><rect x="28" y="11" width="8" height="2" fill="#ff5a1f"/>`,
+      cut: `<rect x="4" y="9" width="18" height="12" fill="#55585e"/><rect x="22" y="9" width="20" height="6" fill="#55585e"/><rect x="42" y="9" width="18" height="12" fill="#55585e"/><rect x="22" y="15" width="20" height="6" fill="none" stroke="#ff5a1f" stroke-width="1" stroke-dasharray="2 2"/>`,
       deadend: `<rect x="4" y="9" width="40" height="12" fill="#55585e"/><rect x="44" y="9" width="4" height="12" fill="#232529"/><rect x="44" y="9" width="4" height="3" fill="#ff5a1f"/>`,
       stairs: `<rect x="4" y="8" width="18" height="6" fill="#767a81"/><rect x="23" y="13" width="18" height="6" fill="#55585e"/><rect x="42" y="18" width="18" height="6" fill="#3b3d42"/>`,
       islands: [6, 20, 34, 48].map((x, i) => `<rect x="${x}" y="${10 + (i % 2) * 4}" width="10" height="7" fill="#55585e"/>`).join(''),
@@ -337,6 +340,11 @@
   function ghostSVG(g) {
     if (g.type === 'piece') return pieceSVG({ id: 'ghost', side: g.item.side, ...g.item }, true);
     if (g.type === 'obstacle') return obstacleSVG({ id: 'ghost', ...g.item }, true);
+    if (g.type === 'cut') {
+      // Kırpılacak alan: kâğıt rengi, turuncu kesik çerçeve
+      const c = g.item;
+      return `<rect x="${px(c.x - c.w / 2)}" y="${pz(c.z0 + c.len)}" width="${c.w * view.sx}" height="${c.len * view.sz}" fill="#f1efea" stroke="#ff5a1f" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+    }
     return g.items.map((it) => (it.kind ? obstacleSVG({ id: 'ghost', ...it }, true) : pieceSVG({ id: 'ghost', ...it }, true))).join('');
   }
 
@@ -742,6 +750,7 @@
       if (m) { p.z0 = m.z0; if (m.x !== undefined) p.x = m.x; }
       return { type: 'piece', item: p, guide: m && m.guide };
     }
+    if (item.key === 'cut') return makeCut(w);
     if (group === 'obstacles') {
       const o = { ...item.make(), x: snapX(w.x), z0: snapZ(w.z - (item.key === 'block' ? 0 : 4)) };
       const host = level.pieces.filter((p) => P.isOn(o, p)).sort((a, b) => (a.side ? 1 : 0) - (b.side ? 1 : 0))[0];
@@ -754,6 +763,52 @@
     }
     return { type: 'pattern', items: makePattern(item.key, snapX(w.x), snapZ(w.z)) };
   }
+  // Boşluk: bırakılan yerdeki yolun yakın kenarından yarısını (dar yolda tamamını) 30 m kırpar
+  function makeCut(w) {
+    const host = level.pieces.filter((p) => w.z >= p.z0 && w.z <= P.pEnd(p) && Math.abs(w.x - p.x) <= p.w / 2)
+      .sort((a, b) => (a.side ? 1 : 0) - (b.side ? 1 : 0))[0];
+    if (!host) return { type: 'cut', item: { x: snapX(w.x), w: 4, z0: snapZ(w.z - 15), len: 30 }, error: 'Boşluğu bir yolun üstüne bırak.' };
+    const len = Math.min(30, host.len);
+    const z0 = clamp(snapZ(w.z - len / 2), host.z0, P.pEnd(host) - len);
+    const full = host.w <= 5;
+    const cw = full ? host.w : Math.round(host.w) / 2;
+    const left = w.x < host.x;
+    const x = full ? host.x : left ? host.x - host.w / 2 + cw / 2 : host.x + host.w / 2 - cw / 2;
+    return { type: 'cut', item: { x, w: cw, z0, len }, host, full, left };
+  }
+  // Yolu kırpar: önü, kenarı kırpılmış ortası (tam kesimde yok) ve arkası ayrı yollar olur
+  function placeCut(drop) {
+    const h = drop.host, c = drop.item;
+    const za = c.z0, zb = c.z0 + c.len, end = P.pEnd(h);
+    const hAt = (z) => r1(P.hAt(h, z));
+    const parts = [];
+    if (za - h.z0 >= 1) parts.push({ x: h.x, w: h.w, z0: h.z0, len: za - h.z0, h0: hAt(h.z0), h1: hAt(za) });
+    if (!drop.full) {
+      const w = r1(h.w - c.w);
+      const x = drop.left ? h.x + h.w / 2 - w / 2 : h.x - h.w / 2 + w / 2;
+      parts.push({ x, w, z0: za, len: c.len, h0: hAt(za), h1: hAt(zb), mid: true });
+    }
+    if (end - zb >= 1) parts.push({ x: h.x, w: h.w, z0: zb, len: end - zb, h0: hAt(zb), h1: hAt(end) });
+    // Kırpılan yerdeki engeller kalkar
+    const before = level.obstacles.length;
+    level.obstacles = level.obstacles.filter((o) => !(P.hostOf(level, o) === h && o.z0 >= za && o.z0 < zb &&
+      Math.abs(o.x - c.x) < c.w / 2));
+    const lost = before - level.obstacles.length;
+    const i = level.pieces.indexOf(h);
+    level.pieces.splice(i, 1);
+    let id = nextId(), mid = null;
+    for (const p of parts) {
+      const q = { ...h, ...p, id: id++ };
+      if (q.bank === undefined) delete q.bank;
+      delete q.mid;
+      if (p.mid) mid = q;
+      level.pieces.push(q);
+    }
+    sel = mid ? { type: 'piece', id: mid.id } : null;
+    toast((drop.full ? 'Yol kesildi: araba buradan atlar.' : 'Yolun kenarı kırpıldı: kalan şeridi tutamaklarla daraltıp genişletebilirsin.') +
+      (lost ? ` Kırpılan yerdeki ${lost} engel kalktı.` : ''));
+  }
+
   // Eğik rampa: attığı yöndeki en yakın yola göre yön ve yana atış
   function autoKick(o, host) {
     let best = null;
@@ -766,6 +821,7 @@
     if (best !== null) { o.dir = Math.sign(best); o.dx = r1(Math.abs(best)); }
   }
   function placeDrop(drop) {
+    if (drop.type === 'cut') return placeCut(drop);
     let id = nextId();
     if (drop.type === 'piece') {
       level.pieces.push({ id, ...drop.item });
