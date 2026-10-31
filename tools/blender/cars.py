@@ -1160,10 +1160,38 @@ def build_araba5():
         decal("rear_mark", [(sgn * 21.0, 150.0), (0.0, 150.0), (0.0, 182.0)], "Dark")
 
     # Çamurluklar: yandan Rect 42 (262.9,307.9 → 329.4,247.1 → 459.3,232.5 → 399.1,307.9);
-    # arkadan/önden 47.6..80.6 genişlikte; arka tekerler içlerinde
-    prism("fender", [(262.9, 309.0), (329.4, 247.1), (459.3, 232.5), (399.1, 309.0)], 47.6, 80.6)
-    # Dış yüzde gri üçgen (Rect 62)
-    prism("intake", [(364.3, 263.5), (455.0, 238.5), (440.0, 263.5)], 80.6, 81.2, "Grey")
+    # arkadan/önden 47.6..80.6 genişlikte; arka tekerler içlerinde. Dış yüzde sivri üçgen oyuk
+    # (Rect 62): ucu önde (364.3,263.5), ağzı arka eğik yüzde (455,238 – 434.9,263.5), arkada
+    # 7 px derin (arkadan: 544..551, 238..263.6), uca doğru sıfırlanır
+    def fender(sx):
+        zi, zo, zd = sx * 47.6, sx * 80.6, sx * 73.6
+        bm = bmesh.new()
+        v = lambda x, y, z: bm.verts.new((w(z),) + P(x, y))
+        prof = {"F0": (262.9, 309.0), "F1": (329.4, 247.1), "F2": (459.3, 232.5), "N1": (455.0, 238.0),
+                "N3": (434.9, 263.5), "F3": (399.1, 309.0)}
+        I = {k: v(x, y, zi) for k, (x, y) in prof.items()}
+        O = {k: v(x, y, zo) for k, (x, y) in prof.items()}
+        A = v(364.3, 263.5, zo)
+        N1d = v(455.0, 238.0, zd)
+        N3d = v(434.9, 263.5, zd)
+        faces = [
+            [I["F0"], I["F1"], I["F2"], I["N1"], I["N3"], I["F3"]],
+            [O["F0"], O["F1"], O["F2"], O["N1"], A, O["N3"], O["F3"]],
+            [I["F3"], I["F0"], O["F0"], O["F3"]],
+            [I["F0"], I["F1"], O["F1"], O["F0"]],
+            [I["F1"], I["F2"], O["F2"], O["F1"]],
+            [I["F2"], I["N1"], I["N3"], I["F3"], O["F3"], O["N3"], N3d, N1d, O["N1"], O["F2"]],
+        ]
+        notch = [[O["N1"], A, N1d], [A, O["N3"], N3d], [A, N3d, N1d]]
+        fs = [bm.faces.new(f) for f in faces]
+        ns = [bm.faces.new(f) for f in notch]
+        for f in ns:
+            f.material_index = 1
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        bmesh.ops.triangulate(bm, faces=fs)
+        flat(new_object("fender", bm, ["Paint", "Grey"]))
+    fender(1)
+    fender(-1)
 
     def wheel5(name, pos, r, tw, hub_r, hub_out, nut_r):
         seg = 18
@@ -1196,7 +1224,7 @@ def build_araba5():
         # Ön aks: gövdeden tekere
         box("axle_f", (w(12.0), w(3.5), w(3.5)), (sx * w(36.0), yf, r), "Dark")
     for name, x, y, tw, hub in (("wheel_FL", -w(52.0), yf, w(20.3), w(4.0)), ("wheel_FR", w(52.0), yf, w(20.3), w(4.0)),
-                                ("wheel_RL", -w(64.0), yr, w(31.7), w(0.2)), ("wheel_RR", w(64.0), yr, w(31.7), w(0.2))):
+                                ("wheel_RL", -w(63.5), yr, w(31.7), w(0.2)), ("wheel_RR", w(63.5), yr, w(31.7), w(0.2))):
         # Arka tekerin göbeği çamurluğun dışına taşmasın (teker çamurluğun içinde)
         wheel5(name, (x, y, r), r, tw, w(8.0), hub, w(4.0))
 
