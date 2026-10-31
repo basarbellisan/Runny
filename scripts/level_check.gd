@@ -165,6 +165,34 @@ static func onward(level: Dictionary, a: Dictionary) -> Array:
 	return out
 
 
+## Rampa/tümsek uçuşunun indiği yol: yayın indiği ilk (en yüksek) yol (eşitse tasarımdaki
+## sıra); { p, z } ya da boş sözlük (editördeki flightLanding ile aynı)
+static func flight_landing(level: Dictionary, o: Dictionary, fl: Dictionary) -> Dictionary:
+	var pieces: Array = level.pieces
+	var cands: Array = pieces.filter(func(p): return absf(fl.x - f(p, "x")) <= f(p, "w") * 0.5 + 0.3)
+	cands.sort_custom(func(p, q):
+		var hp := h_at(p, fl.from)
+		var hq := h_at(q, fl.from)
+		return hp > hq if hp != hq else pieces.find(p) < pieces.find(q))
+	for p in cands:
+		var t := flight_time(h_at(p, fl.from + 10.0) - fl.top, fl.vy0)
+		if is_nan(t):
+			continue
+		var z: float = fl.from + (0.0 if o.get("kind", "") == "bump" else CAR_LEN) + fl.v * t
+		if z >= f(p, "z0") - 1.0 and z <= p_end(p):
+			return {"p": p, "z": z}
+	return {}
+
+
+## Yolun sonundaki, yolu boydan boya kaplayan rampa (araba yolun ucuna gelmez, rampadan kalkar)
+static func end_ramp(level: Dictionary, a: Dictionary) -> Variant:
+	for o in level.get("obstacles", []):
+		if o.get("kind", "") == "ramp" and is_same(host_of(level, o), a) \
+				and f(o, "z0") + f(o, "len", 8.0) >= p_end(a) - 3.0 and f(o, "w", 4.0) >= f(a, "w") - 0.6:
+			return o
+	return null
+
+
 ## Yolun ucundan asıl gidilen yol (editördeki bağlantı çizgisi): ileride, en az yana kaymayla
 static func primary(level: Dictionary, a: Dictionary) -> Variant:
 	var b = null
@@ -190,6 +218,12 @@ static func needs_lights(level: Dictionary, a: Dictionary) -> bool:
 		return false
 	if is_same(a, exit_of(level)):
 		return true
+	# Sonda boydan boya rampa: araba rampadan uçar; en yavaş araba gazsız ileride bir yola iniyorsa ışık yok
+	var r = end_ramp(level, a)
+	if r != null:
+		var fl := ramp_flight(f(level, "at"), r, a, SLOW_MUL)
+		var land := {} if is_nan(fl.t) else flight_landing(level, r, fl)
+		return land.is_empty() or is_same(land.p, a)
 	var b = primary(level, a)
 	if b == null:
 		return true
@@ -239,8 +273,8 @@ static func jump(at: float, a: Dictionary, b: Dictionary) -> Dictionary:
 
 
 ## Rampa/tümsek uçuşu
-static func ramp_flight(at: float, o: Dictionary, host: Dictionary) -> Dictionary:
-	var v := speed_at(at + f(o, "z0"))
+static func ramp_flight(at: float, o: Dictionary, host: Dictionary, mul := 1.0) -> Dictionary:
+	var v := speed_at(at + f(o, "z0")) * mul
 	var rise := f(o, "rise", 1.6)
 	var plen := maxf(f(o, "len", 8.0), 0.5)
 	if o.get("kind", "") == "bump":

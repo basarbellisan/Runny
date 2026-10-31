@@ -356,7 +356,9 @@ bölgesini ve rampa/tümsek uçuşunu denetler.
   az 1 m payla yetişemiyorsa (ya da yana yetişemiyorsa) kırmızı ışıklar konur; yetişiyorsa ya
   da boşluksuz aşağı iniliyorsa ışık yok (`needs_lights` / `lightsInfo`). Bir yol seçilince
   panelde nedeni yazar ("Işık yok: #43 yoluna 34 m boşluk, Gezgin gazsız 71 m'ye kadar
-  yetişir"). Çıkış yolunda
+  yetişir"). Yolun sonunda yolu boydan boya kaplayan rampa varsa araba rampadan uçar: Gezgin
+  gazsız rampadan ileride bir yola iniyorsa ışık yok, inmiyorsa var; rampa yolun bir kısmını
+  kaplıyorsa normal kural (`end_ramp` / `endRamp`). Çıkış yolunda
   hep var (oyun ardına atlamayla bağlar). "Engel pist bölgesinde" uyarısı da yalnız ışıklı
   yerde. Oyunda ışıklar editördeki kırmızı noktalarla aynı; ışıksız uçta otomatik pilot da
   gaza basmaz.
