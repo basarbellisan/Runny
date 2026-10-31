@@ -52,7 +52,7 @@
   }
   function hostOf(level, o) {
     let best = null;
-    for (const p of level.pieces) if (isOn(o, p) && (!best || (best.side && !p.side))) best = p;
+    for (const p of level.pieces) if (isOn(o, p) && !best) best = p;
     return best;
   }
   // Ucunda boşluksuz devam eden parça
@@ -64,10 +64,17 @@
     }
     return null;
   }
-  // Ana yol sırası (girişten çıkışa)
+  // Yollar başlangıç sırasıyla (girişten çıkışa). "Yan yol" ayrımı yok: hepsi yol
   function mainPath(level) {
-    return level.pieces.filter((p) => !p.side).sort((a, b) => a.z0 - b.z0);
+    return [...level.pieces].sort((a, b) => a.z0 - b.z0 || num(a.id, 0) - num(b.id, 0));
   }
+  // Çıkış: en ileride biten yol (oyun sonraki yolları buradan bağlar)
+  function exitOf(level) {
+    let best = null;
+    for (const p of mainPath(level)) if (!best || pEnd(p) > pEnd(best)) best = p;
+    return best;
+  }
+  const hasDeadend = (level, p) => (level.obstacles || []).some((o) => o.kind === 'deadend' && hostOf(level, o) === p);
 
   // A'nın sonundan B'ye atlama: mesafeler A'nın ucundan (z) ölçülür
   function jump(level, A, B) {
@@ -127,7 +134,6 @@
       return { issues, jumps, flights, zones, stats: { length: 0, time: 0, jumps: 0, crystals: 0, difficulty: 0 } };
     }
     const path = mainPath(level);
-    if (!path.length) add('error', 'Ana yol yok: tüm yollar "yan yol" işaretli.');
     const tanMax = Math.tan(CAR.maxSlopeDeg * Math.PI / 180);
     for (const p of pieces) {
       if (Math.abs(h1(p) - h0(p)) / Math.max(p.len, 0.01) > tanMax + 1e-6)
@@ -207,7 +213,7 @@
         if (cost < best) { best = cost; B = q; }
       }
       if (!B) {
-        if (pEnd(A) < Math.max(...path.map(pEnd)) - 1)
+        if (pEnd(A) < Math.max(...path.map(pEnd)) - 1 && !hasDeadend(level, A))
           add('warn', 'Bu yolun sonundan inilecek yol yok: araba uçuşa düşer (çıkmaz istiyorsan Çıkmaz koy).', [A.id], pEnd(A));
         continue;
       }
@@ -270,59 +276,52 @@
         add(left < F.v * 0.6 ? 'error' : 'warn', `${KIND_NAMES[o.kind]} sonrası gaz için az yol: iniş yolun sonuna ${left.toFixed(0)} m kala.`, [o.id], o.z0);
       }
     }
-    // Yan yolların sonu: ileride inilecek ana yol var mı
-    for (const p of pieces) {
-      if (!p.side || successor(level, p)) continue;
-      if (obstacles.some((o) => o.kind === 'deadend' && hostOf(level, o) === p)) continue;
-      const v = speedAt(at + pEnd(p));
-      const ok = path.some((q) => {
-        if (q.z0 > pEnd(p) + 60 || pEnd(q) < pEnd(p) + 4) return false;
-        const t = flightTime(hAt(q, pEnd(p)) - h1(p), CAR.launchVelocity + vBoost(v) * 0);
-        const lat = CAR.steerSpeed * CAR.airControl * (isNaN(t) ? 0 : t);
-        return Math.abs(q.x - p.x) - (q.w + p.w) / 2 + 2 * CAR.halfWidth < lat * 0.8;
-      });
-      if (!ok) { add('warn', 'Yan yolun sonundan inilecek ana yol yok: çıkmaz yapmak istiyorsan Çıkmaz koy.', [p.id], pEnd(p)); continue; }
-      // Yan yoldan ana yola iniş de ana yoldaki atlamalar gibi denetlenir
-      const B = path.filter((q) => q.z0 <= pEnd(p) + 60 && pEnd(q) >= pEnd(p) + 4)
-        .sort((a, b) => Math.abs(a.x - p.x) - Math.abs(b.x - p.x) || a.z0 - b.z0)[0];
-      const J = jump(level, p, B);
-      J.side = true;
-      jumps.push(J);
-      if (!isNaN(J.reachB)) landing(J, B);
-    }
-    // Yan yollara giriş ve yan yoldan yan yola atlamalar: yalnız gösterim (iniş bölgesi ve
-    // bağlantı çizgisi; atlanamıyorsa kırmızı). Kontrol listesine eklenmez (oyundaki
-    // level_check.gd ile aynı kalsın)
-    const view = (A, B) => {
-      const J = jump(level, A, B);
+    // Yan yola girişler (bir yolun ucundan, ana sıradaki atlamanın gitmediği yanındaki yola):
+    // yalnız gösterim (iniş bölgesi ve bağlantı çizgisi; atlanamıyorsa kırmızı)
+    for (const S of path) {
+      if (S === path[0] || jumps.some((j) => j.B === S) || pieces.some((r) => r !== S && successor(level, r) === S)) continue;
+      let A = null, best = Infinity;
+      for (const q of pieces) {
+        if (q === S || successor(level, q)) continue;
+        const gap = S.z0 - pEnd(q);
+        if (gap < 0.6 || gap > 150) continue;
+        const lat = Math.max(0, Math.abs(q.x - S.x) - (q.w + S.w) / 2);
+        if (lat > 8) continue;
+        if (gap + lat * 12 < best) { best = gap + lat * 12; A = q; }
+      }
+      if (!A) continue;
+      const J = jump(level, A, S);
       J.side = true; J.view = true;
       J.bad = isNaN(J.reachB) || J.gap > J.reachB - 2.5;
       jumps.push(J);
-    };
-    // En az kaymayla ulaşılan yol (ana yoldaki seçimle aynı ölçü); from: önden mi aranıyor
-    const nearest = (p, cands, from) => {
-      let best = null, cost = Infinity;
-      for (const q of cands) {
-        if (q === p) continue;
-        const gap = from ? p.z0 - pEnd(q) : q.z0 - pEnd(p);
-        if (gap < 0.6 || gap > 150) continue;
-        const lat = Math.max(0, Math.abs(q.x - p.x) - (q.w + p.w) / 2);
-        if (lat > 8) continue;
-        if (gap + lat * 12 < cost) { cost = gap + lat * 12; best = q; }
-      }
-      return best;
-    };
-    for (const p of pieces) {
-      if (!p.side || successor(level, p)) continue;
-      if (obstacles.some((o) => o.kind === 'deadend' && hostOf(level, o) === p)) continue;
-      if (jumps.some((j) => j.A === p)) continue;
-      const B = nearest(p, pieces, false);
-      if (B && B.side) view(p, B);
     }
-    for (const S of pieces) {
-      if (!S.side || jumps.some((j) => j.B === S) || pieces.some((r) => r !== S && successor(level, r) === S)) continue;
-      const A = nearest(S, pieces.filter((q) => !successor(level, q)), true);
-      if (A) view(A, S);
+    // Akış: girişten çıkışa giden bir yol var mı (bitişik devam, atlanabilen boşluk, rampa uçuşu)
+    const exitP = exitOf(level);
+    if (path.length > 1 && exitP) {
+      const next = (A) => {
+        const out = [];
+        const s = successor(level, A);
+        if (s) out.push(s);
+        else {
+          for (const q of pieces) {
+            if (q === A) continue;
+            const gap = q.z0 - pEnd(A);
+            if (gap < -0.6 || gap > 150) continue;
+            const lat = Math.max(0, Math.abs(q.x - A.x) - (q.w + A.w) / 2);
+            if (lat > 8) continue;
+            // Boşluksuz basamak: aşağı (ya da aynı) yola sürüp iner
+            if (gap < 0.6) { if (h0(q) <= h1(A) + 0.3) out.push(q); continue; }
+            const J = jump(level, A, q);
+            if (!isNaN(J.reachB) && gap <= J.reachB - 2.5) out.push(q);
+          }
+        }
+        for (const F of flights) if (F.host === A && F.landOn) out.push(F.landOn);
+        return out;
+      };
+      const seen = new Set([path[0]]), todo = [path[0]];
+      while (todo.length) for (const q of next(todo.pop())) if (!seen.has(q)) { seen.add(q); todo.push(q); }
+      if (!seen.has(exitP))
+        add('warn', 'Akış kopuk: girişten çıkışa giden bir yol yok. Yolları birbirine bağla (bitişik yol, atlanabilir boşluk ya da rampa).', pieces.filter((p) => !seen.has(p)).map((p) => p.id), exitP.z0);
     }
     // Bloklar yolu kapatmasın: her blok sırasında arabanın geçeceği bir geçit kalmalı
     const needLane = 2 * CAR.halfWidth + 1.0;
@@ -341,7 +340,7 @@
       }
     }
     // Çıkış yolu
-    const exit = path[path.length - 1];
+    const exit = exitOf(level);
     if (exit && obstacles.some((o) => hostOf(level, o) === exit && o.kind !== 'deadend' && o.z0 > pEnd(exit) - clearEnd(speedAt(at + pEnd(exit)))))
       add('warn', 'Çıkış yolunun sonu boş olmalı: oyun sonraki yolu buradan bağlar.', [exit.id], pEnd(exit));
 
@@ -382,9 +381,6 @@
         const f = i / 4;
         out.push({ x: J.A.x + (J.B.x - J.A.x) * f, z: pEnd(J.A) + J.gap * f, air: true });
       }
-    }
-    for (const p of level.pieces.filter((q) => q.side)) {
-      for (let z = p.z0 + 6; z < pEnd(p) - 6 && out.length < 400; z += sp) out.push({ x: p.x, z, on: p.id });
     }
     return out;
   }
@@ -482,7 +478,6 @@
     if (has('width')) {
       const n0 = changed.size;
       for (const p of L.pieces) {
-        if (p.side) continue;
         const nw = Math.max(4.5, Math.round(p.w * U(0.86, 1.14) * 2) / 2);
         if (nw === p.w) continue;
         for (const o of L.obstacles.filter((q) => hostOf(L, q) === p)) {
@@ -551,7 +546,7 @@
   const KIND_NAMES = { ramp: 'Rampa', kick: 'Eğik rampa', bump: 'Tümsek', gravel: 'Çakıl', block: 'Blok', deadend: 'Çıkmaz' };
 
   const api = { CAR, TIERS, speedAt, vBoost, vFull, flightTime, clearEnd, clearStart, jump, rampFlight,
-    analyze, crystalPreview, suggestGap, minRoadLength, mainPath, successor, hostOf, isOn, hAt, pEnd, KIND_NAMES,
+    analyze, crystalPreview, suggestGap, minRoadLength, mainPath, exitOf, successor, hostOf, isOn, hAt, pEnd, KIND_NAMES,
     vary, varyOnce, signature, rng32 };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RunnyPhysics = api;
