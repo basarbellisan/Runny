@@ -494,7 +494,7 @@ static func signature(level: Dictionary) -> String:
 
 
 ## Bir kez çeşitle (physics.js varyOnce ile aynı işlemler)
-static func vary_once(level: Dictionary, rng: RandomNumberGenerator, ops: Array) -> Dictionary:
+static func vary_once(level: Dictionary, rng: RandomNumberGenerator, ops: Array, hard := 0.0) -> Dictionary:
 	var lv: Dictionary = level.duplicate(true)
 	lv.erase("variants")
 	var tags: Array[String] = []
@@ -553,7 +553,7 @@ static func vary_once(level: Dictionary, rng: RandomNumberGenerator, ops: Array)
 						_tag(tags, "engel düzeni")
 	if "width" in ops:
 		for p in lv.pieces:
-			var nw := maxf(4.5, roundf(f(p, "w") * rng.randf_range(0.86, 1.14) * 2.0) / 2.0)
+			var nw := maxf(4.5, roundf(f(p, "w") * rng.randf_range(0.86 - 0.08 * hard, 1.14 - 0.14 * hard) * 2.0) / 2.0)
 			if nw == f(p, "w"):
 				continue
 			for o in lv.obstacles.filter(func(q): return is_same(host_of(lv, q), p)):
@@ -582,7 +582,7 @@ static func vary_once(level: Dictionary, rng: RandomNumberGenerator, ops: Array)
 			var g := f(b, "z0") - p_end(a)
 			if g < 0.6 or successor(lv, a) != null:
 				continue
-			var d := roundf(g * (rng.randf_range(0.85, 1.15) - 1.0))
+			var d := roundf(g * (rng.randf_range(0.85 + 0.1 * hard, 1.15 + 0.1 * hard) - 1.0))
 			if d != 0.0:
 				shift_from.call(f(b, "z0"), d)
 				_tag(tags, "boşluklar")
@@ -592,7 +592,10 @@ static func vary_once(level: Dictionary, rng: RandomNumberGenerator, ops: Array)
 ## Geçerli bir türev (asıl kalıpta olmayan yeni hata yok, uyarı asıl kalıptan fazla değil, daha önce
 ## görülmemiş); yoksa {}.
 ## speed > 0 ise kontrol o hızda yapılır (kalıp oyunda tasarımdakinden hızlı gelebilir).
-static func vary(level: Dictionary, rng: RandomNumberGenerator, seen: Dictionary, speed := 0.0, tries := 30) -> Dictionary:
+## hard (0..1): oyunda ileride daha sert türev: genişlik ve boşluk işlemleri daha sık, yollar
+## daralmaya, boşluklar uzamaya yatkın (yine kalıpta olmayan yeni hata çıkmaz)
+static func vary(level: Dictionary, rng: RandomNumberGenerator, seen: Dictionary, speed := 0.0, tries := 30,
+		hard := 0.0) -> Dictionary:
 	var check := func(l: Dictionary) -> Dictionary:
 		if speed > speed_at(f(l, "at")):
 			var c: Dictionary = l.duplicate()
@@ -603,10 +606,10 @@ static func vary(level: Dictionary, rng: RandomNumberGenerator, seen: Dictionary
 	var base_warns: int = base.warns
 	var base_errors: Array = base.issues.filter(func(t): return t.begins_with("hata: "))
 	for t in tries:
-		var ops: Array = VARY_OPS.filter(func(_op): return rng.randf() < 0.45)
+		var ops: Array = VARY_OPS.filter(func(op): return rng.randf() < (0.45 + 0.4 * hard if op in ["gap", "width"] else 0.45))
 		if ops.is_empty():
 			ops.append(VARY_OPS[rng.randi() % VARY_OPS.size()])
-		var res := vary_once(level, rng, ops)
+		var res := vary_once(level, rng, ops, hard)
 		if res.tags.is_empty():
 			continue
 		var sig := signature(res.level)

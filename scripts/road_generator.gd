@@ -114,8 +114,14 @@ const ZONES: Array[Color] = [
 @export var cleanup_distance := 40.0
 ## Düz yollarda yükseklik bu bandın içinde kalır
 @export var height_band := Vector2(-4.0, 4.0)
-@export var min_width := Vector2(7.5, 5.0)    # (zor, kolay)
-@export var max_width := Vector2(10.0, 8.0)   # (zor, kolay)
+@export var min_width := Vector2(7.5, 5.0)    # (başta, sonda): ilerledikçe daralır
+@export var max_width := Vector2(10.0, 8.0)   # (başta, sonda)
+## Yollar bu mesafede (m) "sonda" genişliğine iner
+@export var width_narrow_at := 8000.0
+## Boşluklar: başta çoğu kolay (pencerenin üst sınırı gap_early_top); gap_hard_at'e doğru
+## üst sınır gap_difficulty.y'ye çıkar ve seçim zor uca kayar (kıl payı boşluklar artar)
+@export var gap_early_top := 0.45
+@export var gap_hard_at := 8000.0
 ## Bu mesafeye (metre) gelince zorluk tavan yapar
 @export var difficulty_distance := 3000.0
 @export_range(0.0, 1.0) var side_road_chance := 1.0
@@ -351,7 +357,7 @@ func estimate_speed(dist_ahead: float) -> float:
 		v = minf(v + car.acceleration * t, car.max_speed)
 	else:
 		v += car.late_acceleration * t
-	return clampf(v, car.start_speed, car.top_speed)
+	return clampf(v, car.start_speed, car.top_speed + car.extra_top)
 
 
 ## Ana yolun verilen z'deki x konumu (boşluklarda iki yol arası)
@@ -638,12 +644,18 @@ func _next_from(prev: Segment) -> Segment:
 	var angled := spec.has("angle") or spec.has("rise_to")
 	if angled:
 		hard = gap_difficulty.x
+	if not angled:
+		# Başta çoğu kolay, ilerledikçe kıl payına yakın boşluklar artar
+		var gk := clampf(travelled / maxf(gap_hard_at, 1.0), 0.0, 1.0)
+		hard = minf(hard, lerpf(gap_early_top, gap_difficulty.y, gk))
+	var bias := lerpf(2.2, 0.8, clampf(travelled / maxf(gap_hard_at, 1.0), 0.0, 1.0))
 	var gap := lerpf(gaps.x, maxf(gaps.y, gaps.x),
-		_rng.randf_range(gap_difficulty.x, maxf(gap_difficulty.x, hard)))
+		lerpf(gap_difficulty.x, maxf(gap_difficulty.x, hard), pow(_rng.randf(), bias)))
 
 	var width := _rng.randf_range(
-		lerpf(min_width.y, min_width.x, difficulty),
-		lerpf(max_width.y, max_width.x, difficulty)) * float(spec.get("width", 1.0))
+		lerpf(min_width.x, min_width.y, clampf(travelled / maxf(width_narrow_at, 1.0), 0.0, 1.0)),
+		lerpf(max_width.x, max_width.y, clampf(travelled / maxf(width_narrow_at, 1.0), 0.0, 1.0))) \
+		* float(spec.get("width", 1.0))
 	# Havada sağa sola ne kadar kayabiliriz
 	var t := _flight_time(dh, vy_b)
 	var reach := car.steer_speed * t * car.air_control
@@ -2813,6 +2825,8 @@ var test_level: Dictionary = {}
 var custom_log: Array[Dictionary] = []
 ## El yapımı kalıbın seçilme ağırlığı (diğer kalıplar ~0.5-3)
 @export var custom_weight := 1.2
+## Kalıbın açıldığı yerden bu kadar (m) sonra türevleri en sert hâlinde
+@export var custom_hard_at := 6000.0
 ## Kalıp, tasarlandığı hızın en çok bu katına kadar gelir (daha hızlıda boşluklar bozulur)
 @export var custom_speed_margin := 1.25
 var _test_used := false
@@ -2873,7 +2887,7 @@ func _eligible_levels(travelled: float, v: float) -> Array[Dictionary]:
 func _build_custom(prev: Segment, level: Dictionary, travelled: float, vary := false) -> Segment:
 	var v := estimate_speed(car.global_position.z - prev.z_end)
 	if vary:
-		level = _fresh_variant(level, v)
+		level = _fresh_variant(level, v, travelled)
 	var v_boost := _v_boost(v)
 	var slope := prev.slope()
 	var vy := car.launch_velocity + v * slope
@@ -3094,12 +3108,20 @@ func to_design(pos: Vector3, index := 0) -> Vector2:
 
 ## Kalıbın bu oyunda daha önce gelmemiş hali: ilk kez geliyorsa olduğu gibi, yoksa o andaki
 ## hızda kontrolden geçen yeni bir türev (bulunamazsa olduğu gibi)
-func _fresh_variant(level: Dictionary, v: float) -> Dictionary:
+## travelled: oyunda gelinen mesafe; kalıbın açıldığı yerden ileride türevler sertleşir
+## (custom_hard_at metre sonra en sert: daha dar yollar, daha uzun boşluklar)
+func _fresh_variant(level: Dictionary, v: float, travelled := 0.0) -> Dictionary:
 	var sig := LevelCheck.signature(level)
 	if not _custom_seen.has(sig):
 		_custom_seen[sig] = true
 		return level
-	var res := LevelCheck.vary(level, _rng, _custom_seen, v)
+	var hard := clampf((travelled - float(level.get("at", 0.0))) / maxf(custom_hard_at, 1.0), 0.0, 1.0)
+	# Sert türev bulunamazsa daha yumuşağı denenir (aynısı tekrar gelmesin)
+	var res := {}
+	for h in [hard, hard * 0.5, 0.0]:
+		res = LevelCheck.vary(level, _rng, _custom_seen, v, 30, h)
+		if not res.is_empty() or h == 0.0:
+			break
 	if res.is_empty():
 		return level
 	_custom_seen[res.sig] = true

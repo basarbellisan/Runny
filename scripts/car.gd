@@ -242,6 +242,8 @@ var _k_grip := 1.0
 var _k_shove := 1.0
 var _k_after := 1.0
 var _tip_deg := 50.0
+## Uzun yolda son hıza eklenen (m/s, standart araba; oyun mesafeyle çok yavaş artırır)
+var extra_top := 0.0
 ## Hız katı: bu araba standart arabadan ne kadar hızlı
 var speed_mul: float:
 	get:
@@ -304,7 +306,7 @@ func _physics_process(delta: float) -> void:
 	if speed < max_speed * _k_speed:
 		speed = minf(speed + acceleration * _k_speed * delta, max_speed * _k_speed)
 	else:
-		speed = minf(speed + late_acceleration * _k_speed * delta, maxf(top_speed, max_speed) * _k_speed)
+		speed = minf(speed + late_acceleration * _k_speed * delta, (maxf(top_speed, max_speed) + extra_top) * _k_speed)
 	var input := autopilot.input() if autopilot else _read_input()
 	_steer = input.x
 	boosting = input.y > 0.5

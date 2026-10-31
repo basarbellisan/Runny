@@ -72,6 +72,9 @@ var crystal_energy := 15.0
 ## Enerji olarak verilir ve enerji göstergesinde "YEDEK" diye görünür (düz uçuşta ~10 sn;
 ## yükselmek daha hızlı yakar).
 var wing_reserve := 60.0
+## Uzun yolda son hız çok yavaş artar: late_speed_from metreden sonra her km'de bu kadar km/sa
+var late_speed_from := 8000.0
+var late_speed_per_km := 1.0
 ## Uçarken yükselirken (iki parmak) enerji bu kat hızlı harcanır
 var boost_drain_factor := 2.5
 
@@ -166,6 +169,7 @@ func _physics_process(delta: float) -> void:
 		_over_time += delta
 		return
 	roads.update(car.global_position)
+	car.extra_top = maxf(_start_z - car.global_position.z - late_speed_from, 0.0) / 1000.0 * late_speed_per_km / 3.6
 	lower.update(delta)
 	_check_level_test()
 	score += maxf(-car.velocity.z, 0.0) * delta * multiplier
