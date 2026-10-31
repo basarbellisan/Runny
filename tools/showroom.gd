@@ -6,6 +6,8 @@ var _out := "user://"
 var _variants := [1, 2, 3]
 ## Stüdyo ışığı: açık zemin, yumuşak ışık (referans görsellerle karşılaştırmak için)
 var _studio := false
+## Kanatlar açık (uçuş görünüşü): --wings
+var _wings := false
 
 
 func _initialize() -> void:
@@ -14,6 +16,8 @@ func _initialize() -> void:
 			_out = a.trim_prefix("--out=")
 		elif a == "--studio":
 			_studio = true
+		elif a == "--wings":
+			_wings = true
 		elif a.begins_with("--glb="):
 			# --glb=1:res://models/cars/kutu.glb  (Blender modelini önizle)
 			var kv := a.trim_prefix("--glb=").split(":", true, 1)
@@ -60,13 +64,16 @@ func _shoot() -> void:
 		world.add_child(car)
 		car.set_physics_process(false)
 		car.model.variant = v
+		if _wings:
+			car._set_wings(true, true)
 		# [ad, kamera konumu, bakılan nokta]; "oyun": oyundaki takip kamerasının açısı
 		for view in [["yan", Vector3(-7.5, 3.2, -6.5), Vector3(0, 0.7, 0)],
 				["arka", Vector3(0, 4.5, 9.5), Vector3(0, 0.7, 0)],
 				["on", Vector3(-6.0, 2.4, -7.5), Vector3(0, 0.7, 0)],
 				["profil", Vector3(-10.0, 1.6, 0.0), Vector3(0, 0.7, 0)],
 				["arka_alcak", Vector3(2.5, 1.8, 8.0), Vector3(0, 0.8, 0)],
-				["oyun", Vector3(0, 6.0, 10.0), Vector3(0, -1.0, -22.0)]]:
+				["oyun", Vector3(0, 6.0, 10.0), Vector3(0, -1.0, -22.0)],
+				["ust", Vector3(0, 14.0, 2.5), Vector3(0, 0.5, 0.3)]]:
 			cam.position = view[1]
 			cam.look_at(view[2])
 			cam.fov = 62.0 if view[0] == "oyun" else 32.0

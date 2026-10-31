@@ -280,12 +280,13 @@ func _ready() -> void:
 	half_length = keel.height * 0.5
 	last_floor_y = global_position.y
 	_default_mask = collision_mask
+	model = $Body/Model
+	_build_wings()
 	_set_wings(false, true)
 	trail = CarTrail.new()
 	add_child(trail)
 	fx = CarFx.new()
 	add_child(fx)
-	model = $Body/Model
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -1222,6 +1223,87 @@ func _set_wings(open: bool, instant := false) -> void:
 		_wing_tween.chain().tween_callback(func():
 			for n: Node3D in targets:
 				n.visible = false)
+
+
+## Uçak kanatları: gövdeden uca sivrilen, hücum kenarı geriye açılı (ok biçimi), uca doğru
+## incelen kanat; dikey kuyruk da aynı biçimde. Hepsi arabanın gövde renginde (model.paint_material:
+## araba değişince renk de değişir). Sahnedeki eski düz kutu kanatların yerine kurulur.
+## Kanat planı (yerel, m): kök x=0, uç x=±WING_LEN; z eksi ileri
+const WING_LEN := 3.0
+const WING_ROOT := Vector2(-0.8, 0.85)   # kökte hücum (ön) ve firar (arka) kenarı z
+const WING_TIP := Vector2(0.15, 0.8)     # uçta (kök genişliğinin ~%40ı)
+const WING_THICK := Vector2(0.13, 0.035)  # kök ve uç kalınlığı
+
+
+func _build_wings() -> void:
+	for side in [-1.0, 1.0]:
+		var holder: Node3D = _wing_l if side < 0.0 else _wing_r
+		var old := holder.get_node_or_null("Mesh") as MeshInstance3D
+		if old:
+			old.visible = false  # eski kutu kanat (ve ucundaki şerit)
+		var mi := MeshInstance3D.new()
+		mi.name = "Swept"
+		mi.mesh = _wing_mesh(side)
+		mi.material_override = model.paint_material
+		holder.add_child(mi)
+	var old_tail := _tail.get_node_or_null("Mesh") as MeshInstance3D
+	if old_tail:
+		old_tail.visible = false
+	var fin := MeshInstance3D.new()
+	fin.name = "Swept"
+	fin.mesh = _fin_mesh()
+	fin.material_override = model.paint_material
+	_tail.add_child(fin)
+
+
+## Sivrilen kanat: kökte ve uçta altıgen kesit (üstü hafif kamburlu), düz gölgeli
+func _wing_mesh(side: float) -> ArrayMesh:
+	var sec := func(x: float, le: float, te: float, t: float) -> Array:
+		var c := te - le
+		# Kesit: hücum kenarı, üst (chord'un %30'u en kalın), firar kenarı, alt
+		return [Vector3(x, 0.0, le), Vector3(x, t * 0.6, le + c * 0.3), Vector3(x, t * 0.25, te),
+			Vector3(x, -t * 0.15, te), Vector3(x, -t * 0.4, le + c * 0.3)]
+	var r: Array = sec.call(0.0, WING_ROOT.x, WING_ROOT.y, WING_THICK.x)
+	var u: Array = sec.call(side * WING_LEN, WING_TIP.x, WING_TIP.y, WING_THICK.y)
+	return _loft(r, u)
+
+
+## Dikey kuyruk: tabanda geniş, tepeye sivrilen, hücum kenarı geriye yatık
+func _fin_mesh() -> ArrayMesh:
+	var sec := func(y: float, le: float, te: float, t: float) -> Array:
+		var c := te - le
+		return [Vector3(0.0, y, le), Vector3(t * 0.5, y, le + c * 0.3), Vector3(t * 0.2, y, te),
+			Vector3(-t * 0.2, y, te), Vector3(-t * 0.5, y, le + c * 0.3)]
+	return _loft(sec.call(0.0, -0.45, 0.45, 0.1), sec.call(0.8, 0.2, 0.5, 0.03))
+
+
+## İki kesit arasında yan yüzler ve iki kapak; her üçgen kendi normaliyle (düz gölge).
+## Biçim dışbükey: her yüz şeklin ortasından dışa baksın diye gerekirse çevrilir
+func _loft(a: Array, b: Array) -> ArrayMesh:
+	var mid := Vector3.ZERO
+	for v: Vector3 in a + b:
+		mid += v / float(a.size() + b.size())
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var tri := func(p: Vector3, q: Vector3, w: Vector3) -> void:
+		var pts := [p, q, w]
+		var n: Vector3 = (q - p).cross(w - p).normalized()
+		if n.dot((p + q + w) / 3.0 - mid) < 0.0:
+			pts = [p, w, q]
+			n = -n
+		# Godot'da ön yüz saat yönünde: dışa bakan (sağ el) sırayı ters ekle
+		for v: Vector3 in [pts[0], pts[2], pts[1]]:
+			st.set_normal(n)
+			st.add_vertex(v)
+	var n := a.size()
+	for i in n:
+		var k := (i + 1) % n
+		tri.call(a[i], b[i], b[k])
+		tri.call(a[i], b[k], a[k])
+	for i in range(1, n - 1):
+		tri.call(a[0], a[i + 1], a[i])
+		tri.call(b[0], b[i], b[i + 1])
+	return st.commit()
 
 
 ## Patlama: araba renklerinde küçük parçalar ve turuncu bir parlama
