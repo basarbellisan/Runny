@@ -197,7 +197,8 @@ varsayılandan farklı değerleri tek satırlık metin olarak verir
 
 ## Oyun döngüsü
 - Üst katman: yollarda git, üstte kaldıkça çarpan artar (x5'e kadar); çarpan ekranda görünmez
-  (yalnız puanı etkiler). Puanın altında gidilen mesafe yazar (oyun sonunda da)
+  (yalnız puanı etkiler). Oyun içinde sol üstte gidilen mesafe (DISTANCE, km), sağ üstte
+  puan (SCORE), aynı boyda; oyun sonunda puanın altında mesafe (m)
 - Yoldan düşersen kanatlar açılır, alt katmanda uçarsın; çarpan x1'e döner. Uçarken burun hep ileri
   bakar (en çok ~15° döner), dönüşü gövdenin yatması gösterir; düşerken kalan açı hemen düzelir
 - Alt katmanda enerji (roketle aynı depo) azalır, kristal yok; iki parmakla ~8 m
