@@ -290,6 +290,40 @@
       jumps.push(J);
       if (!isNaN(J.reachB)) landing(J, B);
     }
+    // Yan yollara giriş ve yan yoldan yan yola atlamalar: yalnız gösterim (iniş bölgesi ve
+    // bağlantı çizgisi; atlanamıyorsa kırmızı). Kontrol listesine eklenmez (oyundaki
+    // level_check.gd ile aynı kalsın)
+    const view = (A, B) => {
+      const J = jump(level, A, B);
+      J.side = true; J.view = true;
+      J.bad = isNaN(J.reachB) || J.gap > J.reachB - 2.5;
+      jumps.push(J);
+    };
+    // En az kaymayla ulaşılan yol (ana yoldaki seçimle aynı ölçü); from: önden mi aranıyor
+    const nearest = (p, cands, from) => {
+      let best = null, cost = Infinity;
+      for (const q of cands) {
+        if (q === p) continue;
+        const gap = from ? p.z0 - pEnd(q) : q.z0 - pEnd(p);
+        if (gap < 0.6 || gap > 150) continue;
+        const lat = Math.max(0, Math.abs(q.x - p.x) - (q.w + p.w) / 2);
+        if (lat > 8) continue;
+        if (gap + lat * 12 < cost) { cost = gap + lat * 12; best = q; }
+      }
+      return best;
+    };
+    for (const p of pieces) {
+      if (!p.side || successor(level, p)) continue;
+      if (obstacles.some((o) => o.kind === 'deadend' && hostOf(level, o) === p)) continue;
+      if (jumps.some((j) => j.A === p)) continue;
+      const B = nearest(p, pieces, false);
+      if (B && B.side) view(p, B);
+    }
+    for (const S of pieces) {
+      if (!S.side || jumps.some((j) => j.B === S) || pieces.some((r) => r !== S && successor(level, r) === S)) continue;
+      const A = nearest(S, pieces.filter((q) => !successor(level, q)), true);
+      if (A) view(A, S);
+    }
     // Bloklar yolu kapatmasın: her blok sırasında arabanın geçeceği bir geçit kalmalı
     const needLane = 2 * CAR.halfWidth + 1.0;
     for (const p of pieces) {
@@ -343,7 +377,7 @@
       }
     }
     for (const J of (A && A.jumps) || []) {
-      if (J.bad || J.gap < 6) continue;
+      if (J.bad || J.view || J.gap < 6) continue;
       for (let i = 1; i <= 3; i++) {
         const f = i / 4;
         out.push({ x: J.A.x + (J.B.x - J.A.x) * f, z: pEnd(J.A) + J.gap * f, air: true });

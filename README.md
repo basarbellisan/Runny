@@ -344,6 +344,9 @@ rampa, tümsek, çakıl, blok, çıkmaz) tuvale sürükleyerek el yapımı kalı
 Kristalleri oyun kendi algoritmasıyla dizer. Sağdaki **Kontrol** listesi oyunun
 fiziğiyle (`editor/physics.js`, oyundaki sabitlerle aynı) her atlamayı, iniş
 bölgesini, rampa/tümsek uçuşunu ve yan yol dönüşlerini denetler.
+- **Yan yollar**: yan yola giriş ve yan yoldan yan yola atlamalarda da yeşil iniş bölgesi ve
+  bağlantı çizgisi görünür (atlanamıyorsa çizgi kırmızı). Bunlar yalnız gösterimdir, kontrol
+  listesine eklenmez.
 - **Boşluk**: Engeller bölümünden yolun üstüne sürüklenir; bırakıldığı yere yakın kenardan yolun
   yarısını 30 m boyunca kırpar (yol önü / dar orta / arkası diye üç yola bölünür; dar yolda,
   5 m ve altı, boydan boya keser). Kırpılan yerdeki engeller kalkar; kalan şerit tutamaklarla
