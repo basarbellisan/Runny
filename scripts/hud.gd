@@ -35,13 +35,22 @@ var _energy_fraction := 1.0
 var _spaced: FontVariation
 
 
+## Üst köşelerdeki mesafe ve puanın boyu ve kenardan uzaklığı
+const TOP_SIZE := 48
+const TOP_MARGIN := 36.0
+
+
 func _ready() -> void:
 	_spaced = FontVariation.new()
 	_spaced.spacing_glyph = 4
-	_score = _make_label(76, Vector2(0, 56))
-	# Puanın altında gidilen mesafe. Çarpan (x2..x5) puanı etkiler ama ekranda gösterilmez
-	_dist = _make_label(22, Vector2(0, 118), true)
-	_dist.modulate.a = 0.6
+	# Üstte iki köşe, aynı boy: solda gidilen mesafe (km), sağda puan.
+	# Çarpan (x2..x5) puanı etkiler ama ekranda gösterilmez
+	_dist = _make_label(TOP_SIZE, Vector2(0, 64))
+	_dist.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_dist.offset_left = TOP_MARGIN
+	_score = _make_label(TOP_SIZE, Vector2(0, 64))
+	_score.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_score.offset_right = -TOP_MARGIN
 	_mult = _make_label(26, Vector2(0, 162), true)
 	_mult.visible = false
 	_popup = _make_label(40, Vector2(0, 420), true)
@@ -235,9 +244,14 @@ static func distance_text(meters: float) -> String:
 	return s + out + " m"
 
 
+## Oyun içi mesafe: 1.07 km
+static func km_text(meters: float) -> String:
+	return "%.2f km" % (maxf(meters, 0.0) / 1000.0)
+
+
 func set_score(score: int, multiplier: int, meters := 0.0) -> void:
 	_score.text = str(score)
-	_dist.text = distance_text(meters)
+	_dist.text = km_text(meters)
 	_mult.text = "x%d" % multiplier
 	_mult.modulate.a = 1.0 if multiplier > 1 else 0.45
 
