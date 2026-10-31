@@ -12,6 +12,7 @@ const MODELS := [
 	["DARK ROSE", "Direksiyonu en iyi araba, hızlı da. Ama izi dar: kenarda kolay devrilir.", 7],
 	["LATTE", "Dengeli: çakılda ve kenarda sağlam, atlamalarda ne az ne çok gaz ister.", 8],
 	["FALCON", "En hızlısı: az gazla atlar, enerjisi kanatlara kalır. Ama çakılda buz pateni.", 9],
+	["GEM", "Hızlı ve virajda çevik, alçak gövdesiyle zor devrilir. Ama çakılda tutunamaz.", 10],
 ]
 ## Platformlar arası mesafe (m)
 const SPACING := 7.0

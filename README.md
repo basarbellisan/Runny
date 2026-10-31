@@ -18,7 +18,7 @@ kendi malzemeleriyle değiştirir). Üretmek: `python tools/blender/cars.py --ou
 models/cars --render <klasör>`. Önizleme: `tools/showroom.gd -- --glb=1:res://models/cars/kutu.glb`.
 Gövde rengi modelden gelir (Blender'daki Paint rengi).
 
-Garajda 5 araba var: Gezgin, Dragster, Dark Rose, Latte ve Falcon (Kutu, Konsept ve
+Garajda 6 araba var: Gezgin, Dragster, Dark Rose, Latte, Falcon ve GEM (Kutu, Konsept ve
 Roadster garajdan çıktı; kodları duruyor, `--model=1` gibi testlerde açılabilir).
 Her arabanın özellikleri var (`CarModel.STATS`, 1-5, 3 = standart):
 
@@ -29,6 +29,7 @@ Her arabanın özellikleri var (`CarModel.STATS`, 1-5, 3 = standart):
 | Dark Rose | 4 | 5 | 3 | 2 |
 | Latte | 3 | 3 | 4 | 4 |
 | Falcon | 5 | 3 | 1 | 5 |
+| GEM | 4 | 4 | 2 | 4 |
 
 Garajda her arabanın altında bu dört özellik beşli çubukla görünür.
 Hız: başlangıç/en yüksek/tavan hız −%8..+%8. Tutuş: direksiyon tepkisi −%20..+%20,
@@ -67,6 +68,13 @@ Falcon (model 9) Blender modeli: Figma'daki "RUNNY / Araba 4" çiziminden
 kenarlı kama: ortada sırtlı çatı, iki yanda dar üst şeritli yan bloklar, düz
 burun yüzü, arka tekerin girdiği kaporta kemeri, arkada sivri ok ucu ve yüzgeç;
 beyaz lastikler, turuncu jantlar.
+GEM (model 10) Blender modeli: Figma'daki "RUNNY / Araba 5" çiziminden (`gem`;
+yandan, arkadan, önden ve üstten görünüş). Antrasit; kesiti üçgen gövde, yan
+yüzler alçak burundan arkaya tek düz düzlem; sırtta öne eğik yüzgeç ve önünde
+kokpit kesiği; arka tekerler iki yandaki çamurluk bloklarının içinde (alttan açık
+teker yuvası); çamurlukların dışında sivri oyuk. Kokpit, oyuklar, arkadaki üçgen
+ve lastikler kristal yeşili (`Green`), jantlar antrasit (`Rim`: oyunun beyaz
+`Hub` malzemesiyle değişmez); ön tekerler gövdeye uzanan dingillerde.
 
 ## Kontroller
 - Mobil: ekranın sol yarısına dokun → sola, sağ yarısına → sağa

@@ -31,7 +31,7 @@ COLORS = {
     # Oyundaki kristal yeşili (Palette.ENERGY #9fe02a); oyun bu malzemeyi değiştirmez
     "Green": ((0.624, 0.878, 0.165), 0.5, 0.0),
     # Antrasit jant (oyun "Hub" malzemesini beyazla değiştirir; bu ad modeldeki renkte kalır)
-    "Rim": ((0.227, 0.239, 0.259), 0.55, 0.0),
+    "Rim": ((0.15, 0.16, 0.18), 0.55, 0.0),
 }
 
 
@@ -1061,8 +1061,8 @@ def build_falcon():
         wheel4(name, (x, y, r), r, tw, hub, out, nut)
 
 
-def build_araba5():
-    """Araba 5 (Figma "RUNNY / Araba 5"; yandan, arkadan, önden ve üstten görünüş, hepsi aynı
+def build_gem():
+    """GEM (Figma "RUNNY / Araba 5"; yandan, arkadan, önden ve üstten görünüş, hepsi aynı
     ölçekte): alçak burundan arkaya yükselen sırtlı gövde (kesiti üçgen: önden ve arkadan
     bakınca çatı); sırtın ortasında öne eğik bir yüzgeç (tepesi 367,211); yüzgecin arkası
     arka köşelere iner (üstten ters üçgen, üstünde yeşil üçgen); iki yanda arka tekerleri
@@ -1283,8 +1283,8 @@ def build_araba5():
     yf, _ = P(191.0, 0)
     yr, _ = P(363.7, 0)
     for sx in (-1, 1):
-        # Ön aks: gövdeden tekere
-        box("axle_f", (w(12.0), w(3.5), w(3.5)), (sx * w(36.0), yf, r), "Dark")
+        # Ön aks: gövdenin içinden (aks yüksekliğinde gövde yanı ~19 px) tekerin iç yüzüne (41.9)
+        box("axle_f", (w(30.0), w(3.5), w(3.5)), (sx * w(27.0), yf, r), "Dark")
     for name, x, y, tw, hub in (("wheel_FL", -w(52.0), yf, w(20.3), w(4.0)), ("wheel_FR", w(52.0), yf, w(20.3), w(4.0)),
                                 ("wheel_RL", -w(63.6), yr, w(29.0), w(0.2)), ("wheel_RR", w(63.6), yr, w(29.0), w(0.2))):
         # Arka tekerin göbeği çamurluğun dışına taşmasın (teker çamurluğun içinde)
@@ -1303,20 +1303,20 @@ def stretch_y(k):
 
 
 A3_MID = 277.0       # Latte (Araba 3): yan görünüşte arabanın ortası (burun 140.5, arka 414)
-A5_MID = 301.2       # Araba 5: yan görünüşte arabanın ortası (burun 142.5, arka 460)
+A5_MID = 301.2       # GEM (Araba 5): yan görünüşte arabanın ortası (burun 142.5, arka 460)
 A4_MID = 291.0       # Falcon (Araba 4): yan görünüşte arabanın ortası (burun 128, arka 454)
 BUILDERS = {"kutu": build_kutu, "dragster": build_dragster, "yarisci": build_yarisci, "latte": build_latte,
-            "falcon": build_falcon, "araba5": build_araba5}
+            "falcon": build_falcon, "gem": build_gem}
 ## Figma çizimli arabalar: yan görünüşte arabanın ortası ve yer çizgisi (piksel)
 ## (isteğe bağlı 3. değer: yan görünüşte kameranın baktığı x; yoksa 296.5)
 ORTHO = {"dragster": (D_MID, 334.0), "yarisci": (300.0, 326.0), "latte": (A3_MID, 326.0, 284.5),
-         "falcon": (A4_MID, 320.0, 291.0), "araba5": (A5_MID, 325.4, 301.2)}
+         "falcon": (A4_MID, 320.0, 291.0), "gem": (A5_MID, 325.4, 301.2)}
 ## Modelin gövde rengi (oyun bu rengi alır)
 PAINTS = {"dragster": ((1.0, 0.549, 0.255), 0.6, 0.0), "yarisci": ((0.11, 0.11, 0.12), 0.45, 0.0),
-          "latte": ((0.886, 0.776, 0.596), 0.55, 0.0), "araba5": ((0.227, 0.239, 0.259), 0.55, 0.0)}
+          "latte": ((0.886, 0.776, 0.596), 0.55, 0.0), "gem": ((0.15, 0.16, 0.18), 0.55, 0.0)}
 ## Lastik rengi (oyun bu rengi alır); yoksa koyu gri
 TIRES = {"yarisci": ((0.82, 0.16, 0.13), 0.8, 0.0), "latte": ((1.0, 0.353, 0.122), 0.8, 0.0),
-         "falcon": ((0.95, 0.945, 0.93), 0.9, 0.0), "araba5": ((0.624, 0.878, 0.165), 0.8, 0.0)}
+         "falcon": ((0.95, 0.945, 0.93), 0.9, 0.0), "gem": ((0.624, 0.878, 0.165), 0.8, 0.0)}
 
 
 # ---------------------------------------------------------------- çıktı
@@ -1476,9 +1476,9 @@ def main():
                 if name == "falcon":
                     # Bu çizimde önden görünüş yok, üstten görünüş var
                     views = {"o_yan": views["o_yan"], "o_arka": views["o_arka"], "o_ust": ((0, yc, 20), (0, yc, 0))}
-                elif name == "araba5":
+                elif name == "gem":
                     views["o_ust"] = ((0, yc, 20), (0, yc, 0))
-                render_ortho(a.render, name, views, DS, 360 if name in ("falcon", "araba5") else 300)
+                render_ortho(a.render, name, views, DS, 360 if name in ("falcon", "gem") else 300)
             else:
                 render(a.render, name, a.studio)
 
