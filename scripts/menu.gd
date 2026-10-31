@@ -368,7 +368,7 @@ func _build_ui(best: int) -> void:
 	ui.add_child(_fade)
 
 
-const STAT_NAMES := ["HIZ", "TUTUŞ", "ÇAKIL", "DENGE"]
+const STAT_NAMES := ["SPEED", "STEERING", "GRAVEL", "STABILITY"]
 
 
 ## Özellikler (CarModel.STATS, 1-5), 2x2: AD  ▮▮▮▮▯
@@ -377,13 +377,13 @@ func _fill_stats(variant: int, animate := false) -> void:
 	if _segs.is_empty():
 		var grid := GridContainer.new()
 		grid.columns = 2
-		grid.add_theme_constant_override("h_separation", 56)
+		grid.add_theme_constant_override("h_separation", 40)
 		grid.add_theme_constant_override("v_separation", 22)
 		_center(grid)
 		for i in 4:
 			var row := HBoxContainer.new()
 			row.add_theme_constant_override("separation", 12)
-			row.add_child(_small(STAT_NAMES[i], 22, 0.6, 96))
+			row.add_child(_small(STAT_NAMES[i], 22, 0.6, 128))
 			var bar := _bar(0, Vector2(26, 13), 5)
 			row.add_child(bar)
 			_segs.append(bar.get_children())
