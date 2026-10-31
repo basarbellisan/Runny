@@ -27,6 +27,7 @@ COLORS = {
     "Light": ((1.0, 1.0, 1.0), 0.3, 0.6),
     "Tail": ((0.847, 0.196, 0.165), 0.4, 1.5),
     "Hub": ((0.984, 0.98, 0.969), 0.5, 0.0),
+    "Grey": ((0.85, 0.85, 0.84), 0.6, 0.0),
 }
 
 
@@ -1056,6 +1057,150 @@ def build_falcon():
         wheel4(name, (x, y, r), r, tw, hub, out, nut)
 
 
+def build_araba5():
+    """Araba 5 (Figma "RUNNY / Araba 5"; yandan, arkadan, önden ve üstten görünüş, hepsi aynı
+    ölçekte): alçak burundan arkaya yükselen sırtlı gövde (kesiti üçgen: önden ve arkadan
+    bakınca çatı); sırtın ortasında öne eğik bir yüzgeç (tepesi 367,211); yüzgecin arkası
+    arka köşelere iner (üstten ters üçgen, üstünde siyah üçgen); iki yanda arka tekerleri
+    örten uzun çamurluk blokları (yandan eğik önlü ve arkalı, dış yüzünde gri üçgen);
+    öndeki ince tekerler gövdenin dışında, akslı; sırtta ok biçimli siyah kokpit camı.
+    Ölçüler çizimin pikselleri: yan görünüşte x boy (burun solda 142.5, arka 460), y aşağı
+    (yer y=325.4); arkadan orta x=624.6, önden 872.3, üstten 1115 (burun aşağıda, ty → x = 571 − ty)."""
+    MID, GROUND = A5_MID, 325.4
+    BOT = 307.9
+    w = lambda px: px * DS
+
+    def P(x, y):
+        return (MID - x) * DS, (GROUND - y) * DS
+
+    def loft3(name, rings, mat="Paint"):
+        """Her kesit aynı sayıda (x_yan, yanal_px, y_px) noktası; kesitler arası düz kenarlar."""
+        bm = bmesh.new()
+        vs = [[bm.verts.new((w(z),) + P(x, y)) for x, z, y in ring] for ring in rings]
+        n = len(vs[0])
+        for a, b in zip(vs, vs[1:]):
+            for i in range(n):
+                k = (i + 1) % n
+                bm.faces.new((a[i], a[k], b[k], b[i]))
+        caps = [bm.faces.new(vs[0]), bm.faces.new(list(reversed(vs[-1])))]
+        bmesh.ops.triangulate(bm, faces=caps)
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        ob = new_object(name, bm, [mat])
+        flat(ob)
+        return ob
+
+    def prism(name, pts, z0, z1, mat="Paint"):
+        """Yan profil (x, y) çokgeni yanal z0..z1 arasında (iki yan için ayrı ayrı)."""
+        for sx in (-1, 1):
+            bm = bmesh.new()
+            a = [bm.verts.new((sx * w(z0),) + P(x, y)) for x, y in pts]
+            b = [bm.verts.new((sx * w(z1),) + P(x, y)) for x, y in pts]
+            caps = [bm.faces.new(a), bm.faces.new(list(reversed(b)))]
+            for i in range(len(pts)):
+                k = (i + 1) % len(pts)
+                bm.faces.new((a[i], a[k], b[k], b[i]))
+            bmesh.ops.triangulate(bm, faces=caps)
+            bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+            flat(new_object(name, bm, [mat]))
+
+    # Gövde: üstten kenar burunda ±24.7 (ty 431), arkada ±65 (ty 147; arkası çamurlukların altında).
+    # Kesit beşgen: alt köşeler (±hb, 307.9), omuzlar, sırt. Burun önü eğik yüz (142.5 alt → 155.2 sırt);
+    # sırt 155.2,274.3 → 231.2,252.1 → 297.8,257.2; yüzgeç önü dik basamak, tepesi 367.4,211
+    # (önden: yüzgeç tabanı ±43, 273.7); arka yüz (424) arkadan: sırttan ±47.5, 286 köşelerine iner
+    hb = lambda x: 24.7 + (x - 140.0) * (65.0 - 24.7) / (424.0 - 140.0)
+    ring = lambda xb, xr, ridge, hs, ys: [(xb, -hb(xb), BOT), (xb, hb(xb), BOT), (xr, hs, ys), (xr, 0.0, ridge),
+                                          (xr, -hs, ys)]
+    loft3("body", [
+        ring(142.5, 155.2, 274.3, hb(150.0), 300.0),
+        ring(231.2, 231.2, 252.1, hb(231.2) * 0.98, 305.0),
+        ring(297.8, 297.8, 257.2, hb(297.8) * 0.98, 305.0),
+        ring(298.6, 296.5, 236.0, 40.0, 275.0),
+        ring(367.4, 367.4, 211.0, 43.0, 273.7),
+        ring(424.0, 424.0, 286.0, 47.5, 286.0),
+    ])
+    # Çatı yüksekliği (kokpit camı ve arka siyah üçgen için): sırttan omza düz iner
+    def roof(x, d):
+        if x <= 298.6:
+            t = min(max((x - 231.2) / (297.8 - 231.2), 0.0), 1.0)
+            r = 252.1 + (257.2 - 252.1) * t
+            hs, ys = hb(x) * 0.98, 305.0
+        else:
+            t = (x - 367.4) / (424.0 - 367.4)
+            r = 211.0 + (286.0 - 211.0) * t
+            hs, ys = 43.0 + 4.5 * t, 273.7 + (286.0 - 273.7) * t
+        return r + (ys - r) * min(abs(d) / hs, 1.0)
+
+    def decal(name, pts, mat, lift=1.2):
+        """Üstten (yanal, ty) noktalarıyla çatıya oturan ince parça; sırtın iki yanı ayrı."""
+        bm = bmesh.new()
+        halves = [pts] if all(d >= -1e-6 for d, _ in pts) or all(d <= 1e-6 for d, _ in pts) else None
+        for half in (halves or [[(max(d, 0.0), t) for d, t in pts], [(min(d, 0.0), t) for d, t in pts]]):
+            top, bot = [], []
+            for d, ty in half:
+                x = 571.0 - ty
+                Y, _ = P(x, 0)
+                top.append(bm.verts.new((w(d), Y, (GROUND - roof(x, d) + lift) * DS)))
+                bot.append(bm.verts.new((w(d), Y, (GROUND - roof(x, d) - 1.0) * DS)))
+            ft = bm.faces.new(top)
+            fb = bm.faces.new(list(reversed(bot)))
+            for i in range(len(half)):
+                k = (i + 1) % len(half)
+                bm.faces.new((top[i], bot[i], bot[k], top[k]))
+            bmesh.ops.triangulate(bm, faces=[ft, fb])
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        flat(new_object(name, bm, [mat]))
+
+    # Kokpit camı: üstten ok (arka köşeler ±26.6,273; arka çentik 288.3; ön uç 340.2)
+    for sgn in (-1.0, 1.0):
+        decal("canopy", [(sgn * 26.6, 273.0), (0.0, 288.3), (0.0, 340.2)], "Glass")
+    # Arkada siyah üçgen (üstten 1097.9..1132.1, ty 161.5 → 181.8; arkadan tabanı 290'da, ±25):
+    # arka kenara kadar uzatıldı, arkadan da görünsün
+    for sgn in (-1.0, 1.0):
+        decal("rear_mark", [(sgn * 21.0, 150.0), (0.0, 150.0), (0.0, 182.0)], "Dark")
+
+    # Çamurluklar: yandan Rect 42 (262.9,307.9 → 329.4,247.1 → 459.3,232.5 → 399.1,307.9);
+    # arkadan/önden 47.6..80.6 genişlikte; arka tekerler içlerinde
+    prism("fender", [(262.9, 309.0), (329.4, 247.1), (459.3, 232.5), (399.1, 309.0)], 47.6, 80.6)
+    # Dış yüzde gri üçgen (Rect 62)
+    prism("intake", [(364.3, 263.5), (455.0, 238.5), (440.0, 263.5)], 80.6, 81.2, "Grey")
+
+    def wheel5(name, pos, r, tw, hub_r, hub_out, nut_r):
+        seg = 18
+        bm = bmesh.new()
+        bmesh.ops.create_cone(bm, cap_ends=True, segments=seg, radius1=r, radius2=r, depth=tw)
+        bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
+        tire = new_object(name, bm, ["Tire"])
+        bevel(tire, w(4), 2)
+        flat(tire)
+        for side in (-1, 1):
+            for rad, depth, off, mat, sg in ((r * 0.6, 0.01, tw / 2, "Hub", seg),
+                                             (hub_r, hub_out, tw / 2 + hub_out / 2, "Hub", 12),
+                                             (nut_r, 0.01, tw / 2 + hub_out + 0.003, "Dark", 8)):
+                bm = bmesh.new()
+                bmesh.ops.create_cone(bm, cap_ends=True, segments=sg, radius1=rad, radius2=rad, depth=depth)
+                bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
+                bmesh.ops.translate(bm, verts=bm.verts, vec=(side * off, 0, 0))
+                ob = new_object(name + "_p", bm, [mat])
+                ob.parent = tire
+                flat(ob)
+        tire.location = pos
+        return tire
+
+    # Tekerler: hepsi çap 56.4 (yarıçap 28.2), merkez y 297.2. Ön: x 191, iz yarısı 52, genişlik 20.3;
+    # arka: x 363.7, iz yarısı 64, genişlik 31.7 (çamurluğun içinde)
+    r = w(28.2)
+    yf, _ = P(191.0, 0)
+    yr, _ = P(363.7, 0)
+    for sx in (-1, 1):
+        # Ön aks: gövdeden tekere
+        box("axle_f", (w(12.0), w(3.5), w(3.5)), (sx * w(36.0), yf, r), "Dark")
+    for name, x, y, tw, hub in (("wheel_FL", -w(52.0), yf, w(20.3), w(4.0)), ("wheel_FR", w(52.0), yf, w(20.3), w(4.0)),
+                                ("wheel_RL", -w(64.0), yr, w(31.7), w(0.2)), ("wheel_RR", w(64.0), yr, w(31.7), w(0.2))):
+        # Arka tekerin göbeği çamurluğun dışına taşmasın (teker çamurluğun içinde)
+        wheel5(name, (x, y, r), r, tw, w(8.0), hub, w(4.0))
+
+
 def stretch_y(k):
     """Arabayı boyuna uzatır (tekerler büyümez, yalnız yerleri kayar)."""
     for ob in bpy.context.scene.objects:
@@ -1068,13 +1213,14 @@ def stretch_y(k):
 
 
 A3_MID = 277.0       # Latte (Araba 3): yan görünüşte arabanın ortası (burun 140.5, arka 414)
+A5_MID = 301.2       # Araba 5: yan görünüşte arabanın ortası (burun 142.5, arka 460)
 A4_MID = 291.0       # Falcon (Araba 4): yan görünüşte arabanın ortası (burun 128, arka 454)
 BUILDERS = {"kutu": build_kutu, "dragster": build_dragster, "yarisci": build_yarisci, "latte": build_latte,
-            "falcon": build_falcon}
+            "falcon": build_falcon, "araba5": build_araba5}
 ## Figma çizimli arabalar: yan görünüşte arabanın ortası ve yer çizgisi (piksel)
 ## (isteğe bağlı 3. değer: yan görünüşte kameranın baktığı x; yoksa 296.5)
 ORTHO = {"dragster": (D_MID, 334.0), "yarisci": (300.0, 326.0), "latte": (A3_MID, 326.0, 284.5),
-         "falcon": (A4_MID, 320.0, 291.0)}
+         "falcon": (A4_MID, 320.0, 291.0), "araba5": (A5_MID, 325.4, 301.2)}
 ## Modelin gövde rengi (oyun bu rengi alır)
 PAINTS = {"dragster": ((1.0, 0.549, 0.255), 0.6, 0.0), "yarisci": ((0.11, 0.11, 0.12), 0.45, 0.0),
           "latte": ((0.886, 0.776, 0.596), 0.55, 0.0)}
@@ -1240,7 +1386,9 @@ def main():
                 if name == "falcon":
                     # Bu çizimde önden görünüş yok, üstten görünüş var
                     views = {"o_yan": views["o_yan"], "o_arka": views["o_arka"], "o_ust": ((0, yc, 20), (0, yc, 0))}
-                render_ortho(a.render, name, views, DS, 360 if name == "falcon" else 300)
+                elif name == "araba5":
+                    views["o_ust"] = ((0, yc, 20), (0, yc, 0))
+                render_ortho(a.render, name, views, DS, 360 if name in ("falcon", "araba5") else 300)
             else:
                 render(a.render, name, a.studio)
 
