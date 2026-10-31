@@ -438,6 +438,9 @@
       out.push(numRow('Başlangıç (z)', 'z0', it.z0, 'm', 1));
       const on = level.obstacles.filter((o) => P.hostOf(level, o) === it).map((o) => P.KIND_NAMES[o.kind]);
       if (on.length) out.push(`<div class="row"><label>Üstünde</label><b>${on.join(', ')}</b></div>`);
+      // Pist ışıkları ve nedeni (oyundaki ışıklarla aynı kural)
+      const li = P.lightsInfo(level, it);
+      out.push(`<div class="lights ${li.lit ? 'on' : ''}"><b>${li.lit ? 'Pist ışıkları var' : 'Işık yok'}:</b> ${esc(li.text)}</div>`);
     } else {
       const host = P.hostOf(level, it);
       out.push(`<div class="sel"><div class="dot" style="background:${it.kind === 'gravel' ? '#b9a98f' : it.kind === 'block' || it.kind === 'deadend' ? '#232529' : '#f4d9a8'}"></div>${P.KIND_NAMES[it.kind]} #${it.id}<button class="dup" data-act="dup" title="Aynı boyda kopyası ardına (Ctrl+D)">Çoğalt</button><button class="del" data-act="delete">Sil</button></div>`);

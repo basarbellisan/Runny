@@ -165,16 +165,38 @@ static func onward(level: Dictionary, a: Dictionary) -> Array:
 	return out
 
 
-## Pist ışıkları (gaz bölgesi): yolun ucundan gaz isteyen bir atlama varsa, yanında gazsız
-## yetişilen yol olsa da. Bitişik devamı ya da çıkmazı olan yolda yok; çıkış yolunda hep var
-## (oyun sonraki yolu ardına atlamayla bağlar); gidilecek yol yoksa da var
+## Yolun ucundan asıl gidilen yol (editördeki bağlantı çizgisi): ileride, en az yana kaymayla
+static func primary(level: Dictionary, a: Dictionary) -> Variant:
+	var b = null
+	var best := INF
+	for q in main_path(level):
+		if is_same(q, a) or f(q, "z0") < p_end(a) - 0.6 or f(q, "z0") > p_end(a) + 150.0:
+			continue
+		var lat := maxf(0.0, absf(f(q, "x") - f(a, "x")) - (f(q, "w") + f(a, "w")) * 0.5)
+		if lat > 8.0:
+			continue
+		var cost := (f(q, "z0") - p_end(a)) + lat * 12.0
+		if cost < best:
+			best = cost
+			b = q
+	return b
+
+
+## Pist ışıkları (gaz bölgesi): asıl gidilen yola (bağlantı çizgisi) gaz gerekiyorsa. Bitişik
+## devamı ya da çıkmazı olan yolda yok; çıkış yolunda hep var (oyun sonraki yolu ardına
+## atlamayla bağlar); gidilecek yol yoksa da var (editördeki lightsInfo ile aynı)
 static func needs_lights(level: Dictionary, a: Dictionary) -> bool:
 	if successor(level, a) != null or has_deadend(level, a):
 		return false
 	if is_same(a, exit_of(level)):
 		return true
-	var on := onward(level, a)
-	return on.is_empty() or on.any(func(o): return not o.free)
+	var b = primary(level, a)
+	if b == null:
+		return true
+	for o in onward(level, a):
+		if is_same(o.q, b):
+			return not o.free
+	return true
 
 
 static func has_deadend(level: Dictionary, p: Dictionary) -> bool:
@@ -304,18 +326,7 @@ static func analyze(level: Dictionary) -> Dictionary:
 		var a: Dictionary = path[i]
 		if successor(level, a) != null:
 			continue
-		var b = null
-		var best := INF
-		for q in path:
-			if is_same(q, a) or f(q, "z0") < p_end(a) - 0.6 or f(q, "z0") > p_end(a) + 150.0:
-				continue
-			var lat := maxf(0.0, absf(f(q, "x") - f(a, "x")) - (f(q, "w") + f(a, "w")) * 0.5)
-			if lat > 8.0:
-				continue
-			var cost := (f(q, "z0") - p_end(a)) + lat * 12.0
-			if cost < best:
-				best = cost
-				b = q
+		var b = primary(level, a)
 		if b == null:
 			if p_end(a) < path_end - 1.0 and not has_deadend(level, a):
 				add.call(false, "yolun sonundan inilecek yol yok #%s" % a.id)
