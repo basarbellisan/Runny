@@ -28,6 +28,10 @@ COLORS = {
     "Tail": ((0.847, 0.196, 0.165), 0.4, 1.5),
     "Hub": ((0.984, 0.98, 0.969), 0.5, 0.0),
     "Grey": ((0.85, 0.85, 0.84), 0.6, 0.0),
+    # Oyundaki kristal yeşili (Palette.ENERGY #9fe02a); oyun bu malzemeyi değiştirmez
+    "Green": ((0.624, 0.878, 0.165), 0.5, 0.0),
+    # Antrasit jant (oyun "Hub" malzemesini beyazla değiştirir; bu ad modeldeki renkte kalır)
+    "Rim": ((0.227, 0.239, 0.259), 0.55, 0.0),
 }
 
 
@@ -1061,8 +1065,8 @@ def build_araba5():
     """Araba 5 (Figma "RUNNY / Araba 5"; yandan, arkadan, önden ve üstten görünüş, hepsi aynı
     ölçekte): alçak burundan arkaya yükselen sırtlı gövde (kesiti üçgen: önden ve arkadan
     bakınca çatı); sırtın ortasında öne eğik bir yüzgeç (tepesi 367,211); yüzgecin arkası
-    arka köşelere iner (üstten ters üçgen, üstünde siyah üçgen); iki yanda arka tekerleri
-    örten uzun çamurluk blokları (yandan eğik önlü ve arkalı, dış yüzünde gri üçgen);
+    arka köşelere iner (üstten ters üçgen, üstünde yeşil üçgen); iki yanda arka tekerleri
+    örten uzun çamurluk blokları (yandan eğik önlü ve arkalı, dış yüzünde yeşil üçgen oyuk);
     öndeki ince tekerler gövdenin dışında, akslı; sırtta ok biçimli siyah kokpit camı.
     Ölçüler çizimin pikselleri: yan görünüşte x boy (burun solda 142.5, arka 460), y aşağı
     (yer y=325.4); arkadan orta x=624.6, önden 872.3, üstten 1115 (burun aşağıda, ty → x = 571 − ty)."""
@@ -1107,7 +1111,7 @@ def build_araba5():
     # (367.4,211) tek düz çizgi (yandan 231.2,252.1 ve 286.3,235.7 de üstünde); alt köşeler de düz:
     # yan yüzler düz düzlem (sırt ile alt çizgi x 42.6'da buluşur). Burun önü üçgen yüz. Kokpit:
     # sırtta üçgen kesik (yandan 231.2,252 → 297.8,257.2 tabanı → 286.3,235.7 öne eğik arka yüzü),
-    # içi siyah. Yüzgeç tepesinden arka yüze (424; arkadan sırttan ±47.5, 286 köşelerine) iner.
+    # içi kristal yeşili. Yüzgeç tepesinden arka yüze (424; arkadan sırttan ±47.5, 286 köşelerine) iner.
     ridge = lambda x: 274.3 - (x - 155.2) * (274.3 - 211.0) / (367.4 - 155.2)
     hb = lambda x: 0.1704 * (x - 42.6)
     side_d = lambda x, y: hb(x) * (y - ridge(x)) / (BOT - ridge(x))  # yan yüzde y yüksekliğinin yanal yeri
@@ -1156,10 +1160,10 @@ def build_araba5():
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
     bmesh.ops.dissolve_degenerate(bm, edges=bm.edges, dist=1e-5)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    body_ob = new_object("body", bm, ["Paint", "Dark"])
+    body_ob = new_object("body", bm, ["Paint", "Green"])
     flat(body_ob)
 
-    # Arka güverte yüksekliği (siyah üçgen için): tepeden arka kenara düz düzlem (yanal yönde eğimsiz)
+    # Arka güverte yüksekliği (yeşil üçgen için): tepeden arka kenara düz düzlem (yanal yönde eğimsiz)
     def roof(x, d):
         t = min(max((x - 367.4) / (424.0 - 367.4), 0.0), 1.0)
         return 211.0 + (286.0 - 211.0) * t
@@ -1182,10 +1186,10 @@ def build_araba5():
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         flat(new_object(name, bm, [mat]))
 
-    # Arkada siyah üçgen (üstten 1097.9..1132.1, ty 161.5 → 181.8; arkadan tabanı 290'da, ±25):
+    # Arkada yeşil üçgen (üstten 1097.9..1132.1, ty 161.5 → 181.8; arkadan tabanı 290'da, ±25):
     # arka kenara kadar uzatıldı, arkadan da görünsün
     for sgn in (-1.0, 1.0):
-        decal("rear_mark", [(sgn * 21.0, 150.0), (0.0, 150.0), (0.0, 182.0)], "Dark")
+        decal("rear_mark", [(sgn * 21.0, 150.0), (0.0, 150.0), (0.0, 182.0)], "Green")
 
     # Çamurluklar: yandan Rect 42 (262.9,307.9 → 329.4,247.1 → 459.3,232.5 → 399.1,307.9);
     # arkadan/önden 47.6..80.6 genişlikte; arka tekerler içlerinde. Dış yüzde sivri üçgen oyuk
@@ -1241,7 +1245,7 @@ def build_araba5():
             f.material_index = 1
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         bmesh.ops.triangulate(bm, faces=fs)
-        ob = new_object("fender", bm, ["Paint", "Grey"])
+        ob = new_object("fender", bm, ["Paint", "Green"])
         wheel_well(ob, sx)
         flat(ob)
     fender(1)
@@ -1260,8 +1264,8 @@ def build_araba5():
         bevel(tire, w(4), 2)
         flat(tire)
         for side in (-1, 1):
-            for rad, depth, off, mat, sg in ((r * 0.6, 0.01, tw / 2, "Hub", seg),
-                                             (hub_r, hub_out, tw / 2 + hub_out / 2, "Hub", 12),
+            for rad, depth, off, mat, sg in ((r * 0.6, 0.01, tw / 2, "Rim", seg),
+                                             (hub_r, hub_out, tw / 2 + hub_out / 2, "Rim", 12),
                                              (nut_r, 0.01, tw / 2 + hub_out + 0.003, "Dark", 8)):
                 bm = bmesh.new()
                 bmesh.ops.create_cone(bm, cap_ends=True, segments=sg, radius1=rad, radius2=rad, depth=depth)
@@ -1309,10 +1313,10 @@ ORTHO = {"dragster": (D_MID, 334.0), "yarisci": (300.0, 326.0), "latte": (A3_MID
          "falcon": (A4_MID, 320.0, 291.0), "araba5": (A5_MID, 325.4, 301.2)}
 ## Modelin gövde rengi (oyun bu rengi alır)
 PAINTS = {"dragster": ((1.0, 0.549, 0.255), 0.6, 0.0), "yarisci": ((0.11, 0.11, 0.12), 0.45, 0.0),
-          "latte": ((0.886, 0.776, 0.596), 0.55, 0.0)}
+          "latte": ((0.886, 0.776, 0.596), 0.55, 0.0), "araba5": ((0.227, 0.239, 0.259), 0.55, 0.0)}
 ## Lastik rengi (oyun bu rengi alır); yoksa koyu gri
 TIRES = {"yarisci": ((0.82, 0.16, 0.13), 0.8, 0.0), "latte": ((1.0, 0.353, 0.122), 0.8, 0.0),
-         "falcon": ((0.95, 0.945, 0.93), 0.9, 0.0)}
+         "falcon": ((0.95, 0.945, 0.93), 0.9, 0.0), "araba5": ((0.624, 0.878, 0.165), 0.8, 0.0)}
 
 
 # ---------------------------------------------------------------- çıktı
