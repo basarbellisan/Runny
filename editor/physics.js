@@ -12,6 +12,8 @@
     // Garajın en yavaş (Gezgin) ve en hızlı (Falcon) arabasının hız katı (scripts/car_model.gd STATS);
     // en yavaş araba en uzun boşluklara tam gazla en az slowMargin payla konmalı (kıl payı)
     slowMul: 0.96, fastMul: 1.08, slowMargin: 1.0, slowName: 'Gezgin',
+    // Garajın en geniş arabasının (Gezgin, tekerleriyle) yarı genişliği: blok geçitleri buna göre
+    wideHalf: 1.27, wideName: 'Gezgin',
   };
 
   // Kat ön ayarları (yükseklik m, ana seviye 0)
@@ -348,7 +350,7 @@
         add('warn', 'Akış kopuk: girişten çıkışa giden bir yol yok. Yolları birbirine bağla (bitişik yol, atlanabilir boşluk ya da rampa).', pieces.filter((p) => !seen.has(p)).map((p) => p.id), exitP.z0);
     }
     // Bloklar yolu kapatmasın: her blok sırasında arabanın geçeceği bir geçit kalmalı
-    const needLane = 2 * CAR.halfWidth + 1.0;
+    const needLane = 2 * CAR.wideHalf + 1.0;
     for (const p of pieces) {
       const blocks = obstacles.filter((o) => o.kind === 'block' && hostOf(level, o) === p).sort((a, b) => a.z0 - b.z0);
       const seen = new Set();
@@ -360,7 +362,7 @@
         let left = p.x - p.w / 2, best = 0;
         for (const [a, b] of ivs) { best = Math.max(best, a - left); left = Math.max(left, b); }
         best = Math.max(best, p.x + p.w / 2 - left);
-        if (best < needLane - 1e-6) add('error', `Bloklar yolu kapatıyor: araba için en az ${needLane.toFixed(1)} m geçit gerek, ${Math.max(best, 0).toFixed(1)} m var.`, row.map((b) => b.id), o.z0);
+        if (best < needLane - 1e-6) add('error', `Bloklar yolu kapatıyor: en geniş araba (${CAR.wideName}) için en az ${needLane.toFixed(1)} m geçit gerek, ${Math.max(best, 0).toFixed(1)} m var.`, row.map((b) => b.id), o.z0);
       }
     }
     // Çıkış yolu
