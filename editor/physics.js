@@ -119,12 +119,13 @@
       const J = jump(level, A, q);
       const t0 = flightTime(J.dh, CAR.launchVelocity + vs * slope);
       const lat0 = CAR.steerSpeed * CAR.airControl * (isNaN(t0) ? 0 : t0);
+      // Yana kayma payı atlama kontrolündeki gibi (%80): yana yetişilemeyen yol seçenek değil
       if (gap < 0.6) {
-        if (h0(q) <= h1(A) + 0.3) out.push({ q, free: J.need <= lat0 });
+        if (h0(q) <= h1(A) + 0.3 && J.need <= lat0 * 0.8) out.push({ q, free: true });
         continue;
       }
-      if (isNaN(J.reachB) || gap > J.reachB - 2.5) continue;
-      out.push({ q, free: !isNaN(t0) && gap <= CAR.carLen + vs * t0 - CAR.slowMargin && J.need <= lat0 });
+      if (isNaN(J.reachB) || gap > J.reachB - 2.5 || J.need > J.lateral * 0.8) continue;
+      out.push({ q, free: !isNaN(t0) && gap <= CAR.carLen + vs * t0 - CAR.slowMargin && J.need <= lat0 * 0.8 });
     }
     return out;
   }
