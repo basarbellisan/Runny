@@ -116,12 +116,11 @@ const ZONES: Array[Color] = [
 @export var height_band := Vector2(-4.0, 4.0)
 @export var min_width := Vector2(7.5, 5.0)    # (başta, sonda): ilerledikçe daralır
 @export var max_width := Vector2(10.0, 8.0)   # (başta, sonda)
-## Yollar bu mesafede (m) "sonda" genişliğine iner
-@export var width_narrow_at := 8000.0
-## Boşluklar: başta çoğu kolay (pencerenin üst sınırı gap_early_top); gap_hard_at'e doğru
-## üst sınır gap_difficulty.y'ye çıkar ve seçim zor uca kayar (kıl payı boşluklar artar)
-@export var gap_early_top := 0.45
-@export var gap_hard_at := 8000.0
+## Zorlaşma: hard_from metreye kadar oyun normal (~4 dk), hard_full'da en zor (~8 dk).
+## Arada yollar "sonda" genişliğine daralır, boşluk seçimi zor uca (kıl payı) kayar,
+## el yapımı kalıpların türevleri sertleşir; son hız hard_from'dan sonra yavaşça artar (game.gd)
+@export var hard_from := 18000.0
+@export var hard_full := 36000.0
 ## Bu mesafeye (metre) gelince zorluk tavan yapar
 @export var difficulty_distance := 3000.0
 @export_range(0.0, 1.0) var side_road_chance := 1.0
@@ -334,6 +333,11 @@ func generate_until(z: float) -> void:
 	while _head.z_end > z:
 		_head = _next_from(_head)
 		_flush_crystals()
+
+
+## Zorlaşma (0: normal, 1: en zor): hard_from'dan hard_full'a doğrusal
+func hard_k(travelled: float) -> float:
+	return clampf((travelled - hard_from) / maxf(hard_full - hard_from, 1.0), 0.0, 1.0)
 
 
 ## Tam gazın hızı; hesapta %90 gaz alınır (roket bir an erken/geç basılsa da yetsin)
@@ -644,17 +648,13 @@ func _next_from(prev: Segment) -> Segment:
 	var angled := spec.has("angle") or spec.has("rise_to")
 	if angled:
 		hard = gap_difficulty.x
-	if not angled:
-		# Başta çoğu kolay, ilerledikçe kıl payına yakın boşluklar artar
-		var gk := clampf(travelled / maxf(gap_hard_at, 1.0), 0.0, 1.0)
-		hard = minf(hard, lerpf(gap_early_top, gap_difficulty.y, gk))
-	var bias := lerpf(2.2, 0.8, clampf(travelled / maxf(gap_hard_at, 1.0), 0.0, 1.0))
+	# Zorlaşmada seçim zor uca kayar: kıl payı boşluklar artar (öncesi eşit dağılım)
 	var gap := lerpf(gaps.x, maxf(gaps.y, gaps.x),
-		lerpf(gap_difficulty.x, maxf(gap_difficulty.x, hard), pow(_rng.randf(), bias)))
+		lerpf(gap_difficulty.x, maxf(gap_difficulty.x, hard), pow(_rng.randf(), lerpf(1.0, 0.55, hard_k(travelled)))))
 
 	var width := _rng.randf_range(
-		lerpf(min_width.x, min_width.y, clampf(travelled / maxf(width_narrow_at, 1.0), 0.0, 1.0)),
-		lerpf(max_width.x, max_width.y, clampf(travelled / maxf(width_narrow_at, 1.0), 0.0, 1.0))) \
+		lerpf(min_width.x, min_width.y, hard_k(travelled)),
+		lerpf(max_width.x, max_width.y, hard_k(travelled))) \
 		* float(spec.get("width", 1.0))
 	# Havada sağa sola ne kadar kayabiliriz
 	var t := _flight_time(dh, vy_b)
@@ -2825,8 +2825,6 @@ var test_level: Dictionary = {}
 var custom_log: Array[Dictionary] = []
 ## El yapımı kalıbın seçilme ağırlığı (diğer kalıplar ~0.5-3)
 @export var custom_weight := 1.2
-## Kalıbın açıldığı yerden bu kadar (m) sonra türevleri en sert hâlinde
-@export var custom_hard_at := 6000.0
 ## Kalıp, tasarlandığı hızın en çok bu katına kadar gelir (daha hızlıda boşluklar bozulur)
 @export var custom_speed_margin := 1.25
 var _test_used := false
@@ -3108,14 +3106,13 @@ func to_design(pos: Vector3, index := 0) -> Vector2:
 
 ## Kalıbın bu oyunda daha önce gelmemiş hali: ilk kez geliyorsa olduğu gibi, yoksa o andaki
 ## hızda kontrolden geçen yeni bir türev (bulunamazsa olduğu gibi)
-## travelled: oyunda gelinen mesafe; kalıbın açıldığı yerden ileride türevler sertleşir
-## (custom_hard_at metre sonra en sert: daha dar yollar, daha uzun boşluklar)
+## travelled: oyunda gelinen mesafe; zorlaşmayla türevler sertleşir (daha dar yollar, daha uzun boşluklar)
 func _fresh_variant(level: Dictionary, v: float, travelled := 0.0) -> Dictionary:
 	var sig := LevelCheck.signature(level)
 	if not _custom_seen.has(sig):
 		_custom_seen[sig] = true
 		return level
-	var hard := clampf((travelled - float(level.get("at", 0.0))) / maxf(custom_hard_at, 1.0), 0.0, 1.0)
+	var hard := hard_k(travelled)
 	# Sert türev bulunamazsa daha yumuşağı denenir (aynısı tekrar gelmesin)
 	var res := {}
 	for h in [hard, hard * 0.5, 0.0]:

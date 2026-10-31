@@ -339,17 +339,18 @@ turuncuya çalan duvarlar; yokuş aşağılar biraz daha koyu.
 
 ## Zorlaşma (oyun ilerledikçe)
 
-- **Yol genişliği**: başta 7.5–10 m, `width_narrow_at` (8 km) mesafede 5–8 m'ye daralır
-  (ayar panelinde "Başta/Sonda en dar/en geniş", "Daralma mesafesi").
-- **Boşluklar**: başta çoğu kolay (pencerenin üst sınırı `gap_early_top` 0.45, seçim kolay uca
-  yatkın); `gap_hard_at` (8 km) mesafeye doğru üst sınır 0.8'e çıkar, seçim zor uca kayar:
-  kıl payı boşluklar artar.
-- **Hız**: ~1.6 km'de son hıza (288 km/sa) varılır; 8 km'den sonra son hız her km'de 1 km/sa
-  artar (`game.late_speed_from` / `late_speed_per_km`, ayar panelinde HIZ).
-- **Engel yoğunluğu** 8 km'de 2 katına çıkar; **kristaller** 6 km'ye doğru azalır.
-- **El yapımı kalıpların türevleri**: kalıbın açıldığı yerden `custom_hard_at` (6 km) ileride en
-  sert: genişlik ve boşluk işlemleri daha sık, yollar daralmaya, boşluklar uzamaya yatkın
-  (kalıpta olmayan yeni hata yine çıkmaz; sert türev bulunamazsa daha yumuşağı gelir).
+İlk ~4 dakika (18 km, `roads.hard_from`) oyun normal; zorlaşma orada başlar ve ~8. dakikada
+(36 km, `roads.hard_full`) tamamlanır (ayar panelinde YOLLAR: "Zorlaşma başlar / tamam"):
+- **Yol genişliği**: 7.5–10 m'den 5–8 m'ye daralır ("Başta/Sonda en dar/en geniş").
+- **Boşluklar**: öncesinde pencere içinde eşit dağılım; zorlaşmada seçim zor uca kayar, kıl
+  payı boşluklar artar (en uzun boşluğa en yavaş araba yine tam gazla yetişir).
+- **Hız**: zorlaşma başlayınca son hız her km'de 1 km/sa artar (`game.late_speed_per_km`).
+- **El yapımı kalıpların türevleri** sertleşir: genişlik ve boşluk işlemleri daha sık, yollar
+  daralmaya, boşluklar uzamaya yatkın (kalıpta olmayan yeni hata çıkmaz; sert türev
+  bulunamazsa daha yumuşağı gelir).
+
+Öncesinden beri: hız ~1.6 km'de 288 km/sa'ye çıkar; engel yoğunluğu 8 km'de 2 katına çıkar;
+kristaller 6 km'ye doğru azalır.
 
 ## Bölüm Tasarımcısı
 https://basarbellisan.github.io/Runny/editor/ (masaüstü tarayıcı) — `editor/` klasörü.
