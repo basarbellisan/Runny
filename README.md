@@ -7,8 +7,8 @@ Godot 4.7 ile `project.godot` dosyasını aç, F5 ile çalıştır.
 
 ## Garaj
 Oyun garaj ekranıyla açılır: araba modelleri platformlarında döner, sağa/sola
-kaydırarak (ya da oklarla) model seçilir, BAŞLA ile oyun başlar. Seçim
-kaydedilir. Oyun sonunda GARAJ butonu garaja döndürür.
+kaydırarak (ya da oklarla) model seçilir, START ile oyun başlar. Seçim
+kaydedilir. Oyun sonunda GARAGE butonu garaja döndürür.
 
 Blender modelleri: arabalar `tools/blender/cars.py` ile Blender'da (Python, `bpy`)
 kurulur ve `models/cars/*.glb` olarak çıkar. Kural: 1 birim = 1 m, burun +Y, yer
@@ -31,12 +31,14 @@ Her arabanın özellikleri var (`CarModel.STATS`, 1-5, 3 = standart):
 | Falcon | 5 | 3 | 1 | 5 |
 | GEM | 4 | 4 | 2 | 4 |
 
+Oyunun bütün yazıları İngilizce (garaj, göstergeler, uyarılar, oyun sonu); ayar paneli ve
+editör Türkçe kaldı.
 Garajda her arabanın altında bu dört özellik beşli çubukla görünür (etiketler İngilizce:
 SPEED, STEERING, OFF-ROAD, STABILITY; tutuş = STEERING yani direksiyon, çakıl = OFF-ROAD:
 bozuk zemin; ileride eklenecek kum, buz gibi zeminler de bu özelliğe bağlanır).
 Hız: başlangıç/en yüksek/tavan hız −%8..+%8. Tutuş: direksiyon tepkisi −%20..+%20,
 boştaki teker başına tutuş kaybı ve yatık yolda kayma +%40..−%40. Çakıl: savrulma
-+%40..−%40, sendeleme +%30..−%30. Denge: kenardan devrilme açısı 40°..60°. Ayar
++%40..−%40, sendeleme +%30..−%30, tümsek sarsıntısı +%40..−%40 (fırlama yüksekliği aynı). Denge: kenardan devrilme açısı 40°..60°. Ayar
 panelindeki değerler standart arabanın; özellikler onların katı olarak uygulanır.
 Yollar herkes için aynı: standart arabanın hızıyla üretilir (`car.ref_speed`), hızlı
 araba aynı boşlukları daha az gazla geçer (enerjisi kanatlara kalır). En uzun
@@ -100,9 +102,9 @@ Havada araba gerçek bir duruşla uçar: yandan düşerken dönmeye devam eder
 yana yatırır (bırakınca söner); kendiliğinden düzelme çok zayıf. İnişte
 duruş yolla karşılaştırılır:
 - ~12°'den az sapma: temiz iniş (PERFECT ancak temiz inişte)
-- daha fazlası ya da çok yüksekten düşüş: SERT İNİŞ / SENDELEDİN — tutuş
+- daha fazlası ya da çok yüksekten düşüş: HARD LANDING / WOBBLY — tutuş
   azalır, araba yana savrulur, gaz söner
-- yan ya da ters iniş (~75°+): araba patlar (TAKLA ATTIN!)
+- yan ya da ters iniş (~75°+): araba patlar (FLIPPED!)
 
 Süspansiyon belirgin: inişte gövde çöker, yamuk inişte salınır; tekerler yerde
 kalır. İnişte tekerlerden toz, sert inişte ve kenara sürtünürken kıvılcım çıkar,
@@ -135,13 +137,13 @@ Yolun başı (iniş) ve sonu (pist ışıkları + hizalanma) engelsizdir; oralar
 ## Enerji ve kristaller
 Sağ altta enerji deposu (solda hız kadranı): beyaz disk, ortada sayı, çevresinde
 limon yeşili halka (tepeden saat yönünde dolar). 20'nin altında kırmızı nabız ve
-"KRİSTAL TOPLA!" (alt katmanda bu yazı yok: orada kristal yok); kristal alınca üstünde "+3" belirir (art arda toplananlar toplanır), halkanın ucu parlar.
+"GET CRYSTALS!" (alt katmanda bu yazı yok: orada kristal yok); kristal alınca üstünde "+3" belirir (art arda toplananlar toplanır), halkanın ucu parlar.
 İki kadran da yalnız oynarken görünür: oyun bitince kaybolur.
 Tek enerji: roket ve kanatlar aynı depodan yer. **Aşağıda kristal yok**: düştüğün
 andaki depo, aşağıdaki hayat süren olur (uçuş 6/s, yükselirken 15/s yakar). Depo
 bitince kanat yedeği "çısss" diye açılır: 60 enerji, düz uçuşta ~10 sn yeter
 (yükselirken 2.5 kat hızlı yanar); kalan yedek enerji göstergesinde turuncu
-"YEDEK" olarak görünür. Kanat uçlarından iki yeşil iz çıkar, yedek yandıkça
+"RESERVE" olarak görünür. Kanat uçlarından iki yeşil iz çıkar, yedek yandıkça
 kısalır; bitince kanatlar kapanır, uçuruma düşülür. Her roket basışı bu
 sigortadan yer. İlk portal 2–9 sn hedeflenir ama yukarıda uygun iniş yolu
 aranınca çoğu zaman ileri kayar (ölçülen 7–14 sn): boş depoyla düşen yaklaşık

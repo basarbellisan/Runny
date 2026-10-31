@@ -36,10 +36,11 @@ static var glb_models := {6: "res://models/cars/dragster.glb", 7: "res://models/
 
 ## Garajdaki arabalar (sırayla). Kutu, Konsept ve Roadster garajdan çıktı (kodları duruyor).
 const GARAGE := [2, 6, 7, 8, 9, 10]
-## Arabaların özellikleri, 1-5 (3 = standart): [hız, tutuş, çakıl, denge].
+## Arabaların özellikleri, 1-5 (3 = standart): [hız, tutuş, çakıl, denge]
+## (garajda SPEED, STEERING, OFF-ROAD, STABILITY).
 ## Hız: başlangıç/en yüksek/tavan hız -%8..+%8. Tutuş: direksiyon tepkisi -%20..+%20,
 ## boştaki teker tutuş kaybı ve yatık yolda kayma +%40..-%40. Çakıl: savrulma +%40..-%40,
-## sendeleme +%30..-%30. Denge: kenardan devrilme açısı 40°..60°.
+## sendeleme +%30..-%30, tümsek sarsıntısı +%40..-%40. Denge: kenardan devrilme açısı 40°..60°.
 ## Yollar herkes için standart (3) hızla üretilir; en yavaş araba en uzun boşluklara
 ## tam gazla kıl payı yetişir (editor/physics.js ve level_check.gd'deki SLOW/FAST ile aynı).
 const STATS := {

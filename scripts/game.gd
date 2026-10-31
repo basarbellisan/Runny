@@ -201,14 +201,14 @@ func _physics_process(delta: float) -> void:
 				car.energy = maxf(car.energy - burn, 0.0)
 			elif not car.reserve_on:
 				car.start_reserve(wing_reserve)
-				hud.popup("YEDEK", true)
+				hud.popup("RESERVE", true)
 				Audio.play("hiss")
 			else:
 				car.reserve -= burn
 				if car.reserve <= 0.0:
 					car.reserve = 0.0
 					car.lose_wings()
-					hud.popup("ENERJİ BİTTİ", true)
+					hud.popup("OUT OF ENERGY", true)
 					Audio.play("fall")
 
 	if car.energy < EnergyGauge.LOW_AT and not _energy_warned:
@@ -270,7 +270,7 @@ func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 	print("F%d MODE %d->%d z=%.0f x=%.1f y=%.1f vz=%.1f energy=%.0f" % [Engine.get_process_frames(), previous, mode, car.position.z, car.position.x, car.position.y, car.velocity.z, car.energy])
 	# Tasarım testinde yoldan düşmek de başarısızlık (uçuşa düşen tasarımı geçemedi)
 	if mode == Car.Mode.FALLING and _level_test and not _level_done and not roads.custom_log.is_empty():
-		_level_result(false, "DÜŞTÜN")
+		_level_result(false, "FELL")
 	match mode:
 		Car.Mode.FALLING:
 			if previous == Car.Mode.DRIVE:
@@ -284,11 +284,11 @@ func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 			lower.activate()
 			if _args.has("fly_energy"):
 				car.energy = minf(car.energy, float(_args.fly_energy))  # test: az enerjiyle düş
-			hud.popup("KANATLAR")
+			hud.popup("WINGS")
 			Audio.play("wings")
 			_flight_hint()
 		Car.Mode.LAUNCH:
-			hud.popup("YUKARI", true)
+			hud.popup("UP", true)
 			Audio.play("portal")
 
 
@@ -302,7 +302,7 @@ func _on_landed(air_time: float, quality: float, impact: float) -> void:
 		lower.deactivate()
 		Audio.play("return")
 		Audio.touchdown(1.3)
-		hud.popup("TEKRAR YOLDA")
+		hud.popup("BACK ON THE ROAD")
 		_stats.returns += 1
 		return
 	if air_time < 0.3:
@@ -311,7 +311,7 @@ func _on_landed(air_time: float, quality: float, impact: float) -> void:
 	Audio.touchdown(clampf(air_time / 0.8, 0.6, 1.3) + quality * 0.3)
 	if quality > 0.05:
 		_stats.hard += 1
-		hud.popup("SERT İNİŞ" if quality < 0.5 else "SENDELEDİN")
+		hud.popup("HARD LANDING" if quality < 0.5 else "WOBBLY")
 		return
 	_stats.clean += 1
 	var seg := roads.segment_under(car.global_position)
@@ -332,7 +332,7 @@ func _update_gravel(delta: float) -> void:
 			var cfg := _load_save()
 			var seen := int(cfg.get_value("tutorial", "gravel", 0))
 			if seen < 3:
-				hud.popup("ÇAKIL  ·  YAVAŞLATIR")
+				hud.popup("GRAVEL  ·  SLOWS YOU DOWN")
 				cfg.set_value("tutorial", "gravel", seen + 1)
 				cfg.save(SAVE_PATH)
 	_was_on_gravel = car.on_gravel and car.is_on_floor()
@@ -350,7 +350,7 @@ func _update_high_route(delta: float) -> void:
 		if not _on_high_route:
 			_on_high_route = true
 			_stats.high += 1
-			hud.popup("YÜKSEK YOL  ×2", true)
+			hud.popup("HIGH ROAD  ×2", true)
 			Audio.play("multiplier")
 	elif _on_high_route:
 		_on_high_route = false
@@ -386,7 +386,7 @@ func _flight_hint() -> void:
 	var cfg := _load_save()
 	var flights := int(cfg.get_value("tutorial", "flights", 0))
 	if flights < 3:
-		hud.hint("İKİ PARMAKLA BAS  ·  YÜKSEL", 2.5)
+		hud.hint("HOLD TWO FINGERS  ·  CLIMB", 2.5)
 		cfg.set_value("tutorial", "flights", flights + 1)
 		cfg.save(SAVE_PATH)
 
@@ -398,7 +398,7 @@ func _update_hint() -> void:
 	var seg := roads.segment_under(car.global_position)
 	if seg and (car.global_position.z - seg.road_end_z()) / car.forward_speed < 1.1:
 		_hint_shown = true
-		hud.hint("KIRMIZI IŞIKLARDA İKİ PARMAK  ·  ROKET", 1.6)
+		hud.hint("RED LIGHTS: TWO FINGERS  ·  ROCKET", 1.6)
 
 
 func _load_save() -> ConfigFile:
@@ -417,7 +417,7 @@ func _on_crystal() -> void:
 
 func _on_rock_hit() -> void:
 	if car.mode == Car.Mode.FLYING:
-		car.crash("KAYAYA ÇARPTIN!")
+		car.crash("HIT A ROCK!")
 
 
 func _on_portal(p: LowerLayer.Portal) -> void:
@@ -525,7 +525,7 @@ func _level_result(ok: bool, reason: String) -> void:
 	var tags: Array = roads.custom_log[0].get("tags", []) if not roads.custom_log.is_empty() else []
 	print("LEVEL_%s reason=%s x=%.1f z=%.1f model=%d tags=%s" % ["PASS" if ok else "FAIL", reason, d.x, d.y, car.model.variant, ",".join(tags)])
 	if ok:
-		hud.popup("TASARIM GEÇİLDİ", true)
+		hud.popup("LEVEL CLEARED", true)
 	if not OS.has_feature("web"):
 		return
 	var rec := JSON.stringify({"ok": ok, "reason": reason, "x": snappedf(d.x, 0.1), "z": snappedf(d.y, 0.1),

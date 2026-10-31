@@ -53,7 +53,7 @@ func _ready() -> void:
 	add_child(gauge)
 	_place_bottom(gauge, 1.0)
 	set_mood(0.0)
-	hint("SOLA DOKUN      |      SAĞA DOKUN", 3.0)
+	hint("TAP LEFT      |      TAP RIGHT", 3.0)
 
 
 ## Alt köşeye 220x190'lık gösterge (side 0 sol, 1 sağ), biraz büyütülmüş
@@ -109,7 +109,7 @@ func _build_energy_bar() -> void:
 	_energy_fill.size = Vector2(BAR_WIDTH, 4)
 	_energy.add_child(_energy_fill)
 	var label := _make_label(16, Vector2(0, 0), true, _energy)
-	label.text = "ENERJİ"
+	label.text = "ENERGY"
 	label.offset_top = 14
 	label.offset_bottom = 34
 	label.modulate.a = 0.6
@@ -129,11 +129,11 @@ func _build_game_over() -> void:
 	_over_score = _make_label(110, Vector2(0, 600), false, _over)
 	_over_best = _make_label(20, Vector2(0, 700), true, _over)
 	var again := _make_label(18, Vector2(0, 900), true, _over)
-	again.text = "TEKRAR İÇİN DOKUN"
+	again.text = "TAP TO PLAY AGAIN"
 	again.modulate.a = 0.55
 	# Garaja dönüş: butona basmak oyunu yeniden başlatmaz (dokunuşu buton alır)
 	var garage := Button.new()
-	garage.text = "GARAJ"
+	garage.text = "GARAGE"
 	garage.focus_mode = Control.FOCUS_NONE
 	garage.add_theme_font_override("font", _spaced)
 	garage.add_theme_font_size_override("font_size", 22)
@@ -239,7 +239,7 @@ func popup(text: String, accent := false) -> void:
 func show_game_over(reason: String, score: int, best: int) -> void:
 	_over_reason.text = reason.trim_suffix("!")
 	_over_score.text = str(score)
-	_over_best.text = "EN İYİ  %d" % best
+	_over_best.text = "BEST  %d" % best
 	_over.visible = true
 	_over.modulate.a = 0.0
 	create_tween().tween_property(_over, "modulate:a", 1.0, 0.4)

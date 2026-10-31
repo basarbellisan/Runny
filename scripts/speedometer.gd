@@ -128,7 +128,7 @@ func _draw() -> void:
 			draw_arc(c, 56, deg_to_rad(135), deg_to_rad(405), 72, Color(white, 0.15), 9.0, true)
 			draw_arc(c, 56, deg_to_rad(135), deg_to_rad(135 + 270 * t), 72, orange, 9.0, true)
 			_text(speed, c + Vector2(0, 4), 36, white)
-			_text("KM/SA", c + Vector2(0, 30), 12, Color(white, 0.5))
+			_text("KM/H", c + Vector2(0, 30), 12, Color(white, 0.5))
 	if show_fuel:
 		_draw_fuel(c)
 

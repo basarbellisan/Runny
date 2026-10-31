@@ -7,12 +7,12 @@ const SAVE_PATH := "user://save.cfg"
 const GAME_SCENE := "res://scenes/main.tscn"
 ## [ad, açıklama, CarModel.variant]
 const MODELS := [
-	["GEZGİN", "Çakılda savrulmaz, direksiyonu iyi. Ama en yavaşı: uzun boşluklarda çok gaz yakar.", 2],
-	["DRAGSTER", "Hızlı, çakılda ve kenarda sağlam. Ama direksiyonu ağır, dar yerlerde zorlanır.", 6],
-	["DARK ROSE", "Direksiyonu en iyi araba, hızlı da. Ama izi dar: kenarda kolay devrilir.", 7],
-	["LATTE", "Dengeli: çakılda ve kenarda sağlam, atlamalarda ne az ne çok gaz ister.", 8],
-	["FALCON", "En hızlısı: az gazla atlar, enerjisi kanatlara kalır. Ama çakılda buz pateni.", 9],
-	["GEM", "Hızlı ve virajda çevik, alçak gövdesiyle zor devrilir. Ama çakılda tutunamaz.", 10],
+	["GEZGİN", "Rock steady off-road, good steering. But the slowest: long gaps burn a lot of energy.", 2],
+	["DRAGSTER", "Fast, solid off-road and on the edges. But heavy steering makes tight spots hard.", 6],
+	["DARK ROSE", "The best steering, and fast too. But its narrow track tips over easily at the edge.", 7],
+	["LATTE", "Balanced: solid off-road and on the edges, needs just enough energy on jumps.", 8],
+	["FALCON", "The fastest: jumps on little energy, saving the rest for the wings. But slides like on ice off-road.", 9],
+	["GEM", "Fast and agile, its low body rarely tips over. But it gets shaken up off-road.", 10],
 ]
 ## Platformlar arası mesafe (m)
 const SPACING := 7.0
@@ -275,7 +275,7 @@ func _build_ui(best: int) -> void:
 	var title := _label(ui, "SKY RUNNER", 40, 130, true)
 	title.add_theme_color_override("font_color", Palette.INK_DARK)
 	if best > 0:
-		var b := _label(ui, "EN İYİ  %d" % best, 18, 190, true)
+		var b := _label(ui, "BEST  %d" % best, 18, 190, true)
 		b.modulate.a = 0.55
 
 	_info = Control.new()
@@ -336,7 +336,7 @@ func _build_ui(best: int) -> void:
 		ui.add_child(arrow)
 
 	var start_btn := Button.new()
-	start_btn.text = "BAŞLA"
+	start_btn.text = "START"
 	start_btn.focus_mode = Control.FOCUS_NONE
 	var font := FontVariation.new()
 	font.spacing_glyph = 6

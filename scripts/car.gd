@@ -241,6 +241,8 @@ var _k_steer := 1.0
 var _k_grip := 1.0
 var _k_shove := 1.0
 var _k_after := 1.0
+## Tümsek sarsıntısı katı (OFF-ROAD): fırlama yüksekliği aynı (yol üretici ona göre hesaplar)
+var _k_bump := 1.0
 var _tip_deg := 50.0
 ## Uzun yolda son hıza eklenen (m/s, standart araba; oyun mesafeyle çok yavaş artırır)
 var extra_top := 0.0
@@ -431,9 +433,10 @@ func _drive(delta: float) -> void:
 			if _last_segment and _last_segment.next_flush == under and _last_segment.slope() > 0.04:
 				velocity.y = forward_speed * _last_segment.slope() * bump_launch + 1.0
 				# Havada dönme sürer: yatma ve burun vuruşu ölçülü (havada toparlanabilsin)
-				roll_rate += randf_range(-1.0, 1.0) * bump_shake * 0.3
-				pitch_rate += randf_range(0.05, 0.15) * bump_shake
-				velocity.x += randf_range(-1.0, 1.0) * bump_shake
+				var shake := bump_shake * _k_bump
+				roll_rate += randf_range(-1.0, 1.0) * shake * 0.3
+				pitch_rate += randf_range(0.05, 0.15) * shake
+				velocity.x += randf_range(-1.0, 1.0) * shake
 				_bounce_v -= 1.5
 				_snap_off = 0.15
 				jumped.emit()
@@ -484,7 +487,7 @@ func _drive(delta: float) -> void:
 		if absf(get_slide_collision(i).get_normal().y) < 0.7:
 			hit_side = true
 	if _hit_wall_front() or (hit_side and -velocity.z < forward_before * 0.5):
-		crash("ÇAKILDIN!")
+		crash("CRASHED!")
 		return
 	if _keep_out_of_walls():
 		return
@@ -549,7 +552,7 @@ func _falling(delta: float) -> void:
 	elif _has_wings and _mode_time >= wing_delay:
 		_set_mode(Mode.FLYING)
 	elif not _has_wings and global_position.y < flight_altitude - abyss_depth:
-		_die("UÇURUMA DÜŞTÜN!")
+		_die("FELL OFF!")
 
 
 func _flying(delta: float) -> void:
@@ -625,7 +628,7 @@ func _touchdown(vy_before: float) -> bool:
 	# Burun/kuyruk sapması yan yatmadan daha az önemli (önce bir aks değer, öbürü iner)
 	var err := rad_to_deg(maxf(roll_err, pitch_err * 0.5))
 	if err > crash_landing_deg:
-		crash("TAKLA ATTIN!" if roll_err > pitch_err else "ÇAKILDIN!")
+		crash("FLIPPED!" if roll_err > pitch_err else "CRASHED!")
 		return false
 	var quality := clampf((err - clean_landing_deg) / 40.0, 0.0, 1.0) \
 		+ clampf((impact - hard_impact) / 25.0, 0.0, 0.6)
@@ -878,7 +881,7 @@ func _keep_out_of_walls() -> bool:
 			if hit.is_empty() or hit.normal.z < 0.6 or (hit.collider as Node).has_meta("ramp"):
 				continue
 			if mode == Mode.DRIVE:
-				crash("ÇAKILDIN!")
+				crash("CRASHED!")
 				return true
 			# Düşerken/uçarken: duvarın önünde dur, içine girme
 			velocity.z = maxf(velocity.z, 0.0)
@@ -1016,6 +1019,7 @@ func _refresh_stats() -> void:
 	_k_grip = 1.0 - 0.4 * CarModel.stat(v, 1)
 	_k_shove = 1.0 - 0.4 * CarModel.stat(v, 2)
 	_k_after = 1.0 - 0.3 * CarModel.stat(v, 2)
+	_k_bump = 1.0 - 0.4 * CarModel.stat(v, 2)
 	_tip_deg = 50.0 + 10.0 * CarModel.stat(v, 3)
 
 
@@ -1050,7 +1054,7 @@ func _keep_hull_out(delta: float) -> void:
 			var roll_err := absf(wrapf(roll - atan2(-n.x, n.y), -PI, PI))
 			var pitch_err := absf(wrapf(pitch - atan2(n.z, n.y), -PI, PI))
 			if rad_to_deg(maxf(roll_err, pitch_err * 0.5)) > crash_landing_deg:
-				crash("TAKLA ATTIN!" if roll_err > pitch_err else "ÇAKILDIN!")
+				crash("FLIPPED!" if roll_err > pitch_err else "CRASHED!")
 				return
 	want = minf(want, 2.0)
 	# Hemen kalkar, yavaşça iner (titremesin)

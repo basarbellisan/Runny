@@ -88,9 +88,9 @@ func _draw() -> void:
 			Color(1, 1, 1, 0.9 * a), 4.0, true)
 	_crystal(c + Vector2(0, -30), 7.0, col)
 	_text(str(int(round(_shown))), c + Vector2(0, 6), 36, ink)
-	_text("YEDEK" if reserve else "ENERJİ", c + Vector2(0, 34), 11, Color(ink, 0.8) if reserve else Color(BLACK, 0.5))
+	_text("RESERVE" if reserve else "ENERGY", c + Vector2(0, 34), 11, Color(ink, 0.8) if reserve else Color(BLACK, 0.5))
 	if low and collect_hint and not reserve:
-		_text("KRİSTAL TOPLA!", c + Vector2(0, -R - 26), 14, LOW)
+		_text("GET CRYSTALS!", c + Vector2(0, -R - 26), 14, LOW)
 	if _gain_t < 0.8:
 		var a := 1.0 - smoothstep(0.45, 0.8, _gain_t)
 		var y := -R - 28 - _gain_t * 22.0
