@@ -1203,6 +1203,8 @@ func _set_wings(open: bool, instant := false) -> void:
 		_wing_r: Vector3(0, 0, -0.06 if open else fold),
 		_tail: Vector3.ZERO,
 	}
+	if open:
+		_fit_wings()
 	var scale_to := Vector3.ONE if open else Vector3(0.05, 0.05, 0.05)
 	if instant:
 		for n: Node3D in targets:
@@ -1230,9 +1232,16 @@ func _set_wings(open: bool, instant := false) -> void:
 ## araba değişince renk de değişir). Sahnedeki eski düz kutu kanatların yerine kurulur.
 ## Kanat planı (yerel, m): kök x=0, uç x=±WING_LEN; z eksi ileri
 const WING_LEN := 3.0
-const WING_ROOT := Vector2(-0.8, 0.85)   # kökte hücum (ön) ve firar (arka) kenarı z
-const WING_TIP := Vector2(0.15, 0.8)     # uçta (kök genişliğinin ~%40ı)
+const WING_ROOT := Vector2(-0.8, 0.85)   # kökte hücum (ön) ve firar (arka) kenarı z (en geniş hali)
+const WING_TAPER := 0.4                  # uç genişliği / kök genişliği
 const WING_THICK := Vector2(0.13, 0.035)  # kök ve uç kalınlığı
+## Kanat kökü ön ve arka tekerin arasına sığar: tekerlerden bu kadar boşluk (direksiyon payı dahil)
+const WING_WHEEL_GAP := 0.12
+## Tekerleri gövde blokları içinde olan arabalar: kanat bloğun dış yüzüne bağlanır
+## [kökün yanal yeri, kökte hücum z, firar z, kök yüksekliği]
+const WING_FIT := {10: [1.03, 0.0, 1.5, 0.62]}  # GEM: arka çamurluğun dış yüzü
+## Kanatların kurulduğu araba (araba değişince yeniden yerleşir)
+var _wings_variant := -1
 
 
 func _build_wings() -> void:
@@ -1243,9 +1252,9 @@ func _build_wings() -> void:
 			old.visible = false  # eski kutu kanat (ve ucundaki şerit)
 		var mi := MeshInstance3D.new()
 		mi.name = "Swept"
-		mi.mesh = _wing_mesh(side)
 		mi.material_override = model.paint_material
 		holder.add_child(mi)
+	_fit_wings()
 	var old_tail := _tail.get_node_or_null("Mesh") as MeshInstance3D
 	if old_tail:
 		old_tail.visible = false
@@ -1256,15 +1265,56 @@ func _build_wings() -> void:
 	_tail.add_child(fin)
 
 
-## Sivrilen kanat: kökte ve uçta altıgen kesit (üstü hafif kamburlu), düz gölgeli
-func _wing_mesh(side: float) -> ArrayMesh:
+## Kanatları arabaya göre yerleştirir: kök, ön tekerin arkası ile arka tekerin önü arasına
+## sığar (teker içine ya da üstüne girmez); firar kenarı düz, hücum kenarı uca doğru geriye
+func _fit_wings() -> void:
+	var v := model.variant
+	if v == _wings_variant:
+		return
+	_wings_variant = v
+	var x0 := 0.82
+	var y := 0.62
+	var le := WING_ROOT.x
+	var te := WING_ROOT.y
+	if WING_FIT.has(v):
+		var f: Array = WING_FIT[v]
+		x0 = f[0]
+		le = f[1]
+		te = f[2]
+		y = f[3]
+	elif not model.wheels.is_empty():
+		var front := -INF
+		var rear := INF
+		for w in model.wheels:
+			if w.front:
+				front = maxf(front, w.contact.z + w.radius)
+			else:
+				rear = minf(rear, w.contact.z - w.radius)
+		var a := front + WING_WHEEL_GAP
+		var b := rear - WING_WHEEL_GAP
+		# En geniş halinden geniş yer varsa ortalanır
+		var extra := (b - a) - (WING_ROOT.y - WING_ROOT.x)
+		if extra > 0.0:
+			a += extra * 0.5
+			b -= extra * 0.5
+		le = a
+		te = b
+	for side in [-1.0, 1.0]:
+		var holder: Node3D = _wing_l if side < 0.0 else _wing_r
+		holder.position = Vector3(side * x0, y, 0.0)
+		(holder.get_node("Swept") as MeshInstance3D).mesh = _wing_mesh(side, le, te)
+
+
+## Sivrilen kanat: kökte ve uçta beşgen kesit (üstü hafif kamburlu), düz gölgeli
+func _wing_mesh(side: float, le: float, te: float) -> ArrayMesh:
 	var sec := func(x: float, le: float, te: float, t: float) -> Array:
 		var c := te - le
 		# Kesit: hücum kenarı, üst (chord'un %30'u en kalın), firar kenarı, alt
 		return [Vector3(x, 0.0, le), Vector3(x, t * 0.6, le + c * 0.3), Vector3(x, t * 0.25, te),
 			Vector3(x, -t * 0.15, te), Vector3(x, -t * 0.4, le + c * 0.3)]
-	var r: Array = sec.call(0.0, WING_ROOT.x, WING_ROOT.y, WING_THICK.x)
-	var u: Array = sec.call(side * WING_LEN, WING_TIP.x, WING_TIP.y, WING_THICK.y)
+	var c := te - le
+	var r: Array = sec.call(0.0, le, te, WING_THICK.x)
+	var u: Array = sec.call(side * WING_LEN, te - c * WING_TAPER, te, WING_THICK.y)
 	return _loft(r, u)
 
 
