@@ -409,14 +409,30 @@
     const out = [];
     const at = num(level.at, 0);
     const sp = 6;
-    for (const p of mainPath(level)) {
+    // Kristaller blokların ve rampaların üstüne düşmez: o z'de yolun en yakın boş yerine kayar
+    const stops = (level.obstacles || []).filter((o) => o.kind === 'block' || o.kind === 'ramp' || o.kind === 'kick');
+    const freeX = (p, x, z) => {
+      const blocked = (cx) => stops.some((o) => z >= o.z0 - 2.5 && z <= o.z0 + num(o.len, 1) + 2.5 &&
+        cx >= o.x - o.w / 2 - 0.8 && cx <= o.x + o.w / 2 + 0.8);
+      if (!blocked(x)) return x;
+      let best = NaN;
+      for (let cx = p.x - p.w / 2 + 0.8; cx <= p.x + p.w / 2 - 0.8; cx += 0.5)
+        if (!blocked(cx) && (isNaN(best) || Math.abs(cx - x) < Math.abs(best - x))) best = cx;
+      return best;
+    };
+    const put = (p, x, z, on) => { const fx = freeX(p, x, z); if (!isNaN(fx)) out.push({ x: fx, z, on }); };
+    const pieces = mainPath(level);
+    for (const p of pieces) {
+      // Bitişik devam eden parça önceki yolun devamı: iniş dizisi yalnız yolun başında
+      if (pieces.some((r) => r !== p && successor(level, r) === p)) continue;
+      // Dizinin son parçası (pist çizgisi orada)
+      let last = p;
+      for (let k = 0; k < 50 && successor(level, last); k++) last = successor(level, last);
       const v = speedAt(at + p.z0);
       const landZ = p.z0 + v * 0.4;
-      for (let i = 0; i < 4 && landZ + i * sp < pEnd(p) - 8; i++) out.push({ x: p.x, z: landZ + i * sp, on: p.id });
-      if (!successor(level, p)) {
-        const zEnd = pEnd(p) - 4;
-        for (let i = 0; i < 3 && zEnd - i * sp > landZ + 4 * sp; i++) out.push({ x: p.x, z: zEnd - i * sp, on: p.id });
-      }
+      for (let i = 0; i < 4 && landZ + i * sp < pEnd(p) - 8; i++) put(p, p.x, landZ + i * sp, p.id);
+      const zEnd = pEnd(last) - 4;
+      for (let i = 0; i < 3 && zEnd - i * sp > Math.max(landZ + 4 * sp, last.z0); i++) put(last, last.x, zEnd - i * sp, last.id);
     }
     for (const J of (A && A.jumps) || []) {
       if (J.bad || J.view || J.gap < 6) continue;

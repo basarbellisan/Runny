@@ -44,6 +44,8 @@ class Segment:
 	var hop := false
 	## Aynı yolun bir sonraki parçası (boşluksuz devam eder: daralma, kayma, tümsek)
 	var next_flush: Segment
+	## El yapımı kalıbın yolu (engeller her yerde olabilir: kristaller engellerden kaçar)
+	var custom := false
 
 	## Bu yolun (bitişik parçalarıyla birlikte) en uzak ucu: boşluk burada başlar
 	func road_end_z() -> float:
@@ -1703,7 +1705,38 @@ func _crystal(host: Segment, p: Vector3) -> void:
 
 ## Yol yüzeyinin üstünde (x, z) noktasında kristal
 func _crystal_on(host: Segment, x: float, z: float, lift := 1.0) -> void:
+	if host.custom:
+		x = _crystal_free_x(host, x, z)
+		if is_nan(x):
+			return
 	_crystal(host, Vector3(x, host.surface_y(x, z) + lift, z))
+
+
+## El yapımı yolda kristal blokların ve rampaların üstüne düşmesin: o z'de en yakın boş x
+## (yol dışına taşmadan); hiç boş yer yoksa NAN
+func _crystal_free_x(host: Segment, x: float, z: float) -> float:
+	var segs: Array[Segment] = [host]
+	while segs[-1].next_flush:
+		segs.append(segs[-1].next_flush)
+	var blocked := func(cx: float) -> bool:
+		for sg in segs:
+			for o in sg.obstacles:
+				if o.gravel:
+					continue
+				if z <= o.z0 + 2.5 and z >= o.z1 - 2.5 and cx >= o.x0 - 0.8 and cx <= o.x1 + 0.8:
+					return true
+		return false
+	if not blocked.call(x):
+		return x
+	var lo := host.x - host.width * 0.5 + 0.8
+	var hi := host.x + host.width * 0.5 - 0.8
+	var best := NAN
+	var cx := lo
+	while cx <= hi:
+		if not blocked.call(cx) and (is_nan(best) or absf(cx - x) < absf(best - x)):
+			best = cx
+		cx += 0.5
+	return best
 
 
 ## za'dan zb'ye yol boyunca tek sıra, en çok n kristal: düz (hep xb hizasında,
@@ -2933,6 +2966,10 @@ func _build_custom(prev: Segment, level: Dictionary, travelled: float, vary := f
 		else:
 			first = _add_segment(x, oy + h0, oy + h1, w, zs, ze, is_main, false, -1.0, not flush_next)
 			last = first
+		var cs := first
+		while cs:
+			cs.custom = true
+			cs = cs.next_flush
 		# Işıksız uç: gazsız geçilir (otomatik pilot da gaza basmaz)
 		if flush_next:
 			var hs := first
@@ -2992,6 +3029,9 @@ func _build_custom(prev: Segment, level: Dictionary, travelled: float, vary := f
 	# Kristaller: oyunun algoritmasıyla (iniş sırası, pist çizgisi, boşluk yayları)
 	if level.get("crystals", true):
 		for b in built:
+			# Bitişik devam eden parça (önceki yolun devamı): kristalleri o yolun dizisinde
+			if built.any(func(c): return c != b and _custom_successor(c.p, pieces) == b.p):
+				continue
 			# Boşluk yayı: bu yola atlanan en yakın yolun ucundan (yana kaymadan ulaşılan;
 			# kalıbın girişinde önceki yoldan)
 			var from: Segment = prev if b.p == entry else null
