@@ -121,23 +121,46 @@
       const lat0 = CAR.steerSpeed * CAR.airControl * (isNaN(t0) ? 0 : t0);
       // Yana kayma payı atlama kontrolündeki gibi (%80): yana yetişilemeyen yol seçenek değil
       if (gap < 0.6) {
-        if (h0(q) <= h1(A) + 0.3 && J.need <= lat0 * 0.8) out.push({ q, free: true });
+        if (h0(q) <= h1(A) + 0.3 && J.need <= lat0 * 0.8) out.push({ q, free: true, step: true, gap });
         continue;
       }
       if (isNaN(J.reachB) || gap > J.reachB - 2.5 || J.need > J.lateral * 0.8) continue;
-      out.push({ q, free: !isNaN(t0) && gap <= CAR.carLen + vs * t0 - CAR.slowMargin && J.need <= lat0 * 0.8 });
+      const reach0 = CAR.carLen + vs * t0 - CAR.slowMargin;
+      out.push({ q, free: !isNaN(t0) && gap <= reach0 && J.need <= lat0 * 0.8, gap, reach0, need: J.need, lat0: lat0 * 0.8 });
     }
     return out;
   }
-  // Pist ışıkları (gaz bölgesi): yolun ucundan gaz isteyen bir atlama varsa, yanında gazsız
-  // yetişilen yol olsa da. Bitişik devamı ya da çıkmazı olan yolda yok; çıkış yolunda hep var
-  // (oyun sonraki yolu ardına atlamayla bağlar); gidilecek yol yoksa da var
-  function needsLights(level, A) {
-    if (successor(level, A) || hasDeadend(level, A)) return false;
-    if (A === exitOf(level)) return true;
-    const on = onward(level, A);
-    return !on.length || on.some((o) => !o.free);
+  // Yolun ucundan asıl gidilen yol (tuvaldeki bağlantı çizgisi): ileride, en az yana kaymayla
+  function primary(level, A) {
+    let B = null, best = Infinity;
+    for (const q of mainPath(level)) {
+      if (q === A || q.z0 < pEnd(A) - 0.6 || q.z0 > pEnd(A) + 150) continue;
+      const lat = Math.max(0, Math.abs(q.x - A.x) - (q.w + A.w) / 2);
+      if (lat > 8) continue;
+      const cost = (q.z0 - pEnd(A)) + lat * 12;
+      if (cost < best) { best = cost; B = q; }
+    }
+    return B;
   }
+  // Pist ışıkları (gaz bölgesi) ve nedeni: asıl gidilen yola (bağlantı çizgisi) gaz gerekiyorsa.
+  // Bitişik devamı ya da çıkmazı olan yolda yok; çıkış yolunda hep var (oyun sonraki yolu
+  // ardına atlamayla bağlar); gidilecek yol yoksa da var. Gazsız: garajın en yavaş arabası.
+  function lightsInfo(level, A) {
+    const s = successor(level, A);
+    if (s) return { lit: false, text: `bitişik yolla (#${s.id}) devam ediyor` };
+    if (hasDeadend(level, A)) return { lit: false, text: 'çıkmaz' };
+    if (A === exitOf(level)) return { lit: true, text: 'kalıbın çıkışı: oyun sonraki yolu atlamayla bağlar' };
+    const B = primary(level, A);
+    if (!B) return { lit: true, text: 'ileride inilecek yol yok' };
+    const o = onward(level, A).find((x) => x.q === B);
+    if (!o) return { lit: true, text: `#${B.id} yoluna atlanamıyor (kontrol listesine bak)` };
+    if (o.step) return { lit: false, text: `#${B.id} yoluna boşluksuz iniliyor` };
+    const g = CAR.slowName;
+    if (o.free) return { lit: false, text: `#${B.id} yoluna ${o.gap.toFixed(1)} m boşluk, ${g} gazsız ${o.reach0.toFixed(1)} m'ye kadar yetişir` };
+    if (o.need > o.lat0) return { lit: true, text: `#${B.id} yoluna yana ${o.need.toFixed(1)} m kayma gerek, ${g} gazsız ${o.lat0.toFixed(1)} m kayar (gaz gerek)` };
+    return { lit: true, text: `#${B.id} yoluna ${o.gap.toFixed(1)} m boşluk, ${g} gazsız ancak ${Math.max(o.reach0, 0).toFixed(1)} m'ye yetişir (gaz gerek)` };
+  }
+  const needsLights = (level, A) => lightsInfo(level, A).lit;
 
   // Rampa/tümsek uçuşu: ileri mesafe, uçuş süresi, iniş z'si
   function rampFlight(level, o, host) {
@@ -241,15 +264,8 @@
     for (let i = 0; i + 1 < path.length; i++) {
       const A = path[i];
       if (successor(level, A)) continue;
-      // Sonraki yol: ileride, en az kaymayla ulaşılan (yan yana ana yollar ayrı hatlar)
-      let B = null, best = Infinity;
-      for (const q of path) {
-        if (q === A || q.z0 < pEnd(A) - 0.6 || q.z0 > pEnd(A) + 150) continue;
-        const lat = Math.max(0, Math.abs(q.x - A.x) - (q.w + A.w) / 2);
-        if (lat > 8) continue;  // yana bu kadar uzak yol ayrı bir hat
-        const cost = (q.z0 - pEnd(A)) + lat * 12;
-        if (cost < best) { best = cost; B = q; }
-      }
+      // Sonraki yol: ileride, en az kaymayla ulaşılan (yana 8 m'den uzak yol ayrı bir hat)
+      const B = primary(level, A);
       if (!B) {
         if (pEnd(A) < Math.max(...path.map(pEnd)) - 1 && !hasDeadend(level, A))
           add('warn', 'Bu yolun sonundan inilecek yol yok: araba uçuşa düşer (çıkmaz istiyorsan Çıkmaz koy).', [A.id], pEnd(A));
@@ -573,7 +589,7 @@
   const KIND_NAMES = { ramp: 'Rampa', kick: 'Eğik rampa', bump: 'Tümsek', gravel: 'Çakıl', block: 'Blok', deadend: 'Çıkmaz' };
 
   const api = { CAR, TIERS, speedAt, vBoost, vFull, flightTime, clearEnd, clearStart, jump, rampFlight,
-    analyze, crystalPreview, suggestGap, minRoadLength, mainPath, exitOf, onward, needsLights, successor, hostOf, isOn, hAt, pEnd, KIND_NAMES,
+    analyze, crystalPreview, suggestGap, minRoadLength, mainPath, exitOf, onward, primary, lightsInfo, needsLights, successor, hostOf, isOn, hAt, pEnd, KIND_NAMES,
     vary, varyOnce, signature, rng32 };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RunnyPhysics = api;
