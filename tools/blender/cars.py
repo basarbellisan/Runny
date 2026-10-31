@@ -1110,7 +1110,7 @@ def build_araba5():
     # içi siyah. Yüzgeç tepesinden arka yüze (424; arkadan sırttan ±47.5, 286 köşelerine) iner.
     ridge = lambda x: 274.3 - (x - 155.2) * (274.3 - 211.0) / (367.4 - 155.2)
     hb = lambda x: 0.1704 * (x - 42.6)
-    side_d = lambda x, y: hb(x) * (BOT - y) / (BOT - ridge(x))  # yan yüzde y yüksekliğinin yanal yeri
+    side_d = lambda x, y: hb(x) * (y - ridge(x)) / (BOT - ridge(x))  # yan yüzde y yüksekliğinin yanal yeri
     floor = lambda x: 251.6 + (257.2 - 251.6) * (x - 231.2) / (297.8 - 231.2)
 
     def ring(xb, xs, ys, xt, yt, dt=None):
@@ -1127,11 +1127,17 @@ def build_araba5():
         [(142.5, -hb(142.5), BOT), (142.5, hb(142.5), BOT), (148.85, hb(142.5) * 0.5, (BOT + 274.3) * 0.5),
          (155.2, 0.0, 274.3), (155.2, 0.0, 274.3), (148.85, -hb(142.5) * 0.5, (BOT + 274.3) * 0.5)],
         ring(231.2, 231.2, 280.0, 231.2, ridge(231.2)),
-        ring(297.8, 297.8, 282.0, 297.8, floor(297.8)),
-        ring(298.4, 298.4, 282.0, 286.3, ridge(286.3)),
-        ring(367.4, 367.4, 273.7, 367.4, 211.0),
-        [(424.0, -65.0, BOT), (424.0, 65.0, BOT), (424.0, 47.5, 286.0), (424.0, 0.0, 286.0), (424.0, 0.0, 286.0),
-         (424.0, -47.5, 286.0)],
+        # Kesiğin arka-alt köşesi (297.8, taban): omuz da burada; yan yüz bu köşeden kırıksız iner
+        ring(297.8, 297.8, floor(297.8), 297.8, floor(297.8)),
+        # Arka yüz: taban kenarından öne eğik sırta (286.3) çıkan üçgen
+        ring(297.8, 297.8, floor(297.8), 286.3, ridge(286.3)),
+        # Yüzgeç tepesi: kesit tam üçgen (omuz = tepe)
+        [(367.4, -hb(367.4), BOT), (367.4, hb(367.4), BOT), (367.4, 0.0, 211.0), (367.4, 0.0, 211.0),
+         (367.4, 0.0, 211.0), (367.4, 0.0, 211.0)],
+        # Arka yüz: yan yüz düzlemi buraya kadar iner (omuz yan düzlemde, 286); güverte tepeden
+        # arka kenara tek düz üçgen (üstten ters üçgen)
+        [(424.0, -65.0, BOT), (424.0, 65.0, BOT), (424.0, side_d(424.0, 286.0), 286.0), (424.0, 0.0, 286.0),
+         (424.0, 0.0, 286.0), (424.0, -side_d(424.0, 286.0), 286.0)],
     ]
     bm = bmesh.new()
     vs = [[bm.verts.new((w(z),) + P(x, y)) for x, z, y in r] for r in rings]
@@ -1140,8 +1146,8 @@ def build_araba5():
         for k in range(6):
             k2 = (k + 1) % 6
             f = bm.faces.new((a[k], a[k2], b[k2], b[k]))
-            # Kokpit kesiğinin içi: tabanı (231→297.8) ve arka yüzü (297.8→298.4)
-            if (ri == 1 and k == 3) or (ri == 2 and k in (2, 3, 4)):
+            # Kokpit kesiğinin içi: tabanı (231→297.8) ve arka yüzü (297.8 → sırt 286.3)
+            if ri in (1, 2) and k == 3:
                 dark.append(f)
     caps = [bm.faces.new(vs[0]), bm.faces.new(list(reversed(vs[-1])))]
     for f in dark:
@@ -1150,14 +1156,13 @@ def build_araba5():
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
     bmesh.ops.dissolve_degenerate(bm, edges=bm.edges, dist=1e-5)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    flat(new_object("body", bm, ["Paint", "Dark"]))
+    body_ob = new_object("body", bm, ["Paint", "Dark"])
+    flat(body_ob)
 
-    # Arka güverte yüksekliği (siyah üçgen için): yüzgeç tepesinden arka yüze
+    # Arka güverte yüksekliği (siyah üçgen için): tepeden arka kenara düz düzlem (yanal yönde eğimsiz)
     def roof(x, d):
         t = min(max((x - 367.4) / (424.0 - 367.4), 0.0), 1.0)
-        r = 211.0 + (286.0 - 211.0) * t
-        hs, ys = side_d(367.4, 273.7) + (47.5 - side_d(367.4, 273.7)) * t, 273.7 + (286.0 - 273.7) * t
-        return r + (ys - r) * min(abs(d) / hs, 1.0)
+        return 211.0 + (286.0 - 211.0) * t
 
     def decal(name, pts, mat, lift=1.2):
         """Üstten (yanal, ty) noktalarıyla güverteye oturan ince parça (sırtın bir yanı)."""
@@ -1186,6 +1191,30 @@ def build_araba5():
     # arkadan/önden 47.6..80.6 genişlikte; arka tekerler içlerinde. Dış yüzde sivri üçgen oyuk
     # (Rect 62): ucu önde (364.3,263.5), ağzı arka eğik yüzde (455,238 – 434.9,263.5), arkada
     # 7 px derin (arkadan: 544..551, 238..263.6), uca doğru sıfırlanır
+    def wheel_well(ob, sx):
+        """Teker yuvası: arka teker gövdenin ve çamurluğun içinde dönsün. Dışarıdan çamurluk kapalı
+        görünür (iç ve dış duvar kalır), alttan açık: tekerin çevresinde silindir ve altına kutu oyulur"""
+        Yw, Zw = P(363.7, 297.2)
+        cyl = bmesh.new()
+        bmesh.ops.create_cone(cyl, cap_ends=True, segments=24, radius1=w(31.0), radius2=w(31.0), depth=w(31.4))
+        bmesh.ops.rotate(cyl, verts=cyl.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
+        low = bmesh.new()
+        bmesh.ops.create_cube(low, size=1.0)
+        bmesh.ops.scale(low, vec=(w(31.4), w(62.0), w(40.0)), verts=low.verts)
+        bmesh.ops.translate(low, vec=(0, 0, -w(20.0)), verts=low.verts)
+        for cb in (cyl, low):
+            bmesh.ops.translate(cb, vec=(sx * w(63.6), Yw, Zw), verts=cb.verts)
+            cutter = new_object("well_cut", cb, ["Paint"])
+            mod = ob.modifiers.new("well", "BOOLEAN")
+            mod.operation = "DIFFERENCE"
+            mod.solver = "EXACT"
+            mod.object = cutter
+            bpy.context.view_layer.objects.active = ob
+            ob.select_set(True)
+            bpy.ops.object.modifier_apply(modifier=mod.name)
+            ob.select_set(False)
+            bpy.data.objects.remove(cutter, do_unlink=True)
+
     def fender(sx):
         zi, zo, zd = sx * 47.6, sx * 80.6, sx * 73.6
         bm = bmesh.new()
@@ -1212,9 +1241,15 @@ def build_araba5():
             f.material_index = 1
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         bmesh.ops.triangulate(bm, faces=fs)
-        flat(new_object("fender", bm, ["Paint", "Grey"]))
+        ob = new_object("fender", bm, ["Paint", "Grey"])
+        wheel_well(ob, sx)
+        flat(ob)
     fender(1)
     fender(-1)
+    # Gövdenin altı çamurlukların altına uzanır: teker yuvası gövdede de açılır
+    wheel_well(body_ob, 1)
+    wheel_well(body_ob, -1)
+    flat(body_ob)
 
     def wheel5(name, pos, r, tw, hub_r, hub_out, nut_r):
         seg = 18
@@ -1247,7 +1282,7 @@ def build_araba5():
         # Ön aks: gövdeden tekere
         box("axle_f", (w(12.0), w(3.5), w(3.5)), (sx * w(36.0), yf, r), "Dark")
     for name, x, y, tw, hub in (("wheel_FL", -w(52.0), yf, w(20.3), w(4.0)), ("wheel_FR", w(52.0), yf, w(20.3), w(4.0)),
-                                ("wheel_RL", -w(63.5), yr, w(31.7), w(0.2)), ("wheel_RR", w(63.5), yr, w(31.7), w(0.2))):
+                                ("wheel_RL", -w(63.6), yr, w(29.0), w(0.2)), ("wheel_RR", w(63.6), yr, w(29.0), w(0.2))):
         # Arka tekerin göbeği çamurluğun dışına taşmasın (teker çamurluğun içinde)
         wheel5(name, (x, y, r), r, tw, w(8.0), hub, w(4.0))
 
