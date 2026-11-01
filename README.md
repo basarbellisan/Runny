@@ -199,7 +199,10 @@ varsayılandan farklı değerleri tek satırlık metin olarak verir
 - Üst katman: yollarda git, üstte kaldıkça çarpan artar (x5'e kadar); çarpan ekranda görünmez
   (yalnız puanı etkiler). Oyun içinde sol üstte gidilen mesafe (DISTANCE, km), sağ üstte
   puan (SCORE), aynı boyda; oyun sonunda puanın altında mesafe (m)
-- Yoldan düşersen kanatlar açılır, alt katmanda uçarsın; çarpan x1'e döner. Uçarken burun hep ileri
+- Yoldan düşersen kanatlar açılır, alt katmanda uçarsın; çarpan x1'e döner.
+  Kanatlar uçak kanadı gibi: gövdeden uca sivrilen, hücum kenarı geriye açılı; kökleri ön ve
+  arka teker arasına sığar (GEM'de çamurluğun dış yüzünde), arabanın gövde renginde; koyu
+  gövdeli arabalarda (Dark Rose, GEM) kenarlarında lastik renginde ince çizgi. Kuyruk da öyle. Uçarken burun hep ileri
   bakar (en çok ~15° döner), dönüşü gövdenin yatması gösterir; düşerken kalan açı hemen düzelir
 - Alt katmanda enerji (roketle aynı depo) azalır, kristal yok; iki parmakla ~8 m
   yükselip alçak kayaların üstünden geçilebilir ama enerji 2.5 kat hızlı biter

@@ -1242,6 +1242,11 @@ const WING_WHEEL_GAP := 0.12
 const WING_FIT := {10: [1.03, 0.0, 1.5, 0.62]}  # GEM: arka çamurluğun dış yüzü
 ## Kanatların kurulduğu araba (araba değişince yeniden yerleşir)
 var _wings_variant := -1
+## Koyu gövdeli arabada (Dark Rose, GEM) kanatların kenarında lastik renginde ince çizgi:
+## alt katmanın koyu zemininde kanat seçilsin. Gövde parlaklığı bunun altındaysa çizilir.
+const WING_TRIM_DARK := 0.3
+const WING_TRIM_W := 0.06
+var _trim_mat := StandardMaterial3D.new()
 
 
 func _build_wings() -> void:
@@ -1254,7 +1259,6 @@ func _build_wings() -> void:
 		mi.name = "Swept"
 		mi.material_override = model.paint_material
 		holder.add_child(mi)
-	_fit_wings()
 	var old_tail := _tail.get_node_or_null("Mesh") as MeshInstance3D
 	if old_tail:
 		old_tail.visible = false
@@ -1263,6 +1267,17 @@ func _build_wings() -> void:
 	fin.mesh = _fin_mesh()
 	fin.material_override = model.paint_material
 	_tail.add_child(fin)
+	_trim_mat.roughness = 0.6
+	_trim_mat.emission_enabled = true
+	_trim_mat.emission_energy_multiplier = 0.5
+	for holder: Node3D in [_wing_l, _wing_r, _tail]:
+		var t := MeshInstance3D.new()
+		t.name = "Trim"
+		t.material_override = _trim_mat
+		holder.add_child(t)
+	# Kuyruğun ön kenarı (tabandan tepeye)
+	(_tail.get_node("Trim") as MeshInstance3D).mesh = _bars([[Vector3(0, 0.02, -0.45), Vector3(0, 0.8, 0.2)]])
+	_fit_wings()
 
 
 ## Kanatları arabaya göre yerleştirir: kök, ön tekerin arkası ile arka tekerin önü arasına
@@ -1299,10 +1314,26 @@ func _fit_wings() -> void:
 			b -= extra * 0.5
 		le = a
 		te = b
+	var paint := model.paint_material.albedo_color
+	var dark := paint.get_luminance() < WING_TRIM_DARK
+	var accent := model.tire_material.albedo_color
+	_trim_mat.albedo_color = accent
+	_trim_mat.emission = accent
+	(_tail.get_node("Trim") as Node3D).visible = dark
 	for side in [-1.0, 1.0]:
 		var holder: Node3D = _wing_l if side < 0.0 else _wing_r
 		holder.position = Vector3(side * x0, y, 0.0)
 		(holder.get_node("Swept") as MeshInstance3D).mesh = _wing_mesh(side, le, te)
+		# Kenar çizgisi: hücum kenarı, uç ve firar kenarı
+		var tip_x: float = side * WING_LEN
+		var c := te - le
+		var r_le := Vector3(0.0, 0.0, le)
+		var t_le := Vector3(tip_x, 0.0, te - c * WING_TAPER)
+		var t_te := Vector3(tip_x, 0.0, te)
+		var r_te := Vector3(0.0, 0.0, te)
+		var trim := holder.get_node("Trim") as MeshInstance3D
+		trim.mesh = _bars([[r_le, t_le], [t_le, t_te], [t_te, r_te]])
+		trim.visible = dark
 
 
 ## Sivrilen kanat: kökte ve uçta beşgen kesit (üstü hafif kamburlu), düz gölgeli
@@ -1325,6 +1356,24 @@ func _fin_mesh() -> ArrayMesh:
 		return [Vector3(0.0, y, le), Vector3(t * 0.5, y, le + c * 0.3), Vector3(t * 0.2, y, te),
 			Vector3(-t * 0.2, y, te), Vector3(-t * 0.5, y, le + c * 0.3)]
 	return _loft(sec.call(0.0, -0.45, 0.45, 0.1), sec.call(0.8, 0.2, 0.5, 0.03))
+
+
+## İnce kare kesitli çubuklar (kenar çizgisi): her biri [baş, son]
+func _bars(segs: Array) -> ArrayMesh:
+	var am := ArrayMesh.new()
+	for sg: Array in segs:
+		var a: Vector3 = sg[0]
+		var b: Vector3 = sg[1]
+		var d := (b - a).normalized()
+		var u := Vector3.UP if absf(d.y) < 0.9 else Vector3.FORWARD
+		var s1 := d.cross(u).normalized() * WING_TRIM_W * 0.5
+		var s2 := d.cross(s1).normalized() * WING_TRIM_W * 0.5
+		var sq := func(p: Vector3) -> Array:
+			return [p + s1 + s2, p - s1 + s2, p - s1 - s2, p + s1 - s2]
+		# Uçlar biraz uzatılır: köşelerde çubuklar birleşsin
+		var m := _loft(sq.call(a - d * WING_TRIM_W * 0.5), sq.call(b + d * WING_TRIM_W * 0.5))
+		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, m.surface_get_arrays(0))
+	return am
 
 
 ## İki kesit arasında yan yüzler ve iki kapak; her üçgen kendi normaliyle (düz gölge).
