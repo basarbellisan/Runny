@@ -7,10 +7,15 @@ Godot 4.7 ile `project.godot` dosyasını aç, F5 ile çalıştır.
 
 ## Garaj
 Oyun garaj ekranıyla açılır: araba modelleri platformlarında döner, sağa/sola
-kaydırarak (ya da oklarla) model seçilir, START ile oyun başlar. Oyunu ilk açana garajdan önce 6 sayfalık
-"How to play" çıkar (direksiyon, roket, enerji, engeller, kanatlar, puan; `scripts/tutorial.gd`, görseller
-`ui/tutorial/`, `tools/tutorial_images.py`); bir kez görülünce kendiliğinden açılmaz, garajda START'ın
-altındaki HOW TO PLAY ile tekrar açılır. Seçim
+kaydırarak (ya da oklarla) model seçilir, START ile oyun başlar. Oyun açılınca giriş sayfası çıkar (oturumda bir kez): kocaman SKY RUNNER,
+altında HOW TO PLAY ve PLAY (garaja geçer). HOW TO PLAY oyunun içinde oynanarak geçilen 5 dersi
+açar (`scripts/lesson.gd`; garajda START'ın altındaki HOW TO PLAY de açar): 1 STEER (sol/sağ/sol/sağ,
+sonra dümdüz), 2 BOOST (roket gereken 3 boşluk), 3 ENERGY (15 kristal), 4 OBSTACLES (4 blok), 5 WINGS
+(yol biter, kanatlarla uçup halkalardan yola dön). Her ders kendi düz yolunda (el yapımı kalıp biçiminde,
+girişi başlangıç pistine boşluksuz: `flush_entry`); ekranın iki yarısında büyük yuvarlaklar nereye
+dokunulacağını gösterir. Görev bitince ✓ ve NEXT; düşmek ya da çarpmak dersi baştan başlatır; SKIP garaja
+döner. Test: `--lesson=N` (`--lessonbot` dersi kendi geçer; diğer derslerde `--autopilot` ile).
+Eski 6 sayfalık resimli anlatım (`scripts/tutorial.gd`, `--tutorial=N`) duruyor ama açılmıyor. Seçim
 kaydedilir. Oyun sonunda GARAGE butonu garaja döndürür.
 
 Blender modelleri: arabalar `tools/blender/cars.py` ile Blender'da (Python, `bpy`)
