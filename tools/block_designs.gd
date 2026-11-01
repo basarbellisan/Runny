@@ -5,12 +5,16 @@ extends SceneTree
 
 var _out := "user://"
 var _styles := [0, 1, 2, 3, 4, 5]
+## --anim=N: N tasarımının yakın görünüşünden döngülü animasyon kareleri (GIF için)
+var _anim := -1
 
 
 func _initialize() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--out="):
 			_out = a.trim_prefix("--out=")
+		elif a.begins_with("--anim="):
+			_anim = int(a.trim_prefix("--anim="))
 		elif a.begins_with("--styles="):
 			_styles = Array(a.trim_prefix("--styles=").split(",")).map(func(v): return int(v))
 	_shoot.call_deferred()
@@ -40,6 +44,10 @@ func _shoot() -> void:
 	roads._add_box(stage, Vector3(0, -0.2, -20), Vector3(9, 0.4, 80), road_mat)
 	# Gölge yapan üst yol (kameranın görüş alanı dışında)
 	var roof := roads._add_box(stage, Vector3(0, 14, -20), Vector3(400, 1, 400), road_mat)
+	if _anim >= 0:
+		await _animate(roads, stage, cam, base, roof)
+		quit()
+		return
 	for st in _styles:
 		roads.block_style = st
 		var block := Node3D.new()
@@ -61,3 +69,26 @@ func _shoot() -> void:
 		block.queue_free()
 		await process_frame
 	quit()
+
+
+## Işık saatini elle ilerletip 30 kare/sn kareler: şeritlerin bir tam akışı (1/0.6 sn) döngü olur
+func _animate(roads: RoadGenerator, stage: Node3D, cam: Camera3D, base: Vector3, roof: Node3D) -> void:
+	roads.set_process(false)
+	roads.block_style = _anim
+	roof.visible = false
+	var size := Vector3(2.4, 0.9, 1.2)
+	for x in [-1.6, 1.6]:
+		var block := Node3D.new()
+		stage.add_child(block)
+		block.position = Vector3(x, 0.45, -3.0 if x > 0.0 else 0.0)
+		roads._add_box(block, Vector3.ZERO, size, roads._block_mat)
+		roads._block_lights(block, size)
+	cam.global_position = base + Vector3(2.0, 1.9, 6.0)
+	cam.look_at(base + Vector3(-0.3, 0.45, -1.5))
+	var n := 50
+	for i in n:
+		roads._light_time = float(i) / 30.0
+		roads._process(0.0)
+		for k in 3:
+			await process_frame
+		root.get_texture().get_image().save_png("%s/anim_%03d.png" % [_out, i])
