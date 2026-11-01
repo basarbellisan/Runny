@@ -71,6 +71,19 @@ func _ready() -> void:
 	_refresh(false)
 	_fade.modulate.a = 1.0
 	create_tween().tween_property(_fade, "modulate:a", 0.0, 0.5)
+	if _args.has("tutorial"):
+		show_tutorial(int(_args.tutorial) if _args.tutorial != "" else 0)  # görüntü için: --tutorial=N
+
+
+## Nasıl oynanır sayfaları garajın üstünde açılır
+func show_tutorial(start_page := 0) -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 10
+	add_child(layer)
+	var t := Tutorial.new()
+	t.page = start_page
+	t.finished.connect(layer.queue_free)
+	layer.add_child(t)
 
 
 func _process(delta: float) -> void:
