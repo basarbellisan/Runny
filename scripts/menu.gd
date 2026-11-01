@@ -44,6 +44,9 @@ var _fade: ColorRect
 var _args := {}
 ## Tutorial açıkken garaj kaydırılmaz
 var _tutorial_open := false
+## Giriş sayfası (oyun adı, HOW TO PLAY / PLAY) oturumda bir kez, ilk açılışta gösterilir
+static var _title_done := false
+var _title: Control
 
 
 func _ready() -> void:
@@ -75,8 +78,88 @@ func _ready() -> void:
 	create_tween().tween_property(_fade, "modulate:a", 0.0, 0.5)
 	if _args.has("tutorial"):
 		show_tutorial(int(_args.tutorial) if _args.tutorial != "" else 0)  # görüntü için: --tutorial=N
-	elif not cfg.get_value("tutorial", "intro_seen", false) and not _args.has("shots"):
-		show_tutorial()  # oyunu ilk kez açana garajdan önce
+	elif _args.has("title") or (not _title_done and not _args.has("shots")):
+		_show_title()
+
+
+## Giriş sayfası: kocaman oyun adı, altında HOW TO PLAY (oynanarak dersler) ve PLAY (garaj)
+func _show_title() -> void:
+	_title_done = true
+	_tutorial_open = true
+	var layer := CanvasLayer.new()
+	layer.layer = 10
+	add_child(layer)
+	_title = Control.new()
+	_title.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(_title)
+	var bg := ColorRect.new()
+	bg.color = Palette.PAPER
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_title.add_child(bg)
+	for row in [["SKY", 420.0], ["RUNNER", 560.0]]:
+		var l := _label(_title, row[0], 120, row[1], true)
+		l.add_theme_color_override("font_color", Palette.INK_DARK)
+	var bar := ColorRect.new()
+	bar.color = Palette.ACCENT
+	bar.anchor_left = 0.5
+	bar.anchor_right = 0.5
+	bar.offset_left = -60
+	bar.offset_right = 60
+	bar.offset_top = 668
+	bar.offset_bottom = 676
+	_title.add_child(bar)
+	var how := _big_button("HOW TO PLAY", false)
+	how.offset_top = -345
+	how.offset_bottom = -240
+	how.pressed.connect(start_lessons)
+	_title.add_child(how)
+	var play := _big_button("PLAY", true)
+	play.offset_top = -205
+	play.offset_bottom = -100
+	play.pressed.connect(func():
+		var tw := create_tween()
+		tw.tween_property(_title, "modulate:a", 0.0, 0.35)
+		tw.tween_callback(func():
+			_tutorial_open = false
+			layer.queue_free()))
+	_title.add_child(play)
+
+
+## Nasıl oynanır: oyunun içinde ilk ders
+func start_lessons() -> void:
+	Lesson.current = 0
+	get_tree().change_scene_to_file(GAME_SCENE)
+
+
+## Geniş buton: dolu turuncu (filled) ya da turuncu çerçeveli
+func _big_button(text: String, filled: bool) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.focus_mode = Control.FOCUS_NONE
+	var font := FontVariation.new()
+	font.spacing_glyph = 6
+	b.add_theme_font_override("font", font)
+	b.add_theme_font_size_override("font_size", 32)
+	var fg := Palette.SNOW if filled else Palette.ACCENT
+	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		b.add_theme_color_override(state, fg)
+	for state in [["normal", 0.0], ["hover", 0.0], ["pressed", 0.15], ["focus", 0.0]]:
+		var sb := StyleBoxFlat.new()
+		sb.set_corner_radius_all(6)
+		if filled:
+			sb.bg_color = Palette.ACCENT.darkened(state[1])
+		else:
+			sb.bg_color = Color(Palette.ACCENT, 0.08 + state[1])
+			sb.set_border_width_all(3)
+			sb.border_color = Palette.ACCENT
+		b.add_theme_stylebox_override(state[0], sb)
+	b.anchor_left = 0.5
+	b.anchor_right = 0.5
+	b.anchor_top = 1.0
+	b.anchor_bottom = 1.0
+	b.offset_left = -210
+	b.offset_right = 210
+	return b
 
 
 ## Nasıl oynanır sayfaları garajın üstünde açılır
@@ -405,7 +488,7 @@ func _build_ui(best: int) -> void:
 	how.offset_right = 150
 	how.offset_top = -80
 	how.offset_bottom = -30
-	how.pressed.connect(show_tutorial)
+	how.pressed.connect(start_lessons)
 	ui.add_child(how)
 
 	_fade = ColorRect.new()

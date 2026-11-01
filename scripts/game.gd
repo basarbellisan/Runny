@@ -104,6 +104,8 @@ const RESULT_KEY := "runny_level_result"
 const TEST_MODELS := CarModel.GARAGE
 ## JavaScript'ten yeniden başlatma çağrısı (silinirse çağrı kaybolur, bu yüzden tutulur)
 var _restart_cb: JavaScriptObject
+## Nasıl oynanır dersi (Lesson.current >= 0 iken); yoksa normal oyun
+var lesson: Lesson
 
 
 func _ready() -> void:
@@ -157,6 +159,13 @@ func _ready() -> void:
 	roads.car = car
 	roads.load_levels()
 	_setup_level_test()
+	if Lesson.current < 0 and _args.has("lesson"):
+		Lesson.current = int(_args.lesson)  # test: --lesson=N (--lessonbot: dersi kendi geçer)
+	if Lesson.current >= 0 and not _level_test:
+		lesson = Lesson.new()
+		add_child(lesson)
+		lesson.setup(self, car, roads, _args.has("lessonbot"))
+		hud.lesson_mode()
 	_start_z = car.global_position.z
 	_landings_total = int(_load_save().get_value("tutorial", "landings", 0))
 	roads.set_crystal_color(roads.crystal_color)
@@ -180,6 +189,8 @@ func _physics_process(delta: float) -> void:
 	_stats.time += delta
 	if car.energy >= car.max_energy - 1.0:
 		_stats.full_time += delta
+	if got > 0 and lesson:
+		lesson.on_crystals(got)
 	if got > 0:
 		# Depo doluyken boşa giden kristaller (denge ölçümü)
 		_stats.wasted += maxf(got * roads.crystal_value - (car.max_energy - car.energy), 0.0) / roads.crystal_value
@@ -269,6 +280,8 @@ func _apply_mood(m: float) -> void:
 
 func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 	print("F%d MODE %d->%d z=%.0f x=%.1f y=%.1f vz=%.1f energy=%.0f" % [Engine.get_process_frames(), previous, mode, car.position.z, car.position.x, car.position.y, car.velocity.z, car.energy])
+	if lesson:
+		lesson.on_mode_changed(mode, previous)
 	# Tasarım testinde yoldan düşmek de başarısızlık (uçuşa düşen tasarımı geçemedi)
 	if mode == Car.Mode.FALLING and _level_test and not _level_done and not roads.custom_log.is_empty():
 		_level_result(false, "FELL")
@@ -292,6 +305,8 @@ func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 
 
 func _on_landed(air_time: float, quality: float, impact: float) -> void:
+	if lesson:
+		lesson.on_landed(air_time)
 	# Kamera: çarpma hızı ve yamukluk kadar sarsılır
 	var shake := clampf(impact / 40.0, 0.0, 0.35) + quality * 0.5
 	if shake > 0.08:
@@ -382,6 +397,8 @@ func _on_exploded() -> void:
 
 ## İlk birkaç uçuşta yükselme ipucu
 func _flight_hint() -> void:
+	if lesson:
+		return  # derste kendi yazısı var
 	var cfg := _load_save()
 	var flights := int(cfg.get_value("tutorial", "flights", 0))
 	if flights < 3:
@@ -392,7 +409,7 @@ func _flight_hint() -> void:
 
 ## İlk yolun sonuna yaklaşırken, oyuncu gazı öğrenene kadar ipucu göster
 func _update_hint() -> void:
-	if _hint_shown or _landings_total >= TUTORIAL_LANDINGS or car.mode != Car.Mode.DRIVE:
+	if lesson or _hint_shown or _landings_total >= TUTORIAL_LANDINGS or car.mode != Car.Mode.DRIVE:
 		return
 	var seg := roads.segment_under(car.global_position)
 	if seg and (car.global_position.z - seg.road_end_z()) / car.forward_speed < 1.1:
@@ -426,6 +443,9 @@ func _on_portal(p: LowerLayer.Portal) -> void:
 
 func _on_game_over(reason: String) -> void:
 	game_over = true
+	if lesson:
+		lesson.fail(reason)  # derste çarpmak: ders baştan (oyun sonu ekranı ve rekor yok)
+		return
 	if _level_test and not _level_done:
 		_level_result(false, reason)
 	hud.hide_gauges()

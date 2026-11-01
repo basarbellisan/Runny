@@ -259,6 +259,15 @@ static func km_text(meters: float) -> String:
 	return "%.2f km" % (maxf(meters, 0.0) / 1000.0)
 
 
+## Derste: mesafe, puan ve ilk ipucu gizli (dersin kendi yazıları var)
+func lesson_mode() -> void:
+	for l: Label in [_score, _dist, _hint]:
+		l.visible = false
+	speedometer.visible = false
+	for c in _captions:
+		c.visible = false
+
+
 func set_score(score: int, multiplier: int, meters := 0.0) -> void:
 	_score.text = str(score)
 	_dist.text = km_text(meters)

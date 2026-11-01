@@ -2973,6 +2973,11 @@ func _build_custom(prev: Segment, level: Dictionary, travelled: float, vary := f
 		dh = minf(dh, -1.0)
 		gaps = _gap_window(dh, v, v_boost, vy, vy_b, car_len)
 	var gap := lerpf(gaps.x, maxf(gaps.y, gaps.x), 0.35)
+	# Nasıl oynanır dersleri: giriş önceki yola boşluksuz, aynı yükseklikte ve ortada bağlanır
+	var flush_entry: bool = level.get("flush_entry", false)
+	if flush_entry:
+		dh = 0.0
+		gap = 0.0
 	var oy := prev.top_end + dh - float(entry.get("h0", 0.0))
 	# Tasarımın en alçak yeri bulutlara inmesin
 	var lowest := INF
@@ -2981,6 +2986,8 @@ func _build_custom(prev: Segment, level: Dictionary, travelled: float, vary := f
 	if lowest + oy < MIN_LEVEL:
 		oy = MIN_LEVEL - lowest
 	var ox := prev.x + _rng.randf_range(-1.0, 1.0) * minf(prev.width * 0.25, 2.0) - float(entry.get("x", 0.0))
+	if flush_entry:
+		ox = prev.x - float(entry.get("x", 0.0))
 	var zb := prev.z_end - gap + float(entry.get("z0", 0.0))
 	_current_kind = "özel"
 	var lname: String = str(level.get("name", "özel"))
