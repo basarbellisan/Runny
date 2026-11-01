@@ -397,7 +397,10 @@
         let left = p.x - p.w / 2, best = 0;
         for (const [a, b] of ivs) { best = Math.max(best, a - left); left = Math.max(left, b); }
         best = Math.max(best, p.x + p.w / 2 - left);
-        if (best < needLane - 1e-6) add('error', `Bloklar yolu kapatıyor: en geniş araba (${CAR.wideName}) için en az ${needLane.toFixed(1)} m geçit gerek, ${Math.max(best, 0).toFixed(1)} m var.`, row.map((b) => b.id), o.z0);
+        if (best < needLane - 1e-6) {
+          add('error', `Bloklar yolu kapatıyor: en geniş araba (${CAR.wideName}) için en az ${needLane.toFixed(1)} m geçit gerek, ${Math.max(best, 0).toFixed(1)} m var.`, row.map((b) => b.id), o.z0);
+          issues[issues.length - 1].gap = best;  // türev bu geçidi daha da daraltmasın
+        }
       }
     }
     // Çıkış yolu
@@ -601,10 +604,14 @@
   const errorKeys = (A) => A.issues.filter((i) => i.level === 'error').map((i) => i.text.replace(/[\d.,]+/g, '#') + '|' + i.ids.join(','));
   // Geçerli bir türev: tasarımcının kalıbında olmayan yeni hata yok (kalıbın bilerek zor yerleri
   // türevde de olabilir), uyarı asıl kalıptan fazla değil, daha önce görülmemiş
+  // Kalıpta zaten dar olan blok geçitleri (hata kimliği → geçit, m)
+  const gapsOf = (A) => new Map(A.issues.filter((i) => i.level === 'error' && i.gap !== undefined)
+    .map((i) => [i.text.replace(/[\d.,]+/g, '#') + '|' + i.ids.join(','), i.gap]));
   function vary(level, seed, avoid) {
     const base = analyze(level);
     const baseWarn = issueCount(base, 'warn');
     const baseErr = new Set(errorKeys(base));
+    const baseGaps = gapsOf(base);
     const seen = new Set(avoid || []);
     seen.add(signature(level));
     for (let t = 0; t < 40; t++) {
@@ -615,7 +622,9 @@
       const sig = signature(V.level);
       if (!V.tags.length || seen.has(sig)) continue;
       const A = analyze(V.level);
-      if (errorKeys(A).every((k) => baseErr.has(k)) && issueCount(A, 'warn') <= baseWarn) return { ...V, sig };
+      // Kalıbın bilerek dar bıraktığı geçit türevde daha da daralmasın
+      const narrower = [...gapsOf(A)].some(([k, g]) => g < (baseGaps.get(k) ?? Infinity) - 0.01);
+      if (errorKeys(A).every((k) => baseErr.has(k)) && issueCount(A, 'warn') <= baseWarn && !narrower) return { ...V, sig };
     }
     return null;
   }
