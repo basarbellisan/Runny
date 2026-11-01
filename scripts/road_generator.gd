@@ -181,10 +181,10 @@ var _runway_halo_mat := ShaderMaterial.new()
 var _light_time := 0.0
 var _block_mat := StandardMaterial3D.new()
 var _block_top_mat := StandardMaterial3D.new()
-## Blok tasarımı: 0 = koyu gövde + turuncu üst çizgi (eski); 1-5 ışıklı tasarımlar (karanlıkta
+## Blok tasarımı (oyunda 3: çapraz şerit): 0 = koyu gövde + turuncu üst çizgi (eski); 1-5 ışıklı (karanlıkta
 ## da görünsün): 1 neon çerçeve, 2 uyarı lambaları, 3 çapraz şerit, 4 ışıklı tepe + hale,
 ## 5 fener direkleri. Hepsinde gövde koyu gri, ışıklar sise karışmaz.
-@export_range(0, 5) var block_style := 0
+@export_range(0, 5) var block_style := 3
 var _blk_glow := StandardMaterial3D.new()
 var _blk_lamp_a := StandardMaterial3D.new()
 var _blk_lamp_b := StandardMaterial3D.new()

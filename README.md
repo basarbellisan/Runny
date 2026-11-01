@@ -128,7 +128,9 @@ yüzüne çakılıp patlar. Yanlış hizalanıp yolun yanından düşersen kanat
 açılır ve alt katmana geçersin. Çıkmaz yollarda pist ışığı yoktur.
 
 Engeller:
-- Beton blok (turuncu üst şeritli): ön yüzüne çarpan patlar
+- Beton blok (koyu gri gövde, ön yüzünde yavaşça akan ışıklı turuncu-siyah çapraz uyarı şeritleri,
+  üstte ışıklı turuncu çizgi; ışıklar gölgede ve siste de parlak): ön yüzüne çarpan patlar.
+  Diğer denenen tasarımlar `roads.block_style` 0-5 (`--block_style=N`); görüntüler `tools/block_designs.gd`
 - Çakıl (kum rengi, taşlı): üstünde hız ~%45 düşer, tutuş çok azalır, taşlar
   arabayı sağa sola savurur, çıktıktan sonra da ~0.6 sn sendeler;
   araba sarsılır, taş sesi ve toz. İlk üç seferde "ÇAKIL · YAVAŞLATIR" yazar
