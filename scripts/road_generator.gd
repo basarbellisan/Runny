@@ -181,6 +181,15 @@ var _runway_halo_mat := ShaderMaterial.new()
 var _light_time := 0.0
 var _block_mat := StandardMaterial3D.new()
 var _block_top_mat := StandardMaterial3D.new()
+## Blok tasarımı: 0 = koyu gövde + turuncu üst çizgi (eski); 1-5 ışıklı tasarımlar (karanlıkta
+## da görünsün): 1 neon çerçeve, 2 uyarı lambaları, 3 çapraz şerit, 4 ışıklı tepe + hale,
+## 5 fener direkleri. Hepsinde gövde koyu gri, ışıklar sise karışmaz.
+@export_range(0, 5) var block_style := 0
+var _blk_glow := StandardMaterial3D.new()
+var _blk_lamp_a := StandardMaterial3D.new()
+var _blk_lamp_b := StandardMaterial3D.new()
+var _blk_halo := StandardMaterial3D.new()
+var _blk_stripes := ShaderMaterial.new()
 var _gravel_mat := StandardMaterial3D.new()
 var _stone_mat := StandardMaterial3D.new()
 ## Yol kristalleri: her yol için bir MultiMesh. Kristaller yolun düğümünden ayrı
@@ -256,6 +265,18 @@ func _ready() -> void:
 	_block_mat.roughness = 0.9
 	_block_top_mat.albedo_color = Palette.ACCENT
 	_block_top_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	for m: StandardMaterial3D in [_blk_glow, _blk_lamp_a, _blk_lamp_b, _blk_halo]:
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.disable_fog = true
+		m.albedo_color = Palette.ACCENT
+	_blk_halo.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_blk_halo.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	_blk_halo.albedo_color = Color(Palette.ACCENT, 0.28)
+	_blk_halo.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_blk_halo.no_depth_test = false
+	_blk_stripes.shader = preload("res://shaders/block_stripes.gdshader")
+	_blk_stripes.set_shader_parameter("color", Palette.ACCENT)
+	_blk_stripes.set_shader_parameter("dark", Palette.GRAPHITE)
 	_gravel_mat.albedo_color = Color("8a7558")
 	_gravel_mat.roughness = 1.0
 	_stone_mat.albedo_color = Color("d6c7a8")
@@ -307,6 +328,12 @@ func _process(delta: float) -> void:
 	_runway_mat.set_shader_parameter("t", _light_time)
 	_runway_halo_mat.set_shader_parameter("t", _light_time)
 	_crystal_mat.set_shader_parameter("t", _light_time)
+	# Blok lambaları sırayla yanıp söner (A ve B ters fazda); şeritler akar
+	var blink := 0.5 + 0.5 * sin(_light_time * 7.0)
+	_blk_lamp_a.albedo_color = Palette.ACCENT.lerp(Color("fff1d6"), blink)
+	_blk_lamp_b.albedo_color = Palette.ACCENT.lerp(Color("fff1d6"), 1.0 - blink)
+	_blk_halo.albedo_color = Color(Palette.ACCENT, 0.25 + 0.2 * blink)
+	_blk_stripes.set_shader_parameter("t", _light_time)
 
 
 ## Arabanın altındaki (üstüne konduğu) yol
@@ -1692,7 +1719,49 @@ func _add_block(s: Segment, x0: float, x1: float, z: float, depth: float) -> voi
 	col.shape = shape
 	block.add_child(col)
 	_add_box(block, Vector3.ZERO, size, _block_mat)
-	_add_box(block, Vector3(0, 0.46, 0), Vector3(size.x, 0.04, size.z), _block_top_mat)
+	_block_lights(block, size)
+
+
+## Bloğun ışıkları (block_style). Ön yüz +z (araba +z'den gelir), tepe y = size.y / 2
+func _block_lights(block: Node3D, size: Vector3) -> void:
+	var top := size.y * 0.5
+	var front := size.z * 0.5
+	var t := 0.05  # ışık çubuğu kalınlığı
+	match block_style:
+		0:
+			_add_box(block, Vector3(0, top + 0.01, 0), Vector3(size.x, 0.04, size.z), _block_top_mat)
+		1:
+			# Neon çerçeve: tepenin dört kenarı ve ön yüzün ortasında yatay çizgi
+			for zz in [front - t * 0.5, -front + t * 0.5]:
+				_add_box(block, Vector3(0, top + 0.01, zz), Vector3(size.x + 0.02, t, t), _blk_glow)
+			for xx in [size.x * 0.5 - t * 0.5, -size.x * 0.5 + t * 0.5]:
+				_add_box(block, Vector3(xx, top + 0.01, 0), Vector3(t, t, size.z), _blk_glow)
+			_add_box(block, Vector3(0, 0.0, front + 0.01), Vector3(size.x - 0.2, 0.08, 0.02), _blk_glow)
+		2:
+			# Uyarı lambaları: ön yüzde sıra sıra kare lambalar, sırayla yanıp söner; üstte ince çizgi
+			_add_box(block, Vector3(0, top + 0.01, 0), Vector3(size.x, 0.03, size.z), _block_top_mat)
+			var n := maxi(int(size.x / 0.55), 1)
+			var step := size.x / float(n)
+			for i in n:
+				var x := -size.x * 0.5 + step * (i + 0.5)
+				_add_box(block, Vector3(x, 0.08, front + 0.02), Vector3(0.24, 0.24, 0.04), _blk_lamp_a if i % 2 == 0 else _blk_lamp_b)
+		3:
+			# Çapraz şerit: ön yüz baştan başa akan turuncu-koyu uyarı şeritleri; üstte ince çizgi
+			_add_box(block, Vector3(0, 0.0, front + 0.01), Vector3(size.x, size.y, 0.02), _blk_stripes)
+			_add_box(block, Vector3(0, top + 0.01, 0), Vector3(size.x, 0.03, size.z), _blk_glow)
+		4:
+			# Işıklı tepe ve ön yüz kenarları; yola vuran, nabız gibi atan turuncu ışık lekesi
+			_add_box(block, Vector3(0, top + 0.03, 0), Vector3(size.x, 0.08, size.z), _blk_glow)
+			for xx in [size.x * 0.5 - 0.03, -size.x * 0.5 + 0.03]:
+				_add_box(block, Vector3(xx, 0.0, front + 0.01), Vector3(0.06, size.y, 0.02), _blk_glow)
+			_add_box(block, Vector3(0, -top + 0.015, 0.4), Vector3(size.x + 1.4, 0.01, size.z + 2.2), _blk_halo)
+		5:
+			# Fener direkleri: iki uçta ince direk, tepelerinde yanıp sönen fener; üstte ince çizgi
+			_add_box(block, Vector3(0, top + 0.01, 0), Vector3(size.x, 0.03, size.z), _blk_glow)
+			for side in [-1.0, 1.0]:
+				var x: float = side * (size.x * 0.5 - 0.12)
+				_add_box(block, Vector3(x, top + 0.3, 0), Vector3(0.08, 0.6, 0.08), _block_mat)
+				_add_box(block, Vector3(x, top + 0.66, 0), Vector3(0.22, 0.16, 0.22), _blk_lamp_a if side < 0.0 else _blk_lamp_b)
 
 
 # --------------------------------------------------------------------------

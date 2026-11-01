@@ -147,6 +147,8 @@ func _ready() -> void:
 	roads.keep_history = _args.has("dump_roads")
 	if _args.has("crystal_color"):
 		roads.crystal_color = Color(_args.crystal_color)
+	if _args.has("block_style"):
+		roads.block_style = int(_args.block_style)  # blok tasarımı denemesi
 	hud.gauge.color = roads.crystal_color
 	if _args.has("nohud"):
 		hud.visible = false  # tasarım taslakları için temiz arka plan
