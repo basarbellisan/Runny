@@ -7,7 +7,10 @@ Godot 4.7 ile `project.godot` dosyasını aç, F5 ile çalıştır.
 
 ## Garaj
 Oyun garaj ekranıyla açılır: araba modelleri platformlarında döner, sağa/sola
-kaydırarak (ya da oklarla) model seçilir, START ile oyun başlar. Seçim
+kaydırarak (ya da oklarla) model seçilir, START ile oyun başlar. Oyunu ilk açana garajdan önce 6 sayfalık
+"How to play" çıkar (direksiyon, roket, enerji, engeller, kanatlar, puan; `scripts/tutorial.gd`, görseller
+`ui/tutorial/`, `tools/tutorial_images.py`); bir kez görülünce kendiliğinden açılmaz, garajda START'ın
+altındaki HOW TO PLAY ile tekrar açılır. Seçim
 kaydedilir. Oyun sonunda GARAGE butonu garaja döndürür.
 
 Blender modelleri: arabalar `tools/blender/cars.py` ile Blender'da (Python, `bpy`)

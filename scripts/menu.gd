@@ -42,6 +42,8 @@ var _segs: Array = []
 var _bar_tween: Tween
 var _fade: ColorRect
 var _args := {}
+## Tutorial açıkken garaj kaydırılmaz
+var _tutorial_open := false
 
 
 func _ready() -> void:
@@ -73,6 +75,8 @@ func _ready() -> void:
 	create_tween().tween_property(_fade, "modulate:a", 0.0, 0.5)
 	if _args.has("tutorial"):
 		show_tutorial(int(_args.tutorial) if _args.tutorial != "" else 0)  # görüntü için: --tutorial=N
+	elif not cfg.get_value("tutorial", "intro_seen", false) and not _args.has("shots"):
+		show_tutorial()  # oyunu ilk kez açana garajdan önce
 
 
 ## Nasıl oynanır sayfaları garajın üstünde açılır
@@ -82,7 +86,15 @@ func show_tutorial(start_page := 0) -> void:
 	add_child(layer)
 	var t := Tutorial.new()
 	t.page = start_page
-	t.finished.connect(layer.queue_free)
+	_tutorial_open = true
+	t.finished.connect(func():
+		_tutorial_open = false
+		layer.queue_free()
+		# Bir kez görüldü (atlandıysa da): bir daha kendiliğinden açılmaz
+		var c := ConfigFile.new()
+		c.load(SAVE_PATH)
+		c.set_value("tutorial", "intro_seen", true)
+		c.save(SAVE_PATH))
 	layer.add_child(t)
 
 
@@ -100,7 +112,7 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _starting:
+	if _starting or _tutorial_open:
 		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
@@ -373,6 +385,28 @@ func _build_ui(best: int) -> void:
 	start_btn.offset_bottom = -90
 	start_btn.pressed.connect(start)
 	ui.add_child(start_btn)
+
+	# START'ın altında küçük "nasıl oynanır" bağlantısı
+	var how := Button.new()
+	how.text = "HOW TO PLAY"
+	how.flat = true
+	how.focus_mode = Control.FOCUS_NONE
+	var how_font := FontVariation.new()
+	how_font.spacing_glyph = 4
+	how.add_theme_font_override("font", how_font)
+	how.add_theme_font_size_override("font_size", 18)
+	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		how.add_theme_color_override(state, Color(Palette.INK_DARK, 0.5))
+	how.anchor_left = 0.5
+	how.anchor_right = 0.5
+	how.anchor_top = 1.0
+	how.anchor_bottom = 1.0
+	how.offset_left = -150
+	how.offset_right = 150
+	how.offset_top = -80
+	how.offset_bottom = -30
+	how.pressed.connect(show_tutorial)
+	ui.add_child(how)
 
 	_fade = ColorRect.new()
 	_fade.color = Palette.PAPER
