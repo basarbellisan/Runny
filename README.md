@@ -405,7 +405,8 @@ bölgesini ve rampa/tümsek uçuşunu denetler.
 - **Test et**: tasarım oyunda otomatik pilotla 7 kez (her arabayla bir kez) sürülür; düşülen yerler tuvalde ✕.
 - **Türevler**: kalıptan oyunun kurallarıyla 4 versiyon türetir (boşluklar, yol uzunluğu, genişlik,
   engel düzeni, çakıl ↔ blok, rampa yüksekliği); asıl kalıpta olmayan yeni bir hata çıkarmayan ve
-  asıl kalıptan fazla uyarısı olmayanlar gösterilir (kalıbın bilerek zor yerleri türevde de kalabilir). Karta tıkla: tuvalde gösterilir; Test: otomatik pilot; "oyuna girsin"
+  asıl kalıptan fazla uyarısı olmayanlar gösterilir (kalıbın bilerek zor yerleri türevde de kalabilir,
+  ama daha da zorlaşmaz: kalıpta dar bırakılan blok geçidi türevde daralmaz). Karta tıkla: tuvalde gösterilir; Test: otomatik pilot; "oyuna girsin"
   işaretlenenler kalıpla birlikte kaydedilir (`variants`) ve oyunda kalıbın yerine de gelebilir.
 - **Oyna**: tasarımı oyunda kendin sür.
 - **Kaydet / Kopyala / Dosya olarak indir**: tasarım `runny-level` JSON'u olur.

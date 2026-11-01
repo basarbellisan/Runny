@@ -294,7 +294,8 @@ static func ramp_flight(at: float, o: Dictionary, host: Dictionary, mul := 1.0) 
 
 ## Kontrol: { errors, warns, issues: ["hata: ...", ...] }
 static func analyze(level: Dictionary) -> Dictionary:
-	var res := {"errors": 0, "warns": 0, "issues": []}
+	# gaps: dar blok geçitleri (hata metni → geçit, m); türev bunları daha da daraltmasın
+	var res := {"errors": 0, "warns": 0, "issues": [], "gaps": {}}
 	var add := func(error: bool, text: String) -> void:
 		res[("errors" if error else "warns")] += 1
 		res.issues.append(("hata: " if error else "uyarı: ") + text)
@@ -463,6 +464,7 @@ static func analyze(level: Dictionary) -> Dictionary:
 			widest = maxf(widest, f(p, "x") + f(p, "w") * 0.5 - left)
 			if widest < need_lane - 1e-6:
 				add.call(true, "bloklar yolu kapatıyor #%s" % o.id)
+				res.gaps["hata: bloklar yolu kapatıyor #%s" % o.id] = widest
 	# Çıkış yolunun sonu boş
 	if not path.is_empty():
 		var exit: Dictionary = exit_of(level)
@@ -618,7 +620,9 @@ static func vary(level: Dictionary, rng: RandomNumberGenerator, seen: Dictionary
 		var a: Dictionary = check.call(res.level)
 		# Tasarımcının kalıbında olmayan yeni hata olmasın (kalıbın bilerek zor yerleri kalabilir)
 		var new_error: bool = a.issues.any(func(t): return t.begins_with("hata: ") and not t in base_errors)
-		if not new_error and a.warns <= base_warns:
+		# Kalıbın bilerek dar bıraktığı blok geçidi türevde daha da daralmasın
+		var narrower: bool = a.gaps.keys().any(func(k): return a.gaps[k] < float(base.gaps.get(k, INF)) - 0.01)
+		if not new_error and not narrower and a.warns <= base_warns:
 			res["sig"] = sig
 			return res
 	return {}
