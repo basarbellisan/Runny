@@ -15,6 +15,8 @@ const SUN_DIST := 875.0
 const FADE_LIFT := 25.0
 ## Çıkarken (dağlar belirirken) kayma daha az
 const FADE_LIFT_UP := 8.0
+## Çıkarken belirme süresi (sn)
+const FADE_IN := 2.0
 const VALLEY := 520.0         # vadinin yarı genişliği (m): ortada dağlar alçalır
 ## Güneşin yolu: sol alttan (dibi hep dağların dibinden yukarıda) sağ yukarıya; bir geçiş SUN_PERIOD saniye, sonra baştan.
 ## Oyun başında yolun ~%30'unda (vadide, dibi dağlarda) başlar
@@ -37,7 +39,7 @@ var _sparkles: CPUParticles3D
 var _sparkle_mat := StandardMaterial3D.new()
 var _rng := RandomNumberGenerator.new()
 var _sun_t := SUN_START
-var _last_seen := 1.0
+var _shown := 1.0
 var _lift_k := FADE_LIFT
 
 
@@ -165,14 +167,20 @@ func update(pal: Dictionary, mood: float) -> void:
 	if car == null:
 		return
 	# Katmanlar arası geçişte yavaşça saydamlaşır / belirir (arkasındaki gök ne renkse ona erir)
-	var seen := 1.0 - smoothstep(0.05, 0.75, mood)
+	var target := 1.0 - smoothstep(0.05, 0.75, mood)
+	# Kaybolurken yüksekliği izler (iniş); belirirken zamana yayılır (çıkışta yavaş fade-in, ~FADE_IN sn)
+	var dt := get_process_delta_time()
+	var appearing := target > _shown + 0.0001
+	if appearing:
+		_shown = move_toward(_shown, target, dt / FADE_IN)
+	else:
+		_shown = target
+	var seen := _shown
 	visible = seen > 0.002
 	if not visible:
 		return
-	# Yön: kayboluyorsa (iniş) FADE_LIFT, beliriyorsa (çıkış) FADE_LIFT_UP; geçiş yumuşak
-	var want := FADE_LIFT if seen < _last_seen - 0.0001 else (FADE_LIFT_UP if seen > _last_seen + 0.0001 else _lift_k)
-	_lift_k = move_toward(_lift_k, want, 40.0 * get_process_delta_time())
-	_last_seen = seen
+	# Kayma: inişte FADE_LIFT, çıkışta FADE_LIFT_UP; geçiş yumuşak
+	_lift_k = move_toward(_lift_k, FADE_LIFT_UP if appearing else FADE_LIFT, 40.0 * dt)
 	var c := car.global_position
 	var mtn: Array = pal.mountains
 	for i in _layers.size():
