@@ -14,8 +14,9 @@ sonra dümdüz), 2 BOOST (roket gereken 3 boşluk), 3 ENERGY (15 kristal), 4 OBS
 2 çakıl, 2 tümsek; yazı sıradaki engele göre), 5 WINGS (yol ~1 sn'de biter; önce iki parmakla tırman,
 sonra turuncu tünele dümen kırıp yola dön: uçağın tam önüne iki kaya konur, tünel ikinci kayadan ~4 sn
 sonra gelir; rastgele kaya yok). Görevler araba yola iner inmez başlar (kısa pist);
-kanat dersi dışında düşmek/çarpmak: ağır çekim, ekran açık renge solar, MISSED; ders yumuşak açılışla baştan
-(araba yanıp söner); panelde ses kapalı; ilerleme ✓'li yuvarlaklar. Her ders kendi düz yolunda (el yapımı kalıp biçiminde,
+kanat dersi dışında düşmek/çarpmak: ağır çekim, sahne açık renge solar (üstteki yazılar kalır, kutuda MISSED ·
+TRY AGAIN); ders yumuşak açılışla baştan (araba yanıp söner); görev bitince de aynı solma, sonra ✓ NICE;
+enerji dersinde yuvarlak yok; panelde ses kapalı; ilerleme ✓'li yuvarlaklar. Her ders kendi düz yolunda (el yapımı kalıp biçiminde,
 girişi başlangıç pistine boşluksuz: `flush_entry`); ekranın iki yarısında büyük yuvarlaklar nereye
 dokunulacağını gösterir. Görev bitince ✓ ve NEXT; düşmek ya da çarpmak dersi baştan başlatır; SKIP garaja
 döner; panelde NEXT'in altında REPLAY aynı dersi baştan açar. Yuvarlaklar yalnız basılması gerektiğinde
