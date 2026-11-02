@@ -385,7 +385,8 @@ func _pad_target() -> int:
 			return 0
 		"BOOST":
 			var seg := roads.segment_under(car.global_position)
-			if seg and car.mode == Car.Mode.DRIVE and (car.global_position.z - seg.road_end_z()) / maxf(car.forward_speed, 1.0) < 1.7:
+			# Yalnız dersin yolunda, roket isteyen bir boşluktan önce (başlangıç pistinin ucu boşluk değil)
+			if seg and seg.custom and not seg.hop and car.mode == Car.Mode.DRIVE and (car.global_position.z - seg.road_end_z()) / maxf(car.forward_speed, 1.0) < 1.7:
 				return 2
 			return 0
 		"WINGS":
