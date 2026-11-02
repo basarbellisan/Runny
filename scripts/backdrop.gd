@@ -11,7 +11,13 @@ const LAYERS := [[840.0, Vector2(310, 490), 320.0], [720.0, Vector2(190, 320), 2
 const SPAN := 2600.0          # dağ sırasının yatay genişliği
 const BASE_Y := -46.0         # dağların dibi (bulut tabakasının altı: sisten çıkıyormuş gibi)
 const SUN_DIST := 875.0
-const VALLEY := 520.0         # vadinin yarı genişliği (m): ortada dağlar alçalır
+const VALLEY := 520.0
+## Güneşin yolu: sol alttan (ufkun altından) sağ yukarıya; bir geçiş SUN_PERIOD saniye, sonra baştan.
+## Oyun başında yolun ~%30'unda (vadide, dibi dağlarda) başlar
+const SUN_PERIOD := 200.0
+const SUN_FROM := Vector2(-520.0, -110.0)
+const SUN_TO := Vector2(560.0, 420.0)
+const SUN_START := 0.3         # vadinin yarı genişliği (m): ortada dağlar alçalır
 const SUN_RADIUS := 105.0
 const SUN_Y := 55.0          # güneşin merkezi (dibi dağların arkasında kalır)
 
@@ -25,6 +31,7 @@ var _halo_mat := StandardMaterial3D.new()
 var _sparkles: CPUParticles3D
 var _sparkle_mat := StandardMaterial3D.new()
 var _rng := RandomNumberGenerator.new()
+var _sun_t := SUN_START
 
 
 func setup(p_car: Node3D) -> void:
@@ -37,6 +44,8 @@ func setup(p_car: Node3D) -> void:
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		m.cull_mode = BaseMaterial3D.CULL_DISABLED
 		m.vertex_color_use_as_albedo = true
+		# Çizim sırası: hale, güneş, sonra dağlar uzaktan yakına (güneş hep dağların arkasında)
+		m.render_priority = i - 2
 		var mi := MeshInstance3D.new()
 		mi.mesh = _ridge(LAYERS[i])
 		mi.material_override = m
@@ -53,6 +62,7 @@ func setup(p_car: Node3D) -> void:
 	_sun_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_sun_mat.disable_fog = true
 	_sun_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_sun_mat.render_priority = -4
 	_sun = MeshInstance3D.new()
 	_sun.mesh = disc
 	_sun.rotation.x = PI * 0.5
@@ -77,6 +87,7 @@ func setup(p_car: Node3D) -> void:
 	_halo_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_halo_mat.disable_fog = true
 	_halo_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_halo_mat.render_priority = -5
 	_halo = MeshInstance3D.new()
 	_halo.mesh = hd
 	_halo.material_override = _halo_mat
@@ -156,9 +167,13 @@ func update(pal: Dictionary, mood: float) -> void:
 	for i in _layers.size():
 		_layers[i].global_position = Vector3(c.x * 0.6, BASE_Y, c.z - float(LAYERS[i][0]))
 		_layer_mats[i].albedo_color = Color(mtn[i], seen)
-	_sun.global_position = Vector3(c.x * 0.6, SUN_Y, c.z - SUN_DIST)
+	_sun_t = fmod(_sun_t + get_process_delta_time() / SUN_PERIOD, 1.0)
+	# Hafif yay: önce yana, sonra daha dik yükselir
+	var sx := lerpf(SUN_FROM.x, SUN_TO.x, _sun_t)
+	var sy := lerpf(SUN_FROM.y, SUN_TO.y, _sun_t * _sun_t * 0.4 + _sun_t * 0.6)
+	_sun.global_position = Vector3(c.x * 0.6 + sx, sy, c.z - SUN_DIST)
 	_sun_mat.albedo_color = Color(pal.sun_disc, seen)
-	_halo.global_position = Vector3(c.x * 0.6, SUN_Y, c.z - SUN_DIST - 10.0)
+	_halo.global_position = _sun.global_position + Vector3(0, 0, -10.0)
 	_halo_mat.albedo_color = Color(pal.sun_disc, 0.5 * seen)
 	# Kameranın önünden uzakta başlar (yakında büyük kare gibi görünmesin)
 	_sparkles.global_position = c + Vector3(0, 6.0, -125.0)

@@ -24,8 +24,9 @@ const ENERGY := Color("9fe02a")
 const SKIES := [
 	# Pembe-mor alacakaranlık
 	{"name": "dusk",
-		"sky_top": Color("2a1c50"), "sky_horizon": Color("8a4c9c"),
-		"ground_horizon": Color("9c5aa6"), "ground_bottom": Color("c675cc"),
+		# Ufukta gök, zemin ve sis aynı renk: ufuk çizgisi erir
+		"sky_top": Color("2a1c50"), "sky_horizon": Color("9256a2"),
+		"ground_horizon": Color("9256a2"), "ground_bottom": Color("b56cc0"),
 		"fog": Color("9256a2"), "fog_density": 0.0045, "fog_height": -6.0, "fog_height_density": 0.09,
 		"ambient": Color("8c64b4"), "ambient_energy": 0.8, "sun": Color("ffe0ea"), "sun_energy": 0.75,
 		"road_top": Color("3a2c4e"), "road_side": Color("c25c8e"),

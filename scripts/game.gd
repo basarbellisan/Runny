@@ -185,6 +185,10 @@ func _ready() -> void:
 	_start_z = car.global_position.z
 	_landings_total = int(_load_save().get_value("tutorial", "landings", 0))
 	roads.set_crystal_color(roads.crystal_color)
+	clouds.visible = false  # yollarla alt katman arasında bulut tabakası yok
+	var sky_mat := ($WorldEnvironment as WorldEnvironment).environment.sky.sky_material as ProceduralSkyMaterial
+	sky_mat.sky_curve = 0.3      # gök degradesi ufka doğru yumuşak
+	sky_mat.ground_curve = 0.3
 	roads.start(car, seed_value)
 	backdrop = Backdrop.new()
 	add_child(backdrop)
