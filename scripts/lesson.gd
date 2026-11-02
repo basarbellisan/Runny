@@ -22,16 +22,17 @@ const LESSONS := [
 		{"id": 2, "w": 10, "len": 260, "h0": 0, "h1": 0, "x": 0, "z0": 196},
 		{"id": 3, "w": 10, "len": 260, "h0": 0, "h1": 0, "x": 0, "z0": 502},
 		{"id": 4, "w": 10, "len": 900, "h0": 0, "h1": 0, "x": 0, "z0": 808}], "obstacles": []}, 15],
-	["OBSTACLES", {"pieces": [{"id": 1, "w": 10, "len": 2000, "h0": 0, "h1": 0, "x": 0, "z0": 0}], "obstacles": [
+	# Sırayla: iki blok, iki çakıl, iki tümsek (yazı sıradaki engele göre değişir)
+	["OBSTACLES", {"pieces": [{"id": 1, "w": 10, "len": 1600, "h0": 0, "h1": 0, "x": 0, "z0": 0}], "obstacles": [
 		{"id": 10, "kind": "block", "w": 3.6, "len": 1.2, "x": -2.6, "z0": 110},
 		{"id": 11, "kind": "block", "w": 3.6, "len": 1.2, "x": 2.6, "z0": 250},
-		{"id": 12, "kind": "block", "w": 3.6, "len": 1.2, "x": -2.6, "z0": 390},
-		{"id": 13, "kind": "block", "w": 3.6, "len": 1.2, "x": 2.6, "z0": 530},
-		{"id": 14, "kind": "block", "w": 3.6, "len": 1.2, "x": -2.6, "z0": 670},
-		{"id": 15, "kind": "block", "w": 3.6, "len": 1.2, "x": 2.6, "z0": 810}]}, 4],
+		{"id": 12, "kind": "gravel", "w": 4.5, "len": 30, "x": -2.4, "z0": 400},
+		{"id": 13, "kind": "gravel", "w": 4.5, "len": 30, "x": 2.4, "z0": 560},
+		{"id": 14, "kind": "bump", "w": 10, "len": 12, "rise": 1.2, "x": 0, "z0": 720},
+		{"id": 15, "kind": "bump", "w": 10, "len": 12, "rise": 1.2, "x": 0, "z0": 860}]}, 6],
 	["WINGS", {"pieces": [
-		{"id": 1, "w": 10, "len": 170, "h0": 0, "h1": 0, "x": 0, "z0": 0},
-		{"id": 2, "w": 10, "len": 300, "h0": 0, "h1": 0, "x": 0, "z0": 490}], "obstacles": []}, 1],
+		{"id": 1, "w": 10, "len": 5, "h0": 0, "h1": 0, "x": 0, "z0": 0},
+		{"id": 2, "w": 10, "len": 300, "h0": 0, "h1": 0, "x": 0, "z0": 330}], "obstacles": []}, 2],
 ]
 ## Direksiyon dersinin adımları
 const STEER_STEPS := ["LEFT", "RIGHT", "LEFT", "RIGHT", "STRAIGHT"]
@@ -48,6 +49,7 @@ var failed := false
 var _straight_time := 0.0
 var _blocks_passed := {}
 var _flew := false
+var _climb_time := 0.0
 var _t := 0.0
 ## Yuvarlakların görünürlüğü (yumuşak belirip kaybolur): -1 sol, 1 sağ
 var _pad_alpha := {-1: 0.0, 1: 0.0}
@@ -82,6 +84,10 @@ func setup(p_game: Node, p_car: Car, p_roads: RoadGenerator, bot := false) -> vo
 	roads.test_level = level
 	if LESSONS[index][0] == "ENERGY":
 		car.energy = car.max_energy * 0.35  # göstergenin dolduğu görülsün
+	if LESSONS[index][0] == "WINGS":
+		game.lower.first_portal_time = Vector2(5.0, 6.0)  # tünel tırmanmayı öğrendikten sonra gelsin
+		roads.start_length = 32.0  # yol ~1 sn'de biter
+		game.lower.rock_density = Vector2(3.0, 4.0)  # tırmanmayı öğretecek kadar kaya, tünel yolu açık
 	layer = 5
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_ui()
@@ -113,6 +119,12 @@ func _process(delta: float) -> void:
 			_update_steer(delta)
 		"OBSTACLES":
 			_update_blocks()
+		"WINGS":
+			# 1. adım: uçarken iki parmakla tırman (kayaların üstünden geçmek için)
+			if _flew and done == 0 and car.climbing:
+				_climb_time += delta
+				if _climb_time > 0.8:
+					_step()
 	if _bot:
 		_bot_input()
 
@@ -146,7 +158,7 @@ func _update_blocks() -> void:
 		return
 	var z: float = roads.to_design(car.global_position).y
 	for o in LESSONS[index][1].obstacles:
-		if z > float(o.z0) + 3.0 and not _blocks_passed.has(o.id):
+		if z > float(o.z0) + float(o.get("len", 1.2)) + 2.0 and not _blocks_passed.has(o.id):
 			_blocks_passed[o.id] = true
 			_step()
 
@@ -185,7 +197,8 @@ func on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 			car.energy = car.max_energy  # ilk uçuşta enerji bitmesin
 			_refresh()
 		elif mode == Car.Mode.DRIVE and _flew and previous == Car.Mode.LAUNCH:
-			_step()
+			while done < _goal() and not finished:
+				_step()
 		return
 	# Diğer derslerde yoldan düşmek: ders baştan
 	if mode == Car.Mode.FALLING:
@@ -265,11 +278,18 @@ func _say_text() -> String:
 		"ENERGY":
 			return "Boost uses energy: collect %d crystals" % _goal()
 		"OBSTACLES":
+			match _next_obstacle():
+				"gravel":
+					return "Gravel slows you: steer around it"
+				"bump":
+					return "Bumps throw you up: keep it straight"
 			return "Steer around the striped blocks"
 		"WINGS":
-			if _flew:
-				return "Hold TWO fingers: climb into the rings"
-			return "Road ends: keep going, wings open"
+			if not _flew:
+				return "Road ends: keep going, wings open"
+			if done == 0:
+				return "Hold TWO fingers to climb over rocks"
+			return "Steer into the orange tunnel"
 	return ""
 
 
@@ -291,8 +311,34 @@ func _pad_target() -> int:
 				return 2
 			return 0
 		"WINGS":
-			return 2 if _flew else 0
+			if not _flew or car.mode != Car.Mode.FLYING:
+				return 0
+			if done == 0:
+				return 2
+			return _tunnel_side()
 	return 0
+
+
+## Sıradaki geçilmemiş engelin türü (engeller dersi)
+func _next_obstacle() -> String:
+	for o in LESSONS[index][1].obstacles:
+		if not _blocks_passed.has(o.id):
+			return str(o.kind)
+	return ""
+
+
+## En yakın öndeki tünel hangi yanda: -1 sol, 1 sağ, 0 tam önünde
+func _tunnel_side() -> int:
+	var best: Variant = null
+	for p in game.lower.portals:
+		if p.z < car.global_position.z - 5.0 and (best == null or p.z > best.z):
+			best = p
+	if best == null:
+		return 0
+	var dx: float = best.x - car.global_position.x
+	if absf(dx) < 1.5:
+		return 0
+	return 1 if dx > 0.0 else -1
 
 
 func _refresh() -> void:
@@ -539,6 +585,12 @@ func _label(parent: Control, size: int, y: float, spaced: bool) -> Label:
 
 ## Direksiyon dersinde tuşlara basar (diğer derslerde otomatik pilot sürer)
 func _bot_input() -> void:
+	if LESSONS[index][0] == "WINGS" and _flew and car.mode == Car.Mode.FLYING:
+		_key(KEY_W, done == 0)
+		var side := _tunnel_side() if done >= 1 else 0
+		_key(KEY_A, side < 0)
+		_key(KEY_D, side > 0)
+		return
 	if LESSONS[index][0] != "STEER" or not started:
 		return
 	var want: String = STEER_STEPS[mini(done, STEER_STEPS.size() - 1)]
