@@ -106,6 +106,10 @@ const WALL_FLOOR := 36.0
 ## Yolların kalınlığı (m), her yol için bu aralıkta rastgele: ince döşeme, aşağı uzamaz.
 ## x = 0: eski hâl (6-28 m'lik duvarlar)
 @export var road_depth := Vector2(1.0, 3.0)
+## Kenar şerit çizgisi: genişlik (m); kesik çizginin bir çizgi+boşluk uzunluğu ve çizgi payı
+const LINE_W := 0.14
+const LINE_PERIOD := 9.0
+const LINE_DUTY := 0.45
 ## Yolların inebileceği en alçak seviye
 const MIN_LEVEL := -18.0
 ## Bölge renkleri: her bölge_uzunluğu metrede bir yumuşakça değişir
@@ -252,6 +256,8 @@ func _ready() -> void:
 	var dashed := preload("res://shaders/dashed_line.gdshader")
 	_line_mat.shader = dashed
 	_line_mat.set_shader_parameter("color", Palette.SNOW)
+	_line_mat.set_shader_parameter("period", LINE_PERIOD)
+	_line_mat.set_shader_parameter("duty", LINE_DUTY)
 	_ramp_line_mat.shader = dashed
 	_ramp_line_mat.set_shader_parameter("color", Palette.ACCENT)
 	_chevron_mat.albedo_color = Palette.ACCENT
@@ -1082,7 +1088,7 @@ func _add_segment(x: float, top: float, top_end: float, width: float, z_start: f
 	var line_x := width * 0.5 - 0.45
 	var line_mat := _ramp_line_mat if rise > 1.0 or bonus else _line_mat
 	for sx in [-1.0, 1.0]:
-		_add_box(body, Vector3(sx * line_x, 0.015, 0), Vector3(0.18, 0.02, slope_len - 0.6), line_mat)
+		_add_box(body, Vector3(sx * line_x, 0.015, 0), Vector3(LINE_W, 0.02, slope_len - 0.6), line_mat)
 	if rise > 1.0:
 		_add_chevrons(body, width, slope_len)
 	if is_main and lights:
@@ -2835,7 +2841,7 @@ func _add_chevrons(body: Node3D, width: float, slope_len: float) -> void:
 ## Bölge rengi (mesafeye göre yumuşak geçiş); alçak yollar daha koyu
 func _wall_material(s: Segment) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
-	m.albedo_color = _zone_color(-(s.z_start + s.z_end) * 0.5)
+	m.albedo_color = _pal(-(s.z_start + s.z_end) * 0.5).road_side
 	var avg := (s.top + s.top_end) * 0.5
 	var low := clampf((MAIN_LEVEL - avg - 2.0) / 7.0, 0.0, 1.0)
 	m.albedo_color = m.albedo_color.darkened(0.28 * low + _rng.randf_range(0.0, 0.05))
@@ -2852,11 +2858,20 @@ func _wall_material(s: Segment) -> StandardMaterial3D:
 
 ## Yol yüzeyi kömür rengi; bölge renginden hafif bir ton alır
 func _asphalt_material(s: Segment) -> StandardMaterial3D:
-	var zone := _zone_color(-(s.z_start + s.z_end) * 0.5)
 	var m := StandardMaterial3D.new()
-	m.albedo_color = Palette.ASPHALT.lerp(zone.darkened(0.55), 0.35)
+	m.albedo_color = _pal(-(s.z_start + s.z_end) * 0.5).road_top
 	m.roughness = 1.0
 	return m
+
+
+## Bu mesafedeki üst katman paleti (Palette.SKIES, bölge bölge geçer)
+func _pal(distance: float) -> Dictionary:
+	return Palette.sky_at(distance, zone_length)
+
+
+## Şerit çizgilerinin rengi (oyun o anki paletten verir)
+func set_line_color(c: Color) -> void:
+	_line_mat.set_shader_parameter("color", c)
 
 
 func _zone_color(distance: float) -> Color:
@@ -2886,7 +2901,7 @@ func _add_decor(seg: Segment) -> void:
 			seg.top + _rng.randf_range(-30.0, 10.0),
 			_rng.randf_range(seg.z_end, seg.z_start))
 		var m := StandardMaterial3D.new()
-		m.albedo_color = _zone_color(-pos.z).darkened(_rng.randf_range(0.0, 0.08))
+		m.albedo_color = (_pal(-pos.z).decor as Color).darkened(_rng.randf_range(0.0, 0.08))
 		m.roughness = 1.0
 		var block := _add_box(self, pos, size, m)
 		block.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

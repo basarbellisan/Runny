@@ -80,7 +80,7 @@ func _ready() -> void:
 	crystal.radial_segments = 4
 	crystal.rings = 1
 	_crystal_mesh = _flat_shaded(crystal)
-	for c in [Palette.SLATE.darkened(0.12), Palette.SLATE, Palette.SLATE.lightened(0.12)]:
+	for c in Palette.LOWER.rocks:
 		var m := StandardMaterial3D.new()
 		m.albedo_color = c
 		m.roughness = 1.0

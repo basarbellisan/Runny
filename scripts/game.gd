@@ -15,7 +15,17 @@ const CLOUD_LAYER_Y := -42.0
 ## Ortam renkleri bu yükseklikler arasında üst katmandan alt katmana geçer
 const MOOD_HEIGHTS := Vector2(-22.0, -48.0)
 
-## Üst ve alt katmanın ortam ayarları: "nesne:özellik" -> [üst, alt]
+## Ortam ayarı -> palet anahtarı (üst: Palette.sky_at, alt: Palette.LOWER). Her karede
+## üst değer o anki bölgenin paletinden gelir; katman geçişinde ikisi karışır
+const MOOD_KEYS := {
+	"sky:sky_top_color": "sky_top", "sky:sky_horizon_color": "sky_horizon",
+	"sky:ground_horizon_color": "ground_horizon", "sky:ground_bottom_color": "ground_bottom",
+	"env:fog_light_color": "fog", "env:fog_density": "fog_density", "env:fog_height": "fog_height",
+	"env:fog_height_density": "fog_height_density",
+	"env:ambient_light_color": "ambient", "env:ambient_light_energy": "ambient_energy",
+	"sun:light_color": "sun", "sun:light_energy": "sun_energy", "cloud:albedo_color": "cloud",
+}
+## Eski sabit ortam (palet sistemi öncesi; ışık denemeleri --light için duruyor)
 const MOODS := {
 	"sky:sky_top_color": [Color("e4e1db"), Color("141518")],
 	"sky:sky_horizon_color": [Palette.PAPER, Color("2c2e33")],
@@ -246,8 +256,9 @@ func _physics_process(delta: float) -> void:
 func _process(delta: float) -> void:
 	var target := clampf(inverse_lerp(MOOD_HEIGHTS.x, MOOD_HEIGHTS.y, car.global_position.y), 0.0, 1.0)
 	var m := lerpf(_mood, target, 1.0 - exp(-3.0 * delta))
-	if absf(m - _mood) > 0.003:
-		_apply_mood(m)
+	_mood = m
+	_update_palette()
+	_apply_mood(m)
 	Audio.update(delta, car, _mood, not game_over)
 	if _args.has("shots"):
 		_capture_shots()
@@ -273,9 +284,22 @@ func _apply_light_preset(i: int) -> void:
 
 
 ## 0 = üst katman, 1 = alt katman
+## O anki bölgenin paletiyle üst katman değerlerini günceller
+func _update_palette() -> void:
+	var up := Palette.sky_at(_start_z - car.global_position.z, roads.zone_length)
+	for key: String in MOOD_KEYS:
+		var pk: String = MOOD_KEYS[key]
+		_moods[key] = [up[pk], Palette.LOWER[pk]]
+	_ink = (up.ink as Color).lerp(Palette.LOWER.ink, smoothstep(0.3, 0.7, _mood))
+	roads.set_line_color(up.line)
+
+
+var _ink := Palette.INK_LIGHT
+
+
 func _apply_mood(m: float) -> void:
 	_mood = m
-	hud.set_mood(m)
+	hud.set_mood(m, _ink)
 	for key: String in _moods:
 		var parts := key.split(":")
 		var pair: Array = _moods[key]

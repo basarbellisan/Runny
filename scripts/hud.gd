@@ -185,11 +185,14 @@ func _build_game_over() -> void:
 
 
 ## 0 = üst katman (açık zemin, koyu yazı), 1 = alt katman (koyu zemin, açık yazı)
-func set_mood(m: float) -> void:
-	if absf(m - _mood) < 0.01:
+## ink: yazı rengi (paletten: koyu gökyüzünde açık, açık gökyüzünde koyu)
+func set_mood(m: float, ink := Color.TRANSPARENT) -> void:
+	if ink.a == 0.0:
+		ink = Palette.INK_DARK.lerp(Palette.INK_LIGHT, smoothstep(0.3, 0.7, m))
+	if absf(m - _mood) < 0.01 and ink.is_equal_approx(_ink):
 		return
 	_mood = m
-	_ink = Palette.INK_DARK.lerp(Palette.INK_LIGHT, smoothstep(0.3, 0.7, m))
+	_ink = ink
 	for l in _labels:
 		l.add_theme_color_override("font_color", _ink)
 	_over_reason.add_theme_color_override("font_color", Palette.ACCENT)
