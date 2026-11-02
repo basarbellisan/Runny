@@ -13,6 +13,8 @@ const BASE_Y := -46.0         # dağların dibi (bulut tabakasının altı: sist
 const SUN_DIST := 875.0
 ## Katman geçişinde dağlar kaybolurken bu kadar yukarı kayar (çıkarken yukarıdan yerine iner)
 const FADE_LIFT := 25.0
+## Çıkarken (dağlar belirirken) kayma daha az
+const FADE_LIFT_UP := 8.0
 const VALLEY := 520.0         # vadinin yarı genişliği (m): ortada dağlar alçalır
 ## Güneşin yolu: sol alttan (dibi hep dağların dibinden yukarıda) sağ yukarıya; bir geçiş SUN_PERIOD saniye, sonra baştan.
 ## Oyun başında yolun ~%30'unda (vadide, dibi dağlarda) başlar
@@ -35,6 +37,8 @@ var _sparkles: CPUParticles3D
 var _sparkle_mat := StandardMaterial3D.new()
 var _rng := RandomNumberGenerator.new()
 var _sun_t := SUN_START
+var _last_seen := 1.0
+var _lift_k := FADE_LIFT
 
 
 func setup(p_car: Node3D) -> void:
@@ -165,10 +169,14 @@ func update(pal: Dictionary, mood: float) -> void:
 	visible = seen > 0.002
 	if not visible:
 		return
+	# Yön: kayboluyorsa (iniş) FADE_LIFT, beliriyorsa (çıkış) FADE_LIFT_UP; geçiş yumuşak
+	var want := FADE_LIFT if seen < _last_seen - 0.0001 else (FADE_LIFT_UP if seen > _last_seen + 0.0001 else _lift_k)
+	_lift_k = move_toward(_lift_k, want, 40.0 * get_process_delta_time())
+	_last_seen = seen
 	var c := car.global_position
 	var mtn: Array = pal.mountains
 	for i in _layers.size():
-		var lift: float = FADE_LIFT * (1.0 - seen) * (1.0 + 0.25 * i)  # öndeki biraz daha çok
+		var lift: float = _lift_k * (1.0 - seen) * (1.0 + 0.25 * i)  # öndeki biraz daha çok
 		_layers[i].global_position = Vector3(c.x * 0.6, BASE_Y + lift, c.z - float(LAYERS[i][0]))
 		# Alt katmana inerken dağlar sis rengine karışıp kaybolur
 		_layer_mats[i].set_shader_parameter("color", mtn[i])
