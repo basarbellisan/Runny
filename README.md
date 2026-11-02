@@ -150,6 +150,9 @@ Engeller:
   mercan; yollar 1-3 m kalınlığında (`road_depth`); şerit çizgisi yolun renginden canlı ton (`Palette.line_for`),
   düzeni yol genişliğine göre: geniş (≥9 m) raylar + kesik, orta çift kesik sık, dar (<6.5 m) çift şaşırtmalı
   (`LINE_STYLES`, `--line_style=N` deneme).
+  Ufuk (`scripts/backdrop.gd`): üç kat opak dağ silüeti (ortada vadi, dibi sise erir), dağların arkasında sol
+  alttan sağ yukarıya çok yavaş (200 sn) yürüyen güneş ve yumuşak hale, süzülen parıltılar; hepsi paletten,
+  alt katmanda kaybolur. Ufukta gök, zemin ve sis aynı renk (ufuk çizgisi yok); bulut tabakası kaldırıldı.
 - Diğer denenen tasarımlar `roads.block_style` 0-5 (`--block_style=N`); görüntüler `tools/block_designs.gd`
 - Çakıl (kum rengi, taşlı): üstünde hız ~%45 düşer, tutuş çok azalır, taşlar
   arabayı sağa sola savurur, çıktıktan sonra da ~0.6 sn sendeler;
