@@ -301,7 +301,7 @@ func start(p_car: Car, seed_value := -1) -> void:
 		_rng.randomize()
 	# Başlangıç pisti: uzun ve geniş
 	var z0 := car.global_position.z
-	_head = _add_segment(0.0, MAIN_LEVEL, MAIN_LEVEL, 9.0, z0 + 15.0, z0 - 140.0, true, false, -1.0, start_lights)
+	_head = _add_segment(0.0, MAIN_LEVEL, MAIN_LEVEL, 9.0, z0 + 15.0, z0 - start_length, true, false, -1.0, start_lights)
 	_fill(z0)
 
 
@@ -2892,6 +2892,8 @@ var custom_levels: Array[Dictionary] = []
 var test_level: Dictionary = {}
 ## Başlangıç pistinin ucunda pist ışıkları (derslerde kapalı: ders yolu pistin boşluksuz devamı)
 var start_lights := true
+## Başlangıç pistinin arabanın önündeki uzunluğu (m); derslerde kısa
+var start_length := 140.0
 ## Kurulan el yapımı kalıpların kaydı (test sonucu için): dünya konumları
 var custom_log: Array[Dictionary] = []
 ## El yapımı kalıbın seçilme ağırlığı (diğer kalıplar ~0.5-3)

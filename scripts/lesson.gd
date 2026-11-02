@@ -12,26 +12,26 @@ const COUNT := 5
 const LESSONS := [
 	["STEER", {"pieces": [{"id": 1, "w": 12, "len": 4000, "h0": 0, "h1": 0, "x": 0, "z0": 0}], "obstacles": []}, 5],
 	["BOOST", {"pieces": [
-		{"id": 1, "w": 10, "len": 220, "h0": 0, "h1": 0, "x": 0, "z0": 0},
-		{"id": 2, "w": 10, "len": 170, "h0": 0, "h1": 0, "x": 0, "z0": 266},
-		{"id": 3, "w": 10, "len": 170, "h0": 0, "h1": 0, "x": 0, "z0": 482},
-		{"id": 4, "w": 10, "len": 170, "h0": 0, "h1": 0, "x": 0, "z0": 698},
-		{"id": 5, "w": 10, "len": 900, "h0": 0, "h1": 0, "x": 0, "z0": 914}], "obstacles": []}, 3],
+		{"id": 1, "w": 10, "len": 130, "h0": 0, "h1": 0, "x": 0, "z0": 0},
+		{"id": 2, "w": 10, "len": 170, "h0": 0, "h1": 0, "x": 0, "z0": 176},
+		{"id": 3, "w": 10, "len": 170, "h0": 0, "h1": 0, "x": 0, "z0": 392},
+		{"id": 4, "w": 10, "len": 170, "h0": 0, "h1": 0, "x": 0, "z0": 608},
+		{"id": 5, "w": 10, "len": 900, "h0": 0, "h1": 0, "x": 0, "z0": 824}], "obstacles": []}, 3],
 	["ENERGY", {"pieces": [
-		{"id": 1, "w": 10, "len": 260, "h0": 0, "h1": 0, "x": 0, "z0": 0},
-		{"id": 2, "w": 10, "len": 260, "h0": 0, "h1": 0, "x": 0, "z0": 306},
-		{"id": 3, "w": 10, "len": 260, "h0": 0, "h1": 0, "x": 0, "z0": 612},
-		{"id": 4, "w": 10, "len": 900, "h0": 0, "h1": 0, "x": 0, "z0": 918}], "obstacles": []}, 15],
+		{"id": 1, "w": 10, "len": 150, "h0": 0, "h1": 0, "x": 0, "z0": 0},
+		{"id": 2, "w": 10, "len": 260, "h0": 0, "h1": 0, "x": 0, "z0": 196},
+		{"id": 3, "w": 10, "len": 260, "h0": 0, "h1": 0, "x": 0, "z0": 502},
+		{"id": 4, "w": 10, "len": 900, "h0": 0, "h1": 0, "x": 0, "z0": 808}], "obstacles": []}, 15],
 	["OBSTACLES", {"pieces": [{"id": 1, "w": 10, "len": 2000, "h0": 0, "h1": 0, "x": 0, "z0": 0}], "obstacles": [
-		{"id": 10, "kind": "block", "w": 3.6, "len": 1.2, "x": -2.6, "z0": 220},
-		{"id": 11, "kind": "block", "w": 3.6, "len": 1.2, "x": 2.6, "z0": 360},
-		{"id": 12, "kind": "block", "w": 3.6, "len": 1.2, "x": -2.6, "z0": 500},
-		{"id": 13, "kind": "block", "w": 3.6, "len": 1.2, "x": 2.6, "z0": 640},
-		{"id": 14, "kind": "block", "w": 3.6, "len": 1.2, "x": -2.6, "z0": 780},
-		{"id": 15, "kind": "block", "w": 3.6, "len": 1.2, "x": 2.6, "z0": 920}]}, 4],
+		{"id": 10, "kind": "block", "w": 3.6, "len": 1.2, "x": -2.6, "z0": 110},
+		{"id": 11, "kind": "block", "w": 3.6, "len": 1.2, "x": 2.6, "z0": 250},
+		{"id": 12, "kind": "block", "w": 3.6, "len": 1.2, "x": -2.6, "z0": 390},
+		{"id": 13, "kind": "block", "w": 3.6, "len": 1.2, "x": 2.6, "z0": 530},
+		{"id": 14, "kind": "block", "w": 3.6, "len": 1.2, "x": -2.6, "z0": 670},
+		{"id": 15, "kind": "block", "w": 3.6, "len": 1.2, "x": 2.6, "z0": 810}]}, 4],
 	["WINGS", {"pieces": [
-		{"id": 1, "w": 10, "len": 320, "h0": 0, "h1": 0, "x": 0, "z0": 0},
-		{"id": 2, "w": 10, "len": 300, "h0": 0, "h1": 0, "x": 0, "z0": 640}], "obstacles": []}, 1],
+		{"id": 1, "w": 10, "len": 170, "h0": 0, "h1": 0, "x": 0, "z0": 0},
+		{"id": 2, "w": 10, "len": 300, "h0": 0, "h1": 0, "x": 0, "z0": 490}], "obstacles": []}, 1],
 ]
 ## Direksiyon dersinin adımları
 const STEER_STEPS := ["LEFT", "RIGHT", "LEFT", "RIGHT", "STRAIGHT"]
@@ -59,6 +59,7 @@ var _pads: Control
 var _head: Label
 var _title: Label
 var _say: Label
+var _say_box: PanelContainer
 var _pips: HBoxContainer
 var _panel: Control
 var _bot := false
@@ -75,7 +76,9 @@ func setup(p_game: Node, p_car: Car, p_roads: RoadGenerator, bot := false) -> vo
 	level.merge({"format": "runny-level", "version": 1, "name": "lesson %d" % (index + 1), "at": 0,
 		"crystals": LESSONS[index][0] == "ENERGY", "flush_entry": true,
 		"no_lights": LESSONS[index][0] == "WINGS"})
-	roads.start_lights = false  # başlangıç pisti ışıksız: ders yolu onun düz devamı
+	roads.start_lights = false  # başlangıç pisti ışıksız ve kısa: ders yolu onun düz devamı
+	roads.start_length = 50.0
+	AudioServer.set_bus_mute(0, false)
 	roads.test_level = level
 	if LESSONS[index][0] == "ENERGY":
 		car.energy = car.max_energy * 0.35  # göstergenin dolduğu görülsün
@@ -99,8 +102,8 @@ func _process(delta: float) -> void:
 	if finished or failed or get_tree().paused:
 		return
 	if not started:
-		var seg := roads.segment_under(car.global_position)
-		if seg and seg.custom and car.mode == Car.Mode.DRIVE:
+		# Araba yola indiği an (başlangıç pisti dersin yolunun düz devamı)
+		if _t > 0.5 and car.mode == Car.Mode.DRIVE and car.is_on_floor():
 			started = true
 			print("LESSON_START %d F%d" % [index, Engine.get_process_frames()])
 			_refresh()
@@ -118,7 +121,7 @@ func _update_steer(delta: float) -> void:
 	if car.mode != Car.Mode.DRIVE:
 		return
 	var seg := roads.segment_under(car.global_position)
-	if seg == null or not seg.custom:
+	if seg == null:
 		return
 	var dx := car.global_position.x - seg.x
 	match STEER_STEPS[done]:
@@ -195,9 +198,15 @@ func fail(reason: String) -> void:
 		return
 	failed = true
 	print("LESSON_FAIL %d %s z=%.0f x=%.1f" % [index, reason, car.global_position.z, car.global_position.x])
+	# Oyun o an durur (kanatlar açılmaz, araba sesi kesilir), kısa yazıdan sonra ders baştan
 	_say.text = "%s  ·  TRY AGAIN" % reason.trim_suffix("!")
-	_say.add_theme_color_override("font_color", Palette.ACCENT)
-	get_tree().create_timer(1.6).timeout.connect(func(): get_tree().reload_current_scene())
+	_say_box.add_theme_stylebox_override("panel", _pill(Palette.ACCENT))
+	get_tree().paused = true
+	AudioServer.set_bus_mute(0, true)
+	get_tree().create_timer(1.0, true).timeout.connect(func():
+		get_tree().paused = false
+		AudioServer.set_bus_mute(0, false)
+		get_tree().reload_current_scene())
 
 
 func _success() -> void:
@@ -206,13 +215,15 @@ func _success() -> void:
 	_build_panel()
 	get_tree().create_timer(0.5).timeout.connect(func():
 		if is_instance_valid(self) and not _bot:
-			get_tree().paused = true)
+			get_tree().paused = true
+			AudioServer.set_bus_mute(0, true))  # panelde araba sesi yok
 	if _bot:
 		get_tree().create_timer(1.2).timeout.connect(_next)
 
 
 func _next() -> void:
 	get_tree().paused = false
+	AudioServer.set_bus_mute(0, false)
 	if index + 1 >= COUNT:
 		current = -1
 		get_tree().reload_current_scene()  # gerçek oyun başlar
@@ -224,11 +235,13 @@ func _next() -> void:
 ## Aynı ders baştan
 func _replay() -> void:
 	get_tree().paused = false
+	AudioServer.set_bus_mute(0, false)
 	get_tree().reload_current_scene()
 
 
 func _skip() -> void:
 	get_tree().paused = false
+	AudioServer.set_bus_mute(0, false)
 	current = -1
 	get_tree().change_scene_to_file("res://scenes/menu.tscn")
 
@@ -248,15 +261,15 @@ func _say_text() -> String:
 				_:
 					return "Let go: drive straight"
 		"BOOST":
-			return "Red lights ahead: hold TWO fingers to jump"
+			return "Red lights: hold TWO fingers to jump"
 		"ENERGY":
-			return "Boost uses energy. Collect %d crystals" % _goal()
+			return "Boost uses energy: collect %d crystals" % _goal()
 		"OBSTACLES":
 			return "Steer around the striped blocks"
 		"WINGS":
 			if _flew:
-				return "Hold TWO fingers to climb. Fly into the orange rings"
-			return "The road ends. Keep going: your wings open"
+				return "Hold TWO fingers: climb into the rings"
+			return "Road ends: keep going, wings open"
 	return ""
 
 
@@ -274,7 +287,7 @@ func _pad_target() -> int:
 			return 0
 		"BOOST":
 			var seg := roads.segment_under(car.global_position)
-			if seg and car.mode == Car.Mode.DRIVE and (car.global_position.z - seg.road_end_z()) / maxf(car.forward_speed, 1.0) < 1.3:
+			if seg and car.mode == Car.Mode.DRIVE and (car.global_position.z - seg.road_end_z()) / maxf(car.forward_speed, 1.0) < 1.7:
 				return 2
 			return 0
 		"WINGS":
@@ -291,18 +304,22 @@ func _refresh() -> void:
 	var n := _goal()
 	if n <= 1:
 		return
+	var sz := 34.0 if n <= 6 else 30.0
 	for i in n:
-		var p := Panel.new()
-		p.custom_minimum_size = Vector2(22, 22)
-		var sb := StyleBoxFlat.new()
-		sb.set_corner_radius_all(11)
-		if i < done:
-			sb.bg_color = Palette.ACCENT
-		else:
-			sb.bg_color = Color(Palette.SNOW, 0.35)
-			sb.set_border_width_all(2)
-			sb.border_color = Color(Palette.INK_DARK, 0.35)
-		p.add_theme_stylebox_override("panel", sb)
+		var p := Control.new()
+		p.custom_minimum_size = Vector2(sz, sz)
+		p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var ok := i < done
+		p.draw.connect(func():
+			var c := p.size * 0.5
+			var r := sz * 0.5
+			if ok:
+				p.draw_circle(c, r, Palette.ACCENT)
+				var k := r / 17.0
+				p.draw_polyline(PackedVector2Array([c + Vector2(-8, 1) * k, c + Vector2(-2.5, 6.5) * k, c + Vector2(8.5, -5.5) * k]), Palette.SNOW, 3.6 * k, true)
+			else:
+				p.draw_circle(c, r, Color(Palette.SNOW, 0.75))
+				p.draw_arc(c, r - 1.5, 0.0, TAU, 40, Color(Palette.INK_DARK, 0.35), 3.0, true))
 		_pips.add_child(p)
 
 
@@ -311,41 +328,57 @@ func _build_ui() -> void:
 	_ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_ui)
-	# Üstte yazıların okunması için hafif bir perde
-	var shade := ColorRect.new()
-	shade.color = Color(Palette.PAPER, 0.72)
-	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	shade.anchor_right = 1.0
-	shade.offset_bottom = 300
-	_ui.add_child(shade)
-	_head = _label(_ui, 16, 52, true)
-	_head.modulate.a = 0.55
-	_title = _label(_ui, 46, 110, true)
-	_say = _label(_ui, 24, 186, false)
+	# Oyun ekranı en tepeye kadar; başlık ve yönlendirme biraz aşağıda, kenarlı yazıyla
+	_head = _label(_ui, 18, 104, true)
+	_head.modulate.a = 0.7
+	_title = _label(_ui, 50, 158, true)
+	for l: Label in [_head, _title]:
+		l.add_theme_color_override("font_outline_color", Palette.PAPER)
+		l.add_theme_constant_override("outline_size", 10)
+	# Yönlendirme: koyu yuvarlak kutuda büyük beyaz yazı
+	# Kutu ve altındaki işaretler alt alta (kutu iki satıra düşse de işaretler hemen altında)
+	var stack := VBoxContainer.new()
+	stack.anchor_right = 1.0
+	stack.offset_top = 210
+	stack.offset_bottom = 420
+	stack.add_theme_constant_override("separation", 16)
+	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ui.add_child(stack)
+	var center := CenterContainer.new()
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stack.add_child(center)
+	_say_box = PanelContainer.new()
+	_say_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_say_box.add_theme_stylebox_override("panel", _pill(Color(Palette.INK_DARK, 0.82)))
+	center.add_child(_say_box)
+	_say = Label.new()
+	_say.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_say.add_theme_font_size_override("font_size", 30)
+	_say.add_theme_color_override("font_color", Palette.SNOW)
 	_say.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_say.offset_left = 50
-	_say.offset_right = -50
+	_say.custom_minimum_size.x = 560
+	_say.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_say_box.add_child(_say)
 	_pips = HBoxContainer.new()
 	_pips.alignment = BoxContainer.ALIGNMENT_CENTER
-	_pips.add_theme_constant_override("separation", 14)
-	_pips.anchor_right = 1.0
-	_pips.offset_top = 240
-	_pips.offset_bottom = 262
+	_pips.add_theme_constant_override("separation", 10)
 	_pips.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_ui.add_child(_pips)
+	stack.add_child(_pips)
 	var skip := Button.new()
 	skip.text = "SKIP"
 	skip.flat = true
 	skip.focus_mode = Control.FOCUS_NONE
-	skip.add_theme_font_size_override("font_size", 18)
+	skip.add_theme_font_size_override("font_size", 20)
+	skip.add_theme_color_override("font_outline_color", Palette.PAPER)
+	skip.add_theme_constant_override("outline_size", 8)
 	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 		skip.add_theme_color_override(state, Color(Palette.INK_DARK, 0.5))
 	skip.anchor_left = 1.0
 	skip.anchor_right = 1.0
 	skip.offset_left = -130
 	skip.offset_right = -20
-	skip.offset_top = 28
-	skip.offset_bottom = 76
+	skip.offset_top = 64
+	skip.offset_bottom = 112
 	skip.pressed.connect(_skip)
 	_ui.add_child(skip)
 	_pads = Control.new()
@@ -470,6 +503,18 @@ func _build_panel() -> void:
 	_panel.add_child(again)
 	_panel.modulate.a = 0.0
 	create_tween().tween_property(_panel, "modulate:a", 1.0, 0.35)
+
+
+## Yönlendirme kutusu
+func _pill(color: Color) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = color
+	sb.set_corner_radius_all(16)
+	sb.content_margin_left = 24
+	sb.content_margin_right = 24
+	sb.content_margin_top = 12
+	sb.content_margin_bottom = 14
+	return sb
 
 
 func _label(parent: Control, size: int, y: float, spaced: bool) -> Label:

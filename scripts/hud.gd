@@ -263,7 +263,6 @@ static func km_text(meters: float) -> String:
 func lesson_mode() -> void:
 	for l: Label in [_score, _dist, _hint]:
 		l.visible = false
-	speedometer.visible = false
 	for c in _captions:
 		c.visible = false
 
