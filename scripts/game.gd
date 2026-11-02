@@ -186,9 +186,9 @@ func _ready() -> void:
 	_landings_total = int(_load_save().get_value("tutorial", "landings", 0))
 	roads.set_crystal_color(roads.crystal_color)
 	clouds.visible = false  # yollarla alt katman arasında bulut tabakası yok
-	# Gökyüzü: üst ve alt katman degradeleri, arada alttan yükselen perde (shaders/sky_wipe)
-	_sky_mat.shader = preload("res://shaders/sky_wipe.gdshader")
-	($WorldEnvironment as WorldEnvironment).environment.sky.sky_material = _sky_mat
+	var sky_mat := ($WorldEnvironment as WorldEnvironment).environment.sky.sky_material as ProceduralSkyMaterial
+	sky_mat.sky_curve = 0.3      # gök degradesi ufka doğru yumuşak
+	sky_mat.ground_curve = 0.3
 	# Işık gökyüzünden yansımasın: yalnız sabit ortam rengi ve güneş (iPhone tarayıcısı gök yansımasını
 	# farklı hesaplıyor, yollar açılıp zemine karışıyordu; böylece her cihazda aynı)
 	var env := ($WorldEnvironment as WorldEnvironment).environment
@@ -310,24 +310,9 @@ func _update_palette() -> void:
 	_ink = (up.ink as Color).lerp(Palette.LOWER.ink, smoothstep(0.3, 0.7, _mood))
 	if backdrop:
 		backdrop.update(up, _mood)
-		# Gökyüzü renkleri: üst paletten / alt katmandan (alt katmanın tepesi yukarının morundan); perde ufukla aynı
-		var lo: Dictionary = Palette.LOWER
-		for pair in [["up_top", up.sky_top], ["up_hor", up.sky_horizon], ["up_bot", up.ground_bottom],
-				["lo_top", up.fog], ["lo_hor", lo.sky_horizon], ["lo_bot", lo.ground_bottom]]:
-			_sky_mat.set_shader_parameter(pair[0], pair[1])
-		_sky_mat.set_shader_parameter("cover", backdrop.cover)
-		var cam := $Camera as Camera3D
-		var thf := tan(deg_to_rad(cam.fov) * 0.5)
-		_sky_mat.set_shader_parameter("cam_basis", cam.global_transform.basis)
-		_sky_mat.set_shader_parameter("tan_half_fov", thf)
-		backdrop.set_fov(thf)
-		for k in _moods.keys():
-			if str(k).begins_with("sky:"):
-				_moods.erase(k)
 
 
 var _ink := Palette.INK_LIGHT
-var _sky_mat := ShaderMaterial.new()
 ## Ufuktaki dağlar, güneş ve parıltılar
 var backdrop: Backdrop
 
