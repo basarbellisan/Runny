@@ -111,18 +111,24 @@ const LINE_W := 0.14
 const LINE_PERIOD := 9.0
 const LINE_DUTY := 0.45
 ## Şerit çizgisi düzenleri (line_style). Her çizgi: {x: kenardan içeri (m; "c" = yolun ortası),
-## w: genişlik, p: bir çizgi+boşluk (m), d: çizgi payı (1 = kesintisiz)}
+## w: genişlik, p: bir çizgi+boşluk (m), d: çizgi payı (1 = kesintisiz), o: kesik kayması (payı)}.
+## Her düzende en az bir kesik çizgi var (gidildiği belli olsun). 0 = şu anki
 const LINE_STYLES := [
 	{"name": "Şu anki", "lines": [{"x": 0.45, "w": 0.14, "p": 9.0, "d": 0.45}]},
-	{"name": "Uzun ince", "lines": [{"x": 0.45, "w": 0.1, "p": 16.0, "d": 0.7}]},
-	{"name": "Kısa sık", "lines": [{"x": 0.45, "w": 0.16, "p": 4.0, "d": 0.4}]},
-	{"name": "Noktalı", "lines": [{"x": 0.45, "w": 0.22, "p": 3.0, "d": 0.1}]},
-	{"name": "Kesintisiz ince", "lines": [{"x": 0.45, "w": 0.1, "p": 9.0, "d": 1.0}]},
-	{"name": "Çift ince", "lines": [{"x": 0.35, "w": 0.07, "p": 9.0, "d": 1.0}, {"x": 0.6, "w": 0.07, "p": 9.0, "d": 1.0}]},
-	{"name": "Çift kesik", "lines": [{"x": 0.35, "w": 0.1, "p": 8.0, "d": 0.5}, {"x": 0.65, "w": 0.1, "p": 8.0, "d": 0.5}]},
-	{"name": "Kalın kısa", "lines": [{"x": 0.5, "w": 0.3, "p": 12.0, "d": 0.22}]},
-	{"name": "Kenar + orta", "lines": [{"x": 0.3, "w": 0.07, "p": 9.0, "d": 1.0}, {"x": "c", "w": 0.16, "p": 10.0, "d": 0.4}]},
-	{"name": "Kenara yakın uzun", "lines": [{"x": 0.18, "w": 0.2, "p": 20.0, "d": 0.8}]},
+	{"name": "Raylar + kesik", "lines": [{"x": 0.3, "w": 0.05, "p": 9.0, "d": 1.0}, {"x": 0.5, "w": 0.05, "p": 4.0, "d": 0.5},
+		{"x": 0.7, "w": 0.05, "p": 9.0, "d": 1.0}]},
+	{"name": "Çift kesik sık", "lines": [{"x": 0.35, "w": 0.07, "p": 4.0, "d": 0.5}, {"x": 0.62, "w": 0.07, "p": 4.0, "d": 0.5}]},
+	{"name": "Çift şaşırtmalı", "lines": [{"x": 0.35, "w": 0.08, "p": 5.0, "d": 0.5}, {"x": 0.62, "w": 0.08, "p": 5.0, "d": 0.5, "o": 0.5}]},
+	{"name": "Uzun-kısa", "lines": [{"x": 0.45, "w": 0.1, "p": 10.0, "d": 0.5}, {"x": 0.45, "w": 0.1, "p": 10.0, "d": 0.12, "o": 0.32}]},
+	{"name": "Üçlü ince kesik", "lines": [{"x": 0.28, "w": 0.045, "p": 5.0, "d": 0.5}, {"x": 0.45, "w": 0.045, "p": 5.0, "d": 0.5},
+		{"x": 0.62, "w": 0.045, "p": 5.0, "d": 0.5}]},
+	{"name": "Zebra", "lines": [{"x": 0.5, "w": 0.4, "p": 1.6, "d": 0.4}]},
+	{"name": "İnce düz + kalın kesik", "lines": [{"x": 0.22, "w": 0.05, "p": 9.0, "d": 1.0}, {"x": 0.55, "w": 0.18, "p": 6.0, "d": 0.4}]},
+	{"name": "Kayan merdiven", "lines": [{"x": 0.3, "w": 0.06, "p": 3.0, "d": 0.35}, {"x": 0.45, "w": 0.06, "p": 3.0, "d": 0.35, "o": 0.33},
+		{"x": 0.6, "w": 0.06, "p": 3.0, "d": 0.35, "o": 0.66}]},
+	{"name": "Çift noktalı", "lines": [{"x": 0.35, "w": 0.12, "p": 2.2, "d": 0.12}, {"x": 0.6, "w": 0.12, "p": 2.2, "d": 0.12, "o": 0.5}]},
+	{"name": "Raylar + uzun kesik", "lines": [{"x": 0.3, "w": 0.04, "p": 9.0, "d": 1.0}, {"x": 0.48, "w": 0.09, "p": 12.0, "d": 0.6},
+		{"x": 0.66, "w": 0.04, "p": 9.0, "d": 1.0}]},
 ]
 @export var line_style := 0
 ## Yolların inebileceği en alçak seviye
@@ -2894,12 +2900,13 @@ var _line_mats := {}
 
 func _line_for(s: Segment, ln: Dictionary) -> ShaderMaterial:
 	var c := Palette.line_for(_pal(-(s.z_start + s.z_end) * 0.5).road_top)
-	var key := "%s/%s/%s" % [c.to_html(false), ln.p, ln.d]
+	var key := "%s/%s/%s/%s" % [c.to_html(false), ln.p, ln.d, ln.get("o", 0.0)]
 	if not _line_mats.has(key):
 		var m := _line_mat.duplicate() as ShaderMaterial
 		m.set_shader_parameter("color", c)
 		m.set_shader_parameter("period", float(ln.p))
 		m.set_shader_parameter("duty", float(ln.d))
+		m.set_shader_parameter("offset", float(ln.get("o", 0.0)))
 		_line_mats[key] = m
 	return _line_mats[key]
 
@@ -2909,10 +2916,10 @@ func _line_layout(width: float) -> Array:
 	var out: Array = []
 	for ln in LINE_STYLES[clampi(line_style, 0, LINE_STYLES.size() - 1)].lines:
 		if str(ln.x) == "c":
-			out.append({"cx": 0.0, "w": ln.w, "p": ln.p, "d": ln.d})
+			out.append({"cx": 0.0, "w": ln.w, "p": ln.p, "d": ln.d, "o": ln.get("o", 0.0)})
 		else:
 			for sx in [-1.0, 1.0]:
-				out.append({"cx": sx * (width * 0.5 - float(ln.x)), "w": ln.w, "p": ln.p, "d": ln.d})
+				out.append({"cx": sx * (width * 0.5 - float(ln.x)), "w": ln.w, "p": ln.p, "d": ln.d, "o": ln.get("o", 0.0)})
 	return out
 
 

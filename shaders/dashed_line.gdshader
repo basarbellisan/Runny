@@ -8,6 +8,8 @@ uniform vec4 color : source_color = vec4(1.0);
 uniform float period = 6.0;
 // Periyodun ne kadarı çizgi
 uniform float duty = 0.5;
+// Kesiklerin kayması (periyodun payı): yan yana çizgiler sırayla ya da şaşırtmalı kesilsin
+uniform float offset = 0.0;
 
 varying float world_z;
 
@@ -16,7 +18,7 @@ void vertex() {
 }
 
 void fragment() {
-	if (fract(world_z / period) > duty) {
+	if (fract(world_z / period + offset) > duty) {
 		discard;
 	}
 	ALBEDO = color.rgb;
