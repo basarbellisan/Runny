@@ -12,11 +12,11 @@ const SPAN := 2600.0          # dağ sırasının yatay genişliği
 const BASE_Y := -46.0         # dağların dibi (bulut tabakasının altı: sisten çıkıyormuş gibi)
 const SUN_DIST := 875.0
 const VALLEY := 520.0         # vadinin yarı genişliği (m): ortada dağlar alçalır
-## Güneşin yolu: sol alttan (ufkun altından) sağ yukarıya; bir geçiş SUN_PERIOD saniye, sonra baştan.
+## Güneşin yolu: sol alttan (dibi hep dağların dibinden yukarıda) sağ yukarıya; bir geçiş SUN_PERIOD saniye, sonra baştan.
 ## Oyun başında yolun ~%30'unda (vadide, dibi dağlarda) başlar
 const SUN_PERIOD := 200.0
-const SUN_FROM := Vector2(-520.0, -110.0)
-const SUN_TO := Vector2(560.0, 420.0)
+const SUN_FROM := Vector2(-520.0, 130.0)
+const SUN_TO := Vector2(560.0, 470.0)
 const SUN_START := 0.3
 const SUN_RADIUS := 105.0
 const SUN_Y := 55.0          # güneşin merkezi (dibi dağların arkasında kalır)
