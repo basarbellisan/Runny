@@ -42,6 +42,8 @@ func setup(p_car: Node3D) -> void:
 		# Opak: arkasında kalan güneşi tamamen örter; dibi sis rengine erir
 		var m := ShaderMaterial.new()
 		m.shader = preload("res://shaders/mountain.gdshader")
+		# Çizim sırası: hale, güneş, sonra dağlar uzaktan yakına
+		m.render_priority = i - 3
 		var mi := MeshInstance3D.new()
 		mi.mesh = _ridge(LAYERS[i])
 		mi.material_override = m
@@ -58,6 +60,7 @@ func setup(p_car: Node3D) -> void:
 	_sun_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_sun_mat.disable_fog = true
 	_sun_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_sun_mat.render_priority = -5
 
 	_sun = MeshInstance3D.new()
 	_sun.mesh = disc
@@ -83,6 +86,7 @@ func setup(p_car: Node3D) -> void:
 	_halo_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_halo_mat.disable_fog = true
 	_halo_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_halo_mat.render_priority = -6
 
 	_halo = MeshInstance3D.new()
 	_halo.mesh = hd
@@ -154,19 +158,19 @@ func _ridge(layer: Array) -> ArrayMesh:
 func update(pal: Dictionary, mood: float) -> void:
 	if car == null:
 		return
-	# Katmanlar arası geçişte yavaşça kaybolur / belirir; renk o anki sise (mordan mercana) erir
+	# Katmanlar arası geçişte yavaşça saydamlaşır / belirir (arkasındaki gök ne renkse ona erir)
 	var seen := 1.0 - smoothstep(0.05, 0.75, mood)
 	visible = seen > 0.002
 	if not visible:
 		return
-	var fog_now: Color = (pal.fog as Color).lerp(Palette.LOWER.fog, mood)
 	var c := car.global_position
 	var mtn: Array = pal.mountains
 	for i in _layers.size():
 		_layers[i].global_position = Vector3(c.x * 0.6, BASE_Y, c.z - float(LAYERS[i][0]))
 		# Alt katmana inerken dağlar sis rengine karışıp kaybolur
-		_layer_mats[i].set_shader_parameter("color", fog_now.lerp(mtn[i], seen))
-		_layer_mats[i].set_shader_parameter("fog", fog_now)
+		_layer_mats[i].set_shader_parameter("color", mtn[i])
+		_layer_mats[i].set_shader_parameter("fog", pal.fog)
+		_layer_mats[i].set_shader_parameter("alpha", seen)
 	_sun_t = fmod(_sun_t + get_process_delta_time() / SUN_PERIOD, 1.0)
 	# Hafif yay: önce yana, sonra daha dik yükselir
 	var sx := lerpf(SUN_FROM.x, SUN_TO.x, _sun_t)
