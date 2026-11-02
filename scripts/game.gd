@@ -344,7 +344,6 @@ func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 			lower.activate()
 			if _args.has("fly_energy"):
 				car.energy = minf(car.energy, float(_args.fly_energy))  # test: az enerjiyle düş
-			hud.popup("WINGS")
 			Audio.play("wings")
 			_flight_hint()
 		Car.Mode.LAUNCH:
@@ -366,7 +365,6 @@ func _on_landed(air_time: float, quality: float, impact: float) -> void:
 		lower.deactivate()
 		Audio.play("return")
 		Audio.touchdown(1.3)
-		hud.popup("BACK ON THE ROAD")
 		_stats.returns += 1
 		return
 	if air_time < 0.3:
