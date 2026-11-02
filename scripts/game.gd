@@ -133,6 +133,9 @@ func _ready() -> void:
 	car.mode_changed.connect(_on_mode_changed)
 	car.died.connect(_on_game_over)
 	hud.garage_pressed.connect(_to_garage)
+	hud.again_pressed.connect(func(): get_tree().reload_current_scene())
+	if _args.has("over_style"):
+		hud.over_style = int(_args.over_style)  # oyun sonu tasarımı denemesi
 	car.jumped.connect(Audio.play.bind("jump", -6.0))
 	car.exploded.connect(_on_exploded)
 	car.boosted.connect(_on_boosted)
@@ -204,6 +207,8 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _args.has("force_over") and not game_over and Engine.get_process_frames() == int(_args.force_over):
+		car.crash("CRASHED!")  # test: oyun sonu ekranının görüntüsü için
 	if game_over:
 		_over_time += delta
 		return

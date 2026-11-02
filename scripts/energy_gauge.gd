@@ -88,7 +88,17 @@ func _draw() -> void:
 			Color(1, 1, 1, 0.9 * a), 4.0, true)
 	_crystal(c + Vector2(0, -30), 7.0, col)
 	_text(str(int(round(_shown))), c + Vector2(0, 6), 36, ink)
-	_text("RESERVE" if reserve else "ENERGY", c + Vector2(0, 34), 11, Color(ink, 0.8) if reserve else Color(BLACK, 0.5))
+	if reserve:
+		# Yedek: turuncu hap içinde kalın beyaz yazı (okunsun)
+		var pc := c + Vector2(0, 35)
+		var hw := 30.0
+		var hh := 9.0
+		draw_rect(Rect2(pc - Vector2(hw - hh, hh), Vector2((hw - hh) * 2.0, hh * 2.0)), col)
+		draw_circle(pc - Vector2(hw - hh, 0), hh, col)
+		draw_circle(pc + Vector2(hw - hh, 0), hh, col)
+		_text("RESERVE", pc + Vector2(0, -1), 12, Palette.SNOW, true)
+	else:
+		_text("ENERGY", c + Vector2(0, 34), 11, Color(BLACK, 0.5))
 	if low and collect_hint and not reserve:
 		_text("GET CRYSTALS!", c + Vector2(0, -R - 26), 14, LOW)
 	if _gain_t < 0.8:
@@ -105,7 +115,7 @@ func _crystal(p: Vector2, r: float, col: Color) -> void:
 		p + Vector2(0, r * 0.15), p + Vector2(-r * 0.3, -r * 0.1)]), Color(1, 1, 1, 0.75 * col.a))
 
 
-func _text(s: String, pos: Vector2, fs: int, color: Color) -> void:
-	var fnt: Font = _bold if fs >= 22 else _font
+func _text(s: String, pos: Vector2, fs: int, color: Color, bold := false) -> void:
+	var fnt: Font = _bold if (fs >= 22 or bold) else _font
 	var sz := fnt.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
 	draw_string(fnt, pos + Vector2(-sz.x * 0.5, fs * 0.36), s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, color)

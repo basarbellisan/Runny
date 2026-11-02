@@ -6,6 +6,7 @@ extends CanvasLayer
 const BAR_WIDTH := 300.0
 
 signal garage_pressed
+signal again_pressed
 
 var _labels: Array[Label] = []
 var _score: Label
@@ -141,6 +142,13 @@ func _build_energy_bar() -> void:
 	_energy.visible = false
 
 
+## Oyun sonu ekranı tasarımı (deneme: --over_style=N): 1 kart, 2 koyu perde + iki sütun, 3 sade büyük skor
+var over_style := 1
+var _over_new: Control
+var _over_dist_lbl: Label
+var _over_best_lbl: Label
+
+
 func _build_game_over() -> void:
 	_over = Control.new()
 	_over.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -150,38 +158,180 @@ func _build_game_over() -> void:
 	_over_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_over.add_child(_over_bg)
 	_over_bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_over_reason = _make_label(26, Vector2(0, 480), true, _over)
-	_over_score = _make_label(110, Vector2(0, 600), false, _over)
-	_over_dist = _make_label(26, Vector2(0, 690), true, _over)
-	_over_best = _make_label(20, Vector2(0, 745), true, _over)
-	_over_best.modulate.a = 0.6
-	var again := _make_label(18, Vector2(0, 900), true, _over)
-	again.text = "TAP TO PLAY AGAIN"
-	again.modulate.a = 0.55
-	# Garaja dönüş: butona basmak oyunu yeniden başlatmaz (dokunuşu buton alır)
-	var garage := Button.new()
-	garage.text = "GARAGE"
-	garage.focus_mode = Control.FOCUS_NONE
-	garage.add_theme_font_override("font", _spaced)
-	garage.add_theme_font_size_override("font_size", 22)
-	for state in ["normal", "hover", "pressed", "focus"]:
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0, 0, 0, 0)
-		sb.set_border_width_all(2)
-		sb.border_color = Palette.ACCENT
-		sb.set_corner_radius_all(6)
-		garage.add_theme_stylebox_override(state, sb)
-	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
-		garage.add_theme_color_override(state, Palette.ACCENT)
-	garage.anchor_left = 0.5
-	garage.anchor_right = 0.5
-	garage.offset_left = -130
-	garage.offset_right = 130
-	garage.offset_top = 1010
-	garage.offset_bottom = 1090
-	garage.pressed.connect(func(): garage_pressed.emit())
-	_over.add_child(garage)
 	_over.visible = false
+
+
+## Tasarımı kurar (show_game_over çağırır; over_style seçildikten sonra)
+func _layout_game_over() -> void:
+	for ch in _over.get_children():
+		if ch != _over_bg:
+			ch.queue_free()
+	var deep := Color("2a1c50")      # paletin koyu moru
+	var ink := Palette.INK_DARK
+	match over_style:
+		1:
+			# Kart: sahne koyu mor perdeyle kararır, ortada beyaz yuvarlak köşeli kart
+			_over_bg.color = Color(deep, 0.72)
+			var card := Panel.new()
+			var sb := StyleBoxFlat.new()
+			sb.bg_color = Palette.SNOW
+			sb.set_corner_radius_all(28)
+			sb.shadow_color = Color(0, 0, 0, 0.25)
+			sb.shadow_size = 18
+			card.add_theme_stylebox_override("panel", sb)
+			card.anchor_left = 0.5
+			card.anchor_right = 0.5
+			card.offset_left = -290
+			card.offset_right = 290
+			card.offset_top = 330
+			card.offset_bottom = 860
+			card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_over.add_child(card)
+			_over_reason = _over_label(28, 400, true, Palette.ACCENT)
+			_over_score = _over_label(120, 530, false, ink)
+			_over_new = _badge("NEW BEST", 610)
+			# İki sütun: mesafe ve en iyi
+			_over_dist_lbl = _over_label(16, 690, true, Color(ink, 0.5), -140)
+			_over_dist = _over_label(34, 735, false, ink, -140)
+			_over_best_lbl = _over_label(16, 690, true, Color(ink, 0.5), 140)
+			_over_best = _over_label(34, 735, false, ink, 140)
+			var line := ColorRect.new()
+			line.color = Color(ink, 0.12)
+			line.anchor_left = 0.5
+			line.anchor_right = 0.5
+			line.offset_left = -1
+			line.offset_right = 1
+			line.offset_top = 670
+			line.offset_bottom = 760
+			_over.add_child(line)
+			_buttons(930, Palette.SNOW)
+		2:
+			# Koyu perde: alttan koyu mora inen degrade, beyaz yazılar, sahne üstte görünür kalır
+			_over_bg.color = Color(0, 0, 0, 0)
+			var grad := TextureRect.new()
+			var g := Gradient.new()
+			g.set_color(0, Color(deep, 0.15))
+			g.set_color(1, Color(deep, 0.95))
+			var gt := GradientTexture2D.new()
+			gt.gradient = g
+			gt.fill_from = Vector2(0, 0)
+			gt.fill_to = Vector2(0, 1)
+			grad.texture = gt
+			grad.stretch_mode = TextureRect.STRETCH_SCALE
+			grad.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			grad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_over.add_child(grad)
+			_over_reason = _over_label(30, 470, true, Palette.ACCENT)
+			_over_score = _over_label(140, 610, false, Palette.SNOW)
+			_over_new = _badge("NEW BEST", 700)
+			_over_dist_lbl = _over_label(16, 780, true, Color(Palette.SNOW, 0.55), -150)
+			_over_dist = _over_label(36, 825, false, Palette.SNOW, -150)
+			_over_best_lbl = _over_label(16, 780, true, Color(Palette.SNOW, 0.55), 150)
+			_over_best = _over_label(36, 825, false, Palette.SNOW, 150)
+			_buttons(960, Color(0, 0, 0, 0))
+		_:
+			# Sade: açık kâğıt rengi tam perde, koyu yazı, dev skor, alt çizgi ve küçük bilgiler
+			_over_bg.color = Color(Palette.PAPER, 0.94)
+			_over_reason = _over_label(26, 420, true, Palette.ACCENT)
+			_over_score = _over_label(170, 570, false, ink)
+			var bar := ColorRect.new()
+			bar.color = Palette.ACCENT
+			bar.anchor_left = 0.5
+			bar.anchor_right = 0.5
+			bar.offset_left = -60
+			bar.offset_right = 60
+			bar.offset_top = 680
+			bar.offset_bottom = 686
+			_over.add_child(bar)
+			_over_new = _badge("NEW BEST", 735)
+			_over_dist_lbl = _over_label(16, 800, true, Color(ink, 0.5), -140)
+			_over_dist = _over_label(32, 842, false, ink, -140)
+			_over_best_lbl = _over_label(16, 800, true, Color(ink, 0.5), 140)
+			_over_best = _over_label(32, 842, false, ink, 140)
+			_buttons(960, Color(0, 0, 0, 0))
+	_over_dist_lbl.text = "DISTANCE"
+	_over_best_lbl.text = "BEST"
+
+
+## Oyun sonu yazısı: y merkez, x yatay kayma (sütunlar için)
+func _over_label(size: int, y: float, spaced: bool, color: Color, x := 0.0) -> Label:
+	var l := Label.new()
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", color)
+	if spaced:
+		l.add_theme_font_override("font", _spaced)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.anchor_right = 1.0
+	l.offset_left = x
+	l.offset_right = x
+	l.offset_top = y - size
+	l.offset_bottom = y + size
+	_over.add_child(l)
+	return l
+
+
+## "NEW BEST" rozeti (en iyi skorsa görünür)
+func _badge(text: String, y: float) -> Control:
+	var c := CenterContainer.new()
+	c.anchor_right = 1.0
+	c.offset_top = y - 20
+	c.offset_bottom = y + 20
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var p := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Palette.ACCENT
+	sb.set_corner_radius_all(16)
+	sb.content_margin_left = 16
+	sb.content_margin_right = 16
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 6
+	p.add_theme_stylebox_override("panel", sb)
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_override("font", _spaced)
+	l.add_theme_font_size_override("font_size", 18)
+	l.add_theme_color_override("font_color", Palette.SNOW)
+	p.add_child(l)
+	c.add_child(p)
+	_over.add_child(c)
+	return c
+
+
+## PLAY AGAIN (dolu turuncu) ve GARAGE (turuncu çerçeve) butonları
+func _buttons(y: float, garage_bg: Color) -> void:
+	for b in [["PLAY AGAIN", true, y], ["GARAGE", false, y + 120.0]]:
+		var btn := Button.new()
+		btn.text = b[0]
+		btn.focus_mode = Control.FOCUS_NONE
+		btn.add_theme_font_override("font", _spaced)
+		btn.add_theme_font_size_override("font_size", 28)
+		var fg: Color = Palette.SNOW if b[1] else Palette.ACCENT
+		for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+			btn.add_theme_color_override(state, fg)
+		for state in [["normal", 0.0], ["hover", 0.0], ["pressed", 0.15], ["focus", 0.0]]:
+			var sb := StyleBoxFlat.new()
+			sb.set_corner_radius_all(8)
+			if b[1]:
+				sb.bg_color = Palette.ACCENT.darkened(state[1])
+			else:
+				sb.bg_color = garage_bg if garage_bg.a > 0.0 else Color(Palette.ACCENT, 0.08 + state[1])
+				sb.set_border_width_all(3)
+				sb.border_color = Palette.ACCENT
+			btn.add_theme_stylebox_override(state[0], sb)
+		btn.anchor_left = 0.5
+		btn.anchor_right = 0.5
+		btn.offset_left = -210
+		btn.offset_right = 210
+		btn.offset_top = b[2] - 48
+		btn.offset_bottom = b[2] + 48
+		if b[1]:
+			btn.pressed.connect(func(): again_pressed.emit())
+		else:
+			btn.pressed.connect(func(): garage_pressed.emit())
+		_over.add_child(btn)
 
 
 ## 0 = üst katman (açık zemin, koyu yazı), 1 = alt katman (koyu zemin, açık yazı)
@@ -195,9 +345,7 @@ func set_mood(m: float, ink := Color.TRANSPARENT) -> void:
 	_ink = ink
 	for l in _labels:
 		l.add_theme_color_override("font_color", _ink)
-	_over_reason.add_theme_color_override("font_color", Palette.ACCENT)
 	_energy_back.color = Color(_ink, 0.18)
-	_over_bg.color = Color(Palette.PAPER.lerp(Palette.GRAPHITE, m), 0.88)
 	set_energy(_energy_fraction)
 
 
@@ -291,10 +439,17 @@ func popup(text: String, accent := false) -> void:
 
 
 func show_game_over(reason: String, score: int, best: int, meters := 0.0) -> void:
+	_layout_game_over()
+	# Üstteki mesafe ve puan oyun sonu ekranında yok (ekranın kendi bilgileri var)
+	for l: Label in [_score, _dist]:
+		l.visible = false
+	for c in _captions:
+		c.visible = false
 	_over_reason.text = reason.trim_suffix("!")
 	_over_score.text = str(score)
-	_over_dist.text = distance_text(meters)
-	_over_best.text = "BEST  %d" % best
+	_over_dist.text = km_text(meters)
+	_over_best.text = str(best)
+	_over_new.visible = score >= best and score > 0
 	_over.visible = true
 	_over.modulate.a = 0.0
 	create_tween().tween_property(_over, "modulate:a", 1.0, 0.4)
