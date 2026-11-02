@@ -11,6 +11,8 @@ const LAYERS := [[840.0, Vector2(310, 490), 320.0], [720.0, Vector2(190, 320), 2
 const SPAN := 2600.0          # dağ sırasının yatay genişliği
 const BASE_Y := -46.0         # dağların dibi (bulut tabakasının altı: sisten çıkıyormuş gibi)
 const SUN_DIST := 875.0
+## Katman geçişinde dağlar kaybolurken bu kadar yukarı kayar (çıkarken yukarıdan yerine iner)
+const FADE_LIFT := 70.0
 const VALLEY := 520.0         # vadinin yarı genişliği (m): ortada dağlar alçalır
 ## Güneşin yolu: sol alttan (dibi hep dağların dibinden yukarıda) sağ yukarıya; bir geçiş SUN_PERIOD saniye, sonra baştan.
 ## Oyun başında yolun ~%30'unda (vadide, dibi dağlarda) başlar
@@ -166,7 +168,8 @@ func update(pal: Dictionary, mood: float) -> void:
 	var c := car.global_position
 	var mtn: Array = pal.mountains
 	for i in _layers.size():
-		_layers[i].global_position = Vector3(c.x * 0.6, BASE_Y, c.z - float(LAYERS[i][0]))
+		var lift: float = FADE_LIFT * (1.0 - seen) * (1.0 + 0.25 * i)  # öndeki biraz daha çok
+		_layers[i].global_position = Vector3(c.x * 0.6, BASE_Y + lift, c.z - float(LAYERS[i][0]))
 		# Alt katmana inerken dağlar sis rengine karışıp kaybolur
 		_layer_mats[i].set_shader_parameter("color", mtn[i])
 		_layer_mats[i].set_shader_parameter("fog", pal.fog)
