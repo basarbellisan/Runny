@@ -113,8 +113,8 @@ Havada araba gerçek bir duruşla uçar: yandan düşerken dönmeye devam eder
 (kendini düzeltmez), kanatlar açılınca düzelir. Havada direksiyon arabayı o
 yana yatırır (bırakınca söner); kendiliğinden düzelme çok zayıf. İnişte
 duruş yolla karşılaştırılır:
-- ~12°'den az sapma: temiz iniş (PERFECT ancak temiz inişte)
-- daha fazlası ya da çok yüksekten düşüş: HARD LANDING / WOBBLY — tutuş
+- ~12°'den az sapma: temiz iniş (yolun ortasına temiz iniş bonus puan ve ses verir; ekranda yazı yok)
+- daha fazlası ya da çok yüksekten düşüş: sert / yamuk iniş (yazı yok) — tutuş
   azalır, araba yana savrulur, gaz söner
 - yan ya da ters iniş (~75°+): araba patlar (FLIPPED!)
 

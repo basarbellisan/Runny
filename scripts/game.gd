@@ -334,8 +334,7 @@ func _on_landed(air_time: float, quality: float, impact: float) -> void:
 		return
 	var off := absf(car.global_position.x - seg.x) / (seg.width * 0.5)
 	if off < 0.3:
-		score += PERFECT_BONUS * multiplier
-		hud.popup("PERFECT", true)
+		score += PERFECT_BONUS * multiplier  # ortaya temiz iniş: bonus ve ses (yazı yok)
 		Audio.play("perfect", -2.0)
 
 
