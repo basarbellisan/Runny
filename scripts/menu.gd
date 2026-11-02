@@ -481,6 +481,18 @@ func _build_ui(best: int) -> void:
 	how.pressed.connect(start_lessons)
 	ui.add_child(how)
 
+	var ver := Label.new()
+	ver.text = Version.BUILD
+	ver.add_theme_font_size_override("font_size", 14)
+	ver.add_theme_color_override("font_color", Color(Palette.INK_DARK, 0.35))
+	ver.anchor_top = 1.0
+	ver.anchor_bottom = 1.0
+	ver.offset_left = 16
+	ver.offset_top = -34
+	ver.offset_bottom = -12
+	ver.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui.add_child(ver)
+
 	_fade = ColorRect.new()
 	_fade.color = Palette.PAPER
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE

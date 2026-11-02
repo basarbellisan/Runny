@@ -189,6 +189,12 @@ func _ready() -> void:
 	var sky_mat := ($WorldEnvironment as WorldEnvironment).environment.sky.sky_material as ProceduralSkyMaterial
 	sky_mat.sky_curve = 0.3      # gök degradesi ufka doğru yumuşak
 	sky_mat.ground_curve = 0.3
+	# Işık gökyüzünden yansımasın: yalnız sabit ortam rengi ve güneş (iPhone tarayıcısı gök yansımasını
+	# farklı hesaplıyor, yollar açılıp zemine karışıyordu; böylece her cihazda aynı)
+	var env := ($WorldEnvironment as WorldEnvironment).environment
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_sky_contribution = 0.0
+	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	roads.start(car, seed_value)
 	backdrop = Backdrop.new()
 	add_child(backdrop)
