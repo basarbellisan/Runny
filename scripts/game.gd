@@ -327,8 +327,7 @@ func _on_landed(air_time: float, quality: float, impact: float) -> void:
 	Audio.touchdown(clampf(air_time / 0.8, 0.6, 1.3) + quality * 0.3)
 	if quality > 0.05:
 		_stats.hard += 1
-		hud.popup("HARD LANDING" if quality < 0.5 else "WOBBLY")
-		return
+		return  # sert / yamuk iniş: yazı yok (sarsıntı ve ses yeter)
 	_stats.clean += 1
 	var seg := roads.segment_under(car.global_position)
 	if seg == null:

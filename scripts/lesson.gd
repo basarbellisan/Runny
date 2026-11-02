@@ -32,8 +32,11 @@ const LESSONS := [
 		{"id": 15, "kind": "bump", "w": 10, "len": 12, "rise": 1.2, "x": 0, "z0": 860}]}, 6],
 	["WINGS", {"pieces": [
 		{"id": 1, "w": 10, "len": 5, "h0": 0, "h1": 0, "x": 0, "z0": 0},
-		{"id": 2, "w": 10, "len": 300, "h0": 0, "h1": 0, "x": 0, "z0": 330}], "obstacles": []}, 2],
+		{"id": 2, "w": 10, "len": 300, "h0": 0, "h1": 0, "x": 0, "z0": 330}], "obstacles": []}, 3],
 ]
+## Enerji dersinin kristalleri: 5'li setler (sol, sağ, sol), setlerin arası açık. [x, ilk z]; set içinde 7 m ara
+const CRYSTAL_SETS := [[-2.5, 60.0], [2.5, 250.0], [-2.5, 380.0]]
+const CRYSTAL_STEP := 7.0
 ## Direksiyon dersinin adımları
 const STEER_STEPS := ["LEFT", "RIGHT", "LEFT", "RIGHT", "STRAIGHT"]
 ## Yolun ortasından bu kadar yana gidince o yön tamam
@@ -50,6 +53,9 @@ var _straight_time := 0.0
 var _blocks_passed := {}
 var _flew := false
 var _climb_time := 0.0
+var _crystals_placed := false
+## Kanat dersinde öndeki kaya (geçilince sıradaki konur)
+var _rock: Dictionary = {}
 var _t := 0.0
 ## Yuvarlakların görünürlüğü (yumuşak belirip kaybolur): -1 sol, 1 sağ
 var _pad_alpha := {-1: 0.0, 1: 0.0}
@@ -76,7 +82,7 @@ func setup(p_game: Node, p_car: Car, p_roads: RoadGenerator, bot := false) -> vo
 	index = clampi(current, 0, COUNT - 1)
 	var level: Dictionary = (LESSONS[index][1] as Dictionary).duplicate(true)
 	level.merge({"format": "runny-level", "version": 1, "name": "lesson %d" % (index + 1), "at": 0,
-		"crystals": LESSONS[index][0] == "ENERGY", "flush_entry": true,
+		"crystals": false, "flush_entry": true,
 		"no_lights": LESSONS[index][0] == "WINGS"})
 	roads.start_lights = false  # başlangıç pisti ışıksız ve kısa: ders yolu onun düz devamı
 	roads.start_length = 50.0
@@ -87,7 +93,8 @@ func setup(p_game: Node, p_car: Car, p_roads: RoadGenerator, bot := false) -> vo
 	if LESSONS[index][0] == "WINGS":
 		game.lower.first_portal_time = Vector2(5.0, 6.0)  # tünel tırmanmayı öğrendikten sonra gelsin
 		roads.start_length = 32.0  # yol ~1 sn'de biter
-		game.lower.rock_density = Vector2(3.0, 4.0)  # tırmanmayı öğretecek kadar kaya, tünel yolu açık
+		game.lower.scripted = true  # yalnız dersin iki kayası (tam uçağın önünde), sonra tünel
+		game.lower.first_portal_time = Vector2(7.0, 7.5)
 	layer = 5
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_ui()
@@ -120,11 +127,12 @@ func _process(delta: float) -> void:
 		"OBSTACLES":
 			_update_blocks()
 		"WINGS":
-			# 1. adım: uçarken iki parmakla tırman (kayaların üstünden geçmek için)
-			if _flew and done == 0 and car.climbing:
-				_climb_time += delta
-				if _climb_time > 0.8:
-					_step()
+			_update_rocks()
+		"ENERGY":
+			_place_crystals()
+			# Son setin ardından eksik kaldıysa: ders baştan
+			if done < _goal() and not roads.custom_log.is_empty() and roads.to_design(car.global_position).y > CRYSTAL_SETS[-1][1] + 5.0 * CRYSTAL_STEP + 10.0:
+				fail("MISSED CRYSTALS")
 	if _bot:
 		_bot_input()
 
@@ -152,9 +160,42 @@ func _update_steer(delta: float) -> void:
 				_straight_time = 0.0
 
 
-## Engeller dersi: geçilen bloklar (tasarım koordinatında arabanın z'si bloğu geçti)
+## Enerji dersi: kristal setlerini dersin yoluna koyar (tasarım koordinatından dünyaya)
+func _place_crystals() -> void:
+	if _crystals_placed or roads.custom_log.is_empty():
+		return
+	_crystals_placed = true
+	var c: Dictionary = roads.custom_log[0]
+	for st in CRYSTAL_SETS:
+		for i in 5:
+			var wx: float = float(c.ox) + float(st[0])
+			var wz: float = float(c.zb) - (float(st[1]) + i * CRYSTAL_STEP)
+			var host := roads.segment_under(Vector3(wx, car.global_position.y, wz))
+			if host:
+				roads._crystal_on(host, wx, wz)
+	roads._flush_crystals()
+
+
+## Kanat dersi: uçağın tam önüne (aynı hiza, aynı yükseklik) bir kaya; üstünden geçince sıradaki.
+## İki kaya geçilince tünel gelir
+func _update_rocks() -> void:
+	if not _flew or car.mode != Car.Mode.FLYING or done >= 2:
+		return
+	if _rock.is_empty():
+		# Uçuş yüksekliğinde (araba oraya iner), tam uçağın hizasında, ~3 sn önde
+		var p := Vector3(car.global_position.x, car.flight_altitude - 0.8, car.global_position.z - maxf(car.forward_speed, 30.0) * 3.0)
+		_rock = game.lower.place_rock(p, 2.6)
+		return
+	if car.global_position.z < float(_rock.z) - 4.0:
+		_rock = {}
+		car.energy = car.max_energy  # derste enerji bitmesin
+		_step()
+
+
+## Engeller dersi: geçilen engeller (tasarım koordinatında arabanın z'si engeli geçti; havadayken
+## sayılmaz: tümsekten inince)
 func _update_blocks() -> void:
-	if roads.custom_log.is_empty() or car.mode != Car.Mode.DRIVE:
+	if roads.custom_log.is_empty() or car.mode != Car.Mode.DRIVE or not car.is_on_floor():
 		return
 	var z: float = roads.to_design(car.global_position).y
 	for o in LESSONS[index][1].obstacles:
@@ -287,8 +328,8 @@ func _say_text() -> String:
 		"WINGS":
 			if not _flew:
 				return "Road ends: keep going, wings open"
-			if done == 0:
-				return "Hold TWO fingers to climb over rocks"
+			if done < 2:
+				return "Rock ahead: hold TWO fingers to climb"
 			return "Steer into the orange tunnel"
 	return ""
 
@@ -313,9 +354,28 @@ func _pad_target() -> int:
 		"WINGS":
 			if not _flew or car.mode != Car.Mode.FLYING:
 				return 0
-			if done == 0:
-				return 2
+			if done < 2:
+				# Kaya yaklaşınca iki parmak
+				if not _rock.is_empty() and (car.global_position.z - float(_rock.z)) / maxf(car.forward_speed, 1.0) < 2.3:
+					return 2
+				return 0
 			return _tunnel_side()
+		"ENERGY":
+			return _crystal_side()
+	return 0
+
+
+## Enerji dersi: sıradaki kristal seti hangi yanda (araba o hizada değilse)
+func _crystal_side() -> int:
+	if roads.custom_log.is_empty() or car.mode != Car.Mode.DRIVE:
+		return 0
+	var d := roads.to_design(car.global_position)
+	for st in CRYSTAL_SETS:
+		if d.y < float(st[1]) + 4.0 * CRYSTAL_STEP:
+			var dx: float = float(st[0]) - d.x
+			if absf(dx) < 1.2 or float(st[1]) - d.y > 90.0:
+				return 0
+			return 1 if dx > 0.0 else -1
 	return 0
 
 
@@ -586,7 +646,7 @@ func _label(parent: Control, size: int, y: float, spaced: bool) -> Label:
 ## Direksiyon dersinde tuşlara basar (diğer derslerde otomatik pilot sürer)
 func _bot_input() -> void:
 	if LESSONS[index][0] == "WINGS" and _flew and car.mode == Car.Mode.FLYING:
-		_key(KEY_W, done == 0)
+		_key(KEY_W, _pad_target() == 2)
 		var side := _tunnel_side() if done >= 1 else 0
 		_key(KEY_A, side < 0)
 		_key(KEY_D, side > 0)

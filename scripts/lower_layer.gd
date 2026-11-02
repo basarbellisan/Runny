@@ -54,6 +54,8 @@ var _spinners: Array = []  # dönen kristaller
 var _crystals: Array = []
 var _next_row_z := 0.0
 var _next_portal: Portal
+## Ders (kanatlar): rastgele kaya, kaya duvarı ve kuyruklu kaya yok; kayaları ders koyar (place_rock)
+var scripted := false
 ## Alt katmanda geçen süre ve sıradaki kuyruklu kayanın zamanı
 var _time := 0.0
 var _next_comet := 0.0
@@ -154,7 +156,7 @@ func update(delta: float) -> void:
 		var stop := _next_portal.z + 35.0 if _next_portal else -INF
 		_next_row_z = _spawn_chunk(_next_row_z, stop)
 	# Kuyruklu kayalar: uzaktan parlayarak bize doğru gelir
-	if _time >= _next_comet:
+	if _time >= _next_comet and not scripted:
 		_next_comet = _time + _rng.randf_range(comet_interval.x, comet_interval.y)
 		_spawn_comet()
 	for r in rocks:
@@ -285,6 +287,9 @@ func _spawn_chunk(z: float, stop_z: float) -> float:
 	var z_end := maxf(z - length, stop_z)
 	if z - z_end < 8.0:
 		return z_end
+	if scripted:
+		_spawn_decor(roads.path_x_at(z), (z + z_end) * 0.5)
+		return z_end
 	var dens := lerpf(rock_density.x, rock_density.y, clampf(_time / maxf(density_time, 0.1), 0.0, 1.0))
 	var n := roundi(dens * (z - z_end) / 100.0 * _rng.randf_range(0.7, 1.3))
 	var cx := roads.path_x_at(z)
@@ -386,6 +391,11 @@ func _spawn_decor(cx: float, z: float) -> void:
 		deco.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(deco)
 		_items.append(deco)
+
+
+## Ders için tek kaya (tam istenen yerde)
+func place_rock(pos: Vector3, r: float) -> Dictionary:
+	return _spawn_rock(pos, r)
 
 
 func _spawn_rock(pos: Vector3, r: float) -> Dictionary:
