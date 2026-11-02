@@ -164,7 +164,8 @@ func _ready() -> void:
 	if Lesson.current >= 0 and not _level_test:
 		lesson = Lesson.new()
 		add_child(lesson)
-		lesson.setup(self, car, roads, _args.has("lessonbot"))
+		lesson.setup(self, car, roads, _args.has("lessonbot") or _args.has("lessonfall"))
+		lesson.bot_fall = _args.has("lessonfall")  # test: yoldan düşme geçişi
 		hud.lesson_mode()
 	_start_z = car.global_position.z
 	_landings_total = int(_load_save().get_value("tutorial", "landings", 0))

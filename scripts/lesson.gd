@@ -6,6 +6,8 @@ extends CanvasLayer
 ## Ders sırası: Lesson.current (sahne değişse de kalır); -1 = ders yok (normal oyun).
 
 static var current := -1
+## Önceki deneme düştü/çarptı: ders açık renkten yumuşakça açılır, araba yanıp söner
+static var retry := false
 
 const COUNT := 5
 ## [başlık, kalıp, hedef sayısı]
@@ -70,7 +72,12 @@ var _say: Label
 var _say_box: PanelContainer
 var _pips: HBoxContainer
 var _panel: Control
+## Solma perdesi ve ortadaki MISSED yazısı
+var _fade: ColorRect
+var _missed: Label
 var _bot := false
+## Test: bot hep sola basar (yoldan düşmeyi görmek için)
+var bot_fall := false
 
 
 ## Oyun kurulurken (roads.start'tan önce) çağrılır
@@ -99,6 +106,16 @@ func setup(p_game: Node, p_car: Car, p_roads: RoadGenerator, bot := false) -> vo
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_ui()
 	_refresh()
+	Engine.time_scale = 1.0
+	if retry:
+		retry = false
+		_fade.color.a = 1.0
+		var tw := create_tween()
+		tw.tween_property(_fade, "color:a", 0.0, 0.5).set_delay(0.1)
+		# Araba yerine "geri konmuş" gibi birkaç kez yanıp söner
+		var blink := create_tween().set_loops(4)
+		blink.tween_callback(func(): car.model.visible = false).set_delay(0.12)
+		blink.tween_callback(func(): car.model.visible = true).set_delay(0.12)
 
 
 func _goal() -> int:
@@ -246,20 +263,27 @@ func on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 		fail("MISSED")
 
 
-## Çarpma ya da düşme: kısa bir yazı, sonra ders baştan
+## Çarpma ya da düşme: ağır çekim, ekran yumuşakça açık renge solar, ortada MISSED; sonra ders
+## baştan (yeni ders de aynı renkten açılır, araba birkaç kez yanıp söner)
 func fail(reason: String) -> void:
 	if failed or finished:
 		return
 	failed = true
 	print("LESSON_FAIL %d %s z=%.0f x=%.1f" % [index, reason, car.global_position.z, car.global_position.x])
-	# Oyun o an durur (kanatlar açılmaz, araba sesi kesilir), kısa yazıdan sonra ders baştan
 	_say.text = "%s  ·  TRY AGAIN" % reason.trim_suffix("!")
 	_say_box.add_theme_stylebox_override("panel", _pill(Palette.ACCENT))
-	get_tree().paused = true
-	AudioServer.set_bus_mute(0, true)
-	get_tree().create_timer(1.0, true).timeout.connect(func():
-		get_tree().paused = false
-		AudioServer.set_bus_mute(0, false)
+	_missed.text = reason.trim_suffix("!") if reason != "CRASHED!" else "CRASHED"
+	var tw := create_tween().set_ignore_time_scale(true).set_parallel()
+	# Ağır çekim (kanatlar açılmadan ekran solar)
+	tw.tween_method(func(v: float): Engine.time_scale = v, 1.0, 0.15, 0.35).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_fade, "color:a", 1.0, 0.6).set_delay(0.25)
+	tw.tween_property(_missed, "modulate:a", 1.0, 0.3).set_delay(0.45)
+	tw.tween_method(func(v: float): AudioServer.set_bus_volume_db(0, v), 0.0, -40.0, 0.7)
+	tw.chain().tween_interval(0.45)
+	tw.chain().tween_callback(func():
+		Engine.time_scale = 1.0
+		AudioServer.set_bus_volume_db(0, 0.0)
+		retry = true
 		get_tree().reload_current_scene())
 
 
@@ -336,7 +360,7 @@ func _say_text() -> String:
 
 ## Hangi yuvarlak(lar) yansın: -1 sol, 1 sağ, 2 ikisi birden, 0 hiçbiri (soluk)
 func _pad_target() -> int:
-	if not started:
+	if not started or failed:
 		return 0
 	match LESSONS[index][0]:
 		"STEER":
@@ -492,6 +516,17 @@ func _build_ui() -> void:
 	_pads.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_pads.draw.connect(_draw_pads)
 	_ui.add_child(_pads)
+	_fade = ColorRect.new()
+	_fade.color = Color(Palette.PAPER, 0.0)
+	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_ui.add_child(_fade)
+	_missed = _label(_ui, 56, 600, true)
+	_missed.add_theme_color_override("font_color", Palette.ACCENT)
+	_missed.modulate.a = 0.0
+	var again := _label(_missed, 22, 140, true)
+	again.text = "TRY AGAIN"
+	again.modulate.a = 0.6
 
 
 ## Dokunma yuvarlakları: yalnız basılması gereken yerde belirir; parmak basar gibi küçülüp büyür,
@@ -645,6 +680,9 @@ func _label(parent: Control, size: int, y: float, spaced: bool) -> Label:
 
 ## Direksiyon dersinde tuşlara basar (diğer derslerde otomatik pilot sürer)
 func _bot_input() -> void:
+	if bot_fall:
+		_key(KEY_A, true)
+		return
 	if LESSONS[index][0] == "WINGS" and _flew and car.mode == Car.Mode.FLYING:
 		_key(KEY_W, _pad_target() == 2)
 		var side := _tunnel_side() if done >= 1 else 0
