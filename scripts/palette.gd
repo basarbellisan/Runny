@@ -28,7 +28,7 @@ const SKIES := [
 		"ground_horizon": Color("9c5aa6"), "ground_bottom": Color("c675cc"),
 		"fog": Color("9256a2"), "fog_density": 0.0045, "fog_height": -6.0, "fog_height_density": 0.09,
 		"ambient": Color("8c64b4"), "ambient_energy": 0.8, "sun": Color("ffe0ea"), "sun_energy": 0.75,
-		"road_top": Color("3a2c4e"), "road_side": Color("c25c8e"), "line": Color("f6d8ee"),
+		"road_top": Color("3a2c4e"), "road_side": Color("c25c8e"),
 		"decor": Color("7a4590"), "cloud": Color(0.78, 0.52, 0.82, 0.22), "ink": INK_LIGHT},
 ]
 ## Alt katman (uçuş): hep mercan; koyu erik rengi kayalar (3. görseldeki gibi)
@@ -40,6 +40,16 @@ const LOWER := {
 	"cloud": Color(0.96, 0.62, 0.55, 0.5), "ink": INK_DARK,
 	"rocks": [Color("3f2639"), Color("4b2f45"), Color("5b3a52")],
 }
+
+
+## Şerit çizgisinin rengi yolun üst yüz renginden: onun açık tonu, hafif turuncuya çekilmiş
+## (bembeyaz değil; her yol kendi rengine göre)
+const LINE_LIGHTEN := 0.74
+const LINE_WARM := 0.2
+
+
+static func line_for(road_top: Color) -> Color:
+	return road_top.lightened(LINE_LIGHTEN).lerp(ACCENT, LINE_WARM)
 
 
 ## Mesafeye göre üst katman paleti: her bölge zone_length metre, sonundaki %20'de sıradakine geçer

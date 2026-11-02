@@ -1086,7 +1086,7 @@ func _add_segment(x: float, top: float, top_end: float, width: float, z_start: f
 	# Asfalt ve kenar çizgileri; yokuş yukarı rampaların çizgileri turuncu
 	_add_box(body, Vector3(0, -0.04, 0), Vector3(width - 0.3, 0.1, slope_len - 0.3), _asphalt_material(s))
 	var line_x := width * 0.5 - 0.45
-	var line_mat := _ramp_line_mat if rise > 1.0 or bonus else _line_mat
+	var line_mat := _ramp_line_mat if rise > 1.0 or bonus else _line_for(s)
 	for sx in [-1.0, 1.0]:
 		_add_box(body, Vector3(sx * line_x, 0.015, 0), Vector3(LINE_W, 0.02, slope_len - 0.6), line_mat)
 	if rise > 1.0:
@@ -2787,7 +2787,7 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 	body.add_child(asphalt_mi)
 	var lines_mi := MeshInstance3D.new()
 	lines_mi.mesh = lines.commit()
-	lines_mi.material_override = _line_mat
+	lines_mi.material_override = _line_for(s)
 	lines_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	body.add_child(lines_mi)
 	if lights:
@@ -2869,9 +2869,18 @@ func _pal(distance: float) -> Dictionary:
 	return Palette.sky_at(distance, zone_length)
 
 
-## Şerit çizgilerinin rengi (oyun o anki paletten verir)
-func set_line_color(c: Color) -> void:
-	_line_mat.set_shader_parameter("color", c)
+## Yolun şerit çizgisi: rengi yolun üst yüz renginden (Palette.line_for); aynı renkler bir malzemeyi paylaşır
+var _line_mats := {}
+
+
+func _line_for(s: Segment) -> ShaderMaterial:
+	var c := Palette.line_for(_pal(-(s.z_start + s.z_end) * 0.5).road_top)
+	var key := c.to_html(false)
+	if not _line_mats.has(key):
+		var m := _line_mat.duplicate() as ShaderMaterial
+		m.set_shader_parameter("color", c)
+		_line_mats[key] = m
+	return _line_mats[key]
 
 
 func _zone_color(distance: float) -> Color:

@@ -291,7 +291,6 @@ func _update_palette() -> void:
 		var pk: String = MOOD_KEYS[key]
 		_moods[key] = [up[pk], Palette.LOWER[pk]]
 	_ink = (up.ink as Color).lerp(Palette.LOWER.ink, smoothstep(0.3, 0.7, _mood))
-	roads.set_line_color(up.line)
 
 
 var _ink := Palette.INK_LIGHT
