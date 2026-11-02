@@ -130,7 +130,12 @@ const LINE_STYLES := [
 	{"name": "Raylar + uzun kesik", "lines": [{"x": 0.3, "w": 0.04, "p": 9.0, "d": 1.0}, {"x": 0.48, "w": 0.09, "p": 12.0, "d": 0.6},
 		{"x": 0.66, "w": 0.04, "p": 9.0, "d": 1.0}]},
 ]
-@export var line_style := 0
+## -1: yolun genişliğine göre (geniş: 1 raylar + kesik, orta: 2 çift kesik sık, dar: 3 çift
+## şaşırtmalı); 0-10 tek bir düzen (deneme)
+@export var line_style := -1
+## Genişlik eşikleri (m): bunun üstü geniş, arası orta, altı dar
+const LINE_WIDE := 9.0
+const LINE_NARROW := 6.5
 ## Yolların inebileceği en alçak seviye
 const MIN_LEVEL := -18.0
 ## Bölge renkleri: her bölge_uzunluğu metrede bir yumuşakça değişir
@@ -2914,7 +2919,10 @@ func _line_for(s: Segment, ln: Dictionary) -> ShaderMaterial:
 ## Seçili düzende yolun çizgileri: [{cx (yolun ortasına göre x), w, p, d}] (kenar çizgileri iki yanda)
 func _line_layout(width: float) -> Array:
 	var out: Array = []
-	for ln in LINE_STYLES[clampi(line_style, 0, LINE_STYLES.size() - 1)].lines:
+	var st := line_style
+	if st < 0:
+		st = 1 if width >= LINE_WIDE else (2 if width >= LINE_NARROW else 3)
+	for ln in LINE_STYLES[clampi(st, 0, LINE_STYLES.size() - 1)].lines:
 		if str(ln.x) == "c":
 			out.append({"cx": 0.0, "w": ln.w, "p": ln.p, "d": ln.d, "o": ln.get("o", 0.0)})
 		else:

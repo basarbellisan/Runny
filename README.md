@@ -145,7 +145,12 @@ açılır ve alt katmana geçersin. Çıkmaz yollarda pist ışığı yoktur.
 Engeller:
 - Beton blok (koyu gri gövde, ön yüzünde yavaşça akan ışıklı turuncu-siyah çapraz uyarı şeritleri,
   üstte ışıklı turuncu çizgi; ışıklar gölgede ve siste de parlak): ön yüzüne çarpan patlar.
-  Diğer denenen tasarımlar `roads.block_style` 0-5 (`--block_style=N`); görüntüler `tools/block_designs.gd`
+  Görünüm (palet sistemi, `scripts/palette.gd`): üst katman bölge paletleriyle (ilk palet pembe-mor
+  alacakaranlık: gökyüzü degradesi, renkli sis, renkli ışık, yol üstü koyu mor / yanı gül pembesi), alt katman hep
+  mercan; yollar 1-3 m kalınlığında (`road_depth`); şerit çizgisi yolun renginden canlı ton (`Palette.line_for`),
+  düzeni yol genişliğine göre: geniş (≥9 m) raylar + kesik, orta çift kesik sık, dar (<6.5 m) çift şaşırtmalı
+  (`LINE_STYLES`, `--line_style=N` deneme).
+- Diğer denenen tasarımlar `roads.block_style` 0-5 (`--block_style=N`); görüntüler `tools/block_designs.gd`
 - Çakıl (kum rengi, taşlı): üstünde hız ~%45 düşer, tutuş çok azalır, taşlar
   arabayı sağa sola savurur, çıktıktan sonra da ~0.6 sn sendeler;
   araba sarsılır, taş sesi ve toz. İlk üç seferde "ÇAKIL · YAVAŞLATIR" yazar
