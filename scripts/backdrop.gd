@@ -12,9 +12,9 @@ const SPAN := 2600.0          # dağ sırasının yatay genişliği
 const BASE_Y := -46.0         # dağların dibi (bulut tabakasının altı: sisten çıkıyormuş gibi)
 const SUN_DIST := 875.0
 ## Katman geçişinde dağlar kaybolurken bu kadar yukarı kayar (çıkarken yukarıdan yerine iner)
-const FADE_LIFT := 25.0
+const FADE_LIFT := 0.0
 ## Çıkarken (dağlar belirirken) kayma daha az
-const FADE_LIFT_UP := 8.0
+const FADE_LIFT_UP := 0.0
 ## Çıkarken belirme süresi (sn)
 const FADE_IN := 2.0
 const VALLEY := 520.0         # vadinin yarı genişliği (m): ortada dağlar alçalır
@@ -32,14 +32,17 @@ var car: Node3D
 var _layers: Array[MeshInstance3D] = []
 var _layer_mats: Array[ShaderMaterial] = []
 var _sun: MeshInstance3D
-var _sun_mat := StandardMaterial3D.new()
+var _sun_mat := ShaderMaterial.new()
 var _halo: MeshInstance3D
-var _halo_mat := StandardMaterial3D.new()
+var _halo_mat := ShaderMaterial.new()
 var _sparkles: CPUParticles3D
 var _sparkle_mat := StandardMaterial3D.new()
 var _rng := RandomNumberGenerator.new()
 var _sun_t := SUN_START
 var _shown := 1.0
+## Alttan yükselen perde: 0 açık (üst katman), 1 kapalı (alt katman). Gökyüzü de bunu kullanır
+var cover := 0.0
+
 var _lift_k := FADE_LIFT
 
 
@@ -65,11 +68,8 @@ func setup(p_car: Node3D) -> void:
 	disc.bottom_radius = SUN_RADIUS
 	disc.height = 0.5
 	disc.radial_segments = 64
-	_sun_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_sun_mat.disable_fog = true
-	_sun_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_sun_mat.shader = preload("res://shaders/sun_wipe.gdshader")
 	_sun_mat.render_priority = -5
-
 	_sun = MeshInstance3D.new()
 	_sun.mesh = disc
 	_sun.rotation.x = PI * 0.5
@@ -79,23 +79,9 @@ func setup(p_car: Node3D) -> void:
 	# Hale: güneşin arkasında geniş, soluk bir disk
 	var hd := QuadMesh.new()
 	hd.size = Vector2.ONE * SUN_RADIUS * 5.0
-	var g := Gradient.new()
-	g.set_color(0, Color(1, 1, 1, 1))
-	g.set_color(1, Color(1, 1, 1, 0))
-	g.add_point(0.35, Color(1, 1, 1, 0.55))
-	var tex := GradientTexture2D.new()
-	tex.gradient = g
-	tex.fill = GradientTexture2D.FILL_RADIAL
-	tex.fill_from = Vector2(0.5, 0.5)
-	tex.fill_to = Vector2(0.5, 0.0)
-	tex.width = 128
-	tex.height = 128
-	_halo_mat.albedo_texture = tex
-	_halo_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_halo_mat.disable_fog = true
-	_halo_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_halo_mat.shader = preload("res://shaders/sun_wipe.gdshader")
+	_halo_mat.set_shader_parameter("radial", true)
 	_halo_mat.render_priority = -6
-
 	_halo = MeshInstance3D.new()
 	_halo.mesh = hd
 	_halo.material_override = _halo_mat
@@ -137,6 +123,12 @@ func setup(p_car: Node3D) -> void:
 	add_child(_sparkles)
 
 
+## Perdenin ekran yüksekliği hesabı için kameranın dikey yarı açısının tanjantı
+func set_fov(thf: float) -> void:
+	for m: ShaderMaterial in _layer_mats + [_sun_mat, _halo_mat]:
+		m.set_shader_parameter("tan_half_fov", thf)
+
+
 ## Dağ silüeti: SPAN boyunca rastgele tepeler; her tepe dibe inen düz bir üçgen yelpazesi
 func _ridge(layer: Array) -> ArrayMesh:
 	var st := SurfaceTool.new()
@@ -176,6 +168,7 @@ func update(pal: Dictionary, mood: float) -> void:
 	else:
 		_shown = target
 	var seen := _shown
+	cover = 1.0 - seen
 	visible = seen > 0.002
 	if not visible:
 		return
@@ -189,15 +182,17 @@ func update(pal: Dictionary, mood: float) -> void:
 		# Alt katmana inerken dağlar sis rengine karışıp kaybolur
 		_layer_mats[i].set_shader_parameter("color", mtn[i])
 		_layer_mats[i].set_shader_parameter("fog", pal.fog)
-		_layer_mats[i].set_shader_parameter("alpha", seen)
+		_layer_mats[i].set_shader_parameter("cover", cover)
 	_sun_t = fmod(_sun_t + get_process_delta_time() / SUN_PERIOD, 1.0)
 	# Hafif yay: önce yana, sonra daha dik yükselir
 	var sx := lerpf(SUN_FROM.x, SUN_TO.x, _sun_t)
 	var sy := lerpf(SUN_FROM.y, SUN_TO.y, _sun_t * _sun_t * 0.4 + _sun_t * 0.6)
 	_sun.global_position = Vector3(c.x * 0.6 + sx, sy, c.z - SUN_DIST)
-	_sun_mat.albedo_color = Color(pal.sun_disc, seen)
+	_sun_mat.set_shader_parameter("color", pal.sun_disc)
+	_sun_mat.set_shader_parameter("cover", cover)
 	_halo.global_position = _sun.global_position + Vector3(0, 0, -10.0)
-	_halo_mat.albedo_color = Color(pal.sun_disc, 0.5 * seen)
+	_halo_mat.set_shader_parameter("color", Color(pal.sun_disc, 0.5))
+	_halo_mat.set_shader_parameter("cover", cover)
 	# Kameranın önünden uzakta başlar (yakında büyük kare gibi görünmesin)
 	_sparkles.global_position = c + Vector3(0, 6.0, -125.0)
 	_sparkle_mat.albedo_color = Color(pal.sparkle, 0.9 * seen)
