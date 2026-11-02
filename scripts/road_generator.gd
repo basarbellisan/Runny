@@ -103,8 +103,9 @@ const MAIN_LEVEL := 0.0
 const LOW_LEVEL := -9.0
 ## Duvarların dibi bu derinliğin altına inmez (bulut tabakası -42, uçuş -55)
 const WALL_FLOOR := 36.0
-## Yolların kalınlığı (m): ince döşeme gibi, aşağı uzamaz. 0 = eski hâl (6-28 m'lik duvarlar)
-@export var road_depth := 1.0
+## Yolların kalınlığı (m), her yol için bu aralıkta rastgele: ince döşeme, aşağı uzamaz.
+## x = 0: eski hâl (6-28 m'lik duvarlar)
+@export var road_depth := Vector2(1.0, 3.0)
 ## Yolların inebileceği en alçak seviye
 const MIN_LEVEL := -18.0
 ## Bölge renkleri: her bölge_uzunluğu metrede bir yumuşakça değişir
@@ -1034,6 +1035,15 @@ func _add_side_road(main_seg: Segment) -> void:
 # Yol yapımı ve renkler
 # --------------------------------------------------------------------------
 
+## Yolun kalınlığı: road_depth aralığında. Yol oluşum tohumundan ayrı bir sayaçla seçilir
+## (yolların yerleşimi kalınlıktan etkilenmesin)
+var _depth_rng := RandomNumberGenerator.new()
+
+
+func _road_depth() -> float:
+	return snappedf(_depth_rng.randf_range(road_depth.x, road_depth.y), 0.1)
+
+
 func _add_segment(x: float, top: float, top_end: float, width: float, z_start: float, z_end: float, is_main: bool,
 		bonus := false, wall_depth := -1.0, lights := true) -> Segment:
 	var s := Segment.new()
@@ -1051,8 +1061,8 @@ func _add_segment(x: float, top: float, top_end: float, width: float, z_start: f
 	var slope_len := sqrt(length * length + rise * rise)
 	# Duvarın dibi uçuş katmanına (bulutların altı) inmesin
 	var depth := clampf(_rng.randf_range(6.0, 28.0) if wall_depth < 0.0 else wall_depth, 4.0, minf(top, top_end) + WALL_FLOOR)
-	if road_depth > 0.0:
-		depth = road_depth
+	if road_depth.x > 0.0:
+		depth = _road_depth()
 	var body := StaticBody3D.new()
 	body.position = Vector3(x, (top + top_end) * 0.5, (z_start + z_end) * 0.5)
 	# Eğimli yol: kutu x ekseninde döner (uzak uç yukarı = yokuş yukarı)
@@ -2675,8 +2685,8 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 	var length := z_start - z_end
 	var rise := s.top_end - top
 	var depth := clampf(_rng.randf_range(6.0, 28.0), 4.0, minf(top, s.top_end) + WALL_FLOOR)
-	if road_depth > 0.0:
-		depth = road_depth
+	if road_depth.x > 0.0:
+		depth = _road_depth()
 	var body := StaticBody3D.new()
 	body.position = Vector3(x, top, (z_start + z_end) * 0.5)
 	add_child(body)
