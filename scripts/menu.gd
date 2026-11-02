@@ -469,25 +469,15 @@ func _build_ui(best: int) -> void:
 	start_btn.pressed.connect(start)
 	ui.add_child(start_btn)
 
-	# START'ın altında küçük "nasıl oynanır" bağlantısı
-	var how := Button.new()
-	how.text = "HOW TO PLAY"
-	how.flat = true
-	how.focus_mode = Control.FOCUS_NONE
-	var how_font := FontVariation.new()
-	how_font.spacing_glyph = 4
-	how.add_theme_font_override("font", how_font)
-	how.add_theme_font_size_override("font_size", 18)
-	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
-		how.add_theme_color_override(state, Color(Palette.INK_DARK, 0.5))
-	how.anchor_left = 0.5
-	how.anchor_right = 0.5
-	how.anchor_top = 1.0
-	how.anchor_bottom = 1.0
-	how.offset_left = -150
-	how.offset_right = 150
-	how.offset_top = -80
-	how.offset_bottom = -30
+	# Oyun adının altında, araçların üstünde: turuncu çerçeveli "nasıl oynanır" butonu
+	var how := _big_button("HOW TO PLAY", false)
+	how.add_theme_font_size_override("font_size", 20)
+	how.anchor_top = 0.0
+	how.anchor_bottom = 0.0
+	how.offset_left = -140
+	how.offset_right = 140
+	how.offset_top = 236
+	how.offset_bottom = 296
 	how.pressed.connect(start_lessons)
 	ui.add_child(how)
 

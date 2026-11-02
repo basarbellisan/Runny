@@ -49,6 +49,8 @@ var _straight_time := 0.0
 var _blocks_passed := {}
 var _flew := false
 var _t := 0.0
+## Yuvarlakların görünürlüğü (yumuşak belirip kaybolur): -1 sol, 1 sağ
+var _pad_alpha := {-1: 0.0, 1: 0.0}
 ## Araba dersin yoluna girdi mi (başlangıç pistinde görev yok)
 var started := false
 
@@ -71,7 +73,9 @@ func setup(p_game: Node, p_car: Car, p_roads: RoadGenerator, bot := false) -> vo
 	index = clampi(current, 0, COUNT - 1)
 	var level: Dictionary = (LESSONS[index][1] as Dictionary).duplicate(true)
 	level.merge({"format": "runny-level", "version": 1, "name": "lesson %d" % (index + 1), "at": 0,
-		"crystals": LESSONS[index][0] == "ENERGY", "flush_entry": true})
+		"crystals": LESSONS[index][0] == "ENERGY", "flush_entry": true,
+		"no_lights": LESSONS[index][0] == "WINGS"})
+	roads.start_lights = false  # başlangıç pisti ışıksız: ders yolu onun düz devamı
 	roads.test_level = level
 	if LESSONS[index][0] == "ENERGY":
 		car.energy = car.max_energy * 0.35  # göstergenin dolduğu görülsün
@@ -87,6 +91,10 @@ func _goal() -> int:
 
 func _process(delta: float) -> void:
 	_t += delta
+	var target := _pad_target()
+	for side in [-1, 1]:
+		var want := 1.0 if (target == side or target == 2) else 0.0
+		_pad_alpha[side] = move_toward(_pad_alpha[side], want, delta * 5.0)
 	_pads.queue_redraw()
 	if finished or failed or get_tree().paused:
 		return
@@ -211,6 +219,12 @@ func _next() -> void:
 	else:
 		current = index + 1
 		get_tree().reload_current_scene()
+
+
+## Aynı ders baştan
+func _replay() -> void:
+	get_tree().paused = false
+	get_tree().reload_current_scene()
 
 
 func _skip() -> void:
@@ -341,31 +355,39 @@ func _build_ui() -> void:
 	_ui.add_child(_pads)
 
 
-## Büyük dokunma yuvarlakları: ekranın iki yarısında; hedef olan turuncu ve nabız gibi atar
+## Dokunma yuvarlakları: yalnız basılması gereken yerde belirir; parmak basar gibi küçülüp büyür,
+## her basışta dışa iki yankı halkası yayılır
 func _draw_pads() -> void:
 	if finished:
 		return
 	var size := _pads.size
-	var target := _pad_target()
 	var y := size.y * 0.73
+	var period := 1.2
+	var p := fmod(_t, period) / period
+	# Basış: 0.10-0.22 arası içe çöker, 0.22-0.36 arası geri gelir
+	var press := 1.0
+	if p > 0.10 and p < 0.22:
+		press = lerpf(1.0, 0.72, (p - 0.10) / 0.12)
+	elif p >= 0.22 and p < 0.36:
+		press = lerpf(0.72, 1.0, ease((p - 0.22) / 0.14, 0.5))
 	for side in [-1, 1]:
+		var a: float = _pad_alpha[side]
+		if a < 0.01:
+			continue
 		var c := Vector2(size.x * (0.5 + 0.29 * side), y)
-		var on: bool = target == side or target == 2
-		var r := 80.0
-		if on:
-			var p := fmod(_t * 1.4, 1.0)
-			_pads.draw_arc(c, r + p * 60.0, 0.0, TAU, 64, Color(Palette.ACCENT, 0.6 * (1.0 - p)), 6.0, true)
-			_pads.draw_circle(c, r, Color(Palette.ACCENT, 0.32))
-			_pads.draw_arc(c, r, 0.0, TAU, 64, Palette.ACCENT, 7.0, true)
-			_pads.draw_circle(c, 30.0, Color(Palette.SNOW, 0.95))
-		else:
-			_pads.draw_circle(c, r, Color(Palette.SNOW, 0.10))
-			_pads.draw_arc(c, r, 0.0, TAU, 64, Color(Palette.SNOW, 0.45), 4.0, true)
+		# Yankı halkaları (basış anından başlar)
+		for k in 2:
+			var e := (p - 0.18 - k * 0.16) / 0.62
+			if e >= 0.0 and e <= 1.0:
+				_pads.draw_arc(c, 42.0 + e * 100.0, 0.0, TAU, 72, Color(Palette.ACCENT, 0.75 * (1.0 - e) * a), 2.0 + 5.0 * (1.0 - e), true)
+		_pads.draw_circle(c, 64.0, Color(Palette.ACCENT, 0.22 * a))
+		_pads.draw_circle(c, 36.0 * press, Color(Palette.SNOW, 0.96 * a))
+		_pads.draw_arc(c, 36.0 * press, 0.0, TAU, 48, Color(Palette.ACCENT, a), 5.0, true)
 		# Yön oku (direksiyon dersinde)
-		if LESSONS[index][0] == "STEER" and on:
-			var tip := c + Vector2(side * (r + 34.0), 0)
+		if LESSONS[index][0] == "STEER":
+			var tip := c + Vector2(side * 108.0, 0)
 			var pts := PackedVector2Array([tip, tip + Vector2(-side * 30.0, -24.0), tip + Vector2(-side * 30.0, 24.0)])
-			_pads.draw_colored_polygon(pts, Palette.ACCENT)
+			_pads.draw_colored_polygon(pts, Color(Palette.ACCENT, a))
 
 
 ## Başarı paneli: büyük ✓, yazı ve NEXT (son derste PLAY)
@@ -415,10 +437,37 @@ func _build_panel() -> void:
 	btn.anchor_bottom = 1.0
 	btn.offset_left = -210
 	btn.offset_right = 210
-	btn.offset_top = -195
-	btn.offset_bottom = -90
+	btn.offset_top = -255
+	btn.offset_bottom = -150
 	btn.pressed.connect(_next)
 	_panel.add_child(btn)
+	# Altında: aynı dersi tekrar oyna
+	var again := Button.new()
+	again.text = "REPLAY"
+	again.focus_mode = Control.FOCUS_NONE
+	var af := FontVariation.new()
+	af.spacing_glyph = 6
+	again.add_theme_font_override("font", af)
+	again.add_theme_font_size_override("font_size", 28)
+	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		again.add_theme_color_override(state, Palette.ACCENT)
+	for state in [["normal", 0.0], ["hover", 0.0], ["pressed", 0.15], ["focus", 0.0]]:
+		var sb := StyleBoxFlat.new()
+		sb.set_corner_radius_all(6)
+		sb.bg_color = Color(Palette.ACCENT, 0.06 + state[1])
+		sb.set_border_width_all(3)
+		sb.border_color = Palette.ACCENT
+		again.add_theme_stylebox_override(state[0], sb)
+	again.anchor_left = 0.5
+	again.anchor_right = 0.5
+	again.anchor_top = 1.0
+	again.anchor_bottom = 1.0
+	again.offset_left = -210
+	again.offset_right = 210
+	again.offset_top = -125
+	again.offset_bottom = -40
+	again.pressed.connect(_replay)
+	_panel.add_child(again)
 	_panel.modulate.a = 0.0
 	create_tween().tween_property(_panel, "modulate:a", 1.0, 0.35)
 

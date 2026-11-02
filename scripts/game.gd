@@ -307,6 +307,8 @@ func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 func _on_landed(air_time: float, quality: float, impact: float) -> void:
 	if lesson:
 		lesson.on_landed(air_time)
+		if not lesson.started or air_time < 0.35:
+			return  # derste başlangıçtaki iniş ve ek yerindeki minik sıçrama: PERFECT / HARD LANDING yazısı yok
 	# Kamera: çarpma hızı ve yamukluk kadar sarsılır
 	var shake := clampf(impact / 40.0, 0.0, 0.35) + quality * 0.5
 	if shake > 0.08:

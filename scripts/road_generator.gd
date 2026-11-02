@@ -301,7 +301,7 @@ func start(p_car: Car, seed_value := -1) -> void:
 		_rng.randomize()
 	# Başlangıç pisti: uzun ve geniş
 	var z0 := car.global_position.z
-	_head = _add_segment(0.0, MAIN_LEVEL, MAIN_LEVEL, 9.0, z0 + 15.0, z0 - 140.0, true)
+	_head = _add_segment(0.0, MAIN_LEVEL, MAIN_LEVEL, 9.0, z0 + 15.0, z0 - 140.0, true, false, -1.0, start_lights)
 	_fill(z0)
 
 
@@ -2890,6 +2890,8 @@ func _add_decor(seg: Segment) -> void:
 var custom_levels: Array[Dictionary] = []
 ## Test: başlangıç pistinden hemen sonra bu kalıp gelir (editörde "Oyna", testler)
 var test_level: Dictionary = {}
+## Başlangıç pistinin ucunda pist ışıkları (derslerde kapalı: ders yolu pistin boşluksuz devamı)
+var start_lights := true
 ## Kurulan el yapımı kalıpların kaydı (test sonucu için): dünya konumları
 var custom_log: Array[Dictionary] = []
 ## El yapımı kalıbın seçilme ağırlığı (diğer kalıplar ~0.5-3)
@@ -3006,7 +3008,7 @@ func _build_custom(prev: Segment, level: Dictionary, travelled: float, vary := f
 		var is_main := true
 		# Pist ışıkları yalnız gaz isteyen atlamadan önce (editördeki kırmızı noktalarla aynı):
 		# bitişik devamda, çıkmazda ve gazsız yetişilen yolda yok
-		var flush_next := not LevelCheck.needs_lights(level, p)
+		var flush_next: bool = not LevelCheck.needs_lights(level, p) or level.get("no_lights", false)
 		var bank := float(p.get("bank", 0.0))
 		var first: Segment
 		var last: Segment
