@@ -37,8 +37,9 @@ const SKIES := [
 ]
 ## Alt katman (uçuş): hep mercan; koyu erik rengi kayalar (3. görseldeki gibi)
 const LOWER := {
-	"sky_top": Color("f7c7b2"), "sky_horizon": Color("f2937e"),
-	"ground_horizon": Color("ef8270"), "ground_bottom": Color("e6625a"),
+	# Ufukta gök, zemin ve sis aynı renk: ufuk çizgisi erir
+	"sky_top": Color("f7c7b2"), "sky_horizon": Color("f08976"),
+	"ground_horizon": Color("f08976"), "ground_bottom": Color("e6685c"),
 	"fog": Color("f08976"), "fog_density": 0.006, "fog_height": -160.0, "fog_height_density": 0.03,
 	"ambient": Color("f2a08e"), "ambient_energy": 0.9, "sun": Color("fff0e6"), "sun_energy": 0.8,
 	"cloud": Color(0.96, 0.62, 0.55, 0.5), "ink": INK_DARK,

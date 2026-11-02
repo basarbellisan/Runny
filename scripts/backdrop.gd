@@ -11,19 +11,19 @@ const LAYERS := [[840.0, Vector2(310, 490), 320.0], [720.0, Vector2(190, 320), 2
 const SPAN := 2600.0          # dağ sırasının yatay genişliği
 const BASE_Y := -46.0         # dağların dibi (bulut tabakasının altı: sisten çıkıyormuş gibi)
 const SUN_DIST := 875.0
-const VALLEY := 520.0
+const VALLEY := 520.0         # vadinin yarı genişliği (m): ortada dağlar alçalır
 ## Güneşin yolu: sol alttan (ufkun altından) sağ yukarıya; bir geçiş SUN_PERIOD saniye, sonra baştan.
 ## Oyun başında yolun ~%30'unda (vadide, dibi dağlarda) başlar
 const SUN_PERIOD := 200.0
 const SUN_FROM := Vector2(-520.0, -110.0)
 const SUN_TO := Vector2(560.0, 420.0)
-const SUN_START := 0.3         # vadinin yarı genişliği (m): ortada dağlar alçalır
+const SUN_START := 0.3
 const SUN_RADIUS := 105.0
 const SUN_Y := 55.0          # güneşin merkezi (dibi dağların arkasında kalır)
 
 var car: Node3D
 var _layers: Array[MeshInstance3D] = []
-var _layer_mats: Array[StandardMaterial3D] = []
+var _layer_mats: Array[ShaderMaterial] = []
 var _sun: MeshInstance3D
 var _sun_mat := StandardMaterial3D.new()
 var _halo: MeshInstance3D
@@ -38,14 +38,9 @@ func setup(p_car: Node3D) -> void:
 	car = p_car
 	_rng.seed = 7
 	for i in LAYERS.size():
-		var m := StandardMaterial3D.new()
-		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		m.disable_fog = true
-		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		m.cull_mode = BaseMaterial3D.CULL_DISABLED
-		m.vertex_color_use_as_albedo = true
-		# Çizim sırası: hale, güneş, sonra dağlar uzaktan yakına (güneş hep dağların arkasında)
-		m.render_priority = i - 2
+		# Opak: arkasında kalan güneşi tamamen örter; dibi sis rengine erir
+		var m := ShaderMaterial.new()
+		m.shader = preload("res://shaders/mountain.gdshader")
 		var mi := MeshInstance3D.new()
 		mi.mesh = _ridge(LAYERS[i])
 		mi.material_override = m
@@ -62,7 +57,7 @@ func setup(p_car: Node3D) -> void:
 	_sun_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_sun_mat.disable_fog = true
 	_sun_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_sun_mat.render_priority = -4
+
 	_sun = MeshInstance3D.new()
 	_sun.mesh = disc
 	_sun.rotation.x = PI * 0.5
@@ -87,7 +82,7 @@ func setup(p_car: Node3D) -> void:
 	_halo_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_halo_mat.disable_fog = true
 	_halo_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_halo_mat.render_priority = -5
+
 	_halo = MeshInstance3D.new()
 	_halo.mesh = hd
 	_halo.material_override = _halo_mat
@@ -166,7 +161,9 @@ func update(pal: Dictionary, mood: float) -> void:
 	var mtn: Array = pal.mountains
 	for i in _layers.size():
 		_layers[i].global_position = Vector3(c.x * 0.6, BASE_Y, c.z - float(LAYERS[i][0]))
-		_layer_mats[i].albedo_color = Color(mtn[i], seen)
+		# Alt katmana inerken dağlar sis rengine karışıp kaybolur
+		_layer_mats[i].set_shader_parameter("color", (pal.fog as Color).lerp(mtn[i], seen))
+		_layer_mats[i].set_shader_parameter("fog", pal.fog)
 	_sun_t = fmod(_sun_t + get_process_delta_time() / SUN_PERIOD, 1.0)
 	# Hafif yay: önce yana, sonra daha dik yükselir
 	var sx := lerpf(SUN_FROM.x, SUN_TO.x, _sun_t)
