@@ -101,7 +101,7 @@ func setup(p_game: Node, p_car: Car, p_roads: RoadGenerator, bot := false) -> vo
 		game.lower.first_portal_time = Vector2(5.0, 6.0)  # tünel tırmanmayı öğrendikten sonra gelsin
 		roads.start_length = 32.0  # yol ~1 sn'de biter
 		game.lower.scripted = true  # yalnız dersin iki kayası (tam uçağın önünde), sonra tünel
-		game.lower.first_portal_time = Vector2(7.0, 7.5)
+		game.lower.first_portal_time = Vector2(60.0, 61.0)  # tüneli ders, ikinci kayadan sonra planlar
 	layer = 5
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_ui()
@@ -207,6 +207,9 @@ func _update_rocks() -> void:
 		_rock = {}
 		car.energy = car.max_energy  # derste enerji bitmesin
 		_step()
+		if done == 2:
+			# İki kaya geçildi: tünel ~4 sn sonra (arada nefes alınsın)
+			game.lower.plan_portal_at(car.global_position.z - maxf(car.forward_speed, 30.0) * 4.0)
 
 
 ## Engeller dersi: geçilen engeller (tasarım koordinatında arabanın z'si engeli geçti; havadayken

@@ -12,8 +12,10 @@ altında HOW TO PLAY ve PLAY (garaja geçer). HOW TO PLAY oyunun içinde oynanar
 açar (`scripts/lesson.gd`; garajda START'ın altındaki HOW TO PLAY de açar): 1 STEER (sol/sağ/sol/sağ,
 sonra dümdüz), 2 BOOST (roket gereken 3 boşluk), 3 ENERGY (15 kristal), 4 OBSTACLES (sırayla 2 blok,
 2 çakıl, 2 tümsek; yazı sıradaki engele göre), 5 WINGS (yol ~1 sn'de biter; önce iki parmakla tırman,
-sonra turuncu tünele dümen kırıp yola dön; derste az kaya). Görevler araba yola iner inmez başlar (kısa pist);
-kanat dersi dışında düşmek oyunu anında durdurur, ders baştan; panelde ses kapalı; ilerleme ✓'li yuvarlaklar. Her ders kendi düz yolunda (el yapımı kalıp biçiminde,
+sonra turuncu tünele dümen kırıp yola dön: uçağın tam önüne iki kaya konur, tünel ikinci kayadan ~4 sn
+sonra gelir; rastgele kaya yok). Görevler araba yola iner inmez başlar (kısa pist);
+kanat dersi dışında düşmek/çarpmak: ağır çekim, ekran açık renge solar, MISSED; ders yumuşak açılışla baştan
+(araba yanıp söner); panelde ses kapalı; ilerleme ✓'li yuvarlaklar. Her ders kendi düz yolunda (el yapımı kalıp biçiminde,
 girişi başlangıç pistine boşluksuz: `flush_entry`); ekranın iki yarısında büyük yuvarlaklar nereye
 dokunulacağını gösterir. Görev bitince ✓ ve NEXT; düşmek ya da çarpmak dersi baştan başlatır; SKIP garaja
 döner; panelde NEXT'in altında REPLAY aynı dersi baştan açar. Yuvarlaklar yalnız basılması gerektiğinde

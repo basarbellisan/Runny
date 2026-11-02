@@ -393,6 +393,11 @@ func _spawn_decor(cx: float, z: float) -> void:
 		_items.append(deco)
 
 
+## Ders için: sıradaki tüneli bu z'ye planla (öndeki sıra oraya gelince kurulur)
+func plan_portal_at(z: float) -> void:
+	_next_portal = _plan_portal(z)
+
+
 ## Ders için tek kaya (tam istenen yerde)
 func place_rock(pos: Vector3, r: float) -> Dictionary:
 	return _spawn_rock(pos, r)
