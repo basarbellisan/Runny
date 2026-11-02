@@ -506,7 +506,9 @@ func _on_game_over(reason: String) -> void:
 	cfg.set_value("tutorial", "landings", _landings_total)
 	cfg.save(SAVE_PATH)
 	# Patlamanın görülmesi için oyun sonu ekranı biraz gecikmeli gelir
-	get_tree().create_timer(1.0).timeout.connect(hud.show_game_over.bind(reason, final, best, _start_z - car.global_position.z))
+	# Patlama görülür, sonra kamera yavaşça göğe döner (altta dağlar ve güneş); sonuç morun üstünde
+	get_tree().create_timer(0.7).timeout.connect(($Camera as Node).look_sky.bind(1.8))
+	get_tree().create_timer(2.0).timeout.connect(hud.show_game_over.bind(reason, final, best, _start_z - car.global_position.z))
 	get_tree().create_timer(1.0).timeout.connect(Audio.play.bind("game_over"))
 	print("GAME_OVER reason=%s %s frame=%d" % [reason, _stats_text(), Engine.get_process_frames()])
 	if car.autopilot:

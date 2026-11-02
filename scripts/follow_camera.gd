@@ -21,6 +21,11 @@ var _fov_kick := 0.0
 var _fov_kick_target := 0.0
 var _roll := 0.0
 var _fov_kick_shown := 0.0
+## Oyun sonu: kamera yavaşça göğe döner (0 → 1); ekranın altında dağlar ve güneş kalır
+var sky_view := 0.0
+## Göğe dönünce bakış açısı (derece, yatayın üstü)
+@export var sky_pitch := 40.0
+var _sky_from := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -49,12 +54,27 @@ func _process(delta: float) -> void:
 		_roll = lerpf(_roll, _target.surface_roll * bank_follow, 1.0 - exp(-4.0 * delta))
 		rotate_object_local(Vector3(0, 0, 1), _roll)
 	else:
-		look_at(t)
+		var look := t
+		if sky_view > 0.0:
+			# Göğe dönüş: kaza anındaki bakış noktasından ufkun üstüne
+			var k_sky := sky_view * sky_view * (3.0 - 2.0 * sky_view)
+			if _sky_from == Vector3.ZERO:
+				_sky_from = t
+			var up := global_position + Vector3(0, tan(deg_to_rad(sky_pitch)), -1).normalized() * 200.0
+			look = _sky_from.lerp(up, k_sky)
+			fov = lerpf(fov, base_fov, 1.0 - exp(-2.0 * delta))
+		look_at(look)
 	# Sarsıntı: hızla söner
 	_trauma = maxf(_trauma - delta * 1.8, 0.0)
 	var k := _trauma * _trauma
 	h_offset = randf_range(-1.0, 1.0) * 0.6 * k
 	v_offset = randf_range(-1.0, 1.0) * 0.6 * k
+
+
+## Oyun sonu: kamerayı süre boyunca göğe çevir
+func look_sky(duration: float) -> void:
+	_sky_from = Vector3.ZERO
+	create_tween().tween_property(self, "sky_view", 1.0, duration).set_trans(Tween.TRANS_SINE)
 
 
 func fov_kick(degrees: float) -> void:

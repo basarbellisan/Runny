@@ -142,8 +142,9 @@ func _build_energy_bar() -> void:
 	_energy.visible = false
 
 
-## Oyun sonu ekranı tasarımı (deneme: --over_style=N): 1 kart, 2 koyu perde + iki sütun, 3 sade büyük skor
-var over_style := 1
+## Oyun sonu ekranı tasarımı (deneme: --over_style=N): 0 gökyüzünde (kamera göğe döner; perde yok),
+## 1 kart, 2 koyu perde + iki sütun, 3 sade büyük skor
+var over_style := 0
 var _over_new: Control
 var _over_dist_lbl: Label
 var _over_best_lbl: Label
@@ -169,6 +170,20 @@ func _layout_game_over() -> void:
 	var deep := Color("2a1c50")      # paletin koyu moru
 	var ink := Palette.INK_DARK
 	match over_style:
+		0:
+			# Gökyüzünde: perde yok; kamera göğe dönmüş, yazılar morun üstünde, beyaz
+			_over_bg.color = Color(0, 0, 0, 0)
+			_over_reason = _over_label(30, 250, true, Palette.ACCENT)
+			_over_score = _over_label(150, 380, false, Palette.SNOW)
+			_over_new = _badge("NEW BEST", 475)
+			_over_dist_lbl = _over_label(16, 550, true, Color(Palette.SNOW, 0.6), -140)
+			_over_dist = _over_label(36, 595, false, Palette.SNOW, -140)
+			_over_best_lbl = _over_label(16, 550, true, Color(Palette.SNOW, 0.6), 140)
+			_over_best = _over_label(36, 595, false, Palette.SNOW, 140)
+			for l: Label in [_over_score, _over_dist, _over_best, _over_reason]:
+				l.add_theme_color_override("font_shadow_color", Color(0.1, 0.05, 0.2, 0.35))
+				l.add_theme_constant_override("shadow_offset_y", 3)
+			_buttons(740, Color(0, 0, 0, 0))
 		1:
 			# Kart: sahne koyu mor perdeyle kararır, ortada beyaz yuvarlak köşeli kart
 			_over_bg.color = Color(deep, 0.72)
@@ -371,6 +386,8 @@ func set_speed(speed: float, base_speed: float, boost: float, show: bool) -> voi
 ## Oyun bitince kadranlar kalkar (yalnız oynarken görünür)
 func hide_gauges() -> void:
 	_speedo_shown = false
+	for l: Control in [_score, _dist] + _captions:
+		create_tween().tween_property(l, "modulate:a", 0.0, 0.4)
 	for c: Control in [_speedo, gauge]:
 		create_tween().tween_property(c, "modulate:a", 0.0, 0.3)
 
