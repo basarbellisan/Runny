@@ -15,8 +15,9 @@ const SUN_DIST := 875.0
 const FADE_LIFT := 25.0
 ## Çıkarken (dağlar belirirken) kayma daha az
 const FADE_LIFT_UP := 8.0
-## Çıkarken belirme süresi (sn)
-const FADE_IN := 2.0
+## Belirmenin en hızlı hâli: tamamı bu kadar saniyeden kısa sürmez (yola oturunca son pay yumuşak)
+const FADE_IN := 0.6
+const FADE_DEAD := 4.0
 const VALLEY := 520.0         # vadinin yarı genişliği (m): ortada dağlar alçalır
 ## Güneşin yolu: sol alttan (dibi hep dağların dibinden yukarıda) sağ yukarıya; bir geçiş SUN_PERIOD saniye, sonra baştan.
 ## Oyun başında yolun ~%30'unda (vadide, dibi dağlarda) başlar
@@ -166,10 +167,24 @@ func _ridge(layer: Array) -> ArrayMesh:
 func update(pal: Dictionary, mood: float) -> void:
 	if car == null:
 		return
-	# Katmanlar arası geçişte yavaşça saydamlaşır / belirir (arkasındaki gök ne renkse ona erir)
-	var target := 1.0 - smoothstep(0.05, 0.75, mood)
-	# Kaybolurken yüksekliği izler (iniş); belirirken zamana yayılır (çıkışta yavaş fade-in, ~FADE_IN sn)
+	# Katmanlar arası geçiş arabanın yüksekliğine bağlı (saydamlaşarak kaybolur / belirir):
+	# inerken yoldan ayrıldığı yükseklikten uçuş yüksekliğine kadar sürer (süzülmeye başlayınca biter);
+	# çıkarken uçuş yüksekliğinden ineceği yola kadar, araba yola oturunca tamamlanır
 	var dt := get_process_delta_time()
+	var target := 1.0
+	var cr := car as Car
+	if cr:
+		var y := cr.global_position.y
+		var low := cr.flight_altitude
+		match cr.mode:
+			Car.Mode.LAUNCH:
+				target = 0.9 * smoothstep(low, cr._launch_target.y, y)  # son payı yola oturunca
+			Car.Mode.DEAD:
+				target = _shown
+			_:
+				# Sürüşte de (yoldan çıkıp düşmeye başlayınca hemen); normal atlayışlarda titremesin diye
+				# yolun FADE_DEAD metre altına kadar dolu
+				target = smoothstep(low, cr.last_floor_y - FADE_DEAD, y)
 	var appearing := target > _shown + 0.0001
 	if appearing:
 		_shown = move_toward(_shown, target, dt / FADE_IN)
