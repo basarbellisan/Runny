@@ -331,8 +331,11 @@ func _buttons(y: float, garage_bg: Color) -> void:
 			sb.set_corner_radius_all(8)
 			if b[1]:
 				sb.bg_color = Palette.ACCENT.darkened(state[1])
+			elif garage_bg.a > 0.0:
+				# Açık renk: opak düz zemin, çerçevesiz (telefonda ince çerçeve köşelerde bozuluyordu)
+				sb.bg_color = Color(garage_bg, 1.0).darkened(state[1] * 0.5)
 			else:
-				sb.bg_color = garage_bg if garage_bg.a > 0.0 else Color(Palette.ACCENT, 0.08 + state[1])
+				sb.bg_color = Color(Palette.ACCENT, 0.08 + state[1])
 				sb.set_border_width_all(3)
 				sb.border_color = Palette.ACCENT
 			btn.add_theme_stylebox_override(state[0], sb)
