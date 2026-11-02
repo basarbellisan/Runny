@@ -162,6 +162,8 @@ func _ready() -> void:
 	if _args.has("road_depth"):
 		var rd := Array(str(_args.road_depth).split(",")).map(func(v): return float(v))
 		roads.road_depth = Vector2(rd[0], rd[-1])  # karşılaştırma: 0 = eski yüksek duvarlar; "1,3" aralık
+	if _args.has("line_style"):
+		roads.line_style = int(_args.line_style)  # çizgi düzeni denemesi
 	if _args.has("block_style"):
 		roads.block_style = int(_args.block_style)  # blok tasarımı denemesi
 	hud.gauge.color = roads.crystal_color

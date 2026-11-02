@@ -110,6 +110,21 @@ const WALL_FLOOR := 36.0
 const LINE_W := 0.14
 const LINE_PERIOD := 9.0
 const LINE_DUTY := 0.45
+## Şerit çizgisi düzenleri (line_style). Her çizgi: {x: kenardan içeri (m; "c" = yolun ortası),
+## w: genişlik, p: bir çizgi+boşluk (m), d: çizgi payı (1 = kesintisiz)}
+const LINE_STYLES := [
+	{"name": "Şu anki", "lines": [{"x": 0.45, "w": 0.14, "p": 9.0, "d": 0.45}]},
+	{"name": "Uzun ince", "lines": [{"x": 0.45, "w": 0.1, "p": 16.0, "d": 0.7}]},
+	{"name": "Kısa sık", "lines": [{"x": 0.45, "w": 0.16, "p": 4.0, "d": 0.4}]},
+	{"name": "Noktalı", "lines": [{"x": 0.45, "w": 0.22, "p": 3.0, "d": 0.1}]},
+	{"name": "Kesintisiz ince", "lines": [{"x": 0.45, "w": 0.1, "p": 9.0, "d": 1.0}]},
+	{"name": "Çift ince", "lines": [{"x": 0.35, "w": 0.07, "p": 9.0, "d": 1.0}, {"x": 0.6, "w": 0.07, "p": 9.0, "d": 1.0}]},
+	{"name": "Çift kesik", "lines": [{"x": 0.35, "w": 0.1, "p": 8.0, "d": 0.5}, {"x": 0.65, "w": 0.1, "p": 8.0, "d": 0.5}]},
+	{"name": "Kalın kısa", "lines": [{"x": 0.5, "w": 0.3, "p": 12.0, "d": 0.22}]},
+	{"name": "Kenar + orta", "lines": [{"x": 0.3, "w": 0.07, "p": 9.0, "d": 1.0}, {"x": "c", "w": 0.16, "p": 10.0, "d": 0.4}]},
+	{"name": "Kenara yakın uzun", "lines": [{"x": 0.18, "w": 0.2, "p": 20.0, "d": 0.8}]},
+]
+@export var line_style := 0
 ## Yolların inebileceği en alçak seviye
 const MIN_LEVEL := -18.0
 ## Bölge renkleri: her bölge_uzunluğu metrede bir yumuşakça değişir
@@ -1085,10 +1100,9 @@ func _add_segment(x: float, top: float, top_end: float, width: float, z_start: f
 	_add_box(body, Vector3(0, -depth * 0.5, 0), Vector3(width, depth, slope_len), _wall_material(s))
 	# Asfalt ve kenar çizgileri; yokuş yukarı rampaların çizgileri turuncu
 	_add_box(body, Vector3(0, -0.04, 0), Vector3(width - 0.3, 0.1, slope_len - 0.3), _asphalt_material(s))
-	var line_x := width * 0.5 - 0.45
-	var line_mat := _ramp_line_mat if rise > 1.0 or bonus else _line_for(s)
-	for sx in [-1.0, 1.0]:
-		_add_box(body, Vector3(sx * line_x, 0.015, 0), Vector3(LINE_W, 0.02, slope_len - 0.6), line_mat)
+	for ln in _line_layout(width):
+		var line_mat: ShaderMaterial = _ramp_line_mat if rise > 1.0 or bonus else _line_for(s, ln)
+		_add_box(body, Vector3(ln.cx, 0.015, 0), Vector3(ln.w, 0.02, slope_len - 0.6), line_mat)
 	if rise > 1.0:
 		_add_chevrons(body, width, slope_len)
 	if is_main and lights:
@@ -2741,16 +2755,20 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 	var unused := PackedVector3Array()
 	var asphalt := SurfaceTool.new()
 	asphalt.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var lines := SurfaceTool.new()
-	lines.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var line_x := hw - 0.45
+	var layout := _line_layout(hw * 2.0)
+	var line_tools: Array[SurfaceTool] = []
+	for ln in layout:
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		line_tools.append(st)
 	for i in rows:
 		_quad(asphalt, unused, at.call(-hw + 0.15, i, 0.02), at.call(hw - 0.15, i, 0.02),
 			at.call(hw - 0.15, i + 1, 0.02), at.call(-hw + 0.15, i + 1, 0.02), Vector3.UP)
-		for sx in [-1.0, 1.0]:
-			var c: float = sx * line_x
-			_quad(lines, unused, at.call(c - 0.09, i, 0.04), at.call(c + 0.09, i, 0.04),
-				at.call(c + 0.09, i + 1, 0.04), at.call(c - 0.09, i + 1, 0.04), Vector3.UP)
+		for li in layout.size():
+			var c: float = layout[li].cx
+			var hwl: float = layout[li].w * 0.5
+			_quad(line_tools[li], unused, at.call(c - hwl, i, 0.04), at.call(c + hwl, i, 0.04),
+				at.call(c + hwl, i + 1, 0.04), at.call(c - hwl, i + 1, 0.04), Vector3.UP)
 	# Alçak kenarda kırmızı-beyaz bordür: yol nereye yatıyorsa o kenarda, yatık
 	# bölüm boyunca (S bükülmede öbür kenara geçer)
 	var kerbs: Array[SurfaceTool] = [SurfaceTool.new(), SurfaceTool.new()]
@@ -2785,11 +2803,12 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 	asphalt_mi.mesh = asphalt.commit()
 	asphalt_mi.material_override = _asphalt_material(s)
 	body.add_child(asphalt_mi)
-	var lines_mi := MeshInstance3D.new()
-	lines_mi.mesh = lines.commit()
-	lines_mi.material_override = _line_for(s)
-	lines_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	body.add_child(lines_mi)
+	for li in layout.size():
+		var lines_mi := MeshInstance3D.new()
+		lines_mi.mesh = line_tools[li].commit()
+		lines_mi.material_override = _line_for(s, layout[li])
+		lines_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		body.add_child(lines_mi)
 	if lights:
 		_add_runway_lights(body, s, length)
 
@@ -2873,14 +2892,28 @@ func _pal(distance: float) -> Dictionary:
 var _line_mats := {}
 
 
-func _line_for(s: Segment) -> ShaderMaterial:
+func _line_for(s: Segment, ln: Dictionary) -> ShaderMaterial:
 	var c := Palette.line_for(_pal(-(s.z_start + s.z_end) * 0.5).road_top)
-	var key := c.to_html(false)
+	var key := "%s/%s/%s" % [c.to_html(false), ln.p, ln.d]
 	if not _line_mats.has(key):
 		var m := _line_mat.duplicate() as ShaderMaterial
 		m.set_shader_parameter("color", c)
+		m.set_shader_parameter("period", float(ln.p))
+		m.set_shader_parameter("duty", float(ln.d))
 		_line_mats[key] = m
 	return _line_mats[key]
+
+
+## Seçili düzende yolun çizgileri: [{cx (yolun ortasına göre x), w, p, d}] (kenar çizgileri iki yanda)
+func _line_layout(width: float) -> Array:
+	var out: Array = []
+	for ln in LINE_STYLES[clampi(line_style, 0, LINE_STYLES.size() - 1)].lines:
+		if str(ln.x) == "c":
+			out.append({"cx": 0.0, "w": ln.w, "p": ln.p, "d": ln.d})
+		else:
+			for sx in [-1.0, 1.0]:
+				out.append({"cx": sx * (width * 0.5 - float(ln.x)), "w": ln.w, "p": ln.p, "d": ln.d})
+	return out
 
 
 func _zone_color(distance: float) -> Color:
