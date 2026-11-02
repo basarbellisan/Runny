@@ -74,7 +74,6 @@ var _pips: HBoxContainer
 var _panel: Control
 ## Solma perdesi ve ortadaki MISSED yazısı
 var _fade: ColorRect
-var _missed: Label
 var _bot := false
 ## Test: bot hep sola basar (yoldan düşmeyi görmek için)
 var bot_fall := false
@@ -275,12 +274,10 @@ func fail(reason: String) -> void:
 	print("LESSON_FAIL %d %s z=%.0f x=%.1f" % [index, reason, car.global_position.z, car.global_position.x])
 	_say.text = "%s  ·  TRY AGAIN" % reason.trim_suffix("!")
 	_say_box.add_theme_stylebox_override("panel", _pill(Palette.ACCENT))
-	_missed.text = reason.trim_suffix("!") if reason != "CRASHED!" else "CRASHED"
 	var tw := create_tween().set_ignore_time_scale(true).set_parallel()
 	# Ağır çekim (kanatlar açılmadan ekran solar)
 	tw.tween_method(func(v: float): Engine.time_scale = v, 1.0, 0.15, 0.35).set_ease(Tween.EASE_OUT)
 	tw.tween_property(_fade, "color:a", 1.0, 0.6).set_delay(0.25)
-	tw.tween_property(_missed, "modulate:a", 1.0, 0.3).set_delay(0.45)
 	tw.tween_method(func(v: float): AudioServer.set_bus_volume_db(0, v), 0.0, -40.0, 0.7)
 	tw.chain().tween_interval(0.45)
 	tw.chain().tween_callback(func():
@@ -293,17 +290,26 @@ func fail(reason: String) -> void:
 func _success() -> void:
 	finished = true
 	print("LESSON_DONE %d" % index)
-	_build_panel()
-	get_tree().create_timer(0.5).timeout.connect(func():
-		if is_instance_valid(self) and not _bot:
+	# Düşüşteki gibi: ağır çekim, sahne açık renge solar (üstteki yazılar kalır), ses kısılır;
+	# sonra ✓, NICE ve butonlar belirir, oyun durur
+	var tw := create_tween().set_ignore_time_scale(true).set_parallel()
+	tw.tween_method(func(v: float): Engine.time_scale = v, 1.0, 0.15, 0.35).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_fade, "color:a", 1.0, 0.6).set_delay(0.2)
+	tw.tween_method(func(v: float): AudioServer.set_bus_volume_db(0, v), 0.0, -40.0, 0.7)
+	tw.chain().tween_callback(func():
+		_build_panel()
+		if not _bot:
 			get_tree().paused = true
+			Engine.time_scale = 1.0
 			AudioServer.set_bus_mute(0, true))  # panelde araba sesi yok
 	if _bot:
-		get_tree().create_timer(1.2).timeout.connect(_next)
+		get_tree().create_timer(1.6, true, false, true).timeout.connect(_next)
 
 
 func _next() -> void:
 	get_tree().paused = false
+	Engine.time_scale = 1.0
+	AudioServer.set_bus_volume_db(0, 0.0)
 	AudioServer.set_bus_mute(0, false)
 	if index + 1 >= COUNT:
 		current = -1
@@ -316,12 +322,16 @@ func _next() -> void:
 ## Aynı ders baştan
 func _replay() -> void:
 	get_tree().paused = false
+	Engine.time_scale = 1.0
+	AudioServer.set_bus_volume_db(0, 0.0)
 	AudioServer.set_bus_mute(0, false)
 	get_tree().reload_current_scene()
 
 
 func _skip() -> void:
 	get_tree().paused = false
+	Engine.time_scale = 1.0
+	AudioServer.set_bus_volume_db(0, 0.0)
 	AudioServer.set_bus_mute(0, false)
 	current = -1
 	get_tree().change_scene_to_file("res://scenes/menu.tscn")
@@ -387,22 +397,6 @@ func _pad_target() -> int:
 					return 2
 				return 0
 			return _tunnel_side()
-		"ENERGY":
-			return _crystal_side()
-	return 0
-
-
-## Enerji dersi: sıradaki kristal seti hangi yanda (araba o hizada değilse)
-func _crystal_side() -> int:
-	if roads.custom_log.is_empty() or car.mode != Car.Mode.DRIVE:
-		return 0
-	var d := roads.to_design(car.global_position)
-	for st in CRYSTAL_SETS:
-		if d.y < float(st[1]) + 4.0 * CRYSTAL_STEP:
-			var dx: float = float(st[0]) - d.x
-			if absf(dx) < 1.2 or float(st[1]) - d.y > 90.0:
-				return 0
-			return 1 if dx > 0.0 else -1
 	return 0
 
 
@@ -519,17 +513,14 @@ func _build_ui() -> void:
 	_pads.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_pads.draw.connect(_draw_pads)
 	_ui.add_child(_pads)
+	# Solma perdesi yazıların ve yuvarlakların arkasında (sahne solar, üstteki yazılar kalır)
 	_fade = ColorRect.new()
 	_fade.color = Color(Palette.PAPER, 0.0)
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_ui.add_child(_fade)
-	_missed = _label(_ui, 56, 600, true)
-	_missed.add_theme_color_override("font_color", Palette.ACCENT)
-	_missed.modulate.a = 0.0
-	var again := _label(_missed, 22, 140, true)
-	again.text = "TRY AGAIN"
-	again.modulate.a = 0.6
+	_ui.move_child(_fade, 0)
+
 
 
 ## Dokunma yuvarlakları: yalnız basılması gereken yerde belirir; parmak basar gibi küçülüp büyür,
@@ -574,7 +565,7 @@ func _build_panel() -> void:
 	_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(_panel)
 	var bg := ColorRect.new()
-	bg.color = Color(Palette.PAPER, 0.86)
+	bg.color = Color(Palette.PAPER, 0.0)  # arka plan zaten solmuş (perde)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_panel.add_child(bg)
@@ -646,7 +637,7 @@ func _build_panel() -> void:
 	again.pressed.connect(_replay)
 	_panel.add_child(again)
 	_panel.modulate.a = 0.0
-	create_tween().tween_property(_panel, "modulate:a", 1.0, 0.35)
+	create_tween().set_ignore_time_scale(true).tween_property(_panel, "modulate:a", 1.0, 0.35)
 
 
 ## Yönlendirme kutusu
