@@ -26,6 +26,8 @@ var sky_view := 0.0
 ## Göğe dönünce bakış açısı (derece, yatayın üstü)
 @export var sky_pitch := 40.0
 var _sky_from := Vector3.ZERO
+## Son baktığı nokta: araba patlayınca bakış buradan arabaya yumuşakça kayar (birden atlamaz)
+var _look := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -50,11 +52,16 @@ func _process(delta: float) -> void:
 		_fov_kick = lerpf(_fov_kick, _fov_kick_target, 1.0 - exp(-12.0 * delta))
 		fov = lerpf(fov, want_fov, 1.0 - exp(-2.0 * delta)) + (_fov_kick - _fov_kick_shown)
 		_fov_kick_shown = _fov_kick
-		look_at(Vector3(lerpf(p.x, t.x, 0.6), t.y - 1.0, t.z - look_ahead))
+		_look = Vector3(lerpf(p.x, t.x, 0.6), t.y - 1.0, t.z - look_ahead)
+		look_at(_look)
 		_roll = lerpf(_roll, _target.surface_roll * bank_follow, 1.0 - exp(-4.0 * delta))
 		rotate_object_local(Vector3(0, 0, 1), _roll)
 	else:
-		var look := t
+		# Patlama: bakış önceki noktadan arabanın kalıntısına yavaşça döner
+		if _look == Vector3.ZERO:
+			_look = t
+		_look = _look.lerp(t, 1.0 - exp(-1.5 * delta))
+		var look := _look
 		if sky_view > 0.0:
 			# Göğe dönüş: kaza anındaki bakış noktasından ufkun üstüne
 			var k_sky := sky_view * sky_view * (3.0 - 2.0 * sky_view)
