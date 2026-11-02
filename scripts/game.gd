@@ -352,7 +352,6 @@ func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 			Audio.play("wings")
 			_flight_hint()
 		Car.Mode.LAUNCH:
-			hud.popup("UP", true)
 			Audio.play("portal")
 
 
