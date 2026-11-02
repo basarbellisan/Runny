@@ -305,6 +305,8 @@ func _update_palette() -> void:
 	for key: String in MOOD_KEYS:
 		var pk: String = MOOD_KEYS[key]
 		_moods[key] = [up[pk], Palette.LOWER[pk]]
+	# Alt katmanın gökyüzü tepede yukarının morundan başlar, aşağıda mercana iner
+	_moods["sky:sky_top_color"] = [up.sky_top, up.fog]
 	_ink = (up.ink as Color).lerp(Palette.LOWER.ink, smoothstep(0.3, 0.7, _mood))
 	if backdrop:
 		backdrop.update(up, _mood)
