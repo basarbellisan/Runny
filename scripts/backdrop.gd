@@ -12,7 +12,7 @@ const SPAN := 2600.0          # dağ sırasının yatay genişliği
 const BASE_Y := -46.0         # dağların dibi (bulut tabakasının altı: sisten çıkıyormuş gibi)
 const SUN_DIST := 875.0
 ## Katman geçişinde dağlar kaybolurken bu kadar yukarı kayar (çıkarken yukarıdan yerine iner)
-const FADE_LIFT := 70.0
+const FADE_LIFT := 25.0
 const VALLEY := 520.0         # vadinin yarı genişliği (m): ortada dağlar alçalır
 ## Güneşin yolu: sol alttan (dibi hep dağların dibinden yukarıda) sağ yukarıya; bir geçiş SUN_PERIOD saniye, sonra baştan.
 ## Oyun başında yolun ~%30'unda (vadide, dibi dağlarda) başlar
