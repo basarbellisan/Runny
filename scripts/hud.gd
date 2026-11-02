@@ -171,8 +171,8 @@ func _layout_game_over() -> void:
 	var ink := Palette.INK_DARK
 	match over_style:
 		0:
-			# Gökyüzünde: perde yok; kamera göğe dönmüş, yazılar morun üstünde, beyaz
-			_over_bg.color = Color(0, 0, 0, 0)
+			# Sahnenin üstünde: hafif koyu mor perde (beyaz yazılar okunsun), yazılar beyaz
+			_over_bg.color = Color(deep, 0.5)
 			_over_reason = _over_label(30, 250, true, Palette.ACCENT)
 			_over_score = _over_label(150, 380, false, Palette.SNOW)
 			_over_new = _badge("NEW BEST", 475)
@@ -183,7 +183,7 @@ func _layout_game_over() -> void:
 			for l: Label in [_over_score, _over_dist, _over_best, _over_reason]:
 				l.add_theme_color_override("font_shadow_color", Color(0.1, 0.05, 0.2, 0.35))
 				l.add_theme_constant_override("shadow_offset_y", 3)
-			_buttons(740, Color(0, 0, 0, 0))
+			_buttons(740, Color(Palette.SNOW, 0.95))
 		1:
 			# Kart: sahne koyu mor perdeyle kararır, ortada beyaz yuvarlak köşeli kart
 			_over_bg.color = Color(deep, 0.72)
