@@ -29,7 +29,10 @@ const SKIES := [
 		"fog": Color("9256a2"), "fog_density": 0.0045, "fog_height": -6.0, "fog_height_density": 0.09,
 		"ambient": Color("8c64b4"), "ambient_energy": 0.8, "sun": Color("ffe0ea"), "sun_energy": 0.75,
 		"road_top": Color("3a2c4e"), "road_side": Color("c25c8e"),
-		"decor": Color("7a4590"), "cloud": Color(0.78, 0.52, 0.82, 0.22), "ink": INK_LIGHT},
+		"decor": Color("7a4590"), "cloud": Color(0.78, 0.52, 0.82, 0.22), "ink": INK_LIGHT,
+		# Ufuk: dağ katları (uzaktan yakına, yakın olan koyu), güneş diski, parıltılar
+		"mountains": [Color("6b3d8c"), Color("4f2a72"), Color("3a1d58")],
+		"sun_disc": Color("ff8f7e"), "sparkle": Color("ffc8f0")},
 ]
 ## Alt katman (uçuş): hep mercan; koyu erik rengi kayalar (3. görseldeki gibi)
 const LOWER := {

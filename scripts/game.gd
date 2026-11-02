@@ -186,6 +186,9 @@ func _ready() -> void:
 	_landings_total = int(_load_save().get_value("tutorial", "landings", 0))
 	roads.set_crystal_color(roads.crystal_color)
 	roads.start(car, seed_value)
+	backdrop = Backdrop.new()
+	add_child(backdrop)
+	backdrop.setup(car)
 	_apply_light_preset(int(_args.get("light", "0")))
 	_apply_mood(0.0)
 
@@ -293,9 +296,13 @@ func _update_palette() -> void:
 		var pk: String = MOOD_KEYS[key]
 		_moods[key] = [up[pk], Palette.LOWER[pk]]
 	_ink = (up.ink as Color).lerp(Palette.LOWER.ink, smoothstep(0.3, 0.7, _mood))
+	if backdrop:
+		backdrop.update(up, _mood)
 
 
 var _ink := Palette.INK_LIGHT
+## Ufuktaki dağlar, güneş ve parıltılar
+var backdrop: Backdrop
 
 
 func _apply_mood(m: float) -> void:
