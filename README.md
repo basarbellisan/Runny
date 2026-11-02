@@ -14,7 +14,9 @@ sonra dümdüz), 2 BOOST (roket gereken 3 boşluk), 3 ENERGY (15 kristal), 4 OBS
 (yol biter, kanatlarla uçup halkalardan yola dön). Her ders kendi düz yolunda (el yapımı kalıp biçiminde,
 girişi başlangıç pistine boşluksuz: `flush_entry`); ekranın iki yarısında büyük yuvarlaklar nereye
 dokunulacağını gösterir. Görev bitince ✓ ve NEXT; düşmek ya da çarpmak dersi baştan başlatır; SKIP garaja
-döner. Test: `--lesson=N` (`--lessonbot` dersi kendi geçer; diğer derslerde `--autopilot` ile).
+döner; panelde NEXT'in altında REPLAY aynı dersi baştan açar. Yuvarlaklar yalnız basılması gerektiğinde
+belirir (basış ve yankı halkası animasyonu). Derslerde başlangıç pisti ışıksız (`roads.start_lights`), kanat dersinin
+yol sonu da (`no_lights`). Garajda HOW TO PLAY butonu oyun adının altında. Test: `--lesson=N` (`--lessonbot` dersi kendi geçer; diğer derslerde `--autopilot` ile).
 Eski 6 sayfalık resimli anlatım (`scripts/tutorial.gd`, `--tutorial=N`) duruyor ama açılmıyor. Seçim
 kaydedilir. Oyun sonunda GARAGE butonu garaja döndürür.
 
