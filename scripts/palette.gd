@@ -43,16 +43,16 @@ const LOWER := {
 
 
 ## Şerit çizgisinin rengi yolun üst yüz renginden: aynı renk ailesi, tonu turuncuya doğru
-## kaydırılmış, canlı (doygun) ve parlak; beyaza açılmaz (sönük olmasın)
-const LINE_HUE_WARM := 0.58    # tonun turuncuya ne kadar döneceği (0 yolun tonu, 1 tam turuncu)
-const LINE_SAT := 0.62
+## kaydırılmış (yavru ağzı: somon-şeftali), parlak; beyaza açılmaz (sönük olmasın)
+const LINE_HUE_WARM := 0.93    # tonun turuncuya ne kadar döneceği (0 yolun tonu, 1 tam turuncu)
+const LINE_SAT := 0.46
 const LINE_VAL := 1.0
 
 
 static func line_for(road_top: Color) -> Color:
 	var h := road_top.h
 	var d := wrapf(ACCENT.h - h, -0.5, 0.5)  # turuncuya en kısa yoldan
-	return Color.from_hsv(wrapf(h + d * LINE_HUE_WARM, 0.0, 1.0), maxf(road_top.s, LINE_SAT), LINE_VAL)
+	return Color.from_hsv(wrapf(h + d * LINE_HUE_WARM, 0.0, 1.0), LINE_SAT, LINE_VAL)
 
 
 ## Mesafeye göre üst katman paleti: her bölge zone_length metre, sonundaki %20'de sıradakine geçer
