@@ -41,6 +41,8 @@ var _sparkle_mat := StandardMaterial3D.new()
 var _rng := RandomNumberGenerator.new()
 var _sun_t := SUN_START
 var _shown := 1.0
+var _prev_mode := -1
+var _launch_z0 := 0.0
 var _lift_k := FADE_LIFT
 
 
@@ -178,13 +180,21 @@ func update(pal: Dictionary, mood: float) -> void:
 		var low := cr.flight_altitude
 		match cr.mode:
 			Car.Mode.LAUNCH:
-				target = 0.9 * smoothstep(low, cr._launch_target.y, y)  # son payı yola oturunca
+				# Tünelden yola yolculuğun ilerleyişi (yükseklik değil: fırlama çok hızlı); başta çok
+				# az, sona doğru belirir; son payı yola oturunca
+				if _prev_mode != Car.Mode.LAUNCH:
+					_launch_z0 = cr.global_position.z
+				var span: float = _launch_z0 - cr._launch_target.z
+				var k := clampf((_launch_z0 - cr.global_position.z) / maxf(span, 1.0), 0.0, 1.0)
+				target = 0.92 * pow(k, 2.5)
 			Car.Mode.DEAD:
 				target = _shown
 			_:
 				# Sürüşte de (yoldan çıkıp düşmeye başlayınca hemen); normal atlayışlarda titremesin diye
 				# yolun FADE_DEAD metre altına kadar dolu
 				target = smoothstep(low, cr.last_floor_y - FADE_DEAD, y)
+	if cr:
+		_prev_mode = cr.mode
 	var appearing := target > _shown + 0.0001
 	if appearing:
 		_shown = move_toward(_shown, target, dt / FADE_IN)
