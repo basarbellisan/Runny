@@ -154,17 +154,19 @@ func _ridge(layer: Array) -> ArrayMesh:
 func update(pal: Dictionary, mood: float) -> void:
 	if car == null:
 		return
-	var seen := 1.0 - smoothstep(0.15, 0.6, mood)
-	visible = seen > 0.01
+	# Katmanlar arası geçişte yavaşça kaybolur / belirir; renk o anki sise (mordan mercana) erir
+	var seen := 1.0 - smoothstep(0.05, 0.75, mood)
+	visible = seen > 0.002
 	if not visible:
 		return
+	var fog_now: Color = (pal.fog as Color).lerp(Palette.LOWER.fog, mood)
 	var c := car.global_position
 	var mtn: Array = pal.mountains
 	for i in _layers.size():
 		_layers[i].global_position = Vector3(c.x * 0.6, BASE_Y, c.z - float(LAYERS[i][0]))
 		# Alt katmana inerken dağlar sis rengine karışıp kaybolur
-		_layer_mats[i].set_shader_parameter("color", (pal.fog as Color).lerp(mtn[i], seen))
-		_layer_mats[i].set_shader_parameter("fog", pal.fog)
+		_layer_mats[i].set_shader_parameter("color", fog_now.lerp(mtn[i], seen))
+		_layer_mats[i].set_shader_parameter("fog", fog_now)
 	_sun_t = fmod(_sun_t + get_process_delta_time() / SUN_PERIOD, 1.0)
 	# Hafif yay: önce yana, sonra daha dik yükselir
 	var sx := lerpf(SUN_FROM.x, SUN_TO.x, _sun_t)
