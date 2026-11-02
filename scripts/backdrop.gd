@@ -15,8 +15,9 @@ const VALLEY := 520.0         # vadinin yarı genişliği (m): ortada dağlar al
 ## Güneşin yolu: sol alttan (dibi hep dağların dibinden yukarıda) sağ yukarıya; bir geçiş SUN_PERIOD saniye, sonra baştan.
 ## Oyun başında yolun ~%30'unda (vadide, dibi dağlarda) başlar
 const SUN_PERIOD := 200.0
-const SUN_FROM := Vector2(-520.0, 130.0)
-const SUN_TO := Vector2(560.0, 470.0)
+## En alçakta güneşin dibi dağların dibine (BASE_Y) değer, aşağı inmez
+const SUN_FROM := Vector2(-520.0, BASE_Y + 105.0)
+const SUN_TO := Vector2(560.0, 420.0)
 const SUN_START := 0.3
 const SUN_RADIUS := 105.0
 const SUN_Y := 55.0          # güneşin merkezi (dibi dağların arkasında kalır)
