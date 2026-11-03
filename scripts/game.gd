@@ -128,6 +128,7 @@ func _ready() -> void:
 		car.autopilot = Autopilot.new(car, roads, lower, float(_args.get("dive", "0")), not _args.has("noboost"))
 		car.autopilot.seek_dead_ends = _args.has("deadend")
 		car.autopilot.seek_side = _args.has("side")
+		car.autopilot.straight = _args.has("straight")
 		car.autopilot.collect_crystals = not _args.has("nocrystal")
 	car.landed.connect(_on_landed)
 	car.mode_changed.connect(_on_mode_changed)
@@ -210,12 +211,16 @@ func _physics_process(delta: float) -> void:
 	if _args.has("trace") and not roads.custom_log.is_empty():
 		var d := roads.to_design(car.global_position)
 		print("TR z=%.1f x=%.2f y=%.3f vy=%.2f roll=%.3f pitch=%.3f floor=%s seg=%s" % [d.y, d.x, car.global_position.y, car.velocity.y, car.roll, car.pitch, car.is_on_floor(), roads.segment_under(car.global_position).get_instance_id() % 10000 if roads.segment_under(car.global_position) else -1])
+		print("TW grav=%s wc=%s tip=%.3f nose=%.3f bounce=%.3f part=%s ramp=%s mpos=%s" % [car.on_gravel, car.wheel_contact, car._tip, car._nose, car._bounce, car._partial != null, car._ramp_lift, car.model.position if car.model else Vector3.ZERO])
 	if _args.has("force_over") and not game_over and Engine.get_process_frames() == int(_args.force_over):
 		car.crash("CRASHED!")  # test: oyun sonu ekranının görüntüsü için
 	if game_over:
 		_over_time += delta
 		return
+	var _t0 := Time.get_ticks_usec()
 	roads.update(car.global_position)
+	if _args.has("trace") and Time.get_ticks_usec() - _t0 > 3000:
+		print("SLOW roads.update %.1f ms at z=%.1f" % [(Time.get_ticks_usec() - _t0) / 1000.0, roads.to_design(car.global_position).y])
 	car.extra_top = maxf(_start_z - car.global_position.z - roads.hard_from, 0.0) / 1000.0 * late_speed_per_km / 3.6
 	lower.update(delta)
 	_check_level_test()

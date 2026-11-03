@@ -46,7 +46,16 @@ func input() -> Vector2:
 	return _drive_input()
 
 
+## Test: direksiyona dokunmadan dümdüz git (--straight)
+var straight := false
+
+
 func _drive_input() -> Vector2:
+	if straight:
+		straight = false
+		var r := _drive_input()
+		straight = true
+		return Vector2(0.0, r.y)
 	var pos := car.global_position
 	var current: RoadGenerator.Segment = roads.segment_under(pos) if car.is_on_floor() else null
 
