@@ -3115,8 +3115,10 @@ func _build_custom(prev: Segment, level: Dictionary, travelled: float, vary := f
 			first = _add_banked_segment(x, oy + h0, w, zs, ze, pts, oy + h1, not flush_next)
 			first.main = is_main
 			last = first
-		elif not bumps.is_empty() and absf(h1 - h0) < 0.01:
-			# Tümsek: yol parçalara bölünür (çık, in), bitişik devam eder
+		elif not bumps.is_empty():
+			# Tümsek: yol parçalara bölünür (çık, in), bitişik devam eder. Eğimli yolda da: tümsek
+			# yolun eğimini izler (her parçanın yüksekliği eğim + tümsek)
+			var hz := func(z: float) -> float: return h0 + (h1 - h0) * clampf((zs - z) / plen, 0.0, 1.0)
 			bumps.sort_custom(func(a, b): return float(a.z0) < float(b.z0))
 			var secs: Array = []
 			var cur := zs
@@ -3136,7 +3138,7 @@ func _build_custom(prev: Segment, level: Dictionary, travelled: float, vary := f
 				var c: Array = secs[i]
 				if c[0] - c[1] < 0.5:
 					continue
-				var sg := _add_segment(x, oy + h0 + c[2], oy + h0 + c[3], w, c[0], c[1], is_main, false,
+				var sg := _add_segment(x, oy + hz.call(c[0]) + c[2], oy + hz.call(c[1]) + c[3], w, c[0], c[1], is_main, false,
 					depth + minf(c[2], c[3]), i == secs.size() - 1 and not flush_next)
 				if last:
 					last.next_flush = sg

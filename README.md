@@ -428,6 +428,7 @@ bölgesini ve rampa/tümsek uçuşunu denetler.
 - **Çoğaltma (aynı boyda)**: Alt+sürükle kopyasını sürükler; Ctrl+D ya da Çoğalt / 1×-5× ardına ekler
   (kopyayı taşıyıp yine çoğaltınca aynı aralıkla sürer); Ctrl+C / Ctrl+V imlecin olduğu yere yapıştırır.
 - **Test et**: tasarım oyunda otomatik pilotla 7 kez (her arabayla bir kez) sürülür; düşülen yerler tuvalde ✕.
+- Tümsekler eğimli yolların üstünde de kurulur (yolun eğimini izler); yatık yolda yok.
 - **Türevler**: kalıptan oyunun kurallarıyla 4 versiyon türetir (boşluklar, yol uzunluğu, genişlik,
   engel düzeni, çakıl ↔ blok, rampa yüksekliği); asıl kalıpta olmayan yeni bir hata çıkarmayan ve
   asıl kalıptan fazla uyarısı olmayanlar gösterilir (kalıbın bilerek zor yerleri türevde de kalabilir,
