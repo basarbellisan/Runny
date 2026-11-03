@@ -207,6 +207,9 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _args.has("trace") and not roads.custom_log.is_empty():
+		var d := roads.to_design(car.global_position)
+		print("TR z=%.1f x=%.2f y=%.3f vy=%.2f roll=%.3f pitch=%.3f floor=%s seg=%s" % [d.y, d.x, car.global_position.y, car.velocity.y, car.roll, car.pitch, car.is_on_floor(), roads.segment_under(car.global_position).get_instance_id() % 10000 if roads.segment_under(car.global_position) else -1])
 	if _args.has("force_over") and not game_over and Engine.get_process_frames() == int(_args.force_over):
 		car.crash("CRASHED!")  # test: oyun sonu ekranının görüntüsü için
 	if game_over:
@@ -568,6 +571,18 @@ func _setup_level_test() -> void:
 	roads.vary_test = _args.has("vary")
 	roads.test_level = level
 	_level_test = true
+	# Editörden test: hangi sürümün açıldığı görünsün (garaj atlandığı için)
+	var ver := Label.new()
+	ver.text = Version.BUILD
+	ver.add_theme_font_size_override("font_size", 14)
+	ver.add_theme_color_override("font_color", Color(1, 1, 1, 0.5))
+	ver.anchor_top = 1.0
+	ver.anchor_bottom = 1.0
+	ver.offset_left = 16
+	ver.offset_top = -30
+	ver.offset_bottom = -10
+	ver.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(ver)
 	if OS.has_feature("web") and not _level_auto:
 		# Editördeki "Baştan" düğmesi (ve R tuşu) bölümü sayfayı yenilemeden yeniden başlatır
 		_restart_cb = JavaScriptBridge.create_callback(_js_restart)
