@@ -39,7 +39,7 @@ func _shoot() -> void:
 	main.add_child(stage)
 	stage.global_position = base
 	var road_mat := StandardMaterial3D.new()
-	road_mat.albedo_color = Palette.ASPHALT
+	road_mat.albedo_color = Palette.SKIES[0].road_top if _styles.max() >= 6 else Palette.ASPHALT
 	road_mat.roughness = 0.95
 	roads._add_box(stage, Vector3(0, -0.2, -20), Vector3(9, 0.4, 80), road_mat)
 	# Gölge yapan üst yol (kameranın görüş alanı dışında)
@@ -54,9 +54,9 @@ func _shoot() -> void:
 		stage.add_child(block)
 		var size := Vector3(2.4, 0.9, 1.2)
 		block.position = Vector3(-1.6, 0.45, 0)
-		roads._add_box(block, Vector3.ZERO, size, roads._block_mat)
+		roads._block_body(block, size)
 		roads._block_lights(block, size)
-		for shade in [false, true]:
+		for shade in ([false] if st >= 6 else [false, true]):
 			roof.visible = shade
 			for view in [["yakin", Vector3(1.5, 1.8, 5.5), Vector3(-1.6, 0.5, 0)],
 					["oyun", Vector3(0, 6.0, 26.0), Vector3(-1.0, 0.0, -10.0)]]:
@@ -81,7 +81,7 @@ func _animate(roads: RoadGenerator, stage: Node3D, cam: Camera3D, base: Vector3,
 		var block := Node3D.new()
 		stage.add_child(block)
 		block.position = Vector3(x, 0.45, -3.0 if x > 0.0 else 0.0)
-		roads._add_box(block, Vector3.ZERO, size, roads._block_mat)
+		roads._block_body(block, size)
 		roads._block_lights(block, size)
 	cam.global_position = base + Vector3(2.0, 1.9, 6.0)
 	cam.look_at(base + Vector3(-0.3, 0.45, -1.5))

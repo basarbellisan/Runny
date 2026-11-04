@@ -217,12 +217,23 @@ var _block_top_mat := StandardMaterial3D.new()
 ## Blok tasarımı (oyunda 3: çapraz şerit): 0 = koyu gövde + turuncu üst çizgi (eski); 1-5 ışıklı (karanlıkta
 ## da görünsün): 1 neon çerçeve, 2 uyarı lambaları, 3 çapraz şerit, 4 ışıklı tepe + hale,
 ## 5 fener direkleri. Hepsinde gövde koyu gri, ışıklar sise karışmaz.
-@export_range(0, 5) var block_style := 3
+@export_range(0, 11) var block_style := 3
 var _blk_glow := StandardMaterial3D.new()
 var _blk_lamp_a := StandardMaterial3D.new()
 var _blk_lamp_b := StandardMaterial3D.new()
 var _blk_halo := StandardMaterial3D.new()
 var _blk_stripes := ShaderMaterial.new()
+## Tron havası tasarımlar (block_style 6..11): bloğun bütün gövdesi tek bir desenli malzeme
+var _blk_neon: Array[ShaderMaterial] = []
+## Her tasarımın renkleri: [ana, sıcak (en açık), alçak (koyu turuncu), gövde]
+const BLOCK_NEON_COLORS := [
+	["ffb000", "fff1c2", "ff7a00", "1a1024"],  # 6 ışık kafesi
+	["ffb21a", "fff0a0", "ff6a00", "1a1024"],  # 7 enerji duvarı
+	["ffa31a", "fff3c4", "ff6a00", "1d1226"],  # 8 iki yana oklar
+	["ffd23f", "fffbe8", "ff8a00", "160e1f"],  # 9 devre
+	["ffc21a", "fff4c0", "ff7a00", "1a1024"],  # 10 led matris
+	["ffd000", "fff6d0", "ff6a00", "2a1220"],  # 11 neon tuğla
+]
 var _gravel_mat := StandardMaterial3D.new()
 var _stone_mat := StandardMaterial3D.new()
 ## Yol kristalleri: her yol için bir MultiMesh. Kristaller yolun düğümünden ayrı
@@ -312,6 +323,17 @@ func _ready() -> void:
 	_blk_stripes.shader = preload("res://shaders/block_stripes.gdshader")
 	_blk_stripes.set_shader_parameter("color", Palette.ACCENT)
 	_blk_stripes.set_shader_parameter("dark", Palette.GRAPHITE)
+	var neon := preload("res://shaders/block_neon.gdshader")
+	for i in BLOCK_NEON_COLORS.size():
+		var m := ShaderMaterial.new()
+		m.shader = neon
+		m.set_shader_parameter("pattern", i)
+		var cs: Array = BLOCK_NEON_COLORS[i]
+		m.set_shader_parameter("c_main", Color(cs[0]))
+		m.set_shader_parameter("c_hot", Color(cs[1]))
+		m.set_shader_parameter("c_low", Color(cs[2]))
+		m.set_shader_parameter("c_dark", Color(cs[3]))
+		_blk_neon.append(m)
 	_gravel_mat.albedo_color = Color("8a7558")
 	_gravel_mat.roughness = 1.0
 	_stone_mat.albedo_color = Color("d6c7a8")
@@ -369,6 +391,8 @@ func _process(delta: float) -> void:
 	_blk_lamp_b.albedo_color = Palette.ACCENT.lerp(Color("fff1d6"), 1.0 - blink)
 	_blk_halo.albedo_color = Color(Palette.ACCENT, 0.25 + 0.2 * blink)
 	_blk_stripes.set_shader_parameter("t", _light_time)
+	for m in _blk_neon:
+		m.set_shader_parameter("t", _light_time)
 
 
 ## Arabanın altındaki (üstüne konduğu) yol
@@ -1763,8 +1787,14 @@ func _add_block(s: Segment, x0: float, x1: float, z: float, depth: float) -> voi
 	shape.size = size
 	col.shape = shape
 	block.add_child(col)
-	_add_box(block, Vector3.ZERO, size, _block_mat)
+	_block_body(block, size)
 	_block_lights(block, size)
+
+
+## Bloğun gövdesi: 6..11 tasarımlarında desenli tek malzeme, öncekilerde koyu gövde
+func _block_body(block: Node3D, size: Vector3) -> void:
+	var neon := block_style - 6
+	_add_box(block, Vector3.ZERO, size, _blk_neon[neon] if neon >= 0 and neon < _blk_neon.size() else _block_mat)
 
 
 ## Bloğun ışıkları (block_style). Ön yüz +z (araba +z'den gelir), tepe y = size.y / 2
