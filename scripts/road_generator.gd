@@ -1885,6 +1885,12 @@ func _rig_glow(key: String, pattern: int, color: String, hot: String, strength: 
 	return _rig_mats[key]
 
 
+## Parıltıyı lazer çubuğuyla aynı anda attır (seed 0'lı lazer malzemesiyle eş)
+func _rig_pulse(m: ShaderMaterial) -> ShaderMaterial:
+	m.set_shader_parameter("pulse", 1)
+	return m
+
+
 func _rig_mesh(parent: Node3D, mesh: Mesh, pos: Vector3, scl: Vector3, mat: Material, rot := Vector3.ZERO) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
@@ -1968,16 +1974,18 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 					_rig_quad(block, Vector3(0, y, 0), w - 0.2, 0.14, _rig_glow("las_g", 0, "ff8a2a", "ffe2b8", 0.45))
 			_rig_quad(block, Vector3(0, fy + 0.012, 0.7), w + 1.0, 2.4, _rig_glow("las_spot", 3, "ff7a1a", "ffe2b8", 0.22), true)
 		19:
-			# Havada duran ışık çubukları: direksiz, beş kalın ışın; uçlarında parlak başlık,
-			# altında yere düşen yumuşak ışık
+			# Havada duran ışık çubukları: direksiz, beş kalın ışın; uçlarında parlak başlık.
+			# Çubuklar, çevrelerindeki hale ve yere düşen ışık birlikte (aynı anda) nabız gibi atar;
+			# yerdeki ışık çubukların altında, onlar boyunca dar bir şerit
+			var bar := _rig_fx("float_bar", 1, ["ff7a1a", "ffe2b8"])
 			for i in 5:
 				var y := fy + 0.1 + i * 0.2
 				var len := w - 0.12
-				_rig_bar(block, y, len, 0.026, _rig_fx("las", 1, ["ff7a1a", "ffe2b8"], 0.0, float(i)))
+				_rig_bar(block, y, len, 0.026, bar)
 				for side in [-1.0, 1.0]:
 					_rig_mesh(block, _unit_ball, Vector3(side * len * 0.5, y, 0), Vector3(0.06, 0.06, 0.06), _rig_fx("las_dot", 4, ["ffe2b8"]))
-				_rig_quad(block, Vector3(0, y, 0), w + 0.1, 0.2, _rig_glow("las_g2", 0, "ff8a2a", "ffe2b8", 0.65))
-			_rig_quad(block, Vector3(0, fy + 0.012, 0.3), w + 1.6, 3.6, _rig_glow("float_spot", 4, "ff7a1a", "ffe2b8", 0.3), true)
+				_rig_quad(block, Vector3(0, y, 0), w + 0.1, 0.2, _rig_pulse(_rig_glow("float_g", 0, "ff8a2a", "ffe2b8", 0.65)))
+			_rig_quad(block, Vector3(0, fy + 0.012, 0.05), w + 0.5, 2.2, _rig_pulse(_rig_glow("float_line", 5, "ff7a1a", "ffe2b8", 0.42)), true)
 		14:
 			# Dijital tabela: direklere asılı led pano, ortadan iki yana akan oklar; altında kirişi
 			for side in [-1.0, 1.0]:

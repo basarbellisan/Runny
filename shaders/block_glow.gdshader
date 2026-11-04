@@ -3,7 +3,8 @@
 shader_type spatial;
 render_mode unshaded, blend_add, depth_draw_never, cull_disabled, fog_disabled, shadows_disabled;
 
-// 0 yatay hale bandı, 1 elektrik arkı, 2 kuvvet alanı, 3 yerde ışık lekesi, 4 yerde yumuşak ışık
+// 0 yatay hale bandı, 1 elektrik arkı, 2 kuvvet alanı, 3 yerde ışık lekesi, 4 yerde yumuşak ışık,
+// 5 yerde çizgi ışık (yatay çubukların altına düşen, çubuk boyunca uzanan dar şerit)
 uniform int pattern = 0;
 uniform vec4 color : source_color = vec4(1.0, 0.6, 0.15, 1.0);
 uniform vec4 hot : source_color = vec4(1.0, 0.95, 0.75, 1.0);
@@ -11,6 +12,8 @@ uniform float strength = 0.6;
 uniform float t = 0.0;
 uniform float seed = 0.0;
 uniform float flicker = 0.0;
+// 1: ışık veren çubukla (block_fx lazer, aynı seed) aynı anda nabız gibi atar
+uniform int pulse = 0;
 
 varying vec3 lp;
 varying vec3 hs;
@@ -29,6 +32,10 @@ float flick(float s) {
 	float f = hash(vec2(floor(t * 14.0), s));
 	float k = f > 0.965 ? 0.3 : (f > 0.94 ? 0.7 : 1.0);
 	return mix(1.0, k, flicker);
+}
+
+float pulse_k() {
+	return pulse == 0 ? 1.0 : 0.85 + 0.15 * sin(t * 30.0 + seed * 7.0);
 }
 
 void vertex() {
@@ -67,6 +74,14 @@ void fragment() {
 		float wave = 0.5 + 0.5 * sin(uv.x * 9.0 - t * 4.0);
 		float a = 0.12 + 0.16 * scan + 0.06 * wave + 0.7 * rim;
 		col = color.rgb * a * ex * strength * flick(seed);
+	} else if (pattern == 5) {
+		// Çizgi ışık: düzlem yere yatık, ortası çubukların tam altı. Çubuk boyunca düz, uçlarda söner;
+		// çubuktan uzaklaştıkça hızla azalır (yakında keskin, uzağa doğru kısa bir kuyruk)
+		float dz = abs(uv.y);
+		float along = 1.0 - smoothstep(h.x - 0.6, h.x, abs(uv.x));
+		float a = 0.65 * exp(-dz * 7.0) + 0.35 * exp(-dz * 2.5);
+		a *= 1.0 - smoothstep(0.6, 1.0, dz / h.y);
+		col = color.rgb * a * along * strength;
 	} else if (pattern == 4) {
 		// Yerde yumuşak ışık (düzlem yere yatırılır): köşesiz, kenara doğru tamamen sönen elips
 		vec2 q = uv / h;
@@ -78,5 +93,5 @@ void fragment() {
 		float d = dot(q, q);
 		col = color.rgb * exp(-d * 4.0) * smoothstep(1.0, 0.55, max(abs(q.x), abs(q.y))) * strength * flick(seed);
 	}
-	ALBEDO = col;
+	ALBEDO = col * pulse_k();
 }
