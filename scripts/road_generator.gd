@@ -217,7 +217,7 @@ var _block_top_mat := StandardMaterial3D.new()
 ## Blok tasarımı (oyunda 3: çapraz şerit): 0 = koyu gövde + turuncu üst çizgi (eski); 1-5 ışıklı (karanlıkta
 ## da görünsün): 1 neon çerçeve, 2 uyarı lambaları, 3 çapraz şerit, 4 ışıklı tepe + hale,
 ## 5 fener direkleri. Hepsinde gövde koyu gri, ışıklar sise karışmaz.
-@export_range(0, 17) var block_style := 3
+@export_range(0, 18) var block_style := 3
 var _blk_glow := StandardMaterial3D.new()
 var _blk_lamp_a := StandardMaterial3D.new()
 var _blk_lamp_b := StandardMaterial3D.new()
@@ -1835,7 +1835,7 @@ func _block_lights(block: Node3D, size: Vector3) -> void:
 			for xx in [size.x * 0.5 - 0.03, -size.x * 0.5 + 0.03]:
 				_add_box(block, Vector3(xx, 0.0, front + 0.01), Vector3(0.06, size.y, 0.02), _blk_glow)
 			_add_box(block, Vector3(0, -top + 0.015, 0.4), Vector3(size.x + 1.4, 0.01, size.z + 2.2), _blk_halo)
-		12, 13, 14, 15, 16, 17:
+		12, 13, 14, 15, 16, 17, 18:
 			_block_rig(block, size)
 		5:
 			# Fener direkleri: iki uçta ince direk, tepelerinde yanıp sönen fener; üstte ince çizgi
@@ -1950,17 +1950,21 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 					_add_box(block, Vector3(side * (px - 0.02), y, 0), Vector3(0.1, 0.05, 0.05), _rig_metal)
 				_rig_quad(block, Vector3(0, y, 0.0), w + 0.2, 0.42, _rig_glow(key + "g", 0, "ffb347", "fff6dc", 0.55, 1.0, float(i) * 3.1))
 			_rig_quad(block, Vector3(0, fy + 0.012, 0.7), w + 1.2, 2.6, _rig_glow("flu_spot", 3, "ffb347", "fff6dc", 0.32))
-		13:
-			# Lazer perde: iki yanda yayıcı kutular, aralarında beş ince ışın
+		13, 18:
+			# Lazer perde: iki yanda yayıcı kutular, aralarında beş ince ışın (18: kalın ışınlar)
+			var thick := block_style == 18
 			for side in [-1.0, 1.0]:
 				_add_box(block, Vector3(side * px, fy + 0.5, 0), Vector3(0.14, 1.0, 0.16), _rig_metal)
 				_add_box(block, Vector3(side * px, fy + 1.01, 0), Vector3(0.14, 0.02, 0.16), _rig_fx("las_cap", 4, ["ff7a1a"]))
 			for i in 5:
 				var y := fy + 0.12 + i * 0.18
-				_rig_bar(block, y, w - 0.28, 0.012, _rig_fx("las", 1, ["ff7a1a", "ffe2b8"], 0.0, float(i)))
+				_rig_bar(block, y, w - 0.28, 0.026 if thick else 0.012, _rig_fx("las", 1, ["ff7a1a", "ffe2b8"], 0.0, float(i)))
 				for side in [-1.0, 1.0]:
-					_add_box(block, Vector3(side * (px - 0.075), y, 0), Vector3(0.02, 0.05, 0.05), _rig_fx("las_dot", 4, ["ffe2b8"]))
-				_rig_quad(block, Vector3(0, y, 0), w - 0.2, 0.14, _rig_glow("las_g", 0, "ff8a2a", "ffe2b8", 0.45))
+					_add_box(block, Vector3(side * (px - 0.075), y, 0), Vector3(0.02, 0.08 if thick else 0.05, 0.08 if thick else 0.05), _rig_fx("las_dot", 4, ["ffe2b8"]))
+				if thick:
+					_rig_quad(block, Vector3(0, y, 0), w - 0.2, 0.2, _rig_glow("las_g2", 0, "ff8a2a", "ffe2b8", 0.65))
+				else:
+					_rig_quad(block, Vector3(0, y, 0), w - 0.2, 0.14, _rig_glow("las_g", 0, "ff8a2a", "ffe2b8", 0.45))
 			_rig_quad(block, Vector3(0, fy + 0.012, 0.7), w + 1.0, 2.4, _rig_glow("las_spot", 3, "ff7a1a", "ffe2b8", 0.22))
 		14:
 			# Dijital tabela: direklere asılı led pano, ortadan iki yana akan oklar; altında kirişi
