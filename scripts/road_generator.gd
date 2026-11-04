@@ -217,7 +217,7 @@ var _block_top_mat := StandardMaterial3D.new()
 ## Blok tasarımı (oyunda 3: çapraz şerit): 0 = koyu gövde + turuncu üst çizgi (eski); 1-5 ışıklı (karanlıkta
 ## da görünsün): 1 neon çerçeve, 2 uyarı lambaları, 3 çapraz şerit, 4 ışıklı tepe + hale,
 ## 5 fener direkleri. Hepsinde gövde koyu gri, ışıklar sise karışmaz.
-@export_range(0, 11) var block_style := 3
+@export_range(0, 17) var block_style := 3
 var _blk_glow := StandardMaterial3D.new()
 var _blk_lamp_a := StandardMaterial3D.new()
 var _blk_lamp_b := StandardMaterial3D.new()
@@ -392,6 +392,8 @@ func _process(delta: float) -> void:
 	_blk_halo.albedo_color = Color(Palette.ACCENT, 0.25 + 0.2 * blink)
 	_blk_stripes.set_shader_parameter("t", _light_time)
 	for m in _blk_neon:
+		m.set_shader_parameter("t", _light_time)
+	for m: ShaderMaterial in _rig_mats.values():
 		m.set_shader_parameter("t", _light_time)
 
 
@@ -1791,8 +1793,11 @@ func _add_block(s: Segment, x0: float, x1: float, z: float, depth: float) -> voi
 	_block_lights(block, size)
 
 
-## Bloğun gövdesi: 6..11 tasarımlarında desenli tek malzeme, öncekilerde koyu gövde
+## Bloğun gövdesi: 6..11 tasarımlarında desenli tek malzeme, öncekilerde koyu gövde;
+## 12..17 direkli tasarımlarda gövde yok (çarpışma kutusu yine aynı)
 func _block_body(block: Node3D, size: Vector3) -> void:
+	if block_style >= 12:
+		return
 	var neon := block_style - 6
 	_add_box(block, Vector3.ZERO, size, _blk_neon[neon] if neon >= 0 and neon < _blk_neon.size() else _block_mat)
 
@@ -1830,6 +1835,8 @@ func _block_lights(block: Node3D, size: Vector3) -> void:
 			for xx in [size.x * 0.5 - 0.03, -size.x * 0.5 + 0.03]:
 				_add_box(block, Vector3(xx, 0.0, front + 0.01), Vector3(0.06, size.y, 0.02), _blk_glow)
 			_add_box(block, Vector3(0, -top + 0.015, 0.4), Vector3(size.x + 1.4, 0.01, size.z + 2.2), _blk_halo)
+		12, 13, 14, 15, 16, 17:
+			_block_rig(block, size)
 		5:
 			# Fener direkleri: iki uçta ince direk, tepelerinde yanıp sönen fener; üstte ince çizgi
 			_add_box(block, Vector3(0, top + 0.01, 0), Vector3(size.x, 0.03, size.z), _blk_glow)
@@ -1837,6 +1844,161 @@ func _block_lights(block: Node3D, size: Vector3) -> void:
 				var x: float = side * (size.x * 0.5 - 0.12)
 				_add_box(block, Vector3(x, top + 0.3, 0), Vector3(0.08, 0.6, 0.08), _block_mat)
 				_add_box(block, Vector3(x, top + 0.66, 0), Vector3(0.22, 0.16, 0.22), _blk_lamp_a if side < 0.0 else _blk_lamp_b)
+
+
+# --------------------------------------------------------------------------
+# Direkli blok tasarımları (block_style 12..17): kenarlarda iki direk, aralarında ışık
+# --------------------------------------------------------------------------
+
+var _rig_mats := {}
+var _rig_metal: StandardMaterial3D
+var _unit_cyl: CylinderMesh
+var _unit_quad: QuadMesh
+var _unit_ball: SphereMesh
+
+
+func _rig_fx(key: String, pattern: int, cols: Array, flicker := 0.0, seed := 0.0) -> ShaderMaterial:
+	if not _rig_mats.has(key):
+		var m := ShaderMaterial.new()
+		m.shader = preload("res://shaders/block_fx.gdshader")
+		m.set_shader_parameter("pattern", pattern)
+		var names := ["c_main", "c_hot", "c_low", "c_dark"]
+		for i in mini(cols.size(), names.size()):
+			m.set_shader_parameter(names[i], Color(cols[i]))
+		m.set_shader_parameter("flicker", flicker)
+		m.set_shader_parameter("seed", seed)
+		_rig_mats[key] = m
+	return _rig_mats[key]
+
+
+func _rig_glow(key: String, pattern: int, color: String, hot: String, strength: float, flicker := 0.0, seed := 0.0) -> ShaderMaterial:
+	if not _rig_mats.has(key):
+		var m := ShaderMaterial.new()
+		m.shader = preload("res://shaders/block_glow.gdshader")
+		m.set_shader_parameter("pattern", pattern)
+		m.set_shader_parameter("color", Color(color))
+		m.set_shader_parameter("hot", Color(hot))
+		m.set_shader_parameter("strength", strength)
+		m.set_shader_parameter("flicker", flicker)
+		m.set_shader_parameter("seed", seed)
+		_rig_mats[key] = m
+	return _rig_mats[key]
+
+
+func _rig_mesh(parent: Node3D, mesh: Mesh, pos: Vector3, scl: Vector3, mat: Material, rot := Vector3.ZERO) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = mat
+	mi.position = pos
+	mi.rotation = rot
+	mi.scale = scl
+	parent.add_child(mi)
+	return mi
+
+
+## Dikey direk (yoldan h yüksekliğe), yarıçap r
+func _rig_post(block: Node3D, x: float, floor_y: float, h: float, r := 0.05) -> void:
+	_rig_mesh(block, _unit_cyl, Vector3(x, floor_y + h * 0.5, 0.0), Vector3(r * 2.0, h, r * 2.0), _rig_metal)
+	_add_box(block, Vector3(x, floor_y + h + 0.02, 0.0), Vector3(r * 2.6, 0.04, r * 2.6), _rig_metal)
+
+
+## Yatay çubuk (tüp, ışın): ortası (0, y, z), boyu len, yarıçap r
+func _rig_bar(block: Node3D, y: float, length: float, r: float, mat: Material, z := 0.0) -> void:
+	_rig_mesh(block, _unit_cyl, Vector3(0.0, y, z), Vector3(r * 2.0, length, r * 2.0), mat, Vector3(0, 0, PI * 0.5))
+
+
+## Parıltı düzlemi (ön yüze bakar; flat: yere yatık)
+func _rig_quad(block: Node3D, pos: Vector3, w: float, h: float, mat: Material, flat := false) -> void:
+	_rig_mesh(block, _unit_quad, pos, Vector3(w, h, 1.0), mat, Vector3(-PI * 0.5, 0, 0) if flat else Vector3.ZERO)
+
+
+func _block_rig(block: Node3D, size: Vector3) -> void:
+	if _rig_metal == null:
+		_rig_metal = StandardMaterial3D.new()
+		_rig_metal.albedo_color = Color("2e2638")
+		_rig_metal.metallic = 0.5
+		_rig_metal.roughness = 0.45
+		_unit_cyl = CylinderMesh.new()
+		_unit_cyl.top_radius = 0.5
+		_unit_cyl.bottom_radius = 0.5
+		_unit_cyl.height = 1.0
+		_unit_cyl.radial_segments = 12
+		_unit_cyl.rings = 1
+		_unit_quad = QuadMesh.new()
+		_unit_ball = SphereMesh.new()
+		_unit_ball.radius = 0.5
+		_unit_ball.height = 1.0
+		_unit_ball.radial_segments = 12
+		_unit_ball.rings = 6
+	var w := size.x
+	var fy := -size.y * 0.5  # yol yüzeyi
+	var px := w * 0.5 - 0.07  # direklerin x'i
+	var inner := w - 0.26  # direkler arası
+	match block_style:
+		12:
+			# Floresan: iki yatay tüp üst üste, kenardaki direklere asılı; ara sıra titrer
+			for side in [-1.0, 1.0]:
+				_rig_post(block, side * px, fy, 1.02)
+			var hs := [0.33, 0.70]
+			for i in 2:
+				var y: float = fy + hs[i]
+				var key := "flu%d" % i
+				_rig_bar(block, y, inner, 0.05, _rig_fx(key, 0, ["ffc94a", "fff6dc"], 1.0, float(i) * 3.1))
+				for side in [-1.0, 1.0]:
+					# Tüp başlığı ve direğe bağlayan kelepçe
+					_rig_mesh(block, _unit_cyl, Vector3(side * (inner * 0.5 + 0.03), y, 0), Vector3(0.13, 0.06, 0.13), _rig_metal, Vector3(0, 0, PI * 0.5))
+					_add_box(block, Vector3(side * (px - 0.02), y, 0), Vector3(0.1, 0.05, 0.05), _rig_metal)
+				_rig_quad(block, Vector3(0, y, 0.0), w + 0.2, 0.42, _rig_glow(key + "g", 0, "ffb347", "fff6dc", 0.55, 1.0, float(i) * 3.1))
+			_rig_quad(block, Vector3(0, fy + 0.012, 0.7), w + 1.2, 2.6, _rig_glow("flu_spot", 3, "ffb347", "fff6dc", 0.32))
+		13:
+			# Lazer perde: iki yanda yayıcı kutular, aralarında beş ince ışın
+			for side in [-1.0, 1.0]:
+				_add_box(block, Vector3(side * px, fy + 0.5, 0), Vector3(0.14, 1.0, 0.16), _rig_metal)
+				_add_box(block, Vector3(side * px, fy + 1.01, 0), Vector3(0.14, 0.02, 0.16), _rig_fx("las_cap", 4, ["ff7a1a"]))
+			for i in 5:
+				var y := fy + 0.12 + i * 0.18
+				_rig_bar(block, y, w - 0.28, 0.012, _rig_fx("las", 1, ["ff7a1a", "ffe2b8"], 0.0, float(i)))
+				for side in [-1.0, 1.0]:
+					_add_box(block, Vector3(side * (px - 0.075), y, 0), Vector3(0.02, 0.05, 0.05), _rig_fx("las_dot", 4, ["ffe2b8"]))
+				_rig_quad(block, Vector3(0, y, 0), w - 0.2, 0.14, _rig_glow("las_g", 0, "ff8a2a", "ffe2b8", 0.45))
+			_rig_quad(block, Vector3(0, fy + 0.012, 0.7), w + 1.0, 2.4, _rig_glow("las_spot", 3, "ff7a1a", "ffe2b8", 0.22))
+		14:
+			# Dijital tabela: direklere asılı led pano, ortadan iki yana akan oklar; altında kirişi
+			for side in [-1.0, 1.0]:
+				_rig_post(block, side * px, fy, 1.02)
+			var pc := fy + 0.6
+			_add_box(block, Vector3(0, pc, 0), Vector3(w - 0.16, 0.5, 0.07), _rig_fx("sign", 2, ["ffb020", "fff0c0", "ff6a00", "140c1c"]))
+			_add_box(block, Vector3(0, fy + 0.2, 0), Vector3(w - 0.16, 0.05, 0.05), _rig_metal)
+			_add_box(block, Vector3(0, fy + 0.2, 0.03), Vector3(w - 0.16, 0.012, 0.012), _rig_fx("sign_line", 4, ["ff8a1a"]))
+			_rig_quad(block, Vector3(0, pc, 0.05), w + 0.2, 0.9, _rig_glow("sign_g", 0, "ff9a1a", "fff0c0", 0.25))
+		15:
+			# Segment çubuklar: iki yatay bölmeli çubuk, ortadan dışa sırayla dolar (yükleniyor gibi)
+			for side in [-1.0, 1.0]:
+				_rig_post(block, side * px, fy, 1.02)
+			var hs := [0.33, 0.70]
+			for i in 2:
+				var y: float = fy + hs[i]
+				_add_box(block, Vector3(0, y, 0), Vector3(w - 0.16, 0.16, 0.1), _rig_fx("seg%d" % i, 3, ["ffb000", "ffe36e", "ff6a00", "1a1024"], 0.0, float(i)))
+				_rig_quad(block, Vector3(0, y, 0.06), w + 0.2, 0.4, _rig_glow("seg_g", 0, "ffa020", "ffe36e", 0.3))
+		16:
+			# Elektrik arkı: iki bobin direk, aralarında çatırdayan arklar
+			for side in [-1.0, 1.0]:
+				var x: float = side * px
+				_rig_post(block, x, fy, 0.92, 0.04)
+				for k in 3:
+					_rig_mesh(block, _unit_cyl, Vector3(x, fy + 0.45 + k * 0.14, 0), Vector3(0.17, 0.05, 0.17), _rig_fx("arc_coil", 4, ["ff9a2a"]))
+				_rig_mesh(block, _unit_ball, Vector3(x, fy + 0.98, 0), Vector3(0.16, 0.16, 0.16), _rig_fx("arc_ball", 0, ["ffb04a", "fff6d8"]))
+			_rig_quad(block, Vector3(0, fy + 0.55, 0), w - 0.14, 0.8, _rig_glow("arc", 1, "ff9a2a", "fff2b0", 1.0))
+			_rig_quad(block, Vector3(0, fy + 0.55, 0.02), w - 0.14, 0.8, _rig_glow("arc2", 1, "ff8a1a", "fff2b0", 0.7, 0.0, 9.0))
+			_rig_quad(block, Vector3(0, fy + 0.012, 0.6), w + 1.0, 2.4, _rig_glow("arc_spot", 3, "ff9a2a", "fff2b0", 0.3, 1.0, 2.0))
+		17:
+			# Kuvvet alanı: alt ve üst ışık rayı arasında yarı saydam, taranan ışık perdesi
+			for side in [-1.0, 1.0]:
+				_rig_post(block, side * px, fy, 1.02)
+			for y in [fy + 0.08, fy + 0.88]:
+				_add_box(block, Vector3(0, y, 0), Vector3(w - 0.14, 0.05, 0.05), _rig_fx("field_rail", 4, ["ffc24a"]))
+			_rig_quad(block, Vector3(0, fy + 0.48, 0), w - 0.14, 0.8, _rig_glow("field", 2, "ffb52e", "fff2c0", 0.9, 0.5, 4.0))
+			_rig_quad(block, Vector3(0, fy + 0.012, 0.6), w + 1.0, 2.2, _rig_glow("field_spot", 3, "ffb52e", "fff2c0", 0.25))
 
 
 # --------------------------------------------------------------------------

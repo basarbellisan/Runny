@@ -7,6 +7,8 @@ var _out := "user://"
 var _styles := [0, 1, 2, 3, 4, 5]
 ## --anim=N: N tasarımının yakın görünüşünden döngülü animasyon kareleri (GIF için)
 var _anim := -1
+## --frames=N: animasyon kare sayısı (30 kare/sn)
+var _frames := 50
 
 
 func _initialize() -> void:
@@ -15,6 +17,8 @@ func _initialize() -> void:
 			_out = a.trim_prefix("--out=")
 		elif a.begins_with("--anim="):
 			_anim = int(a.trim_prefix("--anim="))
+		elif a.begins_with("--frames="):
+			_frames = int(a.trim_prefix("--frames="))
 		elif a.begins_with("--styles="):
 			_styles = Array(a.trim_prefix("--styles=").split(",")).map(func(v): return int(v))
 	_shoot.call_deferred()
@@ -39,7 +43,7 @@ func _shoot() -> void:
 	main.add_child(stage)
 	stage.global_position = base
 	var road_mat := StandardMaterial3D.new()
-	road_mat.albedo_color = Palette.SKIES[0].road_top if _styles.max() >= 6 else Palette.ASPHALT
+	road_mat.albedo_color = Palette.SKIES[0].road_top if _styles.max() >= 6 or _anim >= 6 else Palette.ASPHALT
 	road_mat.roughness = 0.95
 	roads._add_box(stage, Vector3(0, -0.2, -20), Vector3(9, 0.4, 80), road_mat)
 	# Gölge yapan üst yol (kameranın görüş alanı dışında)
@@ -58,7 +62,7 @@ func _shoot() -> void:
 		roads._block_lights(block, size)
 		for shade in ([false] if st >= 6 else [false, true]):
 			roof.visible = shade
-			for view in [["yakin", Vector3(1.5, 1.8, 5.5), Vector3(-1.6, 0.5, 0)],
+			for view in [["yakin", Vector3(0.9, 1.25, 3.6) if st >= 12 else Vector3(1.5, 1.8, 5.5), Vector3(-1.6, 0.5, 0)],
 					["oyun", Vector3(0, 6.0, 26.0), Vector3(-1.0, 0.0, -10.0)]]:
 				cam.global_position = base + view[1]
 				cam.look_at(base + view[2])
@@ -85,7 +89,7 @@ func _animate(roads: RoadGenerator, stage: Node3D, cam: Camera3D, base: Vector3,
 		roads._block_lights(block, size)
 	cam.global_position = base + Vector3(2.0, 1.9, 6.0)
 	cam.look_at(base + Vector3(-0.3, 0.45, -1.5))
-	var n := 50
+	var n := _frames
 	for i in n:
 		roads._light_time = float(i) / 30.0
 		roads._process(0.0)
