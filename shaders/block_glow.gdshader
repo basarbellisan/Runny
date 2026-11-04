@@ -3,7 +3,7 @@
 shader_type spatial;
 render_mode unshaded, blend_add, depth_draw_never, cull_disabled, fog_disabled, shadows_disabled;
 
-// 0 yatay hale bandı, 1 elektrik arkı, 2 kuvvet alanı, 3 yerde ışık lekesi
+// 0 yatay hale bandı, 1 elektrik arkı, 2 kuvvet alanı, 3 yerde ışık lekesi, 4 yerde yumuşak ışık
 uniform int pattern = 0;
 uniform vec4 color : source_color = vec4(1.0, 0.6, 0.15, 1.0);
 uniform vec4 hot : source_color = vec4(1.0, 0.95, 0.75, 1.0);
@@ -67,6 +67,11 @@ void fragment() {
 		float wave = 0.5 + 0.5 * sin(uv.x * 9.0 - t * 4.0);
 		float a = 0.12 + 0.16 * scan + 0.06 * wave + 0.7 * rim;
 		col = color.rgb * a * ex * strength * flick(seed);
+	} else if (pattern == 4) {
+		// Yerde yumuşak ışık (düzlem yere yatırılır): köşesiz, kenara doğru tamamen sönen elips
+		vec2 q = uv / h;
+		float r = length(q);
+		col = color.rgb * exp(-r * r * 3.0) * (1.0 - smoothstep(0.45, 1.0, r)) * strength * flick(seed);
 	} else {
 		// Yerde ışık lekesi (düzlem yere yatırılır): yumuşak elips
 		vec2 q = uv / h;
