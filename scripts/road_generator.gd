@@ -217,7 +217,7 @@ var _block_top_mat := StandardMaterial3D.new()
 ## Blok tasarımı (oyunda 3: çapraz şerit): 0 = koyu gövde + turuncu üst çizgi (eski); 1-5 ışıklı (karanlıkta
 ## da görünsün): 1 neon çerçeve, 2 uyarı lambaları, 3 çapraz şerit, 4 ışıklı tepe + hale,
 ## 5 fener direkleri. Hepsinde gövde koyu gri, ışıklar sise karışmaz.
-@export_range(0, 24) var block_style := 24
+@export_range(0, 25) var block_style := 24
 var _blk_glow := StandardMaterial3D.new()
 var _blk_lamp_a := StandardMaterial3D.new()
 var _blk_lamp_b := StandardMaterial3D.new()
@@ -1793,9 +1793,12 @@ func _add_block(s: Segment, x0: float, x1: float, z: float, depth: float) -> voi
 	_block_lights(block, size)
 
 
-## Bloğun (ve çarpışma kutusunun) yüksekliği: tasarım 23'te dört sıra ışık 30 cm arayla 1.2 m
+## Bloğun (ve çarpışma kutusunun) yüksekliği: tasarım 23-24'te dört sıra ışık 30 cm arayla 1.2 m;
+## 25'te iki kalın çubuk (ortaları 45 ve 90 cm, yarıçap 10 cm) üst çubuğun tepesine kadar 1.0 m
 func block_height() -> float:
-	return 1.2 if block_style == 23 or block_style == 24 else 0.9
+	if block_style == 23 or block_style == 24:
+		return 1.2
+	return 1.0 if block_style == 25 else 0.9
 
 
 ## Bloğun gövdesi: 6..11 tasarımlarında desenli tek malzeme, öncekilerde koyu gövde;
@@ -1840,7 +1843,7 @@ func _block_lights(block: Node3D, size: Vector3) -> void:
 			for xx in [size.x * 0.5 - 0.03, -size.x * 0.5 + 0.03]:
 				_add_box(block, Vector3(xx, 0.0, front + 0.01), Vector3(0.06, size.y, 0.02), _blk_glow)
 			_add_box(block, Vector3(0, -top + 0.015, 0.4), Vector3(size.x + 1.4, 0.01, size.z + 2.2), _blk_halo)
-		12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24:
+		12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25:
 			_block_rig(block, size)
 		5:
 			# Fener direkleri: iki uçta ince direk, tepelerinde yanıp sönen fener; üstte ince çizgi
@@ -1864,6 +1867,9 @@ var _rig_metal: StandardMaterial3D
 var _unit_cyl: CylinderMesh
 var _unit_quad: QuadMesh
 var _unit_ball: SphereMesh
+## Kalın çubukların uçları için pürüzsüz küre (büyütülünce köşeli görünmesin)
+var _unit_ball_hi: SphereMesh
+var _unit_cyl_hi: CylinderMesh
 
 
 func _rig_fx(key: String, pattern: int, cols: Array, flicker := 0.0, seed := 0.0) -> ShaderMaterial:
@@ -1951,6 +1957,17 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 		_unit_ball.height = 1.0
 		_unit_ball.radial_segments = 12
 		_unit_ball.rings = 6
+		_unit_ball_hi = SphereMesh.new()
+		_unit_ball_hi.radius = 0.5
+		_unit_ball_hi.height = 1.0
+		_unit_ball_hi.radial_segments = 32
+		_unit_ball_hi.rings = 16
+		_unit_cyl_hi = CylinderMesh.new()
+		_unit_cyl_hi.top_radius = 0.5
+		_unit_cyl_hi.bottom_radius = 0.5
+		_unit_cyl_hi.height = 1.0
+		_unit_cyl_hi.radial_segments = 32
+		_unit_cyl_hi.rings = 1
 	var w := size.x
 	var fy := -size.y * 0.5  # yol yüzeyi
 	var px := w * 0.5 - 0.07  # direklerin x'i
@@ -2086,6 +2103,31 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 			var ground := _rig_glow(pre + "_line", 5, cs[4], cs[1], 0.4)
 			ground.set_shader_parameter("pulse", 4)  # ağırlıklar yüksekliklerle orantılı: aynı
 			ground.set_shader_parameter("phase_step", 0.25)
+			ground.set_shader_parameter("period", 0.8)
+			_rig_quad(block, Vector3(0, fy + 0.012, 0.05), w + 1.4, 2.8, ground, true)
+		25:
+			# İki sıra çok kalın kırmızı ışık çubuğu (çap 20 cm): ortaları yerden 45 ve 90 cm (yerle
+			# arası da çubuk aralığı kadar). Işık yukarıdan aşağı akar (0.8 sn)
+			var cs: Array = ["ff1414", "ff4a32", "ff3a2a", "ff9a80", "ff1010"]
+			var r := 0.1
+			for i in 2:
+				var y := fy + 0.9 - i * 0.45  # i = 0 üst
+				var len := w - 0.24
+				var bar := _rig_fx("c25_bar%d" % i, 5, [cs[0], cs[1]], 0.0, float(i))
+				var cap := _rig_fx("c25_cap%d" % i, 5, [cs[2], cs[3]], 0.0, float(i))
+				var halo := _rig_glow("c25_g%d" % i, 0, cs[0], cs[1], 1.25, 0.0, float(i))
+				halo.set_shader_parameter("pulse", 2)
+				for m in [bar, cap, halo]:
+					m.set_shader_parameter("phase_step", 0.5)
+					m.set_shader_parameter("period", 0.8)
+				_rig_bar(block, y, len, r, bar)
+				(block.get_child(block.get_child_count() - 1) as MeshInstance3D).mesh = _unit_cyl_hi
+				for side in [-1.0, 1.0]:
+					_rig_mesh(block, _unit_ball_hi, Vector3(side * len * 0.5, y, 0), Vector3(r * 2.0, r * 2.0, r * 2.0), cap)
+				_rig_quad(block, Vector3(0, y, 0), w + 0.3, 0.6, halo)
+			var ground := _rig_glow("c25_line", 5, cs[4], cs[1], 0.4)
+			ground.set_shader_parameter("pulse", 6)
+			ground.set_shader_parameter("phase_step", 0.5)
 			ground.set_shader_parameter("period", 0.8)
 			_rig_quad(block, Vector3(0, fy + 0.012, 0.05), w + 1.4, 2.8, ground, true)
 		14:
