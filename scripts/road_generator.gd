@@ -2109,7 +2109,8 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 			# İki sıra çok kalın ışık çubuğu (çap 20 cm): ortaları yerden 45 ve 90 cm (yerle
 			# arası da çubuk aralığı kadar). Işık yukarıdan aşağı akar (0.8 sn)
 			# 25 canlı kırmızı, 26 canlı lacivert: [çubuk, öz, başlık, başlığın özü, yere düşen ışık]
-			var cs: Array = ["1a3cff", "4a74ff", "3358ff", "9cb4ff", "1a3cff"] if block_style == 26 \
+			# Lacivert: iki çubuk da hep açık ve parlak, yanan daha açık (sönük hal koyulaşmaz)
+			var cs: Array = ["2d5bff", "9ab8ff", "4a74ff", "c4d4ff", "2d5bff"] if block_style == 26 \
 				else ["ff1414", "ff4a32", "ff3a2a", "ff9a80", "ff1010"]
 			var pre := "c%d" % block_style
 			var glow := 1.5 if block_style == 26 else 1.25
@@ -2124,6 +2125,10 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 				for m in [bar, cap, halo]:
 					m.set_shader_parameter("phase_step", 0.5)
 					m.set_shader_parameter("period", 0.8)
+				if block_style == 26:
+					bar.set_shader_parameter("dim_keep", 1.0)
+					cap.set_shader_parameter("dim_keep", 1.0)
+					halo.set_shader_parameter("pulse_floor", 0.75)
 				_rig_bar(block, y, len, r, bar)
 				(block.get_child(block.get_child_count() - 1) as MeshInstance3D).mesh = _unit_cyl_hi
 				for side in [-1.0, 1.0]:
@@ -2133,6 +2138,8 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 			ground.set_shader_parameter("pulse", 6)
 			ground.set_shader_parameter("phase_step", 0.5)
 			ground.set_shader_parameter("period", 0.8)
+			if block_style == 26:
+				ground.set_shader_parameter("pulse_floor", 0.75)
 			_rig_quad(block, Vector3(0, fy + 0.012, 0.05), w + 1.4, 2.8, ground, true)
 		14:
 			# Dijital tabela: direklere asılı led pano, ortadan iki yana akan oklar; altında kirişi

@@ -18,6 +18,8 @@ uniform float flicker = 0.0;
 uniform float period = 1.4;
 // Dalgada bir çubuktan sonrakine gecikme (turun kesri)
 uniform float phase_step = 0.28;
+// Sırayla yanan çubukta sönük halin parlaklığı: 0 koyulaşır (kısılan lamba), 1 ana renkte kalır
+uniform float dim_keep = 0.0;
 
 varying vec3 lp;
 varying vec3 hs;
@@ -88,7 +90,7 @@ void fragment() {
 	} else if (pattern == 5) {
 		float k = cascade(seed);
 		// Kısılan lamba grileşmez, koyu turuncu-kızıla kayar; parlarken özü beyaza yakın
-		vec3 dim = c_main.rgb * vec3(0.55, 0.32, 0.18);
+		vec3 dim = mix(c_main.rgb * vec3(0.55, 0.32, 0.18), c_main.rgb, dim_keep);
 		col = mix(dim, c_main.rgb, k) + c_hot.rgb * pow(ndv, 1.2) * k * k * 0.8;
 	} else {
 		col = c_main.rgb * flick(seed);

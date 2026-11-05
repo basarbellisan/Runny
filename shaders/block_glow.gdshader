@@ -19,6 +19,8 @@ uniform int pulse = 0;
 uniform float period = 1.4;
 // Dalgada bir çubuktan sonrakine gecikme (turun kesri)
 uniform float phase_step = 0.28;
+// Nabzın en düşük değeri (sönük çubuğun parıltısı ve yer ışığı bunun altına inmez)
+uniform float pulse_floor = 0.0;
 // Yere düşen ışık (3, 4, 5) fiziğe göre: yüzey yalnız ışıkta olanı yansıtır, eklenen ışık
 // = yüzeyin rengi × ışığın rengi × şiddet (strength). Ekran ışığı sRGB'de topladığı için
 // yolun ekranda görünen rengine (base) göre farkı hesaplanır: sonuç base + yüzey × ışık olur.
@@ -61,7 +63,7 @@ float cascade(float i) {
 	return 0.28 + 0.72 * pow(w, 1.4);
 }
 
-float pulse_k() {
+float pulse_k_raw() {
 	if (pulse == 1) {
 		return 0.85 + 0.15 * sin(t * 30.0 + seed * 7.0);
 	} else if (pulse == 2) {
@@ -80,6 +82,10 @@ float pulse_k() {
 			+ 0.219 * cascade(3.0) + 0.439 * cascade(4.0);
 	}
 	return 1.0;
+}
+
+float pulse_k() {
+	return max(pulse_k_raw(), pulse_floor);
 }
 
 void vertex() {
