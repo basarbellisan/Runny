@@ -10,7 +10,7 @@ const PAGES := [
 	["STEER", "Tap the left or right side of the screen to steer."],
 	["BOOST", "Hold two fingers to boost. Red lights at the end of a road mean: boost now to make the jump."],
 	["ENERGY", "Boosting and flying use energy. Drive through the green crystals to fill it up."],
-	["OBSTACLES", "Steer around the striped blocks: hitting one wrecks the car. Gravel slows you down."],
+	["OBSTACLES", "Steer around the light barriers: hitting one wrecks the car. Gravel slows you down."],
 	["WINGS", "Fell off? Your wings open. Hold two fingers to climb and fly through the orange rings back to the road."],
 	["SCORE", "Go as far as you can. Clean landings in the middle of the road and high roads earn bonus points."],
 ]

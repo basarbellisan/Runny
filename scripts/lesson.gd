@@ -361,7 +361,7 @@ func _say_text() -> String:
 					return "Gravel slows you: steer around it"
 				"bump":
 					return "Bumps throw you up: keep it straight"
-			return "Steer around the striped blocks"
+			return "Steer around the light barriers"
 		"WINGS":
 			if not _flew:
 				return "Road ends: keep going, wings open"
