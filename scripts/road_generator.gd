@@ -2132,6 +2132,8 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 			# 27: çubuk parıltısı ve yer ışığı %30 az (alt yanınca yerin artması aynı oranda kalır)
 			var refl := 0.7 if three else 1.0
 			glow *= refl
+			if block_style == 28:
+				glow *= 0.5  # turuncu: çubukların parıltısı yarıya (yer yansıması aynı)
 			var r := 0.1
 			for i in rows:
 				var y := fy + 0.45 * rows - i * 0.45  # i = 0 üst
