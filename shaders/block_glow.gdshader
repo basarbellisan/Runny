@@ -14,6 +14,12 @@ uniform float seed = 0.0;
 uniform float flicker = 0.0;
 // 1: ışık veren çubukla (block_fx lazer, aynı seed) aynı anda nabız gibi atar
 uniform int pulse = 0;
+// Yere düşen ışık (3, 4, 5) fiziğe göre: yüzey yalnız ışıkta olanı yansıtır, eklenen ışık
+// = yüzeyin rengi × ışığın rengi × şiddet (strength). Ekran ışığı sRGB'de topladığı için
+// yolun ekranda görünen rengine (base) göre farkı hesaplanır: sonuç base + yüzey × ışık olur.
+uniform bool physical = false;
+uniform vec4 surface : source_color = vec4(0.227, 0.173, 0.306, 1.0);
+uniform vec4 base : source_color = vec4(0.141, 0.086, 0.208, 1.0);
 
 varying vec3 lp;
 varying vec3 hs;
@@ -32,6 +38,16 @@ float flick(float s) {
 	float f = hash(vec2(floor(t * 14.0), s));
 	float k = f > 0.965 ? 0.3 : (f > 0.94 ? 0.7 : 1.0);
 	return mix(1.0, k, flicker);
+}
+
+vec3 to_srgb(vec3 v) {
+	v = clamp(v, 0.0, 1.0);
+	return mix(v * 12.92, 1.055 * pow(v, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), v));
+}
+
+vec3 to_linear(vec3 c) {
+	c = clamp(c, 0.0, 1.0);
+	return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
 }
 
 float pulse_k() {
@@ -95,5 +111,11 @@ void fragment() {
 		float d = dot(q, q);
 		col = color.rgb * exp(-d * 4.0) * smoothstep(1.0, 0.55, max(abs(q.x), abs(q.y))) * strength * flick(seed);
 	}
-	ALBEDO = col * pulse_k();
+	col *= pulse_k();
+	if (physical && pattern >= 3) {
+		// col burada ışığın şiddet × renk katkısı (ışık rengi × şiddet × düşüş); yüzeyle çarp
+		vec3 add = surface.rgb * col;
+		col = to_linear(to_srgb(base.rgb + add) - to_srgb(base.rgb));
+	}
+	ALBEDO = col;
 }

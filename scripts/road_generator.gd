@@ -1851,6 +1851,10 @@ func _block_lights(block: Node3D, size: Vector3) -> void:
 # --------------------------------------------------------------------------
 
 var _rig_mats := {}
+## Yolun ekranda görünen rengi (alacakaranlık paleti, güneş ve ortam ışığı altında; ölçüldü)
+const RIG_ROAD_SEEN := Color("241635")
+## Fiziksel yer ışığında şiddet katı: eski (rengi doğrudan ekleyen) değerlerden ışık şiddetine
+const RIG_GROUND_GAIN := 16.0
 var _rig_metal: StandardMaterial3D
 var _unit_cyl: CylinderMesh
 var _unit_quad: QuadMesh
@@ -1881,6 +1885,12 @@ func _rig_glow(key: String, pattern: int, color: String, hot: String, strength: 
 		m.set_shader_parameter("strength", strength)
 		m.set_shader_parameter("flicker", flicker)
 		m.set_shader_parameter("seed", seed)
+		if pattern >= 3:
+			# Yere düşen ışık fiziğe göre: yolun rengi × ışığın rengi (strength = ışık şiddeti)
+			m.set_shader_parameter("physical", true)
+			m.set_shader_parameter("surface", Palette.SKIES[0].road_top)
+			m.set_shader_parameter("base", RIG_ROAD_SEEN)
+			m.set_shader_parameter("strength", strength * RIG_GROUND_GAIN)
 		_rig_mats[key] = m
 	return _rig_mats[key]
 
