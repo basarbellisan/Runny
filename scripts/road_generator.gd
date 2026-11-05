@@ -217,7 +217,7 @@ var _block_top_mat := StandardMaterial3D.new()
 ## Blok tasarımı (oyunda 3: çapraz şerit): 0 = koyu gövde + turuncu üst çizgi (eski); 1-5 ışıklı (karanlıkta
 ## da görünsün): 1 neon çerçeve, 2 uyarı lambaları, 3 çapraz şerit, 4 ışıklı tepe + hale,
 ## 5 fener direkleri. Hepsinde gövde koyu gri, ışıklar sise karışmaz.
-@export_range(0, 27) var block_style := 27
+@export_range(0, 28) var block_style := 27
 var _blk_glow := StandardMaterial3D.new()
 var _blk_lamp_a := StandardMaterial3D.new()
 var _blk_lamp_b := StandardMaterial3D.new()
@@ -1798,7 +1798,7 @@ func _add_block(s: Segment, x0: float, x1: float, z: float, depth: float) -> voi
 func block_height() -> float:
 	if block_style == 23 or block_style == 24:
 		return 1.2
-	if block_style == 27:
+	if block_style == 27 or block_style == 28:
 		return 1.45  # üç kalın çubuk: ortaları 45, 90, 135 cm, üstün tepesi 145 cm
 	return 1.0 if block_style == 25 or block_style == 26 else 0.9
 
@@ -1845,7 +1845,7 @@ func _block_lights(block: Node3D, size: Vector3) -> void:
 			for xx in [size.x * 0.5 - 0.03, -size.x * 0.5 + 0.03]:
 				_add_box(block, Vector3(xx, 0.0, front + 0.01), Vector3(0.06, size.y, 0.02), _blk_glow)
 			_add_box(block, Vector3(0, -top + 0.015, 0.4), Vector3(size.x + 1.4, 0.01, size.z + 2.2), _blk_halo)
-		12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27:
+		12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28:
 			_block_rig(block, size)
 		5:
 			# Fener direkleri: iki uçta ince direk, tepelerinde yanıp sönen fener; üstte ince çizgi
@@ -2107,24 +2107,30 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 			ground.set_shader_parameter("phase_step", 0.25)
 			ground.set_shader_parameter("period", 0.8)
 			_rig_quad(block, Vector3(0, fy + 0.012, 0.05), w + 1.4, 2.8, ground, true)
-		25, 26, 27:
+		25, 26, 27, 28:
+			# 28: 27 ile aynı tasarım, en parlak sıcak turuncu (#FF6A00)
 			# 27: lacivert, aynı aralıkla en üste üçüncü çubuk (ortaları 45, 90, 135 cm)
 			# İki sıra çok kalın ışık çubuğu (çap 20 cm): ortaları yerden 45 ve 90 cm (yerle
 			# arası da çubuk aralığı kadar). Işık yukarıdan aşağı akar (0.8 sn)
 			# 25 canlı kırmızı, 26 canlı lacivert: [çubuk, öz, başlık, başlığın özü, yere düşen ışık]
 			# Lacivert: iki çubuk da hep açık ve parlak, yanan daha açık (sönük hal koyulaşmaz)
-			var navy := block_style == 26 or block_style == 27
-			var rows := 3 if block_style == 27 else 2
+			# navy: hep parlak çubuklar (sönük hal koyulaşmaz), yanan daha açık (26, 27, 28)
+			var navy := block_style == 26 or block_style == 27 or block_style == 28
+			var three := block_style == 27 or block_style == 28
+			var rows := 3 if three else 2
 			var cs: Array = ["2d5bff", "9ab8ff", "4a74ff", "c4d4ff", "2d5bff"] if navy \
 				else ["ff1414", "ff4a32", "ff3a2a", "ff9a80", "ff1010"]
 			if block_style == 27:
 				# Koyu lacivert: kristal yeşilinden ton olarak uzak (yeşil bileşeni çok az, hafif mora
 				# kayık), yanan çubuk yine belirgin biçimde daha açık
 				cs = ["1c2fc4", "5566f0", "2a3ed8", "8a96ff", "1c2fc4"]
+			elif block_style == 28:
+				# En parlak sıcak turuncu: yanan çubuk daha açık ama doygun (beyaza kaçmaz)
+				cs = ["ff6a00", "ffa040", "ff7a14", "ffbd7a", "ff6a00"]
 			var pre := "c%d" % block_style
 			var glow := 1.5 if navy else 1.25
 			# 27: çubuk parıltısı ve yer ışığı %30 az (alt yanınca yerin artması aynı oranda kalır)
-			var refl := 0.7 if block_style == 27 else 1.0
+			var refl := 0.7 if three else 1.0
 			glow *= refl
 			var r := 0.1
 			for i in rows:
@@ -2153,7 +2159,7 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 			if navy:
 				# hep parlak çubuklar: en alttaki yanınca yer hafifçe artar
 				ground.set_shader_parameter("pulse", 8 if rows == 3 else 7)
-			if block_style == 27:
+			if three:
 				# Yansıma çubukların altında dar ve yumuşak; fazla yayılıp belirginleşmesin
 				ground.set_shader_parameter("spread", 1.15)
 				ground.set_shader_parameter("strength", (ground.get_shader_parameter("strength") as float) * 0.8)
