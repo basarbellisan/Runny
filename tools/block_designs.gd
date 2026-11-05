@@ -56,8 +56,8 @@ func _shoot() -> void:
 		roads.block_style = st
 		var block := Node3D.new()
 		stage.add_child(block)
-		var size := Vector3(2.4, 0.9, 1.2)
-		block.position = Vector3(-1.6, 0.45, 0)
+		var size := Vector3(2.4, roads.block_height(), 1.2)
+		block.position = Vector3(-1.6, size.y * 0.5, 0)
 		roads._block_body(block, size)
 		roads._block_lights(block, size)
 		for shade in ([false] if st >= 6 else [false, true]):
@@ -80,11 +80,11 @@ func _animate(roads: RoadGenerator, stage: Node3D, cam: Camera3D, base: Vector3,
 	roads.set_process(false)
 	roads.block_style = _anim
 	roof.visible = false
-	var size := Vector3(2.4, 0.9, 1.2)
+	var size := Vector3(2.4, roads.block_height(), 1.2)
 	for x in [-1.6, 1.6]:
 		var block := Node3D.new()
 		stage.add_child(block)
-		block.position = Vector3(x, 0.45, -3.0 if x > 0.0 else 0.0)
+		block.position = Vector3(x, size.y * 0.5, -3.0 if x > 0.0 else 0.0)
 		roads._block_body(block, size)
 		roads._block_lights(block, size)
 	cam.global_position = base + Vector3(2.0, 1.9, 6.0)
