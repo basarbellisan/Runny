@@ -2139,7 +2139,7 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 			ground.set_shader_parameter("phase_step", 0.5)
 			ground.set_shader_parameter("period", 0.8)
 			if block_style == 26:
-				ground.set_shader_parameter("pulse_floor", 0.75)
+				ground.set_shader_parameter("pulse", 7)  # hep parlak çubuklar: alt yanınca yer hafifçe artar
 			_rig_quad(block, Vector3(0, fy + 0.012, 0.05), w + 1.4, 2.8, ground, true)
 		14:
 			# Dijital tabela: direklere asılı led pano, ortadan iki yana akan oklar; altında kirişi

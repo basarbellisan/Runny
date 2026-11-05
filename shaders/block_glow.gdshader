@@ -73,6 +73,12 @@ float pulse_k_raw() {
 	} else if (pulse == 4) {
 		// Ağırlık yükseklikle ters orantılı (90, 67.5, 45, 22.5 cm)
 		return 0.12 * cascade(0.0) + 0.16 * cascade(1.0) + 0.24 * cascade(2.0) + 0.48 * cascade(3.0);
+	} else if (pulse == 7) {
+		// İki sıralı, hep parlak çubuklar (sönük hal koyulaşmaz): yer ışığı hiç sönmez, alt çubuk
+		// yanınca hafifçe artar (yere yakın olan çok, üstteki az etkiler)
+		float n0 = (cascade(0.0) - 0.28) / 0.72;
+		float n1 = (cascade(1.0) - 0.28) / 0.72;
+		return 0.72 + 0.32 * n1 + 0.08 * n0;
 	} else if (pulse == 6) {
 		// Ağırlık yükseklikle ters orantılı (90, 45 cm)
 		return 0.33 * cascade(0.0) + 0.67 * cascade(1.0);
