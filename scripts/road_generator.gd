@@ -217,7 +217,7 @@ var _block_top_mat := StandardMaterial3D.new()
 ## Blok tasarımı (oyunda 3: çapraz şerit): 0 = koyu gövde + turuncu üst çizgi (eski); 1-5 ışıklı (karanlıkta
 ## da görünsün): 1 neon çerçeve, 2 uyarı lambaları, 3 çapraz şerit, 4 ışıklı tepe + hale,
 ## 5 fener direkleri. Hepsinde gövde koyu gri, ışıklar sise karışmaz.
-@export_range(0, 19) var block_style := 19
+@export_range(0, 20) var block_style := 19
 var _blk_glow := StandardMaterial3D.new()
 var _blk_lamp_a := StandardMaterial3D.new()
 var _blk_lamp_b := StandardMaterial3D.new()
@@ -1835,7 +1835,7 @@ func _block_lights(block: Node3D, size: Vector3) -> void:
 			for xx in [size.x * 0.5 - 0.03, -size.x * 0.5 + 0.03]:
 				_add_box(block, Vector3(xx, 0.0, front + 0.01), Vector3(0.06, size.y, 0.02), _blk_glow)
 			_add_box(block, Vector3(0, -top + 0.015, 0.4), Vector3(size.x + 1.4, 0.01, size.z + 2.2), _blk_halo)
-		12, 13, 14, 15, 16, 17, 18, 19:
+		12, 13, 14, 15, 16, 17, 18, 19, 20:
 			_block_rig(block, size)
 		5:
 			# Fener direkleri: iki uçta ince direk, tepelerinde yanıp sönen fener; üstte ince çizgi
@@ -1996,6 +1996,22 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 					_rig_mesh(block, _unit_ball, Vector3(side * len * 0.5, y, 0), Vector3(0.06, 0.06, 0.06), _rig_fx("las_dot", 4, ["ffe2b8"]))
 				_rig_quad(block, Vector3(0, y, 0), w + 0.1, 0.2, _rig_pulse(_rig_glow("float_g", 0, "ff8a2a", "ffe2b8", 0.65)))
 			_rig_quad(block, Vector3(0, fy + 0.012, 0.05), w + 1.4, 2.8, _rig_pulse(_rig_glow("float_line", 5, "ff7a1a", "ffe2b8", 0.28)), true)
+		20:
+			# Üç sıra kalın ışık çubuğu (yerle arası da çubuk aralığı kadar); ışıklar yukarıdan aşağı
+			# sırayla, yumuşakça yanıp söner. Hale her çubuğu, yerdeki ışık üçünün toplamını izler
+			for i in 3:
+				var y := fy + 0.9 - i * 0.3  # i = 0 en üst
+				var len := w - 0.14
+				var bar := _rig_fx("c20_bar%d" % i, 5, ["ff8a2a", "fff4e0"], 0.0, float(i))
+				_rig_bar(block, y, len, 0.045, bar)
+				for side in [-1.0, 1.0]:
+					_rig_mesh(block, _unit_ball, Vector3(side * len * 0.5, y, 0), Vector3(0.1, 0.1, 0.1), _rig_fx("c20_cap%d" % i, 5, ["ffd9a8", "ffffff"], 0.0, float(i)))
+				var halo := _rig_glow("c20_g%d" % i, 0, "ff8a2a", "fff4e0", 0.95, 0.0, float(i))
+				halo.set_shader_parameter("pulse", 2)
+				_rig_quad(block, Vector3(0, y, 0), w + 0.2, 0.32, halo)
+			var ground := _rig_glow("c20_line", 5, "ff7a1a", "fff4e0", 0.4)
+			ground.set_shader_parameter("pulse", 3)
+			_rig_quad(block, Vector3(0, fy + 0.012, 0.05), w + 1.4, 2.8, ground, true)
 		14:
 			# Dijital tabela: direklere asılı led pano, ortadan iki yana akan oklar; altında kirişi
 			for side in [-1.0, 1.0]:

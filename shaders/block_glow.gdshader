@@ -12,8 +12,11 @@ uniform float strength = 0.6;
 uniform float t = 0.0;
 uniform float seed = 0.0;
 uniform float flicker = 0.0;
-// 1: ışık veren çubukla (block_fx lazer, aynı seed) aynı anda nabız gibi atar
+// 1: ışık veren çubukla (block_fx lazer, aynı seed) aynı anda nabız gibi atar;
+// 2: sırayla yanan çubuğun (block_fx 5, aynı seed) dalgası; 3: yerde üç sıralı çubuğun toplamı
+// (yere yakın olan daha çok aydınlatır)
 uniform int pulse = 0;
+uniform float period = 1.4;
 // Yere düşen ışık (3, 4, 5) fiziğe göre: yüzey yalnız ışıkta olanı yansıtır, eklenen ışık
 // = yüzeyin rengi × ışığın rengi × şiddet (strength). Ekran ışığı sRGB'de topladığı için
 // yolun ekranda görünen rengine (base) göre farkı hesaplanır: sonuç base + yüzey × ışık olur.
@@ -50,8 +53,21 @@ vec3 to_linear(vec3 c) {
 	return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
 }
 
+float cascade(float i) {
+	float x = fract(t / period - i * 0.28);
+	float w = 0.5 + 0.5 * cos(6.28318 * x);
+	return 0.28 + 0.72 * pow(w, 1.4);
+}
+
 float pulse_k() {
-	return pulse == 0 ? 1.0 : 0.85 + 0.15 * sin(t * 30.0 + seed * 7.0);
+	if (pulse == 1) {
+		return 0.85 + 0.15 * sin(t * 30.0 + seed * 7.0);
+	} else if (pulse == 2) {
+		return cascade(seed);
+	} else if (pulse == 3) {
+		return 0.18 * cascade(0.0) + 0.3 * cascade(1.0) + 0.52 * cascade(2.0);
+	}
+	return 1.0;
 }
 
 void vertex() {

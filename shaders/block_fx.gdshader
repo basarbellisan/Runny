@@ -3,7 +3,8 @@
 shader_type spatial;
 render_mode unshaded, fog_disabled;
 
-// 0 floresan tüp, 1 lazer ışını, 2 led tabela, 3 segment çubuk, 4 düz ışık (lamba, ray)
+// 0 floresan tüp, 1 lazer ışını, 2 led tabela, 3 segment çubuk, 4 düz ışık (lamba, ray),
+// 5 sırayla yanan çubuk (seed = sıra: 0 en üst; yukarıdan aşağı yumuşak dalga)
 uniform int pattern = 0;
 uniform vec4 c_main : source_color = vec4(1.0, 0.79, 0.29, 1.0);
 uniform vec4 c_hot : source_color = vec4(1.0, 0.96, 0.86, 1.0);
@@ -13,6 +14,8 @@ uniform float t = 0.0;
 uniform float seed = 0.0;
 // Floresan titremesi (0 kapalı)
 uniform float flicker = 0.0;
+// Sırayla yanma dalgasının süresi (sn)
+uniform float period = 1.4;
 
 varying vec3 lp;
 varying vec3 hs;
@@ -27,6 +30,13 @@ float flick(float s) {
 	float f = hash(vec2(floor(t * 14.0), s));
 	float k = f > 0.965 ? 0.3 : (f > 0.94 ? 0.7 : 1.0);
 	return mix(1.0, k, flicker);
+}
+
+// Yukarıdan aşağı yanma dalgası: i. çubuk bir öncekinden biraz sonra parlar; hiç tam sönmez
+float cascade(float i) {
+	float x = fract(t / period - i * 0.28);
+	float w = 0.5 + 0.5 * cos(6.28318 * x);
+	return 0.28 + 0.72 * pow(w, 1.4);
 }
 
 void vertex() {
@@ -73,6 +83,11 @@ void fragment() {
 		vec3 lc = mix(c_hot.rgb, mix(c_main.rgb, c_low.rgb, k), smoothstep(0.0, 0.6, k));
 		col = mix(c_low.rgb * 0.22, lc, lit);
 		col = mix(col, c_dark.rgb, gap);
+	} else if (pattern == 5) {
+		float k = cascade(seed);
+		// Kısılan lamba grileşmez, koyu turuncu-kızıla kayar; parlarken özü beyaza yakın
+		vec3 dim = c_main.rgb * vec3(0.55, 0.32, 0.18);
+		col = mix(dim, c_main.rgb, k) + c_hot.rgb * pow(ndv, 1.2) * k * k * 0.8;
 	} else {
 		col = c_main.rgb * flick(seed);
 	}
