@@ -1979,13 +1979,13 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 			# yerdeki ışık çubukların altında, onlar boyunca dar bir şerit
 			var bar := _rig_fx("float_bar", 1, ["ff7a1a", "ffe2b8"])
 			for i in 5:
-				var y := fy + 0.1 + i * 0.2
+				var y := fy + 0.18 + i * 0.18  # yerle arası da çubuk aralığı kadar
 				var len := w - 0.12
 				_rig_bar(block, y, len, 0.026, bar)
 				for side in [-1.0, 1.0]:
 					_rig_mesh(block, _unit_ball, Vector3(side * len * 0.5, y, 0), Vector3(0.06, 0.06, 0.06), _rig_fx("las_dot", 4, ["ffe2b8"]))
 				_rig_quad(block, Vector3(0, y, 0), w + 0.1, 0.2, _rig_pulse(_rig_glow("float_g", 0, "ff8a2a", "ffe2b8", 0.65)))
-			_rig_quad(block, Vector3(0, fy + 0.012, 0.05), w + 0.5, 2.2, _rig_pulse(_rig_glow("float_line", 5, "ff7a1a", "ffe2b8", 0.42)), true)
+			_rig_quad(block, Vector3(0, fy + 0.012, 0.05), w + 1.4, 2.8, _rig_pulse(_rig_glow("float_line", 5, "ff7a1a", "ffe2b8", 0.28)), true)
 		14:
 			# Dijital tabela: direklere asılı led pano, ortadan iki yana akan oklar; altında kirişi
 			for side in [-1.0, 1.0]:

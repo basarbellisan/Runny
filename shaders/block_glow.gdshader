@@ -75,12 +75,14 @@ void fragment() {
 		float a = 0.12 + 0.16 * scan + 0.06 * wave + 0.7 * rim;
 		col = color.rgb * a * ex * strength * flick(seed);
 	} else if (pattern == 5) {
-		// Çizgi ışık: düzlem yere yatık, ortası çubukların tam altı. Çubuk boyunca düz, uçlarda söner;
-		// çubuktan uzaklaştıkça hızla azalır (yakında keskin, uzağa doğru kısa bir kuyruk)
+		// Çizgi ışık: düzlem yere yatık, ortası çubukların tam altı. Çubuk boyunca düz, uçlarda uzun
+		// bir mesafede söner; çubuktan uzaklaştıkça yumuşakça azalır (ortada sivri tepe yok, kenar yok)
 		float dz = abs(uv.y);
-		float along = 1.0 - smoothstep(h.x - 0.6, h.x, abs(uv.x));
-		float a = 0.65 * exp(-dz * 7.0) + 0.35 * exp(-dz * 2.5);
-		a *= 1.0 - smoothstep(0.6, 1.0, dz / h.y);
+		float ax = abs(uv.x) / h.x;
+		float along = 1.0 - smoothstep(0.45, 1.0, ax);
+		along *= along;
+		float a = 0.55 * exp(-pow(dz / 0.38, 2.0)) + 0.45 * exp(-pow(dz / 0.85, 2.0));
+		a *= 1.0 - smoothstep(0.5, 1.0, dz / h.y);
 		col = color.rgb * a * along * strength;
 	} else if (pattern == 4) {
 		// Yerde yumuşak ışık (düzlem yere yatırılır): köşesiz, kenara doğru tamamen sönen elips
