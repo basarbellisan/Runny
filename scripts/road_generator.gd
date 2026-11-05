@@ -1246,6 +1246,15 @@ func _land_far_estimate(v: float, dh: float, gap: float, slope: float) -> float:
 
 ## Yolda x0..x1 genişliğinde, z'den başlayıp depth boyunca çakıl
 func _add_gravel(s: Segment, x0: float, x1: float, z: float, depth: float) -> void:
+	# Yol kenarındaki çizgilerin üstüne gelmez: alan, en içteki kenar çizgisinin iç kenarından
+	# GRAVEL_LINE_GAP içeride biter (görüntü de etkisi de). Rastgele sayı tüketimi asıl genişlikle
+	# aynı kalır (yol üretimi değişmesin).
+	var w_gen := x1 - x0
+	var inset := _edge_lines_inset(s.width)
+	x0 = maxf(x0, s.x - s.width * 0.5 + inset)
+	x1 = minf(x1, s.x + s.width * 0.5 - inset)
+	if x1 - x0 < 0.6:
+		x1 = x0 + 0.6
 	s.obstacles.append({"x0": x0, "x1": x1, "z0": z, "z1": z - depth, "gravel": true})
 	stats.gravel = int(stats.get("gravel", 0)) + 1
 	var body := s.node
@@ -1262,14 +1271,14 @@ func _add_gravel(s: Segment, x0: float, x1: float, z: float, depth: float) -> vo
 		else:
 			_gravel_holes(body, center, x1 - x0, depth)
 		# Yol üretimi tasarımdan bağımsız kalsın: eski taşların çektiği rastgele sayılar aynen çekilir
-		for k in int((x1 - x0) * depth * 0.45) * 4:
+		for k in int(w_gen * depth * 0.45) * 4:
 			_rng.randf()
 		return
 	_add_box(body, center + Vector3(0, 0.02, 0), Vector3(x1 - x0, 0.03, depth), _gravel_mat)
 	# Kenarlarında koyu çizgi: "zemin değişiyor"
 	for ez in [0.0, -depth]:
 		_add_box(body, center + Vector3(0, 0.035, depth * 0.5 + ez), Vector3(x1 - x0, 0.02, 0.25), _block_mat)
-	for k in int((x1 - x0) * depth * 0.45):
+	for k in int(w_gen * depth * 0.45):
 		var st := _add_box(body, center + Vector3(_rng.randf_range(-0.5, 0.5) * (x1 - x0 - 0.3), 0.05,
 			_rng.randf_range(-0.5, 0.5) * (depth - 0.3)), Vector3.ONE * _rng.randf_range(0.08, 0.2), _stone_mat)
 		st.rotation.y = _rng.randf() * TAU
@@ -3564,6 +3573,20 @@ func _line_for(s: Segment, ln: Dictionary) -> ShaderMaterial:
 
 
 ## Seçili düzende yolun çizgileri: [{cx (yolun ortasına göre x), w, p, d}] (kenar çizgileri iki yanda)
+## Kenar çizgileriyle çakıl alanı arasında bırakılan boşluk (m)
+const GRAVEL_LINE_GAP := 0.15
+
+
+## Yol kenarından, en içteki (kenardan en uzak) kenar çizgisinin iç kenarına + boşluk
+func _edge_lines_inset(width: float) -> float:
+	var inset := 0.0
+	for ln in _line_layout(width):
+		var from_edge := width * 0.5 - absf(float(ln.cx))
+		if absf(float(ln.cx)) > 0.01:  # ortadaki çizgi değil, kenar çizgileri
+			inset = maxf(inset, from_edge + float(ln.w) * 0.5)
+	return inset + GRAVEL_LINE_GAP
+
+
 func _line_layout(width: float) -> Array:
 	var out: Array = []
 	var st := line_style
