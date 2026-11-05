@@ -2008,10 +2008,10 @@ func _gravel_holes(body: Node3D, center: Vector3, w: float, depth: float) -> voi
 
 
 ## Çakıl, kesik zikzak: yatay zikzak sıraları, her kol ayrı yarık; her yarıktan ışık perdesi
-const ZIG_ARM := 0.8      # kolun yatay boyu (m)
-const ZIG_AMP := 0.32     # zikzak genliği (m)
-const ZIG_ROW := 1.2      # sıra aralığı (m)
-const ZIG_RADIUS := 0.135 # yarığın yarı genişliği (m)
+const ZIG_ARM := 0.5      # kolun yatay boyu (m)
+const ZIG_AMP := 0.2     # zikzak genliği (m)
+const ZIG_ROW := 0.75      # sıra aralığı (m)
+const ZIG_RADIUS := 0.085 # yarığın yarı genişliği (m)
 const ZIG_T := Vector2(0.2, 0.8)  # yarık kolun bu bölümünde (köşelerde boşluk)
 var _zig_mat: ShaderMaterial
 var _curtain_mat: ShaderMaterial

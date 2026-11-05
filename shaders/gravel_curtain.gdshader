@@ -6,7 +6,7 @@ render_mode unshaded, blend_add, depth_draw_never, cull_disabled, fog_disabled, 
 
 uniform vec4 light : source_color = vec4(0.18, 0.36, 1.0, 1.0);
 uniform vec4 core : source_color = vec4(0.77, 0.83, 1.0, 1.0);
-uniform float max_height = 1.0;
+uniform float max_height = 0.65;
 uniform float strength = 0.38;
 uniform float t = 0.0;
 
