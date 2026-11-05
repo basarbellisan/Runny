@@ -38,6 +38,9 @@ var _halo: MeshInstance3D
 var _halo_mat := StandardMaterial3D.new()
 var _sparkles: CPUParticles3D
 var _sparkle_mat := StandardMaterial3D.new()
+## Uçak izi gibi kuyruk bırakan az sayıda parıltı (hızlı süzülür; baş parlak, kuyruk erir)
+var _streaks: CPUParticles3D
+var _streak_mat := StandardMaterial3D.new()
 var _rng := RandomNumberGenerator.new()
 var _sun_t := SUN_START
 var _shown := 1.0
@@ -112,7 +115,7 @@ func setup(p_car: Node3D) -> void:
 	_sparkle_mat.vertex_color_use_as_albedo = true
 	_sparkle_mat.disable_fog = true
 	var q := QuadMesh.new()
-	q.size = Vector2(0.45, 0.45)
+	q.size = Vector2(0.18, 0.18)  # küçük parıltılar
 	q.material = _sparkle_mat
 	_sparkles = CPUParticles3D.new()
 	_sparkles.mesh = q
@@ -138,6 +141,55 @@ func setup(p_car: Node3D) -> void:
 	fade.add_point(0.8, Color(1, 1, 1, 1))
 	_sparkles.color_ramp = fade
 	add_child(_sparkles)
+	# İzli parıltılar: hız yönüne hizalı ince çapraz şerit (baş parlak, kuyruk saydam) + baş noktası
+	_streak_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_streak_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_streak_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	_streak_mat.vertex_color_use_as_albedo = true
+	_streak_mat.disable_fog = true
+	_streak_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var trail := _streak_mesh(3.2, 0.05)
+	trail.surface_set_material(0, _streak_mat)
+	_streaks = CPUParticles3D.new()
+	_streaks.mesh = trail
+	_streaks.amount = 9
+	_streaks.lifetime = 6.0
+	_streaks.preprocess = 6.0
+	_streaks.local_coords = false
+	_streaks.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	_streaks.emission_box_extents = Vector3(50, 14, 95)
+	_streaks.direction = Vector3(1, 0.12, 0.25)
+	_streaks.spread = 25.0
+	_streaks.gravity = Vector3.ZERO
+	_streaks.initial_velocity_min = 2.5
+	_streaks.initial_velocity_max = 4.5
+	_streaks.particle_flag_align_y = true
+	_streaks.color_ramp = fade
+	add_child(_streaks)
+
+
+## Uçak izi: Y ekseni boyunca (y = 0 baş, y = -length kuyruk) birbirine dik iki ince şerit ve
+## başta küçük bir parlak nokta; tepe noktası renkleriyle baş parlak, kuyruk saydam
+func _streak_mesh(length: float, width: float) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var head := Color(1, 1, 1, 1)
+	var tail := Color(1, 1, 1, 0)
+	for ax in [Vector3(1, 0, 0), Vector3(0, 0, 1)]:
+		var a: Vector3 = ax * width * 0.5
+		var quad := [[-a, head], [a, head], [a + Vector3(0, -length, 0), tail], [-a + Vector3(0, -length, 0), tail]]
+		for idx in [0, 1, 2, 0, 2, 3]:
+			st.set_color(quad[idx][1])
+			st.add_vertex(quad[idx][0])
+	var d := width * 1.6
+	for ax in [Vector3(1, 0, 0), Vector3(0, 0, 1)]:
+		var a: Vector3 = ax * d
+		var up := Vector3(0, d, 0)
+		var dot := [-a - up, a - up, a + up, -a + up]
+		for idx in [0, 1, 2, 0, 2, 3]:
+			st.set_color(head)
+			st.add_vertex(dot[idx])
+	return st.commit()
 
 
 ## Dağ silüeti: SPAN boyunca rastgele tepeler; her tepe dibe inen düz bir üçgen yelpazesi
@@ -226,3 +278,5 @@ func update(pal: Dictionary, mood: float) -> void:
 	# Kameranın önünden uzakta başlar (yakında büyük kare gibi görünmesin)
 	_sparkles.global_position = c + Vector3(0, 6.0, -125.0)
 	_sparkle_mat.albedo_color = Color(pal.sparkle, 0.9 * seen)
+	_streaks.global_position = _sparkles.global_position
+	_streak_mat.albedo_color = Color(pal.sparkle, 0.75 * seen)

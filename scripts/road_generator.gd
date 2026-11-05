@@ -223,7 +223,7 @@ var _block_top_mat := StandardMaterial3D.new()
 @export_range(0, 2) var gravel_style := 2
 ## Çakıl deliklerinin dizilimi (GRAVEL_LAYOUTS): 0 kare, 1 çapraz, 2 sıkı kare, 3 sıkı çapraz,
 ## 4 çok sıkı çapraz küçük, 5 seyrek çapraz büyük
-@export_range(0, 5) var gravel_layout := 2
+@export_range(0, 5) var gravel_layout := 4
 var _blk_glow := StandardMaterial3D.new()
 var _blk_lamp_a := StandardMaterial3D.new()
 var _blk_lamp_b := StandardMaterial3D.new()
@@ -2461,6 +2461,19 @@ func _flush_crystals() -> void:
 		for q: Vector3 in raw:
 			if pts.is_empty() or pts[-1].z - q.z >= crystal_spacing * 0.75:
 				pts.append(q)
+		# Çakıla yakın olanlar konmaz; her kristalin rastgele sayısı yine çekilir (yol üretimi değişmesin)
+		var phases := PackedFloat32Array()
+		var kept := PackedVector3Array()
+		for q in pts:
+			var ph := _rng.randf()
+			if _near_gravel(q, CRYSTAL_GRAVEL_GAP):
+				stats.crystals_off_gravel = int(stats.get("crystals_off_gravel", 0)) + 1
+				continue
+			kept.append(q)
+			phases.append(ph)
+		pts = kept
+		if pts.is_empty():
+			continue
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		mm.use_custom_data = true
@@ -2470,7 +2483,7 @@ func _flush_crystals() -> void:
 		var alive: Array[bool] = []
 		for i in pts.size():
 			mm.set_instance_transform(i, Transform3D(Basis(), pts[i]))
-			mm.set_instance_custom_data(i, Color(_rng.randf(), 0, 0, 0))
+			mm.set_instance_custom_data(i, Color(phases[i], 0, 0, 0))
 			z_far = minf(z_far, pts[i].z)
 			alive.append(true)
 		var mi := MultiMeshInstance3D.new()
@@ -2485,6 +2498,21 @@ func _flush_crystals() -> void:
 			for q in pts:
 				crystal_z_history.append([q.x, q.z])
 	_crystal_pending.clear()
+
+
+## Kristal ile çakıl alanı arasında en az bu kadar boşluk (m): üst üste gelmez, yakınlaşmaz
+const CRYSTAL_GRAVEL_GAP := 1.5
+
+
+## p (dünya) bir çakıl alanına gap metreden yakın mı (alan kenarlarına göre, yol boyunca ve yana)
+func _near_gravel(p: Vector3, gap: float) -> bool:
+	for sg in segments:
+		if p.z > sg.z_start + gap + 1.0 or p.z < sg.z_end - gap - 1.0:
+			continue
+		for o in sg.obstacles:
+			if o.gravel and p.z <= o.z0 + gap and p.z >= o.z1 - gap and p.x >= o.x0 - gap and p.x <= o.x1 + gap:
+				return true
+	return false
 
 
 ## Arabanın değdiği kristalleri topla; toplananların sayısını döndürür
