@@ -79,6 +79,12 @@ float pulse_k_raw() {
 		float n0 = (cascade(0.0) - 0.28) / 0.72;
 		float n1 = (cascade(1.0) - 0.28) / 0.72;
 		return 0.72 + 0.32 * n1 + 0.08 * n0;
+	} else if (pulse == 8) {
+		// Üç sıralı, hep parlak çubuklar: yer ışığı hiç sönmez, en alttaki yanınca hafifçe artar
+		float m0 = (cascade(0.0) - 0.28) / 0.72;
+		float m1 = (cascade(1.0) - 0.28) / 0.72;
+		float m2 = (cascade(2.0) - 0.28) / 0.72;
+		return 0.72 + 0.32 * m2 + 0.08 * m1 + 0.04 * m0;
 	} else if (pulse == 6) {
 		// Ağırlık yükseklikle ters orantılı (90, 45 cm)
 		return 0.33 * cascade(0.0) + 0.67 * cascade(1.0);

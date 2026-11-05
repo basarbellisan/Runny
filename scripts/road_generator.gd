@@ -217,7 +217,7 @@ var _block_top_mat := StandardMaterial3D.new()
 ## Blok tasarımı (oyunda 3: çapraz şerit): 0 = koyu gövde + turuncu üst çizgi (eski); 1-5 ışıklı (karanlıkta
 ## da görünsün): 1 neon çerçeve, 2 uyarı lambaları, 3 çapraz şerit, 4 ışıklı tepe + hale,
 ## 5 fener direkleri. Hepsinde gövde koyu gri, ışıklar sise karışmaz.
-@export_range(0, 26) var block_style := 26
+@export_range(0, 27) var block_style := 26
 var _blk_glow := StandardMaterial3D.new()
 var _blk_lamp_a := StandardMaterial3D.new()
 var _blk_lamp_b := StandardMaterial3D.new()
@@ -1798,6 +1798,8 @@ func _add_block(s: Segment, x0: float, x1: float, z: float, depth: float) -> voi
 func block_height() -> float:
 	if block_style == 23 or block_style == 24:
 		return 1.2
+	if block_style == 27:
+		return 1.45  # üç kalın çubuk: ortaları 45, 90, 135 cm, üstün tepesi 145 cm
 	return 1.0 if block_style == 25 or block_style == 26 else 0.9
 
 
@@ -1843,7 +1845,7 @@ func _block_lights(block: Node3D, size: Vector3) -> void:
 			for xx in [size.x * 0.5 - 0.03, -size.x * 0.5 + 0.03]:
 				_add_box(block, Vector3(xx, 0.0, front + 0.01), Vector3(0.06, size.y, 0.02), _blk_glow)
 			_add_box(block, Vector3(0, -top + 0.015, 0.4), Vector3(size.x + 1.4, 0.01, size.z + 2.2), _blk_halo)
-		12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26:
+		12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27:
 			_block_rig(block, size)
 		5:
 			# Fener direkleri: iki uçta ince direk, tepelerinde yanıp sönen fener; üstte ince çizgi
@@ -2105,27 +2107,30 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 			ground.set_shader_parameter("phase_step", 0.25)
 			ground.set_shader_parameter("period", 0.8)
 			_rig_quad(block, Vector3(0, fy + 0.012, 0.05), w + 1.4, 2.8, ground, true)
-		25, 26:
+		25, 26, 27:
+			# 27: lacivert, aynı aralıkla en üste üçüncü çubuk (ortaları 45, 90, 135 cm)
 			# İki sıra çok kalın ışık çubuğu (çap 20 cm): ortaları yerden 45 ve 90 cm (yerle
 			# arası da çubuk aralığı kadar). Işık yukarıdan aşağı akar (0.8 sn)
 			# 25 canlı kırmızı, 26 canlı lacivert: [çubuk, öz, başlık, başlığın özü, yere düşen ışık]
 			# Lacivert: iki çubuk da hep açık ve parlak, yanan daha açık (sönük hal koyulaşmaz)
-			var cs: Array = ["2d5bff", "9ab8ff", "4a74ff", "c4d4ff", "2d5bff"] if block_style == 26 \
+			var navy := block_style == 26 or block_style == 27
+			var rows := 3 if block_style == 27 else 2
+			var cs: Array = ["2d5bff", "9ab8ff", "4a74ff", "c4d4ff", "2d5bff"] if navy \
 				else ["ff1414", "ff4a32", "ff3a2a", "ff9a80", "ff1010"]
 			var pre := "c%d" % block_style
-			var glow := 1.5 if block_style == 26 else 1.25
+			var glow := 1.5 if navy else 1.25
 			var r := 0.1
-			for i in 2:
-				var y := fy + 0.9 - i * 0.45  # i = 0 üst
+			for i in rows:
+				var y := fy + 0.45 * rows - i * 0.45  # i = 0 üst
 				var len := w - 0.24
 				var bar := _rig_fx(pre + "_bar%d" % i, 5, [cs[0], cs[1]], 0.0, float(i))
 				var cap := _rig_fx(pre + "_cap%d" % i, 5, [cs[2], cs[3]], 0.0, float(i))
 				var halo := _rig_glow(pre + "_g%d" % i, 0, cs[0], cs[1], glow, 0.0, float(i))
 				halo.set_shader_parameter("pulse", 2)
 				for m in [bar, cap, halo]:
-					m.set_shader_parameter("phase_step", 0.5)
+					m.set_shader_parameter("phase_step", 1.0 / rows)
 					m.set_shader_parameter("period", 0.8)
-				if block_style == 26:
+				if navy:
 					bar.set_shader_parameter("dim_keep", 1.0)
 					cap.set_shader_parameter("dim_keep", 1.0)
 					halo.set_shader_parameter("pulse_floor", 0.75)
@@ -2136,10 +2141,11 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 				_rig_quad(block, Vector3(0, y, 0), w + 0.3, 0.6, halo)
 			var ground := _rig_glow(pre + "_line", 5, cs[4], cs[1], 0.4)
 			ground.set_shader_parameter("pulse", 6)
-			ground.set_shader_parameter("phase_step", 0.5)
+			ground.set_shader_parameter("phase_step", 1.0 / rows)
 			ground.set_shader_parameter("period", 0.8)
-			if block_style == 26:
-				ground.set_shader_parameter("pulse", 7)  # hep parlak çubuklar: alt yanınca yer hafifçe artar
+			if navy:
+				# hep parlak çubuklar: en alttaki yanınca yer hafifçe artar
+				ground.set_shader_parameter("pulse", 8 if rows == 3 else 7)
 			_rig_quad(block, Vector3(0, fy + 0.012, 0.05), w + 1.4, 2.8, ground, true)
 		14:
 			# Dijital tabela: direklere asılı led pano, ortadan iki yana akan oklar; altında kirişi
