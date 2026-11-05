@@ -7,7 +7,9 @@ render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, fog_disabled, 
 uniform vec4 light : source_color = vec4(0.18, 0.36, 1.0, 1.0);
 uniform vec4 core : source_color = vec4(0.77, 0.83, 1.0, 1.0);
 uniform vec4 wall : source_color = vec4(0.05, 0.04, 0.10, 1.0);
-uniform float spacing = 1.25;
+uniform vec2 spacing = vec2(1.25, 1.25);
+// 1: çapraz dizilim (her ikinci sıra yarım aralık kayık)
+uniform float stagger = 0.0;
 uniform vec2 counts = vec2(4.0, 20.0);
 uniform float radius = 0.28;
 uniform float t = 0.0;
@@ -29,10 +31,14 @@ void vertex() {
 }
 
 void fragment() {
-	vec2 q = lp.xy / spacing + counts * 0.5;
-	vec2 ci = floor(q);
+	// Düzlem: genişlik (counts.x + stagger/2) aralık, boy counts.y aralık; sıra = y yönünde
+	float qy = (lp.y + counts.y * spacing.y * 0.5) / spacing.y;
+	float row = floor(qy);
+	float xo = stagger * 0.5 * mod(row, 2.0);
+	float qx = (lp.x + (counts.x + 0.5 * stagger) * spacing.x * 0.5) / spacing.x - xo;
+	vec2 ci = vec2(floor(qx), row);
 	float in_grid = step(0.0, ci.x) * step(ci.x, counts.x - 1.0) * step(0.0, ci.y) * step(ci.y, counts.y - 1.0);
-	vec2 f = (fract(q) - 0.5) * spacing;
+	vec2 f = (vec2(fract(qx), fract(qy)) - 0.5) * spacing;
 	float r = length(f) / radius;
 	float inside = 1.0 - smoothstep(0.93, 1.0, r);
 	float b = breath(ci);

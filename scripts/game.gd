@@ -168,6 +168,8 @@ func _ready() -> void:
 		roads.road_depth = Vector2(rd[0], rd[-1])  # karşılaştırma: 0 = eski yüksek duvarlar; "1,3" aralık
 	if _args.has("line_style"):
 		roads.line_style = int(_args.line_style)  # çizgi düzeni denemesi
+	if _args.has("gravel_layout"):
+		roads.gravel_layout = int(_args.gravel_layout)  # çakıl dizilimi denemesi
 	if _args.has("gravel_style"):
 		roads.gravel_style = int(_args.gravel_style)  # çakıl tasarımı denemesi
 	if _args.has("block_style"):

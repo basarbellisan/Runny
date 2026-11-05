@@ -221,6 +221,9 @@ var _block_top_mat := StandardMaterial3D.new()
 ## Çakıl tasarımı: 0 kahverengi zemin ve taşlar, 1 yerden çıkan hava dalgaları,
 ## 2 düzenli yuvarlak delikler ve içlerinden yükselen ışık
 @export_range(0, 2) var gravel_style := 2
+## Çakıl deliklerinin dizilimi (GRAVEL_LAYOUTS): 0 kare, 1 çapraz, 2 sıkı kare, 3 sıkı çapraz,
+## 4 çok sıkı çapraz küçük, 5 seyrek çapraz büyük
+@export_range(0, 5) var gravel_layout := 0
 var _blk_glow := StandardMaterial3D.new()
 var _blk_lamp_a := StandardMaterial3D.new()
 var _blk_lamp_b := StandardMaterial3D.new()
@@ -1912,8 +1915,15 @@ func _gravel_waves(body: Node3D, center: Vector3, w: float, depth: float) -> voi
 
 ## Çakıl, delikten yükselen ışık: düzenli ızgarada yuvarlak delikler (tek düzlem) ve her delikten
 ## yükselen ışık sütunları (tek MultiMesh); ikisi aynı nabızla (hücreye göre faz)
-const GRAVEL_HOLE_SPACING := 1.25
-const GRAVEL_HOLE_RADIUS := 0.28
+## [x aralığı, z aralığı, delik yarıçapı, çapraz]
+const GRAVEL_LAYOUTS := [
+	[1.25, 1.25, 0.28, 0],
+	[1.25, 1.25, 0.28, 1],
+	[0.9, 0.9, 0.24, 0],
+	[0.9, 0.78, 0.24, 1],
+	[0.7, 0.6, 0.18, 1],
+	[1.8, 1.56, 0.42, 1],
+]
 var _gravel_hole_mat: ShaderMaterial
 var _gravel_beam_mat: ShaderMaterial
 var _gravel_beam_mesh: CylinderMesh
@@ -1939,37 +1949,45 @@ func _gravel_holes(body: Node3D, center: Vector3, w: float, depth: float) -> voi
 		_gravel_beam_mesh.cap_bottom = false
 	if _unit_quad == null:
 		_unit_quad = QuadMesh.new()
-	var s := GRAVEL_HOLE_SPACING
-	var nx := maxi(1, int((w - 0.3) / s))
-	var nz := maxi(1, int((depth - 0.3) / s))
+	var lay: Array = GRAVEL_LAYOUTS[clampi(gravel_layout, 0, GRAVEL_LAYOUTS.size() - 1)]
+	var sx: float = lay[0]
+	var sz: float = lay[1]
+	var rad: float = lay[2]
+	var st: float = lay[3]
+	var nx := maxi(1, int((w - 0.3) / sx - 0.5 * st))
+	var nz := maxi(1, int((depth - 0.3) / sz))
+	var pw := (nx + 0.5 * st) * sx
+	var ph := nz * sz
 	# Delikler: düzlemin kendi malzemesi (hücre sayısı alana göre)
 	var holes := _gravel_hole_mat.duplicate() as ShaderMaterial
-	holes.set_shader_parameter("spacing", s)
+	holes.set_shader_parameter("spacing", Vector2(sx, sz))
+	holes.set_shader_parameter("stagger", st)
 	holes.set_shader_parameter("counts", Vector2(nx, nz))
-	holes.set_shader_parameter("radius", GRAVEL_HOLE_RADIUS)
+	holes.set_shader_parameter("radius", rad)
 	_gravel_wave_mats.append(holes)
 	var ground := MeshInstance3D.new()
 	ground.mesh = _unit_quad
 	ground.material_override = holes
 	ground.position = center + Vector3(0, 0.012, 0)
 	ground.rotation = Vector3(-PI * 0.5, 0, 0)
-	ground.scale = Vector3(nx * s, nz * s, 1.0)
+	ground.scale = Vector3(pw, ph, 1.0)
 	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	body.add_child(ground)
-	# Işık sütunları
+	# Işık sütunları: hücre (c, r) düzlemdeki deliğin tam üstünde (düzlemin y'si dünyada -z)
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_custom_data = true
 	mm.mesh = _gravel_beam_mesh
 	mm.instance_count = nx * nz
-	var basis := Basis.from_scale(Vector3(GRAVEL_HOLE_RADIUS * 1.8, 1.0, GRAVEL_HOLE_RADIUS * 1.8))
-	for cz in nz:
-		for cx in nx:
-			var i := cz * nx + cx
-			var pos := center + Vector3((cx - (nx - 1) * 0.5) * s, 0.0, (cz - (nz - 1) * 0.5) * s)
-			mm.set_instance_transform(i, Transform3D(basis, pos))
-			# Düzlemde hücre: x aynı, z yönü ters (düzlemin y'si dünyada -z)
-			mm.set_instance_custom_data(i, Color(cx, nz - 1 - cz, 0, 0))
+	var basis := Basis.from_scale(Vector3(rad * 1.8, 1.0, rad * 1.8))
+	for r in nz:
+		var xo := st * 0.5 * (r % 2)
+		var ly := (r + 0.5) * sz - ph * 0.5
+		for c in nx:
+			var lx := (c + 0.5 + xo) * sx - pw * 0.5
+			var i := r * nx + c
+			mm.set_instance_transform(i, Transform3D(basis, center + Vector3(lx, 0.0, -ly)))
+			mm.set_instance_custom_data(i, Color(c, r, 0, 0))
 	var beams := MultiMeshInstance3D.new()
 	beams.multimesh = mm
 	beams.material_override = _gravel_beam_mat

@@ -5,6 +5,7 @@ extends SceneTree
 var _out := "user://"
 var _style := 2
 var _frames := 90
+var _layout := 0
 
 
 func _initialize() -> void:
@@ -13,6 +14,8 @@ func _initialize() -> void:
 			_out = a.trim_prefix("--out=")
 		elif a.begins_with("--style="):
 			_style = int(a.trim_prefix("--style="))
+		elif a.begins_with("--layout="):
+			_layout = int(a.trim_prefix("--layout="))
 		elif a.begins_with("--frames="):
 			_frames = int(a.trim_prefix("--frames="))
 	_shoot.call_deferred()
@@ -33,6 +36,7 @@ func _shoot() -> void:
 	var roads: RoadGenerator = main.roads
 	roads.set_process(false)
 	roads.gravel_style = _style
+	roads.gravel_layout = _layout
 	var base := car.global_position + Vector3(0, 120, 0)
 	var stage := Node3D.new()
 	main.add_child(stage)
