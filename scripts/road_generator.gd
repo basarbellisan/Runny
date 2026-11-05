@@ -217,7 +217,7 @@ var _block_top_mat := StandardMaterial3D.new()
 ## Blok tasarımı (oyunda 3: çapraz şerit): 0 = koyu gövde + turuncu üst çizgi (eski); 1-5 ışıklı (karanlıkta
 ## da görünsün): 1 neon çerçeve, 2 uyarı lambaları, 3 çapraz şerit, 4 ışıklı tepe + hale,
 ## 5 fener direkleri. Hepsinde gövde koyu gri, ışıklar sise karışmaz.
-@export_range(0, 23) var block_style := 19
+@export_range(0, 23) var block_style := 23
 var _blk_glow := StandardMaterial3D.new()
 var _blk_lamp_a := StandardMaterial3D.new()
 var _blk_lamp_b := StandardMaterial3D.new()
@@ -1954,6 +1954,7 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 	var w := size.x
 	var fy := -size.y * 0.5  # yol yüzeyi
 	var px := w * 0.5 - 0.07  # direklerin x'i
+	var first := block.get_child_count()
 	var inner := w - 0.26  # direkler arası
 	match block_style:
 		12:
@@ -2119,6 +2120,13 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 				_add_box(block, Vector3(0, y, 0), Vector3(w - 0.14, 0.05, 0.05), _rig_fx("field_rail", 4, ["ffc24a"]))
 			_rig_quad(block, Vector3(0, fy + 0.48, 0), w - 0.14, 0.8, _rig_glow("field", 2, "ffb52e", "fff2c0", 0.9, 0.5, 4.0))
 			_rig_quad(block, Vector3(0, fy + 0.012, 0.6), w + 1.0, 2.2, _rig_glow("field_spot", 3, "ffb52e", "fff2c0", 0.25), true)
+
+	# Işık veren parçalar (çubuk, başlık, lamba, ray) gölge düşürmez: kendi ışıkları altlarını
+	# aydınlatır. Katı metal direkler (StandardMaterial) gölgelerini korur.
+	for k in range(first, block.get_child_count()):
+		var mi := block.get_child(k) as MeshInstance3D
+		if mi and mi.material_override is ShaderMaterial:
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 # --------------------------------------------------------------------------
