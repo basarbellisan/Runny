@@ -16,6 +16,8 @@ uniform float seed = 0.0;
 uniform float flicker = 0.0;
 // Sırayla yanma dalgasının süresi (sn)
 uniform float period = 1.4;
+// Dalgada bir çubuktan sonrakine gecikme (turun kesri)
+uniform float phase_step = 0.28;
 
 varying vec3 lp;
 varying vec3 hs;
@@ -34,7 +36,7 @@ float flick(float s) {
 
 // Yukarıdan aşağı yanma dalgası: i. çubuk bir öncekinden biraz sonra parlar; hiç tam sönmez
 float cascade(float i) {
-	float x = fract(t / period - i * 0.28);
+	float x = fract(t / period - i * phase_step);
 	float w = 0.5 + 0.5 * cos(6.28318 * x);
 	return 0.28 + 0.72 * pow(w, 1.4);
 }

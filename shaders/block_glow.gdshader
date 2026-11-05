@@ -14,9 +14,11 @@ uniform float seed = 0.0;
 uniform float flicker = 0.0;
 // 1: ışık veren çubukla (block_fx lazer, aynı seed) aynı anda nabız gibi atar;
 // 2: sırayla yanan çubuğun (block_fx 5, aynı seed) dalgası; 3: yerde üç sıralı çubuğun toplamı
-// (yere yakın olan daha çok aydınlatır)
+// (yere yakın olan daha çok aydınlatır); 4: dört sıralı çubuğun toplamı
 uniform int pulse = 0;
 uniform float period = 1.4;
+// Dalgada bir çubuktan sonrakine gecikme (turun kesri)
+uniform float phase_step = 0.28;
 // Yere düşen ışık (3, 4, 5) fiziğe göre: yüzey yalnız ışıkta olanı yansıtır, eklenen ışık
 // = yüzeyin rengi × ışığın rengi × şiddet (strength). Ekran ışığı sRGB'de topladığı için
 // yolun ekranda görünen rengine (base) göre farkı hesaplanır: sonuç base + yüzey × ışık olur.
@@ -54,7 +56,7 @@ vec3 to_linear(vec3 c) {
 }
 
 float cascade(float i) {
-	float x = fract(t / period - i * 0.28);
+	float x = fract(t / period - i * phase_step);
 	float w = 0.5 + 0.5 * cos(6.28318 * x);
 	return 0.28 + 0.72 * pow(w, 1.4);
 }
@@ -66,6 +68,9 @@ float pulse_k() {
 		return cascade(seed);
 	} else if (pulse == 3) {
 		return 0.18 * cascade(0.0) + 0.3 * cascade(1.0) + 0.52 * cascade(2.0);
+	} else if (pulse == 4) {
+		// Ağırlık yükseklikle ters orantılı (90, 67.5, 45, 22.5 cm)
+		return 0.12 * cascade(0.0) + 0.16 * cascade(1.0) + 0.24 * cascade(2.0) + 0.48 * cascade(3.0);
 	}
 	return 1.0;
 }
