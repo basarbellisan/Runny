@@ -220,7 +220,7 @@ var _block_top_mat := StandardMaterial3D.new()
 @export_range(0, 28) var block_style := 28
 ## Çakıl tasarımı: 0 kahverengi zemin ve taşlar, 1 yerden çıkan hava dalgaları,
 ## 2 düzenli yuvarlak delikler ve içlerinden yükselen ışık
-@export_range(0, 2) var gravel_style := 0
+@export_range(0, 2) var gravel_style := 2
 var _blk_glow := StandardMaterial3D.new()
 var _blk_lamp_a := StandardMaterial3D.new()
 var _blk_lamp_b := StandardMaterial3D.new()
@@ -1255,6 +1255,9 @@ func _add_gravel(s: Segment, x0: float, x1: float, z: float, depth: float) -> vo
 		return
 	if gravel_style == 2:
 		_gravel_holes(body, center, x1 - x0, depth)
+		# Yol üretimi tasarımdan bağımsız kalsın: eski taşların çektiği rastgele sayılar aynen çekilir
+		for k in int((x1 - x0) * depth * 0.45) * 4:
+			_rng.randf()
 		return
 	_add_box(body, center + Vector3(0, 0.02, 0), Vector3(x1 - x0, 0.03, depth), _gravel_mat)
 	# Kenarlarında koyu çizgi: "zemin değişiyor"
