@@ -217,7 +217,7 @@ var _block_top_mat := StandardMaterial3D.new()
 ## Blok tasarımı (oyunda 3: çapraz şerit): 0 = koyu gövde + turuncu üst çizgi (eski); 1-5 ışıklı (karanlıkta
 ## da görünsün): 1 neon çerçeve, 2 uyarı lambaları, 3 çapraz şerit, 4 ışıklı tepe + hale,
 ## 5 fener direkleri. Hepsinde gövde koyu gri, ışıklar sise karışmaz.
-@export_range(0, 27) var block_style := 26
+@export_range(0, 27) var block_style := 27
 var _blk_glow := StandardMaterial3D.new()
 var _blk_lamp_a := StandardMaterial3D.new()
 var _blk_lamp_b := StandardMaterial3D.new()
@@ -2119,6 +2119,9 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 				else ["ff1414", "ff4a32", "ff3a2a", "ff9a80", "ff1010"]
 			var pre := "c%d" % block_style
 			var glow := 1.5 if navy else 1.25
+			# 27: çubuk parıltısı ve yer ışığı %30 az (alt yanınca yerin artması aynı oranda kalır)
+			var refl := 0.7 if block_style == 27 else 1.0
+			glow *= refl
 			var r := 0.1
 			for i in rows:
 				var y := fy + 0.45 * rows - i * 0.45  # i = 0 üst
@@ -2139,7 +2142,7 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 				for side in [-1.0, 1.0]:
 					_rig_mesh(block, _unit_ball_hi, Vector3(side * len * 0.5, y, 0), Vector3(r * 2.0, r * 2.0, r * 2.0), cap)
 				_rig_quad(block, Vector3(0, y, 0), w + 0.3, 0.6, halo)
-			var ground := _rig_glow(pre + "_line", 5, cs[4], cs[1], 0.4)
+			var ground := _rig_glow(pre + "_line", 5, cs[4], cs[1], 0.4 * refl)
 			ground.set_shader_parameter("pulse", 6)
 			ground.set_shader_parameter("phase_step", 1.0 / rows)
 			ground.set_shader_parameter("period", 0.8)
