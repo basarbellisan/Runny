@@ -2064,7 +2064,8 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 			# Dört sıra kalın ışık çubuğu, üç sıradaki gibi 30 cm arayla (yerle arası da 30 cm):
 			# blok ve çarpışma kutusu 1.2 m. Işık yukarıdan aşağı çeyrek tur arayla, hızlı akar (0.8 sn)
 			# 23 turuncu, 24 kırmızı: [çubuk, çubuğun özü, başlık, başlığın özü, yere düşen ışık]
-			var cs: Array = ["ff2b2b", "ffe4dc", "ffb0a4", "ffffff", "ff2020"] if block_style == 24 \
+			# Kırmızı canlı ve doygun: öz de kırmızı (beyaza kaçmaz), parıltı biraz güçlü
+			var cs: Array = ["ff1414", "ff4a32", "ff3a2a", "ff9a80", "ff1010"] if block_style == 24 \
 				else ["ff8a2a", "fff4e0", "ffd9a8", "ffffff", "ff7a1a"]
 			var pre := "c%d" % block_style
 			var top := size.y
@@ -2073,7 +2074,7 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 				var len := w - 0.14
 				var bar := _rig_fx(pre + "_bar%d" % i, 5, [cs[0], cs[1]], 0.0, float(i))
 				var cap := _rig_fx(pre + "_cap%d" % i, 5, [cs[2], cs[3]], 0.0, float(i))
-				var halo := _rig_glow(pre + "_g%d" % i, 0, cs[0], cs[1], 0.95, 0.0, float(i))
+				var halo := _rig_glow(pre + "_g%d" % i, 0, cs[0], cs[1], 1.25 if block_style == 24 else 0.95, 0.0, float(i))
 				halo.set_shader_parameter("pulse", 2)
 				for m in [bar, cap, halo]:
 					m.set_shader_parameter("phase_step", 0.25)
