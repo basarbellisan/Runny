@@ -2117,6 +2117,10 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 			var rows := 3 if block_style == 27 else 2
 			var cs: Array = ["2d5bff", "9ab8ff", "4a74ff", "c4d4ff", "2d5bff"] if navy \
 				else ["ff1414", "ff4a32", "ff3a2a", "ff9a80", "ff1010"]
+			if block_style == 27:
+				# Koyu lacivert: kristal yeşilinden ton olarak uzak (yeşil bileşeni çok az, hafif mora
+				# kayık), yanan çubuk yine belirgin biçimde daha açık
+				cs = ["1c2fc4", "5566f0", "2a3ed8", "8a96ff", "1c2fc4"]
 			var pre := "c%d" % block_style
 			var glow := 1.5 if navy else 1.25
 			# 27: çubuk parıltısı ve yer ışığı %30 az (alt yanınca yerin artması aynı oranda kalır)
@@ -2149,7 +2153,12 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 			if navy:
 				# hep parlak çubuklar: en alttaki yanınca yer hafifçe artar
 				ground.set_shader_parameter("pulse", 8 if rows == 3 else 7)
-			_rig_quad(block, Vector3(0, fy + 0.012, 0.05), w + 1.4, 2.8, ground, true)
+			if block_style == 27:
+				# Yansıma daha geniş alana yayılır, daha yumuşak söner (tepe parlaklığı aynı)
+				ground.set_shader_parameter("spread", 1.9)
+				_rig_quad(block, Vector3(0, fy + 0.012, 0.05), w + 3.2, 5.2, ground, true)
+			else:
+				_rig_quad(block, Vector3(0, fy + 0.012, 0.05), w + 1.4, 2.8, ground, true)
 		14:
 			# Dijital tabela: direklere asılı led pano, ortadan iki yana akan oklar; altında kirişi
 			for side in [-1.0, 1.0]:

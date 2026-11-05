@@ -21,6 +21,8 @@ uniform float period = 1.4;
 uniform float phase_step = 0.28;
 // Nabzın en düşük değeri (sönük çubuğun parıltısı ve yer ışığı bunun altına inmez)
 uniform float pulse_floor = 0.0;
+// Yer ışığının (5) yayılması: 1 normal, büyüdükçe daha geniş ve yumuşak söner
+uniform float spread = 1.0;
 // Yere düşen ışık (3, 4, 5) fiziğe göre: yüzey yalnız ışıkta olanı yansıtır, eklenen ışık
 // = yüzeyin rengi × ışığın rengi × şiddet (strength). Ekran ışığı sRGB'de topladığı için
 // yolun ekranda görünen rengine (base) göre farkı hesaplanır: sonuç base + yüzey × ışık olur.
@@ -141,9 +143,9 @@ void fragment() {
 		// bir mesafede söner; çubuktan uzaklaştıkça yumuşakça azalır (ortada sivri tepe yok, kenar yok)
 		float dz = abs(uv.y);
 		float ax = abs(uv.x) / h.x;
-		float along = 1.0 - smoothstep(0.45, 1.0, ax);
+		float along = 1.0 - smoothstep(0.45 / spread, 1.0, ax);
 		along *= along;
-		float a = 0.55 * exp(-pow(dz / 0.38, 2.0)) + 0.45 * exp(-pow(dz / 0.85, 2.0));
+		float a = 0.55 * exp(-pow(dz / (0.38 * spread), 2.0)) + 0.45 * exp(-pow(dz / (0.85 * spread), 2.0));
 		a *= 1.0 - smoothstep(0.5, 1.0, dz / h.y);
 		col = color.rgb * a * along * strength;
 	} else if (pattern == 4) {
