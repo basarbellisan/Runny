@@ -218,6 +218,9 @@ var _block_top_mat := StandardMaterial3D.new()
 ## da görünsün): 1 neon çerçeve, 2 uyarı lambaları, 3 çapraz şerit, 4 ışıklı tepe + hale,
 ## 5 fener direkleri. Hepsinde gövde koyu gri, ışıklar sise karışmaz.
 @export_range(0, 28) var block_style := 28
+## Çakıl tasarımı: 0 kahverengi zemin ve taşlar, 1 yerden çıkan hava dalgaları,
+## 2 düzenli yuvarlak delikler ve içlerinden yükselen ışık
+@export_range(0, 2) var gravel_style := 0
 var _blk_glow := StandardMaterial3D.new()
 var _blk_lamp_a := StandardMaterial3D.new()
 var _blk_lamp_b := StandardMaterial3D.new()
@@ -394,6 +397,8 @@ func _process(delta: float) -> void:
 	for m in _blk_neon:
 		m.set_shader_parameter("t", _light_time)
 	for m: ShaderMaterial in _rig_mats.values():
+		m.set_shader_parameter("t", _light_time)
+	for m in _gravel_wave_mats:
 		m.set_shader_parameter("t", _light_time)
 
 
@@ -1245,6 +1250,12 @@ func _add_gravel(s: Segment, x0: float, x1: float, z: float, depth: float) -> vo
 	var c := cos(body.rotation.x)
 	depth /= c
 	var center := Vector3((x0 + x1) * 0.5 - s.x, 0.0, (z - body.position.z) / c - depth * 0.5)
+	if gravel_style == 1:
+		_gravel_waves(body, center, x1 - x0, depth)
+		return
+	if gravel_style == 2:
+		_gravel_holes(body, center, x1 - x0, depth)
+		return
 	_add_box(body, center + Vector3(0, 0.02, 0), Vector3(x1 - x0, 0.03, depth), _gravel_mat)
 	# Kenarlarında koyu çizgi: "zemin değişiyor"
 	for ez in [0.0, -depth]:
@@ -1854,6 +1865,113 @@ func _block_lights(block: Node3D, size: Vector3) -> void:
 				var x: float = side * (size.x * 0.5 - 0.12)
 				_add_box(block, Vector3(x, top + 0.3, 0), Vector3(0.08, 0.6, 0.08), _block_mat)
 				_add_box(block, Vector3(x, top + 0.66, 0), Vector3(0.22, 0.16, 0.22), _blk_lamp_a if side < 0.0 else _blk_lamp_b)
+
+
+## Çakıl, hava dalgaları: yumuşak kenarlı ışıklı zemin ve üstünde yerden yükselen dalga perdeleri
+var _gravel_wave_mats: Array[ShaderMaterial] = []
+
+
+func _gravel_wave_mat(pattern: int, seed: float, strength: float) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = preload("res://shaders/gravel_waves.gdshader")
+	m.set_shader_parameter("pattern", pattern)
+	m.set_shader_parameter("seed", seed)
+	m.set_shader_parameter("strength", strength)
+	m.set_shader_parameter("color", Color("dce8ff"))
+	_gravel_wave_mats.append(m)
+	return m
+
+
+func _gravel_waves(body: Node3D, center: Vector3, w: float, depth: float) -> void:
+	if _unit_quad == null:
+		_unit_quad = QuadMesh.new()
+	var seed := _rng.randf() * 10.0
+	var ground := MeshInstance3D.new()
+	ground.mesh = _unit_quad
+	ground.material_override = _gravel_wave_mat(0, seed, 0.45)
+	ground.position = center + Vector3(0, 0.015, 0)
+	ground.rotation = Vector3(-PI * 0.5, 0, 0)
+	ground.scale = Vector3(w, depth, 1.0)
+	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.add_child(ground)
+	# Dalga perdeleri: alan boyunca birkaç sıra, her biri kendi fazında
+	var n := maxi(2, int(depth / 3.5))
+	for i in n:
+		var zf := (float(i) + 0.5) / n - 0.5
+		var cur := MeshInstance3D.new()
+		cur.mesh = _unit_quad
+		cur.material_override = _gravel_wave_mat(1, seed + i * 1.7, 0.55)
+		cur.position = center + Vector3(0, 0.7, zf * (depth - 1.5))
+		cur.scale = Vector3(maxf(w - 0.4, 0.5), 1.4, 1.0)
+		cur.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		body.add_child(cur)
+
+
+## Çakıl, delikten yükselen ışık: düzenli ızgarada yuvarlak delikler (tek düzlem) ve her delikten
+## yükselen ışık sütunları (tek MultiMesh); ikisi aynı nabızla (hücreye göre faz)
+const GRAVEL_HOLE_SPACING := 1.25
+const GRAVEL_HOLE_RADIUS := 0.28
+var _gravel_hole_mat: ShaderMaterial
+var _gravel_beam_mat: ShaderMaterial
+var _gravel_beam_mesh: CylinderMesh
+
+
+func _gravel_holes(body: Node3D, center: Vector3, w: float, depth: float) -> void:
+	if _gravel_hole_mat == null:
+		_gravel_hole_mat = ShaderMaterial.new()
+		_gravel_hole_mat.shader = preload("res://shaders/gravel_holes.gdshader")
+		_gravel_beam_mat = ShaderMaterial.new()
+		_gravel_beam_mat.shader = preload("res://shaders/gravel_beam.gdshader")
+		for m in [_gravel_hole_mat, _gravel_beam_mat]:
+			m.set_shader_parameter("light", Color("2d5bff"))
+			m.set_shader_parameter("core", Color("c4d4ff"))
+		_gravel_wave_mats.append(_gravel_beam_mat)
+		_gravel_beam_mesh = CylinderMesh.new()
+		_gravel_beam_mesh.top_radius = 0.5
+		_gravel_beam_mesh.bottom_radius = 0.5
+		_gravel_beam_mesh.height = 1.0
+		_gravel_beam_mesh.radial_segments = 16
+		_gravel_beam_mesh.rings = 4
+		_gravel_beam_mesh.cap_top = false
+		_gravel_beam_mesh.cap_bottom = false
+	if _unit_quad == null:
+		_unit_quad = QuadMesh.new()
+	var s := GRAVEL_HOLE_SPACING
+	var nx := maxi(1, int((w - 0.3) / s))
+	var nz := maxi(1, int((depth - 0.3) / s))
+	# Delikler: düzlemin kendi malzemesi (hücre sayısı alana göre)
+	var holes := _gravel_hole_mat.duplicate() as ShaderMaterial
+	holes.set_shader_parameter("spacing", s)
+	holes.set_shader_parameter("counts", Vector2(nx, nz))
+	holes.set_shader_parameter("radius", GRAVEL_HOLE_RADIUS)
+	_gravel_wave_mats.append(holes)
+	var ground := MeshInstance3D.new()
+	ground.mesh = _unit_quad
+	ground.material_override = holes
+	ground.position = center + Vector3(0, 0.012, 0)
+	ground.rotation = Vector3(-PI * 0.5, 0, 0)
+	ground.scale = Vector3(nx * s, nz * s, 1.0)
+	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.add_child(ground)
+	# Işık sütunları
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_custom_data = true
+	mm.mesh = _gravel_beam_mesh
+	mm.instance_count = nx * nz
+	var basis := Basis.from_scale(Vector3(GRAVEL_HOLE_RADIUS * 1.8, 1.0, GRAVEL_HOLE_RADIUS * 1.8))
+	for cz in nz:
+		for cx in nx:
+			var i := cz * nx + cx
+			var pos := center + Vector3((cx - (nx - 1) * 0.5) * s, 0.0, (cz - (nz - 1) * 0.5) * s)
+			mm.set_instance_transform(i, Transform3D(basis, pos))
+			# Düzlemde hücre: x aynı, z yönü ters (düzlemin y'si dünyada -z)
+			mm.set_instance_custom_data(i, Color(cx, nz - 1 - cz, 0, 0))
+	var beams := MultiMeshInstance3D.new()
+	beams.multimesh = mm
+	beams.material_override = _gravel_beam_mat
+	beams.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.add_child(beams)
 
 
 # --------------------------------------------------------------------------
