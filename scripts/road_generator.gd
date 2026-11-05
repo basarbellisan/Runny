@@ -223,7 +223,7 @@ var _block_top_mat := StandardMaterial3D.new()
 @export_range(0, 2) var gravel_style := 2
 ## Çakıl deliklerinin dizilimi (GRAVEL_LAYOUTS): 0 kare, 1 çapraz, 2 sıkı kare, 3 sıkı çapraz,
 ## 4 çok sıkı çapraz küçük, 5 seyrek çapraz büyük
-@export_range(0, 5) var gravel_layout := 0
+@export_range(0, 5) var gravel_layout := 2
 var _blk_glow := StandardMaterial3D.new()
 var _blk_lamp_a := StandardMaterial3D.new()
 var _blk_lamp_b := StandardMaterial3D.new()
