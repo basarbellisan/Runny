@@ -2154,9 +2154,10 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 				# hep parlak çubuklar: en alttaki yanınca yer hafifçe artar
 				ground.set_shader_parameter("pulse", 8 if rows == 3 else 7)
 			if block_style == 27:
-				# Yansıma daha geniş alana yayılır, daha yumuşak söner (tepe parlaklığı aynı)
-				ground.set_shader_parameter("spread", 1.9)
-				_rig_quad(block, Vector3(0, fy + 0.012, 0.05), w + 3.2, 5.2, ground, true)
+				# Yansıma çubukların altında dar ve yumuşak; fazla yayılıp belirginleşmesin
+				ground.set_shader_parameter("spread", 1.15)
+				ground.set_shader_parameter("strength", (ground.get_shader_parameter("strength") as float) * 0.8)
+				_rig_quad(block, Vector3(0, fy + 0.012, 0.05), w + 1.6, 3.0, ground, true)
 			else:
 				_rig_quad(block, Vector3(0, fy + 0.012, 0.05), w + 1.4, 2.8, ground, true)
 		14:
