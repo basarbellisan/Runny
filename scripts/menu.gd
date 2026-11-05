@@ -483,13 +483,13 @@ func _build_ui(best: int) -> void:
 
 	var ver := Label.new()
 	ver.text = Version.BUILD
-	ver.add_theme_font_size_override("font_size", 14)
-	ver.add_theme_color_override("font_color", Color(Palette.INK_DARK, 0.35))
+	ver.add_theme_font_size_override("font_size", 24)
+	ver.add_theme_color_override("font_color", Color(Palette.INK_DARK, 0.7))
 	ver.anchor_top = 1.0
 	ver.anchor_bottom = 1.0
 	ver.offset_left = 16
-	ver.offset_top = -34
-	ver.offset_bottom = -12
+	ver.offset_top = -52
+	ver.offset_bottom = -14
 	ver.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(ver)
 
