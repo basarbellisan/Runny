@@ -217,7 +217,7 @@ var _block_top_mat := StandardMaterial3D.new()
 ## Blok tasarımı (oyunda 3: çapraz şerit): 0 = koyu gövde + turuncu üst çizgi (eski); 1-5 ışıklı (karanlıkta
 ## da görünsün): 1 neon çerçeve, 2 uyarı lambaları, 3 çapraz şerit, 4 ışıklı tepe + hale,
 ## 5 fener direkleri. Hepsinde gövde koyu gri, ışıklar sise karışmaz.
-@export_range(0, 23) var block_style := 23
+@export_range(0, 24) var block_style := 23
 var _blk_glow := StandardMaterial3D.new()
 var _blk_lamp_a := StandardMaterial3D.new()
 var _blk_lamp_b := StandardMaterial3D.new()
@@ -1795,7 +1795,7 @@ func _add_block(s: Segment, x0: float, x1: float, z: float, depth: float) -> voi
 
 ## Bloğun (ve çarpışma kutusunun) yüksekliği: tasarım 23'te dört sıra ışık 30 cm arayla 1.2 m
 func block_height() -> float:
-	return 1.2 if block_style == 23 else 0.9
+	return 1.2 if block_style == 23 or block_style == 24 else 0.9
 
 
 ## Bloğun gövdesi: 6..11 tasarımlarında desenli tek malzeme, öncekilerde koyu gövde;
@@ -1840,7 +1840,7 @@ func _block_lights(block: Node3D, size: Vector3) -> void:
 			for xx in [size.x * 0.5 - 0.03, -size.x * 0.5 + 0.03]:
 				_add_box(block, Vector3(xx, 0.0, front + 0.01), Vector3(0.06, size.y, 0.02), _blk_glow)
 			_add_box(block, Vector3(0, -top + 0.015, 0.4), Vector3(size.x + 1.4, 0.01, size.z + 2.2), _blk_halo)
-		12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23:
+		12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24:
 			_block_rig(block, size)
 		5:
 			# Fener direkleri: iki uçta ince direk, tepelerinde yanıp sönen fener; üstte ince çizgi
@@ -2060,16 +2060,20 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 			ground.set_shader_parameter("pulse", 5)
 			ground.set_shader_parameter("phase_step", 0.2)
 			_rig_quad(block, Vector3(0, fy + 0.012, 0.05), w + 1.4, 2.8, ground, true)
-		23:
+		23, 24:
 			# Dört sıra kalın ışık çubuğu, üç sıradaki gibi 30 cm arayla (yerle arası da 30 cm):
 			# blok ve çarpışma kutusu 1.2 m. Işık yukarıdan aşağı çeyrek tur arayla, hızlı akar (0.8 sn)
+			# 23 turuncu, 24 kırmızı: [çubuk, çubuğun özü, başlık, başlığın özü, yere düşen ışık]
+			var cs: Array = ["ff2b2b", "ffe4dc", "ffb0a4", "ffffff", "ff2020"] if block_style == 24 \
+				else ["ff8a2a", "fff4e0", "ffd9a8", "ffffff", "ff7a1a"]
+			var pre := "c%d" % block_style
 			var top := size.y
 			for i in 4:
 				var y := fy + top - i * 0.3  # i = 0 en üst
 				var len := w - 0.14
-				var bar := _rig_fx("c23_bar%d" % i, 5, ["ff8a2a", "fff4e0"], 0.0, float(i))
-				var cap := _rig_fx("c23_cap%d" % i, 5, ["ffd9a8", "ffffff"], 0.0, float(i))
-				var halo := _rig_glow("c23_g%d" % i, 0, "ff8a2a", "fff4e0", 0.95, 0.0, float(i))
+				var bar := _rig_fx(pre + "_bar%d" % i, 5, [cs[0], cs[1]], 0.0, float(i))
+				var cap := _rig_fx(pre + "_cap%d" % i, 5, [cs[2], cs[3]], 0.0, float(i))
+				var halo := _rig_glow(pre + "_g%d" % i, 0, cs[0], cs[1], 0.95, 0.0, float(i))
 				halo.set_shader_parameter("pulse", 2)
 				for m in [bar, cap, halo]:
 					m.set_shader_parameter("phase_step", 0.25)
@@ -2078,7 +2082,7 @@ func _block_rig(block: Node3D, size: Vector3) -> void:
 				for side in [-1.0, 1.0]:
 					_rig_mesh(block, _unit_ball, Vector3(side * len * 0.5, y, 0), Vector3(0.1, 0.1, 0.1), cap)
 				_rig_quad(block, Vector3(0, y, 0), w + 0.2, 0.32, halo)
-			var ground := _rig_glow("c23_line", 5, "ff7a1a", "fff4e0", 0.4)
+			var ground := _rig_glow(pre + "_line", 5, cs[4], cs[1], 0.4)
 			ground.set_shader_parameter("pulse", 4)  # ağırlıklar yüksekliklerle orantılı: aynı
 			ground.set_shader_parameter("phase_step", 0.25)
 			ground.set_shader_parameter("period", 0.8)
