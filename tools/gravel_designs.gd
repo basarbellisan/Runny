@@ -45,7 +45,10 @@ func _shoot() -> void:
 	road_mat.albedo_color = Palette.SKIES[0].road_top
 	road_mat.roughness = 0.95
 	roads._add_box(stage, Vector3(0, -0.2, -20), Vector3(10, 0.4, 80), road_mat)
-	roads._gravel_holes(stage, Vector3(0, 0, -8.0), 10.0, 16.0)
+	if _style == 3:
+		roads._gravel_zigzag(stage, Vector3(0, 0, -8.0), 10.0, 16.0)
+	else:
+		roads._gravel_holes(stage, Vector3(0, 0, -8.0), 10.0, 16.0)
 	cam.global_position = base + Vector3(0.0, 2.6, 6.5)
 	cam.look_at(base + Vector3(0, 0.3, -6.0))
 	for i in _frames:

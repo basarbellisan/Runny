@@ -219,8 +219,8 @@ var _block_top_mat := StandardMaterial3D.new()
 ## 5 fener direkleri. Hepsinde gövde koyu gri, ışıklar sise karışmaz.
 @export_range(0, 28) var block_style := 28
 ## Çakıl tasarımı: 0 kahverengi zemin ve taşlar, 1 yerden çıkan hava dalgaları,
-## 2 düzenli yuvarlak delikler ve içlerinden yükselen ışık
-@export_range(0, 2) var gravel_style := 2
+## 2 düzenli yuvarlak delikler ve içlerinden yükselen ışık, 3 kesik zikzak yarıklar ve ışık perdeleri
+@export_range(0, 3) var gravel_style := 2
 ## Çakıl deliklerinin dizilimi (GRAVEL_LAYOUTS): 0 kare, 1 çapraz, 2 sıkı kare, 3 sıkı çapraz,
 ## 4 çok sıkı çapraz küçük, 5 seyrek çapraz büyük
 @export_range(0, 5) var gravel_layout := 4
@@ -1256,8 +1256,11 @@ func _add_gravel(s: Segment, x0: float, x1: float, z: float, depth: float) -> vo
 	if gravel_style == 1:
 		_gravel_waves(body, center, x1 - x0, depth)
 		return
-	if gravel_style == 2:
-		_gravel_holes(body, center, x1 - x0, depth)
+	if gravel_style == 2 or gravel_style == 3:
+		if gravel_style == 3:
+			_gravel_zigzag(body, center, x1 - x0, depth)
+		else:
+			_gravel_holes(body, center, x1 - x0, depth)
 		# Yol üretimi tasarımdan bağımsız kalsın: eski taşların çektiği rastgele sayılar aynen çekilir
 		for k in int((x1 - x0) * depth * 0.45) * 4:
 			_rng.randf()
@@ -1993,6 +1996,78 @@ func _gravel_holes(body: Node3D, center: Vector3, w: float, depth: float) -> voi
 	beams.material_override = _gravel_beam_mat
 	beams.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	body.add_child(beams)
+
+
+## Çakıl, kesik zikzak: yatay zikzak sıraları, her kol ayrı yarık; her yarıktan ışık perdesi
+const ZIG_ARM := 0.8      # kolun yatay boyu (m)
+const ZIG_AMP := 0.32     # zikzak genliği (m)
+const ZIG_ROW := 1.2      # sıra aralığı (m)
+const ZIG_RADIUS := 0.135 # yarığın yarı genişliği (m)
+const ZIG_T := Vector2(0.2, 0.8)  # yarık kolun bu bölümünde (köşelerde boşluk)
+var _zig_mat: ShaderMaterial
+var _curtain_mat: ShaderMaterial
+
+
+func _gravel_zigzag(body: Node3D, center: Vector3, w: float, depth: float) -> void:
+	if _zig_mat == null:
+		_zig_mat = ShaderMaterial.new()
+		_zig_mat.shader = preload("res://shaders/gravel_zigzag.gdshader")
+		_curtain_mat = ShaderMaterial.new()
+		_curtain_mat.shader = preload("res://shaders/gravel_curtain.gdshader")
+		for m in [_zig_mat, _curtain_mat]:
+			m.set_shader_parameter("light", Color("2d5bff"))
+			m.set_shader_parameter("core", Color("c4d4ff"))
+		_gravel_wave_mats.append(_curtain_mat)
+	if _unit_quad == null:
+		_unit_quad = QuadMesh.new()
+	var na := maxi(2, int((w - 0.3) / ZIG_ARM))
+	var nr := maxi(1, int((depth - 0.3) / ZIG_ROW))
+	var pw := na * ZIG_ARM
+	var ph := nr * ZIG_ROW
+	var mat := _zig_mat.duplicate() as ShaderMaterial
+	mat.set_shader_parameter("arm", ZIG_ARM)
+	mat.set_shader_parameter("amp", ZIG_AMP)
+	mat.set_shader_parameter("row_gap", ZIG_ROW)
+	mat.set_shader_parameter("counts", Vector2(na, nr))
+	mat.set_shader_parameter("radius", ZIG_RADIUS)
+	mat.set_shader_parameter("t0", ZIG_T.x)
+	mat.set_shader_parameter("t1", ZIG_T.y)
+	_gravel_wave_mats.append(mat)
+	var ground := MeshInstance3D.new()
+	ground.mesh = _unit_quad
+	ground.material_override = mat
+	ground.position = center + Vector3(0, 0.012, 0)
+	ground.rotation = Vector3(-PI * 0.5, 0, 0)
+	ground.scale = Vector3(pw, ph, 1.0)
+	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.add_child(ground)
+	# Işık perdeleri: her yarığın üstünde, yarık boyunca dik düzlem (düzlemin y'si dünyada -z)
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_custom_data = true
+	mm.mesh = _unit_quad
+	mm.instance_count = na * nr
+	for r in nr:
+		var yc := (r + 0.5) * ZIG_ROW - ph * 0.5
+		for a in na:
+			var ys := -ZIG_AMP if a % 2 == 0 else ZIG_AMP
+			var pa := Vector2(a * ZIG_ARM - pw * 0.5, yc + ys)
+			var pb := Vector2((a + 1) * ZIG_ARM - pw * 0.5, yc - ys)
+			var s0 := pa.lerp(pb, ZIG_T.x)
+			var s1 := pa.lerp(pb, ZIG_T.y)
+			var mid := (s0 + s1) * 0.5
+			var dw := Vector3(s1.x - s0.x, 0.0, -(s1.y - s0.y))  # dünyada yarık yönü
+			var ln := dw.length() + ZIG_RADIUS * 2.0
+			var xb := dw.normalized()
+			var basis := Basis(xb * ln, Vector3.UP, xb.cross(Vector3.UP))
+			var i := r * na + a
+			mm.set_instance_transform(i, Transform3D(basis, center + Vector3(mid.x, 0.0, -mid.y)))
+			mm.set_instance_custom_data(i, Color(a, r, 0, 0))
+	var curtains := MultiMeshInstance3D.new()
+	curtains.multimesh = mm
+	curtains.material_override = _curtain_mat
+	curtains.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.add_child(curtains)
 
 
 # --------------------------------------------------------------------------
