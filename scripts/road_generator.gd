@@ -2011,6 +2011,10 @@ func _gravel_holes(body: Node3D, center: Vector3, w: float, depth: float) -> voi
 const ZIG_ARM := 0.5      # kolun yatay boyu (m)
 const ZIG_AMP := 0.2     # zikzak genliği (m)
 const ZIG_ROW := 0.75      # sıra aralığı (m)
+## İç içe dizilim: sıralar dikeyde yaklaşır, her sıranın sivri ucu alttakinin sivri ucuna denk
+## gelir (sıra aralığı = zikzak yüksekliği × ZIG_NEST_K)
+@export var zig_nest := false
+const ZIG_NEST_K := 0.9
 const ZIG_RADIUS := 0.085 # yarığın yarı genişliği (m)
 const ZIG_T := Vector2(0.2, 0.8)  # yarık kolun bu bölümünde (köşelerde boşluk)
 ## Çaprazlama: tek sıralar bu kadar kol yana kayık (0 hizalı, 0.5 tuğla, 1 ters yönde)
@@ -2032,17 +2036,18 @@ func _gravel_zigzag(body: Node3D, center: Vector3, w: float, depth: float) -> vo
 	if _unit_quad == null:
 		_unit_quad = QuadMesh.new()
 	var na := maxi(2, int((w - 0.3) / ZIG_ARM))
-	var nr := maxi(1, int((depth - 0.3) / ZIG_ROW))
+	var row := ZIG_AMP * 2.0 * ZIG_NEST_K if zig_nest else ZIG_ROW
+	var nr := maxi(1, int((depth - 0.3) / row))
 	var sh := zig_shift
 	if sh > 0.0:
 		na = maxi(2, int((w - 0.3) / ZIG_ARM - sh))
 	var pw := (na + sh) * ZIG_ARM
-	var ph := nr * ZIG_ROW
+	var ph := nr * row
 	var mat := _zig_mat.duplicate() as ShaderMaterial
 	mat.set_shader_parameter("shift", sh)
 	mat.set_shader_parameter("arm", ZIG_ARM)
 	mat.set_shader_parameter("amp", ZIG_AMP)
-	mat.set_shader_parameter("row_gap", ZIG_ROW)
+	mat.set_shader_parameter("row_gap", row)
 	mat.set_shader_parameter("counts", Vector2(na, nr))
 	mat.set_shader_parameter("radius", ZIG_RADIUS)
 	mat.set_shader_parameter("t0", ZIG_T.x)
@@ -2063,7 +2068,7 @@ func _gravel_zigzag(body: Node3D, center: Vector3, w: float, depth: float) -> vo
 	mm.mesh = _unit_quad
 	mm.instance_count = na * nr
 	for r in nr:
-		var yc := (r + 0.5) * ZIG_ROW - ph * 0.5
+		var yc := (r + 0.5) * row - ph * 0.5
 		var xo := sh * ZIG_ARM * (r % 2)
 		for a in na:
 			var ys := -ZIG_AMP if a % 2 == 0 else ZIG_AMP
