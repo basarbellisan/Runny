@@ -3328,16 +3328,28 @@ func _add_ramp(host: Segment, x: float, width: float, z_start: float, length: fl
 	for k in 3:
 		var tc := (k + 0.7) / 3.4 * rows
 		var dc := lat * hw * 0.3
+		# Sivri uçlu ok: dış V'nin tepesi p0, iç V aynı biçimde geride; kollar iki paralelkenar
+		var p0 := Vector2(dc, tc * length / rows)
+		var notch := dir * (thick * 2.0 / sin(deg_to_rad(50.0)))
 		for sgn in [-1.0, 1.0]:
 			var back := dir.rotated(sgn * deg_to_rad(130.0))
-			var p0 := Vector2(dc, tc * length / rows)
 			var p1 := p0 + back * arm
-			var nrm := Vector2(-back.y, back.x) * thick
-			var q := [p0 - nrm, p0 + nrm, p1 + nrm, p1 - nrm]
+			var q := [p0, p1, p1 - notch, p0 - notch]
 			var pts: Array = []
 			for v2 in q:
 				pts.append(at.call(v2.x, v2.y / length * rows, 0.03))
 			_quad(arrows, unused, pts[0], pts[1], pts[2], pts[3], Vector3.UP)
+	# Kenar çizgileri: rampa boyunca iki yanda (yol gibi okunsun), okların renginde
+	var lw := 0.14
+	var inset := 0.3
+	for side in [-1.0, 1.0]:
+		var xo: float = side * (hw - inset)
+		for i in rows:
+			var e0: Vector3 = at.call(xo - lw * 0.5, i, 0.03)
+			var e1: Vector3 = at.call(xo + lw * 0.5, i, 0.03)
+			var e2: Vector3 = at.call(xo + lw * 0.5, i + 1, 0.03)
+			var e3: Vector3 = at.call(xo - lw * 0.5, i + 1, 0.03)
+			_quad(arrows, unused, e0, e1, e2, e3, Vector3.UP)
 	_apply_ramp_style()
 	for pair in [[top_st, _ramp_top_mat], [side_st, _wall_material(host)], [arrows, _ramp_arrow_mat]]:
 		var mi := MeshInstance3D.new()
@@ -3564,13 +3576,23 @@ func _add_chevrons(body: Node3D, width: float, slope_len: float) -> void:
 	var arm := minf(width * 0.42, 2.8)
 	var half := deg_to_rad(52.0)
 	var count := clampi(int(slope_len / 8.0), 3, 8)
+	# Sivri uçlu şevronlar: dış V'nin tepesi ileri (-z) bakar; iç V aynı biçimde geride
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var unused := PackedVector3Array()
+	var w := 0.6
+	var notch := Vector3(0, 0, w / sin(half))
 	for i in count:
 		var apex_z := -slope_len * 0.5 + slope_len * (i + 0.6) / (count + 0.4)
+		var p0 := Vector3(0, 0.035, apex_z)
 		for sx in [-1.0, 1.0]:
 			var d := Vector3(sx * sin(half), 0, cos(half))
-			var mi := _add_box(body, Vector3(0, 0.02, apex_z) + d * arm * 0.5,
-				Vector3(0.6, 0.02, arm), _chevron_mat)
-			mi.rotation.y = atan2(d.x, d.z)
+			var p1 := p0 + d * arm
+			_quad(st, unused, p0, p1, p1 + notch, p0 + notch, Vector3.UP)
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = _chevron_mat
+	body.add_child(mi)
 
 
 ## Bölge rengi (mesafeye göre yumuşak geçiş); alçak yollar daha koyu
