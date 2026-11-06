@@ -15,6 +15,8 @@ uniform vec2 counts = vec2(8.0, 10.0);  // kol sayısı, sıra sayısı
 uniform float radius = 0.135;
 uniform float t0 = 0.2;
 uniform float t1 = 0.8;
+// Çaprazlama: tek sıralar bu kadar kol yana kayık (0 hizalı, 0.5 tuğla, 1 ters yönde)
+uniform float shift = 0.0;
 uniform float t = 0.0;
 
 varying vec3 lp;
@@ -41,11 +43,12 @@ void vertex() {
 }
 
 void fragment() {
-	float W = counts.x * arm;
+	float W = (counts.x + shift) * arm;
 	float H = counts.y * row_gap;
 	float row = floor((lp.y + H * 0.5) / row_gap);
 	float yc = (row + 0.5) * row_gap - H * 0.5;
-	float xa = lp.x + W * 0.5;
+	float xo = shift * arm * mod(max(row, 0.0), 2.0);
+	float xa = lp.x + W * 0.5 - xo;
 	float a0 = floor(xa / arm);
 	float best = 1e9;
 	float bi = 0.0;
@@ -68,7 +71,7 @@ void fragment() {
 	}
 	float r = best / radius;
 	float inside = 1.0 - smoothstep(0.93, 1.0, r);
-	float b = breath_side(abs(bi + 0.5 - counts.x * 0.5));
+	float b = breath_side(abs(bi + 0.5 + xo / arm - (counts.x + shift) * 0.5));
 	vec3 glow = mix(core.rgb, light.rgb, smoothstep(0.0, 0.55, r)) * mix(0.3, 1.1, b);
 	ALBEDO = mix(glow, wall.rgb, smoothstep(0.62, 0.95, r));
 	ALPHA = inside;

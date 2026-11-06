@@ -9,6 +9,7 @@ var _layout := 0
 ## --high: yukarıdan bakış (desen ve animasyon daha iyi görünür); --depth=N: alanın boyu (m)
 var _high := false
 var _depth := 16.0
+var _zshift := 0.0
 
 
 func _initialize() -> void:
@@ -17,6 +18,8 @@ func _initialize() -> void:
 			_out = a.trim_prefix("--out=")
 		elif a.begins_with("--style="):
 			_style = int(a.trim_prefix("--style="))
+		elif a.begins_with("--zshift="):
+			_zshift = float(a.trim_prefix("--zshift="))
 		elif a == "--high":
 			_high = true
 		elif a.begins_with("--depth="):
@@ -44,6 +47,7 @@ func _shoot() -> void:
 	roads.set_process(false)
 	roads.gravel_style = _style
 	roads.gravel_layout = _layout
+	roads.zig_shift = _zshift
 	var base := car.global_position + Vector3(0, 120, 0)
 	var stage := Node3D.new()
 	main.add_child(stage)

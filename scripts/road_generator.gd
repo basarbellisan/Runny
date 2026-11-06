@@ -2013,6 +2013,8 @@ const ZIG_AMP := 0.2     # zikzak genliği (m)
 const ZIG_ROW := 0.75      # sıra aralığı (m)
 const ZIG_RADIUS := 0.085 # yarığın yarı genişliği (m)
 const ZIG_T := Vector2(0.2, 0.8)  # yarık kolun bu bölümünde (köşelerde boşluk)
+## Çaprazlama: tek sıralar bu kadar kol yana kayık (0 hizalı, 0.5 tuğla, 1 ters yönde)
+@export var zig_shift := 0.0
 var _zig_mat: ShaderMaterial
 var _curtain_mat: ShaderMaterial
 
@@ -2031,9 +2033,13 @@ func _gravel_zigzag(body: Node3D, center: Vector3, w: float, depth: float) -> vo
 		_unit_quad = QuadMesh.new()
 	var na := maxi(2, int((w - 0.3) / ZIG_ARM))
 	var nr := maxi(1, int((depth - 0.3) / ZIG_ROW))
-	var pw := na * ZIG_ARM
+	var sh := zig_shift
+	if sh > 0.0:
+		na = maxi(2, int((w - 0.3) / ZIG_ARM - sh))
+	var pw := (na + sh) * ZIG_ARM
 	var ph := nr * ZIG_ROW
 	var mat := _zig_mat.duplicate() as ShaderMaterial
+	mat.set_shader_parameter("shift", sh)
 	mat.set_shader_parameter("arm", ZIG_ARM)
 	mat.set_shader_parameter("amp", ZIG_AMP)
 	mat.set_shader_parameter("row_gap", ZIG_ROW)
@@ -2058,10 +2064,11 @@ func _gravel_zigzag(body: Node3D, center: Vector3, w: float, depth: float) -> vo
 	mm.instance_count = na * nr
 	for r in nr:
 		var yc := (r + 0.5) * ZIG_ROW - ph * 0.5
+		var xo := sh * ZIG_ARM * (r % 2)
 		for a in na:
 			var ys := -ZIG_AMP if a % 2 == 0 else ZIG_AMP
-			var pa := Vector2(a * ZIG_ARM - pw * 0.5, yc + ys)
-			var pb := Vector2((a + 1) * ZIG_ARM - pw * 0.5, yc - ys)
+			var pa := Vector2(a * ZIG_ARM - pw * 0.5 + xo, yc + ys)
+			var pb := Vector2((a + 1) * ZIG_ARM - pw * 0.5 + xo, yc - ys)
 			var s0 := pa.lerp(pb, ZIG_T.x)
 			var s1 := pa.lerp(pb, ZIG_T.y)
 			var mid := (s0 + s1) * 0.5
@@ -2071,7 +2078,7 @@ func _gravel_zigzag(body: Node3D, center: Vector3, w: float, depth: float) -> vo
 			var basis := Basis(xb * ln, Vector3.UP, xb.cross(Vector3.UP))
 			var i := r * na + a
 			mm.set_instance_transform(i, Transform3D(basis, center + Vector3(mid.x, 0.0, -mid.y)))
-			mm.set_instance_custom_data(i, Color(absf(a + 0.5 - na * 0.5), r, 0, 0))
+			mm.set_instance_custom_data(i, Color(absf(a + 0.5 + xo / ZIG_ARM - (na + sh) * 0.5), r, 0, 0))
 	var curtains := MultiMeshInstance3D.new()
 	curtains.multimesh = mm
 	curtains.material_override = _curtain_mat

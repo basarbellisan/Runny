@@ -170,6 +170,8 @@ func _ready() -> void:
 		roads.line_style = int(_args.line_style)  # çizgi düzeni denemesi
 	if _args.has("gravel_layout"):
 		roads.gravel_layout = int(_args.gravel_layout)  # çakıl dizilimi denemesi
+	if _args.has("zig_shift"):
+		roads.zig_shift = float(_args.zig_shift)  # zikzak çaprazlama denemesi
 	if _args.has("gravel_style"):
 		roads.gravel_style = int(_args.gravel_style)  # çakıl tasarımı denemesi
 	if _args.has("block_style"):
