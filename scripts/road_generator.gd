@@ -207,9 +207,12 @@ var _ramp_line_mat := ShaderMaterial.new()
 var _chevron_mat := StandardMaterial3D.new()
 var _ramp_top_mat := StandardMaterial3D.new()
 ## Zıplama rampası renkleri (ramp_style): 0 eski (şeftali + turuncu ok), 1 beyaz + sarı ok,
-## 2 güneş sarısı + beyaz ok, 3 camgöbeği + beyaz ok, 4 macenta + beyaz ok
-@export_range(0, 4) var ramp_style := 0
-const RAMP_COLORS := [[null, null], ["f4f1ff", "ffc81e"], ["ffd21e", "ffffff"], ["18d6ff", "ffffff"], ["ff2bd6", "ffffff"]]
+## 2 güneş sarısı + beyaz ok, 3 camgöbeği + beyaz ok, 4 macenta + beyaz ok;
+## 5-8: yolun morundan (aynı ton, daha açık ve canlı; yol gibi ışık alır), dikkat oklarla:
+## 5 canlı mor + beyaz ok, 6 canlı mor + camgöbeği ok, 7 canlı mor + sarı ok, 8 açık mor + beyaz ok
+@export_range(0, 8) var ramp_style := 0
+const RAMP_COLORS := [[null, null], ["f4f1ff", "ffc81e"], ["ffd21e", "ffffff"], ["18d6ff", "ffffff"], ["ff2bd6", "ffffff"],
+	["6a3fa8", "ffffff", "lit"], ["6a3fa8", "3fe4ff", "lit"], ["6a3fa8", "ffd21e", "lit"], ["8a5bcc", "ffffff", "lit"]]
 var _ramp_arrow_mat := StandardMaterial3D.new()
 var _kerb_red := StandardMaterial3D.new()
 var _kerb_white := StandardMaterial3D.new()
@@ -3320,6 +3323,7 @@ func _add_ramp(host: Segment, x: float, width: float, z_start: float, length: fl
 	var lat := clampf(kick / maxf(estimate_speed(car.global_position.z - z_start), 1.0) * 2.5, -0.9, 0.9)
 	var dir := Vector2(lat, 1.0).normalized()
 	var arm := minf(width * 0.32, 1.6)
+	var thick := 0.16 if ramp_style < 5 else 0.22  # mor rampada oklar biraz kalın (dikkat oklardan)
 	for k in 3:
 		var tc := (k + 0.7) / 3.4 * rows
 		var dc := lat * hw * 0.3
@@ -3327,7 +3331,7 @@ func _add_ramp(host: Segment, x: float, width: float, z_start: float, length: fl
 			var back := dir.rotated(sgn * deg_to_rad(130.0))
 			var p0 := Vector2(dc, tc * length / rows)
 			var p1 := p0 + back * arm
-			var nrm := Vector2(-back.y, back.x) * 0.16
+			var nrm := Vector2(-back.y, back.x) * thick
 			var q := [p0 - nrm, p0 + nrm, p1 + nrm, p1 - nrm]
 			var pts: Array = []
 			for v2 in q:
@@ -3541,7 +3545,9 @@ func _apply_ramp_style() -> void:
 	if cs[0] == null:
 		return
 	_ramp_top_mat.albedo_color = Color(cs[0])
-	_ramp_top_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	# "lit": yol gibi ışık alır (yoldan bağımsız durmasın); diğerleri kendi rengiyle parlar
+	_ramp_top_mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL if cs.size() > 2 \
+		else BaseMaterial3D.SHADING_MODE_UNSHADED
 	_ramp_arrow_mat.albedo_color = Color(cs[1])
 
 
