@@ -28,6 +28,14 @@ var _time := 0.0
 var _side := 1.0
 
 
+## Kanat izi: genişlik (m); kanadın gerisinde bu mesafeler (m) arasında solar. Kamera uçağın
+## hemen arkasında: uzun iz kameranın yanından geçerken perspektifle ekranın kenarlarına açılıp
+## kanadın ötesine taşmış gibi görünür. Kısa ve uca yakın kalınca kanadın arkasında bir çizgi olur.
+const WING_TRAIL_W := 0.24
+const WING_FADE_FROM := 0.8
+const WING_FADE_TO := 3.0
+
+
 func _ready() -> void:
 	top_level = true
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
@@ -38,7 +46,7 @@ func _ready() -> void:
 		_ribbons.append(_make_ribbon(1, Vector3(x, 0.55, 1.75), 0.16, light))
 	_ribbons.append(_make_ribbon(3, Vector3(0, 0.06, 1.5), 1.7, Color(Palette.SNOW, 0.5)))
 	for side in [-1.0, 1.0]:
-		var w := _make_ribbon(0, Vector3.ZERO, 0.45, light)
+		var w := _make_ribbon(0, Vector3.ZERO, WING_TRAIL_W, light)
 		w.wing = true
 		w.side = side  # iz kanadın ucundan çıkar (Car.wing_tip)
 		_ribbons.append(w)
@@ -136,6 +144,7 @@ func _draw_ribbon(r: Dictionary, head: Vector3) -> void:
 	var wing: bool = r.get("wing", false)
 	var l := maxf(wing_life() if wing else life(), 0.01)
 	var color: Color = r.color
+	var tip: Vector3 = pts[-1].p
 	mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
 	for i in pts.size():
 		var a: Vector3 = pts[maxi(i - 1, 0)].p
@@ -148,10 +157,16 @@ func _draw_ribbon(r: Dictionary, head: Vector3) -> void:
 		var bl := car.boost_level if r.style == 1 and not wing else 0.0
 		var half: float = r.width * 0.5 * lerpf(1.0, boost_width, bl) * lerpf(0.35 + 0.65 * k, 1.0, bl)
 		var alpha := color.a * lerpf(k * k, sqrt(k), bl)
+		var c: Vector3 = pts[i].p
+		if wing:
+			# Dış kenar kanat ucunda: şerit içeri (gövdeye doğru) kayık
+			var inward := -signf(float(r.side)) * Vector3.RIGHT
+			c += inward * half
+			alpha *= 1.0 - smoothstep(WING_FADE_FROM, WING_FADE_TO, c.z - tip.z)
 		mesh.surface_set_color(Color(color, alpha))
-		mesh.surface_add_vertex(pts[i].p - side * half)
+		mesh.surface_add_vertex(c - side * half)
 		mesh.surface_set_color(Color(color, alpha))
-		mesh.surface_add_vertex(pts[i].p + side * half)
+		mesh.surface_add_vertex(c + side * half)
 	mesh.surface_end()
 
 
