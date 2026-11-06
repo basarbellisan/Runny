@@ -32,8 +32,10 @@ var _side := 1.0
 ## hemen arkasında: uzun iz kameranın yanından geçerken perspektifle ekranın kenarlarına açılıp
 ## kanadın ötesine taşmış gibi görünür. Kısa ve uca yakın kalınca kanadın arkasında bir çizgi olur.
 const WING_TRAIL_W := 0.24
-const WING_FADE_FROM := 0.8
-const WING_FADE_TO := 3.0
+const WING_FADE_FROM := 2.4
+const WING_FADE_TO := 4.4
+## İz kanada değmez: kanat ucunun bu kadar gerisinde (m) yumuşakça belirir
+const WING_GAP := Vector2(1.1, 1.6)
 
 
 func _ready() -> void:
@@ -162,7 +164,8 @@ func _draw_ribbon(r: Dictionary, head: Vector3) -> void:
 			# Dış kenar kanat ucunda: şerit içeri (gövdeye doğru) kayık
 			var inward := -signf(float(r.side)) * Vector3.RIGHT
 			c += inward * half
-			alpha *= 1.0 - smoothstep(WING_FADE_FROM, WING_FADE_TO, c.z - tip.z)
+			var behind := c.z - tip.z
+			alpha *= smoothstep(WING_GAP.x, WING_GAP.y, behind) * (1.0 - smoothstep(WING_FADE_FROM, WING_FADE_TO, behind))
 		mesh.surface_set_color(Color(color, alpha))
 		mesh.surface_add_vertex(c - side * half)
 		mesh.surface_set_color(Color(color, alpha))
