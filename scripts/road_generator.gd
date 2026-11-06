@@ -209,8 +209,9 @@ var _ramp_top_mat := StandardMaterial3D.new()
 ## Zıplama rampası renkleri (ramp_style): 0 eski (şeftali + turuncu ok), 1 beyaz + sarı ok,
 ## 2 güneş sarısı + beyaz ok, 3 camgöbeği + beyaz ok, 4 macenta + beyaz ok;
 ## 5-8: yolun morundan (aynı ton, daha açık ve canlı; yol gibi ışık alır), dikkat oklarla:
-## 5 canlı mor + beyaz ok, 6 canlı mor + camgöbeği ok, 7 canlı mor + sarı ok, 8 açık mor + beyaz ok
-@export_range(0, 8) var ramp_style := 0
+## 5 canlı mor + beyaz ok, 6 canlı mor + camgöbeği ok, 7 canlı mor + sarı ok, 8 açık mor + beyaz ok;
+## 9 ters çevrilmiş yol: yüzey yol çizgilerinin renginde, oklar yolun morunda (yol gibi ışık alır)
+@export_range(0, 9) var ramp_style := 0
 const RAMP_COLORS := [[null, null], ["f4f1ff", "ffc81e"], ["ffd21e", "ffffff"], ["18d6ff", "ffffff"], ["ff2bd6", "ffffff"],
 	["6a3fa8", "ffffff", "lit"], ["6a3fa8", "3fe4ff", "lit"], ["6a3fa8", "ffd21e", "lit"], ["8a5bcc", "ffffff", "lit"]]
 var _ramp_arrow_mat := StandardMaterial3D.new()
@@ -3323,7 +3324,7 @@ func _add_ramp(host: Segment, x: float, width: float, z_start: float, length: fl
 	var lat := clampf(kick / maxf(estimate_speed(car.global_position.z - z_start), 1.0) * 2.5, -0.9, 0.9)
 	var dir := Vector2(lat, 1.0).normalized()
 	var arm := minf(width * 0.32, 1.6)
-	var thick := 0.16 if ramp_style < 5 else 0.22  # mor rampada oklar biraz kalın (dikkat oklardan)
+	var thick := 0.16 if ramp_style < 5 else (0.26 if ramp_style == 9 else 0.22)  # mor rampada oklar biraz kalın (dikkat oklardan)
 	for k in 3:
 		var tc := (k + 0.7) / 3.4 * rows
 		var dc := lat * hw * 0.3
@@ -3541,6 +3542,14 @@ func _quad(st: SurfaceTool, faces: PackedVector3Array, a: Vector3, b: Vector3, c
 ## Rampanın üstüne ileri bakan turuncu oklar (^): "burası seni fırlatır"
 ## Rampa renkleri (ramp_style); yüzey ışık saçmaz ama gölgede kararmasın diye kendi rengiyle görünür
 func _apply_ramp_style() -> void:
+	if ramp_style == 9:
+		var road_top: Color = Palette.SKIES[0].road_top
+		_ramp_top_mat.albedo_color = Palette.line_for(road_top)
+		_ramp_top_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED  # çizgiler gibi
+		_ramp_arrow_mat.albedo_color = road_top
+		_ramp_arrow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL  # yol gibi
+		_ramp_arrow_mat.roughness = 0.95
+		return
 	var cs: Array = RAMP_COLORS[clampi(ramp_style, 0, RAMP_COLORS.size() - 1)]
 	if cs[0] == null:
 		return
