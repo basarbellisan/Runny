@@ -211,7 +211,7 @@ var _ramp_top_mat := StandardMaterial3D.new()
 ## 5-8: yolun morundan (aynı ton, daha açık ve canlı; yol gibi ışık alır), dikkat oklarla:
 ## 5 canlı mor + beyaz ok, 6 canlı mor + camgöbeği ok, 7 canlı mor + sarı ok, 8 açık mor + beyaz ok;
 ## 9 ters çevrilmiş yol: yüzey yol çizgilerinin renginde, oklar yolun morunda (yol gibi ışık alır)
-@export_range(0, 9) var ramp_style := 0
+@export_range(0, 9) var ramp_style := 9
 const RAMP_COLORS := [[null, null], ["f4f1ff", "ffc81e"], ["ffd21e", "ffffff"], ["18d6ff", "ffffff"], ["ff2bd6", "ffffff"],
 	["6a3fa8", "ffffff", "lit"], ["6a3fa8", "3fe4ff", "lit"], ["6a3fa8", "ffd21e", "lit"], ["8a5bcc", "ffffff", "lit"]]
 var _ramp_arrow_mat := StandardMaterial3D.new()
