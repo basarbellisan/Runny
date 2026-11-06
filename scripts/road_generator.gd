@@ -220,7 +220,7 @@ var _block_top_mat := StandardMaterial3D.new()
 @export_range(0, 28) var block_style := 28
 ## Çakıl tasarımı: 0 kahverengi zemin ve taşlar, 1 yerden çıkan hava dalgaları,
 ## 2 düzenli yuvarlak delikler ve içlerinden yükselen ışık, 3 kesik zikzak yarıklar ve ışık perdeleri
-@export_range(0, 3) var gravel_style := 2
+@export_range(0, 3) var gravel_style := 3
 ## Çakıl deliklerinin dizilimi (GRAVEL_LAYOUTS): 0 kare, 1 çapraz, 2 sıkı kare, 3 sıkı çapraz,
 ## 4 çok sıkı çapraz küçük, 5 seyrek çapraz büyük
 @export_range(0, 5) var gravel_layout := 4
@@ -2013,7 +2013,7 @@ const ZIG_AMP := 0.2     # zikzak genliği (m)
 const ZIG_ROW := 0.75      # sıra aralığı (m)
 ## İç içe dizilim: sıralar dikeyde yaklaşır, her sıranın sivri ucu alttakinin sivri ucuna denk
 ## gelir (sıra aralığı = zikzak yüksekliği × ZIG_NEST_K)
-@export var zig_nest := false
+@export var zig_nest := true
 const ZIG_NEST_K := 0.9
 const ZIG_RADIUS := 0.085 # yarığın yarı genişliği (m)
 const ZIG_T := Vector2(0.2, 0.8)  # yarık kolun bu bölümünde (köşelerde boşluk)
