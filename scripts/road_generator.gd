@@ -206,6 +206,11 @@ var _line_mat := ShaderMaterial.new()
 var _ramp_line_mat := ShaderMaterial.new()
 var _chevron_mat := StandardMaterial3D.new()
 var _ramp_top_mat := StandardMaterial3D.new()
+## Zıplama rampası renkleri (ramp_style): 0 eski (şeftali + turuncu ok), 1 beyaz + sarı ok,
+## 2 güneş sarısı + beyaz ok, 3 camgöbeği + beyaz ok, 4 macenta + beyaz ok
+@export_range(0, 4) var ramp_style := 0
+const RAMP_COLORS := [[null, null], ["f4f1ff", "ffc81e"], ["ffd21e", "ffffff"], ["18d6ff", "ffffff"], ["ff2bd6", "ffffff"]]
+var _ramp_arrow_mat := StandardMaterial3D.new()
 var _kerb_red := StandardMaterial3D.new()
 var _kerb_white := StandardMaterial3D.new()
 var _runway_mat := ShaderMaterial.new()
@@ -307,6 +312,8 @@ func _ready() -> void:
 	_chevron_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_ramp_top_mat.albedo_color = Palette.ACCENT.lerp(Palette.SNOW, 0.45)
 	_ramp_top_mat.roughness = 0.9
+	_ramp_arrow_mat.albedo_color = Palette.ACCENT
+	_ramp_arrow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_kerb_red.albedo_color = Color("e23c30")
 	_kerb_red.roughness = 0.8
 	_kerb_white.albedo_color = Palette.SNOW
@@ -3326,7 +3333,8 @@ func _add_ramp(host: Segment, x: float, width: float, z_start: float, length: fl
 			for v2 in q:
 				pts.append(at.call(v2.x, v2.y / length * rows, 0.03))
 			_quad(arrows, unused, pts[0], pts[1], pts[2], pts[3], Vector3.UP)
-	for pair in [[top_st, _ramp_top_mat], [side_st, _wall_material(host)], [arrows, _chevron_mat]]:
+	_apply_ramp_style()
+	for pair in [[top_st, _ramp_top_mat], [side_st, _wall_material(host)], [arrows, _ramp_arrow_mat]]:
 		var mi := MeshInstance3D.new()
 		mi.mesh = pair[0].commit()
 		mi.material_override = pair[1]
@@ -3527,6 +3535,16 @@ func _quad(st: SurfaceTool, faces: PackedVector3Array, a: Vector3, b: Vector3, c
 
 
 ## Rampanın üstüne ileri bakan turuncu oklar (^): "burası seni fırlatır"
+## Rampa renkleri (ramp_style); yüzey ışık saçmaz ama gölgede kararmasın diye kendi rengiyle görünür
+func _apply_ramp_style() -> void:
+	var cs: Array = RAMP_COLORS[clampi(ramp_style, 0, RAMP_COLORS.size() - 1)]
+	if cs[0] == null:
+		return
+	_ramp_top_mat.albedo_color = Color(cs[0])
+	_ramp_top_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_ramp_arrow_mat.albedo_color = Color(cs[1])
+
+
 func _add_chevrons(body: Node3D, width: float, slope_len: float) -> void:
 	var arm := minf(width * 0.42, 2.8)
 	var half := deg_to_rad(52.0)
