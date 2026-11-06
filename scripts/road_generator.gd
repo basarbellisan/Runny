@@ -2052,6 +2052,10 @@ func _gravel_zigzag(body: Node3D, center: Vector3, w: float, depth: float) -> vo
 	mat.set_shader_parameter("radius", ZIG_RADIUS)
 	mat.set_shader_parameter("t0", ZIG_T.x)
 	mat.set_shader_parameter("t1", ZIG_T.y)
+	# Yarıkların alana oranı: yarık (kapsül) alanı / bir kolun hücre alanı
+	var slot_len := (ZIG_T.y - ZIG_T.x) * Vector2(ZIG_ARM, ZIG_AMP * 2.0).length()
+	var slot_area := slot_len * ZIG_RADIUS * 2.0 + PI * ZIG_RADIUS * ZIG_RADIUS
+	mat.set_shader_parameter("coverage", clampf(slot_area / (ZIG_ARM * row), 0.05, 0.8))
 	_gravel_wave_mats.append(mat)
 	var ground := MeshInstance3D.new()
 	ground.mesh = _unit_quad

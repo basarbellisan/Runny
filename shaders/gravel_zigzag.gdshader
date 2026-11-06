@@ -6,7 +6,10 @@ render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, fog_disabled, 
 
 uniform vec4 light : source_color = vec4(0.18, 0.36, 1.0, 1.0);
 uniform vec4 core : source_color = vec4(0.77, 0.83, 1.0, 1.0);
-uniform vec4 wall : source_color = vec4(0.05, 0.04, 0.10, 1.0);
+// Yarığın kenarı: koyu ama mavi (siyaha kaçmasın)
+uniform vec4 wall : source_color = vec4(0.09, 0.14, 0.45, 1.0);
+// Yarıkların alana oranı (uzakta desen bu oranla ortalama bir ışıltıya döner)
+uniform float coverage = 0.45;
 // Kolun yatay boyu (yarım periyot), zikzak genliği, sıra aralığı
 uniform float arm = 0.8;
 uniform float amp = 0.32;
@@ -70,9 +73,16 @@ void fragment() {
 		}
 	}
 	float r = best / radius;
-	float inside = 1.0 - smoothstep(0.93, 1.0, r);
+	// Kenar yumuşatma: bir pikselin metre karşılığı kadar (uzakta yarıklar titremesin)
+	float fw = max(length(dFdx(lp.xy)), length(dFdy(lp.xy)));
+	float aa = clamp(fw / radius, 0.02, 1.0);
+	float inside = 1.0 - smoothstep(1.0 - aa, 1.0 + aa, r);
 	float b = breath_side(abs(bi + 0.5 + xo / arm - (counts.x + shift) * 0.5));
-	vec3 glow = mix(core.rgb, light.rgb, smoothstep(0.0, 0.55, r)) * mix(0.3, 1.1, b);
-	ALBEDO = mix(glow, wall.rgb, smoothstep(0.62, 0.95, r));
-	ALPHA = inside;
+	vec3 glow = mix(core.rgb, light.rgb, smoothstep(0.0, 0.55, r)) * mix(0.55, 1.1, b);
+	vec3 col = mix(glow, wall.rgb, smoothstep(0.62, 0.95, r));
+	// Uzakta (yarık birkaç pikselden küçük): desen yerine ortalama mavi ışıltı; nabız korunur
+	float far = smoothstep(radius * 0.35, radius * 1.2, fw);
+	vec3 avg = mix(light.rgb, core.rgb, 0.25) * mix(0.55, 1.05, b);
+	ALBEDO = mix(col, avg, far);
+	ALPHA = mix(inside, coverage, far);
 }
