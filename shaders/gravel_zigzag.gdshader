@@ -6,7 +6,9 @@ render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, fog_disabled, 
 
 uniform vec4 light : source_color = vec4(0.18, 0.36, 1.0, 1.0);
 uniform vec4 core : source_color = vec4(0.77, 0.83, 1.0, 1.0);
-// Yarığın kenarı: koyu ama mavi (siyaha kaçmasın)
+// Yanan yarığın rengi (daha açık, doygun mavi)
+uniform vec4 lit_color : source_color = vec4(0.42, 0.58, 1.0, 1.0);
+// (kullanılmıyor) eski kenar rengi
 uniform vec4 wall : source_color = vec4(0.09, 0.14, 0.45, 1.0);
 // Yarıkların alana oranı (uzakta desen bu oranla ortalama bir ışıltıya döner)
 uniform float coverage = 0.45;
@@ -78,11 +80,13 @@ void fragment() {
 	float aa = clamp(fw / radius, 0.02, 1.0);
 	float inside = 1.0 - smoothstep(1.0 - aa, 1.0 + aa, r);
 	float b = breath_side(abs(bi + 0.5 + xo / arm - (counts.x + shift) * 0.5));
-	vec3 glow = mix(core.rgb, light.rgb, smoothstep(0.0, 0.55, r)) * mix(0.55, 1.1, b);
-	vec3 col = mix(glow, wall.rgb, smoothstep(0.62, 0.95, r));
+	// Gölge ve gri yok: yarık düz, doygun mavi; yanınca daha açık maviye çıkar (koyulaşmaz).
+	// Ortada hafif açık bir şerit (ışığın kaynağı), kenarda koyu halka yok.
+	vec3 lit = mix(light.rgb, lit_color.rgb, b);
+	vec3 col = mix(lit, mix(lit, lit_color.rgb, 0.5), (1.0 - smoothstep(0.0, 0.45, r)) * 0.6);
 	// Uzakta (yarık birkaç pikselden küçük): desen yerine ortalama mavi ışıltı; nabız korunur
 	float far = smoothstep(radius * 0.35, radius * 1.2, fw);
-	vec3 avg = mix(light.rgb, core.rgb, 0.25) * mix(0.55, 1.05, b);
+	vec3 avg = lit;
 	ALBEDO = mix(col, avg, far);
 	ALPHA = mix(inside, coverage, far);
 }
