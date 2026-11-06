@@ -23,8 +23,10 @@ float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
 
-float breath(vec2 ci) {
-	return 0.5 + 0.5 * sin(t * 2.2 - ci.y * 0.55 + hash(ci) * 2.0);
+// Ortadan sola ve sağa açılan dalga: faz, yarığın alanın ortasına uzaklığına (kol sayısı) göre
+float breath_side(float d) {
+	float w = 0.5 + 0.5 * sin(t * 3.2 - d * 1.15);
+	return w * w;
 }
 
 float seg_dist(vec2 p, vec2 a, vec2 b) {
@@ -66,8 +68,8 @@ void fragment() {
 	}
 	float r = best / radius;
 	float inside = 1.0 - smoothstep(0.93, 1.0, r);
-	float b = breath(vec2(bi, row));
-	vec3 glow = mix(core.rgb, light.rgb, smoothstep(0.0, 0.55, r)) * mix(0.55, 1.0, b);
+	float b = breath_side(abs(bi + 0.5 - counts.x * 0.5));
+	vec3 glow = mix(core.rgb, light.rgb, smoothstep(0.0, 0.55, r)) * mix(0.3, 1.1, b);
 	ALBEDO = mix(glow, wall.rgb, smoothstep(0.62, 0.95, r));
 	ALPHA = inside;
 }

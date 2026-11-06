@@ -2071,7 +2071,7 @@ func _gravel_zigzag(body: Node3D, center: Vector3, w: float, depth: float) -> vo
 			var basis := Basis(xb * ln, Vector3.UP, xb.cross(Vector3.UP))
 			var i := r * na + a
 			mm.set_instance_transform(i, Transform3D(basis, center + Vector3(mid.x, 0.0, -mid.y)))
-			mm.set_instance_custom_data(i, Color(a, r, 0, 0))
+			mm.set_instance_custom_data(i, Color(absf(a + 0.5 - na * 0.5), r, 0, 0))
 	var curtains := MultiMeshInstance3D.new()
 	curtains.multimesh = mm
 	curtains.material_override = _curtain_mat

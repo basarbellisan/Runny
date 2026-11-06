@@ -6,6 +6,9 @@ var _out := "user://"
 var _style := 2
 var _frames := 90
 var _layout := 0
+## --high: yukarıdan bakış (desen ve animasyon daha iyi görünür); --depth=N: alanın boyu (m)
+var _high := false
+var _depth := 16.0
 
 
 func _initialize() -> void:
@@ -14,6 +17,10 @@ func _initialize() -> void:
 			_out = a.trim_prefix("--out=")
 		elif a.begins_with("--style="):
 			_style = int(a.trim_prefix("--style="))
+		elif a == "--high":
+			_high = true
+		elif a.begins_with("--depth="):
+			_depth = float(a.trim_prefix("--depth="))
 		elif a.begins_with("--layout="):
 			_layout = int(a.trim_prefix("--layout="))
 		elif a.begins_with("--frames="):
@@ -46,11 +53,14 @@ func _shoot() -> void:
 	road_mat.roughness = 0.95
 	roads._add_box(stage, Vector3(0, -0.2, -20), Vector3(10, 0.4, 80), road_mat)
 	if _style == 3:
-		roads._gravel_zigzag(stage, Vector3(0, 0, -8.0), 10.0, 16.0)
+		roads._gravel_zigzag(stage, Vector3(0, 0, -8.0), 10.0, _depth)
 	else:
 		roads._gravel_holes(stage, Vector3(0, 0, -8.0), 10.0, 16.0)
 	cam.global_position = base + Vector3(0.0, 2.6, 6.5)
 	cam.look_at(base + Vector3(0, 0.3, -6.0))
+	if _high:
+		cam.global_position = base + Vector3(0.0, 9.0, -1.0)
+		cam.look_at(base + Vector3(0, 0, -8.5))
 	for i in _frames:
 		roads._light_time = float(i) / 30.0
 		roads._process(0.0)
