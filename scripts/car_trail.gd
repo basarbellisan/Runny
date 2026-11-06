@@ -38,8 +38,9 @@ func _ready() -> void:
 		_ribbons.append(_make_ribbon(1, Vector3(x, 0.55, 1.75), 0.16, light))
 	_ribbons.append(_make_ribbon(3, Vector3(0, 0.06, 1.5), 1.7, Color(Palette.SNOW, 0.5)))
 	for side in [-1.0, 1.0]:
-		var w := _make_ribbon(0, Vector3(side * car.wing_half_span * 0.95, 0.3, 0.6), 0.45, light)
+		var w := _make_ribbon(0, Vector3.ZERO, 0.45, light)
 		w.wing = true
+		w.side = side  # iz kanadın ucundan çıkar (Car.wing_tip)
 		_ribbons.append(w)
 	_cubes = MultiMeshInstance3D.new()
 	var mm := MultiMesh.new()
@@ -77,7 +78,7 @@ func _physics_process(delta: float) -> void:
 		if r.get("wing", false):
 			var wl := wing_life()
 			if emitting and car.reserve_on:
-				var wp: Vector3 = car.global_position + r.offset
+				var wp: Vector3 = car.wing_tip(r.side)
 				if r.points.is_empty() or r.points[-1].p.distance_to(wp) > 0.25:
 					r.points.append({"p": wp, "t": _time})
 			while not r.points.is_empty() and _time - r.points[0].t > wl:
@@ -100,7 +101,7 @@ func _process(_delta: float) -> void:
 	var head := car.get_global_transform_interpolated().origin
 	for r in _ribbons:
 		if r.get("wing", false):
-			_draw_ribbon(r, head + r.offset if car.alive and car.reserve_on else Vector3.INF)
+			_draw_ribbon(r, car.wing_tip(r.side, true) if car.alive and car.reserve_on else Vector3.INF)
 		elif r.style == style:
 			_draw_ribbon(r, head + r.offset if car.alive else Vector3.INF)
 

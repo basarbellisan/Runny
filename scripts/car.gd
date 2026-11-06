@@ -1242,6 +1242,8 @@ const WING_WHEEL_GAP := 0.12
 const WING_FIT := {10: [1.03, 0.0, 1.5, 0.62]}  # GEM: arka çamurluğun dış yüzü
 ## Kanatların kurulduğu araba (araba değişince yeniden yerleşir)
 var _wings_variant := -1
+## Kanat ucunun firar (arka) köşesi, kanat düğümüne göre (kanat izleri buradan çıkar)
+var _wing_tip_local := {-1.0: Vector3(-WING_LEN, 0, 0.85), 1.0: Vector3(WING_LEN, 0, 0.85)}
 ## Koyu gövdeli arabada (Dark Rose, GEM) kanatların kenarında lastik renginde ince çizgi:
 ## alt katmanın koyu zemininde kanat seçilsin. Gövde parlaklığı bunun altındaysa çizilir.
 const WING_TRIM_DARK := 0.3
@@ -1331,9 +1333,20 @@ func _fit_wings() -> void:
 		var t_le := Vector3(tip_x, 0.0, te - c * WING_TAPER)
 		var t_te := Vector3(tip_x, 0.0, te)
 		var r_te := Vector3(0.0, 0.0, te)
+		_wing_tip_local[side] = t_te
 		var trim := holder.get_node("Trim") as MeshInstance3D
 		trim.mesh = _bars([[r_le, t_le], [t_le, t_te], [t_te, r_te]])
 		trim.visible = dark
+
+
+## Kanat ucunun (firar köşesi) dünyadaki yeri: kanatla birlikte yatar, döner, açılır/kapanır.
+## interpolated: çizim karesinde (fizik adımları arasında yumuşak) arabanın konumuna göre
+func wing_tip(side: float, interpolated := false) -> Vector3:
+	var holder: Node3D = _wing_l if side < 0.0 else _wing_r
+	var p: Vector3 = holder.global_transform * (_wing_tip_local[side] as Vector3)
+	if interpolated:
+		p += get_global_transform_interpolated().origin - global_position
+	return p
 
 
 ## Sivrilen kanat: kökte ve uçta beşgen kesit (üstü hafif kamburlu), düz gölgeli
