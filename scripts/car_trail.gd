@@ -48,6 +48,9 @@ const WING_CLIMB_WIDTH := 1.5
 var _wing_boost := 0.0
 ## Kanat izinin görünürlüğü (0..1), kökteki parıltı bununla açılıp kapanır
 var _wing_vis := 0.0
+## Arka lamba izinin görünürlüğü (0..1): fırlatılırken (tünel ve yola dönüş) motor çalışmaz,
+## iz söner; araba dik yükselirken kameraya doğru uzayıp arabanın üstünü kapatmasın
+var _rear_vis := 1.0
 ## Kanat izinin kök tasarımı (motordan çıkan enerji): 0 eski (uzakta, eriyerek başlar),
 ## 1 parlak çekirdek + yuvarlak parıltı, 2 alev dili (uzun parlak kök), 3 ince çekirdek + geniş hale,
 ## 4 eskisi gibi ama kanada değmesine ramak kala başlar, başlangıcı hafif yumuşak (parıltı yok)
@@ -164,6 +167,8 @@ func _physics_process(delta: float) -> void:
 	_time += delta
 	var climbing := car.climbing
 	_wing_boost = move_toward(_wing_boost, 1.0 if climbing else 0.0, delta / (0.35 if climbing else 0.5))
+	var launching := car.mode == Car.Mode.LAUNCH
+	_rear_vis = move_toward(_rear_vis, 0.0 if launching else 1.0, delta / (0.15 if launching else 0.4))
 	var on := car.alive and _wing_trail_on()
 	_wing_vis = move_toward(_wing_vis, 1.0 if on else 0.0, delta / (0.12 if on else 0.3))
 	var emitting := car.alive
@@ -253,13 +258,23 @@ func _draw_ribbon(r: Dictionary, head: Vector3) -> void:
 	var l := maxf(wing_life() if wing else life(), 0.01)
 	var color: Color = r.color
 	var tip: Vector3 = pts[-1].p
+	# Arka lamba ve kanat izleri kameraya dönük şerit: dik yükselirken ya da yatarken yatay
+	# şerit enine gerilip arabanın üstüne yayılmasın, her açıdan aynı incelikte görünsün
+	var facing: bool = r.get("body", false) or wing
+	var cam := get_viewport().get_camera_3d()
 	mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
 	for i in pts.size():
 		var a: Vector3 = pts[maxi(i - 1, 0)].p
 		var b: Vector3 = pts[mini(i + 1, pts.size() - 1)].p
 		var dir := (b - a)
-		dir.y = 0.0
-		var side := dir.normalized().cross(Vector3.UP) if dir.length_squared() > 1e-6 else Vector3.RIGHT
+		var side := Vector3.RIGHT
+		if facing and cam:
+			var to_cam: Vector3 = (cam.global_position - (pts[i].p as Vector3)).normalized()
+			var sd := dir.cross(to_cam)
+			side = sd.normalized() if sd.length_squared() > 1e-8 else Vector3.RIGHT
+		else:
+			dir.y = 0.0
+			side = dir.normalized().cross(Vector3.UP) if dir.length_squared() > 1e-6 else Vector3.RIGHT
 		var k := clampf(1.0 - (_time - pts[i].t) / l, 0.0, 1.0)
 		# Gazda iz genişler ve boyunca eşit kalır; sönük ucu yalnız saydamlaşır
 		var bl := car.boost_level if r.style == 1 and not wing else 0.0
@@ -270,6 +285,7 @@ func _draw_ribbon(r: Dictionary, head: Vector3) -> void:
 		var col: Color = color
 		var c: Vector3 = pts[i].p
 		if r.get("body", false):
+			alpha *= _rear_vis
 			# Gövdenin dibinden en parlak ve doygun haliyle çıkar (yanıcı bir şey gibi); geriye doğru söner
 			var hot := 1.0 - smoothstep(0.0, REAR_HOT, c.z - tip.z)
 			col = color.lerp(Color(Palette.ENERGY.lightened(0.15), 1.0), hot)
