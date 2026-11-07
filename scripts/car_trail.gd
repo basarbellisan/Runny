@@ -82,19 +82,26 @@ func life() -> float:
 
 ## Kanat izinin ömrü: kalan yedekle kısalır
 func wing_life() -> float:
+	if not car.reserve_on:
+		return 0.9  # enerjiyle boost: tam uzunluk
 	return lerpf(0.12, 0.9, clampf(car.reserve / car.reserve_max, 0.0, 1.0))
+
+
+## Kanat izi ne zaman çıkar: uçarken boost (iki parmak) ya da kanat yedeği açıkken
+func _wing_trail_on() -> bool:
+	return car.reserve_on or car.climbing
 
 
 func _physics_process(delta: float) -> void:
 	_time += delta
-	var climbing := car.climbing and car.reserve_on
+	var climbing := car.climbing
 	_wing_boost = move_toward(_wing_boost, 1.0 if climbing else 0.0, delta / (0.35 if climbing else 0.5))
 	var emitting := car.alive
 	var l := life()
 	for r in _ribbons:
 		if r.get("wing", false):
 			var wl := wing_life()
-			if emitting and car.reserve_on:
+			if emitting and _wing_trail_on():
 				var wp: Vector3 = car.wing_tip(r.side)
 				if r.points.is_empty() or r.points[-1].p.distance_to(wp) > 0.25:
 					r.points.append({"p": wp, "t": _time})
@@ -118,7 +125,7 @@ func _process(_delta: float) -> void:
 	var head := car.get_global_transform_interpolated().origin
 	for r in _ribbons:
 		if r.get("wing", false):
-			_draw_ribbon(r, car.wing_tip(r.side, true) if car.alive and car.reserve_on else Vector3.INF)
+			_draw_ribbon(r, car.wing_tip(r.side, true) if car.alive and _wing_trail_on() else Vector3.INF)
 		elif r.style == style:
 			_draw_ribbon(r, head + r.offset if car.alive else Vector3.INF)
 
