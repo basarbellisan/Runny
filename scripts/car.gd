@@ -415,7 +415,7 @@ var _cut_mats := {}
 ## Küp ayrıldıktan sonra bu kadar (oyun saniyesi) arabanın biçiminde birlikte gider, sonra dağılır
 static var shard_hold := 0.0
 ## Işık bariyerine çarpınca oyunun hızı (ağır çekim); 0 kapalı (normal hızda devam)
-static var shatter_slowmo := 0.28
+static var shatter_slowmo := 0.0
 var _slowmo_on := false
 var _steps_before := 8
 
