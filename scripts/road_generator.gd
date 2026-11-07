@@ -1824,6 +1824,12 @@ func _add_block(s: Segment, x0: float, x1: float, z: float, depth: float) -> voi
 	block.position = center + Vector3(0, size.y * 0.5, 0)
 	body.add_child(block)
 	s.obstacles[-1].node = block
+	if block_style >= 12:
+		# Işık bariyeri: fizikte duvar değil (araba çubuklara tam değdiği an kesilir: barrier_hit);
+		# eski 1.2 m'lik kutu arabayı çubuklara varmadan yarım metre önce durduruyordu
+		block.collision_layer = BARRIER_LAYER
+		block.collision_mask = 0
+		s.obstacles[-1].barrier = true
 	var col := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
 	shape.size = size
@@ -1831,6 +1837,50 @@ func _add_block(s: Segment, x0: float, x1: float, z: float, depth: float) -> voi
 	block.add_child(col)
 	_block_body(block, size)
 	_block_lights(block, size)
+
+
+## Işık bariyerlerinin fizik katmanı (arabanın maskesinde yok: değme tam çubukta ölçülür)
+const BARRIER_LAYER := 1 << 4
+## Çubukların yarı kalınlığı (m): değme bu yüzeyde
+const BARRIER_HALF := 0.1
+
+
+## Işık bariyerinin çubuk rengi (kesilen parçalar bu renkte kızarır)
+func barrier_color() -> String:
+	match block_style:
+		24, 25:
+			return "ff1414"
+		26, 27:
+			return "1c2fc4"
+		28:
+			return "ff6a00"
+	return "ff8a2a"
+
+
+## Arabanın gövdesi (dünya: ön ve arka uçlarının z'si, x aralığı, alt ve üst y) bir ışık bariyerinin
+## çubuklarına değiyor mu: değiyorsa {"z": çubuk yüzeyinin z'si (araba tarafı), "node": blok}, yoksa {}
+func barrier_hit(front_z: float, rear_z: float, x0: float, x1: float, y0: float, y1: float) -> Dictionary:
+	for sg in segments:
+		if front_z > sg.z_start + 2.0 or rear_z < sg.z_end - 2.0:
+			continue
+		for o in sg.obstacles:
+			if not o.get("barrier", false):
+				continue
+			var n := o.node as Node3D
+			if n == null or not is_instance_valid(n):
+				continue
+			var c := n.global_position
+			var bz := c.z + BARRIER_HALF  # çubuğun araba tarafındaki yüzü
+			if front_z > bz or rear_z < c.z - BARRIER_HALF:
+				continue
+			if x1 < float(o.x0) or x0 > float(o.x1):
+				continue
+			var h := block_height()
+			var base := c.y - h * 0.5
+			if y1 < base + 0.25 or y0 > base + h:
+				continue
+			return {"z": bz, "node": n}
+	return {}
 
 
 ## Bloğun (ve çarpışma kutusunun) yüksekliği: tasarım 23-24'te dört sıra ışık 30 cm arayla 1.2 m;

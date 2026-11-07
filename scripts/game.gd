@@ -463,7 +463,7 @@ func _on_boost_empty() -> void:
 
 func _on_exploded() -> void:
 	Audio.play("explosion")
-	$Camera.shake(1.0)
+	$Camera.shake(0.35 if car.shattering else 1.0)
 
 
 ## İlk birkaç uçuşta yükselme ipucu
@@ -529,8 +529,10 @@ func _on_game_over(reason: String) -> void:
 	# Patlamanın görülmesi için oyun sonu ekranı biraz gecikmeli gelir
 	# Patlamanın görülmesi için oyun sonu ekranı biraz gecikmeli gelir (kamera yerinde kalır;
 	# göğe dönüş denemesi: follow_camera.look_sky)
-	get_tree().create_timer(1.0).timeout.connect(hud.show_game_over.bind(reason, final, best, _start_z - car.global_position.z))
-	get_tree().create_timer(1.0).timeout.connect(Audio.play.bind("game_over"))
+	# Işık bariyerinde parçalanma: bulut biraz süzülsün, sonra oyun sonu
+	var wait := 1.8 if car.shattering else 1.0
+	get_tree().create_timer(wait).timeout.connect(hud.show_game_over.bind(reason, final, best, _start_z - car.global_position.z))
+	get_tree().create_timer(wait).timeout.connect(Audio.play.bind("game_over"))
 	print("GAME_OVER reason=%s %s frame=%d" % [reason, _stats_text(), Engine.get_process_frames()])
 	if car.autopilot:
 		print("  car pos=%v vel=%v boost=%.2f" % [car.global_position, car.velocity, car.boost_level])

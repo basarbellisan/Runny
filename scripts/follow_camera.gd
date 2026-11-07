@@ -40,7 +40,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	var t := _target.get_global_transform_interpolated().origin
 	var p := global_position
-	if _target.alive:
+	if _target.alive or _target.shattering:
 		p.z = t.z + offset.z
 		p.x = lerpf(p.x, t.x + offset.x, 1.0 - exp(-follow_x * delta))
 		# Hızlı yükselip alçalırken (dalış, portal) kamera arabayı kaçırmasın

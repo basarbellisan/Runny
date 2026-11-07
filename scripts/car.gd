@@ -324,6 +324,8 @@ func _physics_process(delta: float) -> void:
 		Mode.LAUNCH:
 			_launch(delta)
 	if mode != Mode.DEAD:
+		_check_barrier()
+	if mode != Mode.DEAD:
 		_update_visual(delta)
 
 
@@ -382,6 +384,194 @@ func boost_extra(level := boost_level) -> float:
 
 
 ## Çarpıp patla: araba parçalara ayrılır, oyun biter
+# --------------------------------------------------------------------------
+# Işık bariyeri: araba çubuklara değdiği an kesilir, un ufak parçacıklara ayrılır;
+# parçalar ileri doğru yavaşlayarak süzülür, kamera bulutu takip eder
+# --------------------------------------------------------------------------
+
+## Parçalanma sürüyor mu (kamera bulutu takip eder)
+var shattering := false
+var _shards: MultiMeshInstance3D
+var _shard_pos := PackedVector3Array()
+var _shard_vel := PackedVector3Array()
+var _shard_col := PackedColorArray()
+var _shard_size := PackedFloat32Array()
+var _shard_cut := PackedFloat32Array()  # kesildiği an (sn), kesilmediyse -1
+var _shard_time := 0.0
+var _cut_z := 0.0
+var _cut_color := Color("ff6a00")
+var _front_cache := {}
+const SHARD_COUNT := 700
+## Kesilme anında oyun bu hızda akar (0.35 sn), sonra normale döner
+const SHATTER_SLOWMO := 0.12
+const SHARD_LIFE := 3.2
+
+
+## Modelin en ön noktası (Body'ye göre z, eksi = ileri)
+func front_z() -> float:
+	if _front_cache.has(model.variant):
+		return _front_cache[model.variant]
+	var inv := _body.global_transform.affine_inverse()
+	var best := INF
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null or not m.visible:
+			continue
+		var t := inv * m.global_transform
+		for v in m.mesh.get_faces():
+			best = minf(best, (t * v).z)
+	if best == INF:
+		best = -half_length
+	_front_cache[model.variant] = best
+	return best
+
+
+func _check_barrier() -> void:
+	if roads == null or model == null:
+		return
+	var p := global_position
+	var fz := p.z + front_z()
+	var rz := p.z + rear_z(0.0, 0.5)
+	var hw := model.half_width
+	var hit := roads.barrier_hit(fz, rz, p.x - hw, p.x + hw, p.y, p.y + 1.2)
+	if hit.is_empty():
+		return
+	# Bu karede çubuğu biraz geçmiş olabiliriz: arabayı tam değdiği yere geri al
+	var over: float = float(hit.z) - fz
+	if over > 0.0:
+		global_position.z += over
+	_cut_z = float(hit.z) - BARRIER_CUT_BACK
+	if roads:
+		_cut_color = Color(roads.barrier_color())
+	shatter("CRASHED!")
+
+
+## Kesme düzlemi çubuğun ortası (araba tarafındaki yüzün 10 cm gerisi)
+const BARRIER_CUT_BACK := 0.1
+
+
+func shatter(reason: String) -> void:
+	if mode == Mode.DEAD:
+		return
+	_spawn_shards()
+	_body.visible = false
+	shattering = true
+	# Kesilme anı ağır çekim: araba çubuktan saniyenin onda birinde geçer; yavaşlayınca
+	# "hızardan geçen odun" gibi parça parça kesildiği görülür, sonra hız yavaşça geri gelir
+	if is_equal_approx(Engine.time_scale, 1.0) and Lesson.current < 0:  # derste kendi ağır çekimi var
+		Engine.time_scale = SHATTER_SLOWMO
+		var tw := get_tree().create_tween()
+		tw.set_ignore_time_scale(true)
+		tw.tween_interval(0.35)
+		tw.tween_property(Engine, "time_scale", 1.0, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	exploded.emit()
+	_die(reason)
+
+
+## Modelin yüzeyinden (alanla orantılı) noktalar: her biri bir parça, rengi o yüzün rengi
+func _spawn_shards() -> void:
+	var tris: Array = []
+	var areas := PackedFloat32Array()
+	var total := 0.0
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null or not m.is_visible_in_tree():
+			continue
+		var col := Color(0.6, 0.6, 0.6)
+		var mat := m.material_override if m.material_override else m.get_active_material(0)
+		if mat is StandardMaterial3D:
+			col = (mat as StandardMaterial3D).albedo_color
+		var t := m.global_transform
+		var f := m.mesh.get_faces()
+		for i in range(0, f.size(), 3):
+			var a: Vector3 = t * f[i]
+			var b: Vector3 = t * f[i + 1]
+			var c: Vector3 = t * f[i + 2]
+			var ar := (b - a).cross(c - a).length() * 0.5
+			if ar < 1e-5:
+				continue
+			total += ar
+			tris.append([a, b, c, col])
+			areas.append(total)
+	if tris.is_empty():
+		return
+	_shard_pos.resize(SHARD_COUNT)
+	_shard_vel.resize(SHARD_COUNT)
+	_shard_col.resize(SHARD_COUNT)
+	_shard_size.resize(SHARD_COUNT)
+	_shard_cut.resize(SHARD_COUNT)
+	var v0 := velocity
+	if v0.z > -5.0:
+		v0.z = -maxf(forward_speed, 5.0)
+	for i in SHARD_COUNT:
+		var r := randf() * total
+		var k := areas.bsearch(r)
+		k = clampi(k, 0, tris.size() - 1)
+		var tri: Array = tris[k]
+		var u := randf()
+		var w := randf()
+		if u + w > 1.0:
+			u = 1.0 - u
+			w = 1.0 - w
+		_shard_pos[i] = tri[0] + (tri[1] - tri[0]) * u + (tri[2] - tri[0]) * w
+		_shard_vel[i] = v0
+		_shard_col[i] = tri[3]
+		_shard_size[i] = randf_range(0.05, 0.13)
+		_shard_cut[i] = -1.0
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	var box := BoxMesh.new()
+	box.size = Vector3.ONE
+	mm.mesh = box
+	mm.instance_count = SHARD_COUNT
+	var smat := StandardMaterial3D.new()
+	smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	smat.vertex_color_use_as_albedo = true
+	mm.mesh.surface_set_material(0, smat)
+	_shards = MultiMeshInstance3D.new()
+	_shards.multimesh = mm
+	_shards.top_level = true
+	_shards.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_shards)
+	_shards.global_transform = Transform3D.IDENTITY
+	_shard_time = 0.0
+	_update_shards(0.0)
+
+
+## Parçalar: kesme düzlemini geçene kadar araba biçiminde ileri gider; geçince kesilir —
+## bir an kızgın (bariyer renginde, beyaza yakın) parlar, dağılır, yavaşlar, küçülüp kaybolur
+func _update_shards(delta: float) -> void:
+	_shard_time += delta
+	var mm := _shards.multimesh
+	for i in SHARD_COUNT:
+		var p := _shard_pos[i]
+		var v := _shard_vel[i]
+		var cut := _shard_cut[i]
+		if cut < 0.0:
+			if p.z <= _cut_z:
+				cut = _shard_time
+				_shard_cut[i] = cut
+				# Kesilme: yanlara ve yukarı savrulur, ileri hız biraz düşer
+				v += Vector3(randf_range(-3.5, 3.5), randf_range(-0.5, 3.0), randf_range(-2.0, 4.0))
+				v.z *= randf_range(0.6, 0.95)
+		else:
+			v *= exp(-1.4 * delta)
+			v.y -= 2.5 * delta
+		p += v * delta
+		_shard_pos[i] = p
+		_shard_vel[i] = v
+		var c := _shard_col[i]
+		var sz := _shard_size[i]
+		if cut >= 0.0:
+			var age := _shard_time - cut
+			var hot := clampf(1.0 - age / 0.45, 0.0, 1.0)
+			c = c.lerp(_cut_color.lerp(Color(1, 0.95, 0.85), 0.35), hot)
+			sz *= clampf(1.0 - age / SHARD_LIFE, 0.0, 1.0)
+		mm.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3.ONE * maxf(sz, 0.0001)), p))
+		mm.set_instance_color(i, c)
+
+
 func crash(reason: String) -> void:
 	if mode == Mode.DEAD:
 		return
@@ -692,6 +882,27 @@ func _die(reason: String) -> void:
 
 
 func _dead_motion(delta: float) -> void:
+	if shattering:
+		# Kamera bulutu takip etsin: araba noktası parçalarla birlikte ileri süzülür, yavaşlar
+		if _shards:
+			_update_shards(delta)
+		# Araba noktası (kameranın hedefi) parça bulutunun merkezini izler
+		var sum := Vector3.ZERO
+		for q in _shard_pos:
+			sum += q
+		if not _shard_pos.is_empty():
+			var c := sum / _shard_pos.size()
+			var prev := position
+			position.x = lerpf(position.x, c.x, 1.0 - exp(-6.0 * delta))
+			position.z = lerpf(position.z, c.z, 1.0 - exp(-10.0 * delta))
+			velocity = (position - prev) / maxf(delta, 1e-4)
+			speed = maxf(-velocity.z, 0.0)
+		if _shard_time > SHARD_LIFE:
+			shattering = false
+			if _shards:
+				_shards.queue_free()
+				_shards = null
+		return
 	# Patladıysak parçalar kendi fiziğiyle hareket eder; değilse uçuruma düşüş
 	if not _debris.is_empty():
 		return
