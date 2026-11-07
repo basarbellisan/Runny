@@ -399,6 +399,7 @@ var _shard_vel := PackedVector3Array()
 var _shard_cut := PackedFloat32Array()  # kesme düzlemine vardığı an (sn)
 var _shard_last := 0.0  # son küpün kesildiği an
 var _shard_mat: ShaderMaterial
+var _shard_floor := 0.0
 ## Kesilen arabanın küp ikizi (_voxels) ve kesilme anındaki gövde dönüşümü
 var _vox := {}
 var _shatter_bt := Transform3D.IDENTITY
@@ -441,7 +442,7 @@ func _exit_tree() -> void:
 		Engine.time_scale = 1.0
 		Engine.max_physics_steps_per_frame = _steps_before
 		_slowmo_on = false
-const SHARD_LIFE := 0.55
+const SHARD_LIFE := 0.75
 
 
 ## Modelin en ön noktası (Body'ye göre z, eksi = ileri)
@@ -796,9 +797,11 @@ func _voxels() -> Dictionary:
 		var p: Vector3 = pc[0]
 		var sz: Vector3 = pc[1]
 		var c: Color = pc[2]
-		# Hızlı dağılma: merkezden dışa güçlü, yukarı ve geriye savrulur; ileri hızın bir kısmı kalır
-		var kick := Vector3(p.x * rng.randf_range(6.0, 12.0) + rng.randf_range(-6.0, 6.0), rng.randf_range(2.0, 8.0), rng.randf_range(-4.0, 6.0))
-		var f := rng.randf_range(0.65, 0.9)
+		# Gerçekçi dağılma: çok hızlı giden arabanın parçaları asıl ileri savrulur (her biri ileri
+		# hızın farklı bir kesrini korur, bulut yol boyunca uzar); yanlara çok az (arabanın
+		# genişliğinden pek çıkmaz), yukarı az (yola iner, yuvarlanır)
+		var kick := Vector3(p.x * rng.randf_range(0.2, 0.8) + rng.randf_range(-0.5, 0.5), rng.randf_range(0.0, 2.5), rng.randf_range(-3.0, 3.0))
+		var f := rng.randf_range(0.7, 1.05)
 		var o := i * 20
 		buf[o] = sz.x; buf[o + 3] = p.x
 		buf[o + 5] = sz.y; buf[o + 7] = p.y
@@ -899,6 +902,9 @@ func _spawn_shards() -> void:
 	_shard_mat.set_shader_parameter("drag", SHARD_DRAG)
 	_shard_mat.set_shader_parameter("grav", SHARD_GRAV)
 	_shard_mat.set_shader_parameter("hold", shard_hold)
+	# Zemin: parçalar yola iner, içine geçmez (arabanın değdiği yol yüksekliği)
+	_shard_floor = global_position.y
+	_shard_mat.set_shader_parameter("floor_y", _shard_floor)
 	_shard_mat.set_shader_parameter("t", 0.0)
 	_shard_mat.set_shader_parameter("cut_hot", _cut_color.lerp(Color(1.0, 0.95, 0.85), 0.35))
 	box.surface_set_material(0, _shard_mat)
@@ -924,8 +930,8 @@ func _spawn_shards() -> void:
 	_scan_mi.global_transform = Transform3D.IDENTITY
 
 
-const SHARD_DRAG := 2.0
-const SHARD_GRAV := 9.0
+const SHARD_DRAG := 0.8
+const SHARD_GRAV := 9.8
 
 
 ## Örnek küpün yolu (car_voxel gölgelendiricisiyle aynı hesap): kesilmeden önce arabayla
@@ -941,6 +947,7 @@ func _shard_at(i: int, t: float) -> Vector3:
 	var e := exp(-SHARD_DRAG * age)
 	var c := p0 + _shatter_v0 * (tr + shard_hold) + _shard_vel[i] * (1.0 - e) / SHARD_DRAG
 	c.y += SHARD_GRAV / SHARD_DRAG * ((1.0 - e) / SHARD_DRAG - age)
+	c.y = maxf(c.y, _shard_floor)
 	return c
 
 

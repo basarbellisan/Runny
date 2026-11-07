@@ -17,6 +17,8 @@ uniform float drag = 1.2;
 uniform float grav = 2.0;
 // Ayrıldıktan sonra arabanın biçiminde birlikte gittiği süre (sn), sonra dağılır
 uniform float hold = 0.0;
+// Yol yüksekliği: parçalar yola iner, içine geçmez
+uniform float floor_y = -1e9;
 uniform vec4 cut_hot : source_color = vec4(1.0, 0.5, 0.1, 1.0);
 uniform float roughness = 0.6;
 
@@ -57,11 +59,16 @@ void vertex() {
 			float e = exp(-drag * a2);
 			c = p0 + v0 * (tr + hold) + vr * (1.0 - e) / drag;
 			c.y += grav / drag * ((1.0 - e) / drag - a2);
+			// Yuvarlanma: gittiği yöne doğru öne yuvarlanır (eksen yatay, harekete dik; hafif eğik)
 			vec3 h = hash3(INSTANCE_CUSTOM.w * 911.0 + INSTANCE_CUSTOM.x * 37.0 + 1.0);
-			vec3 ax = normalize(h * 2.0 - 1.0 + vec3(0.001));
-			R = rot(ax, (4.0 + 8.0 * h.x) * a2);
+			vec3 vh = vec3(vr.x, 0.0, vr.z);
+			vec3 ax = normalize(cross(vec3(0.0, 1.0, 0.0), vh) / max(length(vh), 0.001) + (h - 0.5) * 0.5);
+			R = rot(ax, (12.0 + 14.0 * h.x) * a2);
 		}
 	}
+	// Yola iner, içine geçmez (küpün yarı köşegeni kadar yukarıda kalır)
+	float half_d = 0.87 * length(B[0]) * sc;
+	c.y = max(c.y, floor_y + half_d);
 	vec3 w = c + R * (B * VERTEX) * sc;
 	wpos = w;
 	VERTEX = (VIEW_MATRIX * vec4(w, 1.0)).xyz;
