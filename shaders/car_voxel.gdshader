@@ -50,7 +50,8 @@ void vertex() {
 	float sc = 0.0;
 	mat3 R = mat3(1.0);
 	if (age >= 0.0) {
-		sc = clamp(1.0 - pow(age / life, 2.0), 0.0, 1.0);
+		// Ayrıldığı an küçülmeye başlar (çözülme): hızla ufalır, saçılırken kaybolur
+		sc = pow(clamp(1.0 - age / life, 0.0, 1.0), 1.5);
 		float a2 = age - hold;
 		if (a2 > 0.0) {
 			float e = exp(-drag * a2);

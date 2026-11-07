@@ -35,11 +35,11 @@ var _fly := -1.0
 var _fly_from := Vector3.ZERO
 var _fly_look := Vector3.ZERO
 ## Önce bu kadar (gerçek sn) düz devam: yandığı anlaşılsın, dağılan parçalar görünsün
-@export var fly_straight := 1.5
+@export var fly_straight := 1.0
 ## Düz giderken parça bulutuna (araba noktası onu izler) en fazla bu kadar yaklaşır
 @export var fly_gap := 6.0
 var _straight := 0.0
-@export var fly_time := 1.6
+@export var fly_time := 1.4
 @export var fly_rise := 9.0
 @export var fly_pitch := 32.0
 
@@ -106,7 +106,9 @@ func _fly_away(delta: float) -> void:
 	if _straight < fly_straight:
 		# Düz: kesilme anındaki hızla ileri, aynı yükseklik ve bakış; bulutu geçip kaçırmaz
 		_straight += real
-		p.z = maxf(p.z + v.z * delta, t.z + fly_gap)
+		p.z += v.z * delta
+		if _target.shattering:
+			p.z = maxf(p.z, t.z + fly_gap)
 		p.x = lerpf(p.x, t.x + offset.x, 1.0 - exp(-follow_x * delta))
 		global_position = p
 		_look = Vector3(lerpf(p.x, t.x, 0.6), _look.y, p.z - offset.z - look_ahead)

@@ -411,8 +411,6 @@ var _front_cache := {}
 var _body_cutting := false
 var _shatter_v0 := Vector3.ZERO
 var _cut_mats := {}
-## Kesilme anında oyun bu hızda akar (araba bariyerden tamamen geçene kadar), sonra normale döner
-const SHATTER_SLOWMO := 0.28
 ## Küp ayrıldıktan sonra bu kadar (oyun saniyesi) arabanın biçiminde birlikte gider, sonra dağılır
 static var shard_hold := 0.0
 var _slowmo_on := false
@@ -443,7 +441,7 @@ func _exit_tree() -> void:
 		Engine.time_scale = 1.0
 		Engine.max_physics_steps_per_frame = _steps_before
 		_slowmo_on = false
-const SHARD_LIFE := 1.3
+const SHARD_LIFE := 0.55
 
 
 ## Modelin en ön noktası (Body'ye göre z, eksi = ileri)
@@ -498,16 +496,7 @@ func shatter(reason: String) -> void:
 	_apply_cut_material()
 	_body_cutting = true
 	shattering = true
-	# Kesilme anı ağır çekim: araba çubuktan saniyenin onda birinde geçer; yavaşlayınca
-	# "hızardan geçen odun" gibi parça parça kesildiği görülür. Ağır çekim saate değil kesilmeye
-	# bağlı: araba tamamen geçene kadar sürer (telefon o an takılsa bile kesilme atlanmaz), sonra
-	# kısa bir duraksamayla hız yavaşça geri gelir (_end_slowmo). Takılmadan sonra oyun bir karede
-	# en fazla bir fizik adımı ilerler: kesilme birkaç karede birden geçip görünmez olmasın.
-	if is_equal_approx(Engine.time_scale, 1.0) and Lesson.current < 0:  # derste kendi ağır çekimi var
-		Engine.time_scale = SHATTER_SLOWMO
-		_slowmo_on = true
-		_steps_before = Engine.max_physics_steps_per_frame
-		Engine.max_physics_steps_per_frame = 1
+	# Ağır çekim yok: kesilme ve dağılma oyunun normal hızında, takılmadan geçer
 	exploded.emit()
 	_die(reason)
 
@@ -561,10 +550,10 @@ func _cut_variant(src: BaseMaterial3D) -> ShaderMaterial:
 ## ızgaraya oturtulur; her küp tam bulunduğu yerin rengini alır (lastik, jant, gövde, kokpit, kanat).
 ## Gövdeye göre (yerel) hesaplanır; ekran kartına gidecek veri, tarama şeridinin kesit hatları ve
 ## kamera için örnekler bir kez hazırlanır, oyun yeniden başlasa da saklanır (static).
-const VOXEL := 0.1
-const VOXEL_MAX := 1500
+const VOXEL := 0.18
+const VOXEL_MAX := 350
 ## Parça biçimi: true yatay uzun çubuklar (araba yatay dilimlenmiş gibi), false küpler
-static var shard_bars := true
+static var shard_bars := false
 ## Çubuk hücresi: x yönünde çözünürlük, katman kalınlığı (y), dilim derinliği (z)
 const BAR_CELL := Vector3(0.08, 0.1, 0.08)
 ## Enine çubuk en az bu kadar hücre; daha kısası boyuna çubuklara katılır
@@ -788,7 +777,7 @@ func _voxels() -> Dictionary:
 		var sz: Vector3 = pc[1]
 		var c: Color = pc[2]
 		# Hızlı dağılma: merkezden dışa güçlü, yukarı ve geriye savrulur; ileri hızın bir kısmı kalır
-		var kick := Vector3(p.x * rng.randf_range(5.0, 9.0) + rng.randf_range(-4.0, 4.0), rng.randf_range(1.5, 6.5), rng.randf_range(-3.0, 4.5))
+		var kick := Vector3(p.x * rng.randf_range(6.0, 12.0) + rng.randf_range(-6.0, 6.0), rng.randf_range(2.0, 8.0), rng.randf_range(-4.0, 6.0))
 		var f := rng.randf_range(0.65, 0.9)
 		var o := i * 20
 		buf[o] = sz.x; buf[o + 3] = p.x
