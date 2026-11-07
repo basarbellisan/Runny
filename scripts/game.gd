@@ -468,7 +468,11 @@ func _on_boost_empty() -> void:
 
 
 func _on_exploded() -> void:
-	Audio.play("explosion")
+	# Işık bariyerinde parçalanma: "tıss"; diğer çarpmalarda tok patlama
+	if car.shattering:
+		Audio.play("shatter")
+	else:
+		Audio.play("explosion")
 	$Camera.shake(0.35 if car.shattering else 1.0)
 	if _perf_label:
 		_perf_crash_at = Time.get_ticks_msec()

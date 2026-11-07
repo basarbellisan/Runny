@@ -369,6 +369,40 @@ def sfx_explosion():
     return fade(room(s, 0.15, 0.9), 0.0005, 0.1)
 
 
+def sfx_shatter():
+    """Işık bariyerine değip parçalanma: "tıss". Keskin elektrikli tık ("t"), hızla sönen tiz
+    hışırtı ("ıss"; parlaktan biraz boğuğa kayar, çözülme hissi) ve içinde seyrelen minik
+    çıtırtılar (dağılan parçalar). Tok patlamadaki gibi bas gümbürtü yok."""
+    d = 0.7
+    n = n_of(d)
+    t = np.arange(n) / SR
+    buf = np.zeros(n)
+    # "t": değme anı, çok kısa parlak tık + üstünde yüksek, hızla düşen elektrik vızıltısı
+    place(buf, click(0.003), 0.0, 0.9)
+    zap = sine(glide(5200, 1800, 0.05, 0.6), 0.05) * env(0.05, 0.0005, 0.018)
+    zap = zap + 0.5 * filt(noise(0.05), lo=4000) * env(0.05, 0.0003, 0.012)
+    place(buf, zap, 0.0, 0.55)
+    # "ıss": tiz gürültü; parlak bant erken söner, orta-tiz bant biraz daha uzun kalır
+    nz = noise(d)
+    bright = filt(nz, lo=5500, hi=12000) * np.exp(-t / 0.11)
+    mid = filt(nz, lo=2400, hi=6500) * np.exp(-t / 0.2)
+    rise = np.minimum(t / 0.006, 1.0)
+    hiss = (0.9 * bright + 0.55 * mid) * rise
+    # Hafif titreşim: hışırtı düz değil, parçalar koparken dalgalanır
+    hiss *= 1.0 + 0.25 * np.sin(2 * np.pi * 38 * t) * np.exp(-t / 0.25)
+    buf += hiss
+    # Parçacık çıtırtısı: başta sık, giderek seyrek ve kısık minik tiz tıklar
+    crackle = np.zeros(n)
+    for _ in range(70):
+        at = rng.exponential(0.12)
+        if at > d - 0.02:
+            continue
+        c = filt(click(0.0025), lo=3000) * rng.uniform(0.3, 0.9) * np.exp(-at / 0.18)
+        place(crackle, c, at)
+    buf += 0.6 * crackle
+    return room(fade(buf, 0.0003, 0.06), 0.07, 0.35)
+
+
 def sfx_energy_low():
     buf = np.zeros(n_of(0.4))
     f = 880.0
@@ -691,7 +725,7 @@ def main():
         ("sfx_fall.wav", sfx_fall), ("sfx_explosion.wav", sfx_explosion),
         ("sfx_energy_low.wav", sfx_energy_low), ("sfx_game_over.wav", sfx_game_over),
         ("sfx_climb.wav", sfx_climb), ("sfx_boost.wav", sfx_boost), ("sfx_empty.wav", sfx_empty),
-        ("sfx_hiss.wav", sfx_hiss),
+        ("sfx_hiss.wav", sfx_hiss), ("sfx_shatter.wav", sfx_shatter),
         ("loop_engine.ogg", loop_engine), ("loop_road.ogg", loop_road), ("loop_wind.ogg", loop_wind),
         ("loop_plane.ogg", loop_plane), ("loop_climb.ogg", loop_climb), ("loop_tire.ogg", loop_tire),
         ("loop_gravel.ogg", loop_gravel),
