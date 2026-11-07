@@ -413,25 +413,28 @@ var _shatter_v0 := Vector3.ZERO
 var _cut_mats := {}
 ## Kesilme anında oyun bu hızda akar (araba bariyerden tamamen geçene kadar), sonra normale döner
 const SHATTER_SLOWMO := 0.28
-## Kesilme bitince ağır çekimde bekleme ve normale dönüş süresi (gerçek saniye)
-const SLOWMO_HOLD := 0.15
-const SLOWMO_RAMP := 0.5
 ## Küp ayrıldıktan sonra bu kadar (oyun saniyesi) arabanın biçiminde birlikte gider, sonra dağılır
-const SHARD_HOLD := 0.0
+static var shard_hold := 0.0
 var _slowmo_on := false
 var _steps_before := 8
 
 
+## Kesilme bitti: ağır çekim oyun sonuna kadar sürer (tekrar hızlanmaz, oyun bitiyor); yalnız
+## takılma koruması (karede tek fizik adımı) kalkar. Sahne değişince _exit_tree normale döndürür.
 func _end_slowmo() -> void:
 	if not _slowmo_on:
 		return
-	var steps := _steps_before  # sahne bu arada değişse de (araba silinse de) geri yüklensin
-	var tw := get_tree().create_tween()
-	tw.set_ignore_time_scale(true)
-	tw.tween_interval(SLOWMO_HOLD)
-	tw.tween_callback(func(): Engine.max_physics_steps_per_frame = steps)
-	tw.tween_property(Engine, "time_scale", 1.0, SLOWMO_RAMP).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	_slowmo_on = false
+	Engine.max_physics_steps_per_frame = _steps_before
+
+
+## Kesilme sürüyor mu (gerçek araba bariyerden geçiyor); kamera bitince göğe yükselir
+func is_cutting() -> bool:
+	return _body_cutting
+
+
+## Kesilme anındaki hız (kamera bu hızla ileri gitmeyi sürdürür)
+func shatter_velocity() -> Vector3:
+	return _shatter_v0
 
 
 func _exit_tree() -> void:
@@ -560,6 +563,14 @@ func _cut_variant(src: BaseMaterial3D) -> ShaderMaterial:
 ## kamera için örnekler bir kez hazırlanır, oyun yeniden başlasa da saklanır (static).
 const VOXEL := 0.1
 const VOXEL_MAX := 1500
+## Parça biçimi: true yatay uzun çubuklar (araba yatay dilimlenmiş gibi), false küpler
+static var shard_bars := true
+## Çubuk hücresi: x yönünde çözünürlük, katman kalınlığı (y), dilim derinliği (z)
+const BAR_CELL := Vector3(0.08, 0.1, 0.08)
+## Enine çubuk en az bu kadar hücre; daha kısası boyuna çubuklara katılır
+const BAR_MIN := 3
+## Tarama şeridinin üst hat sütun aralığı
+const TOP_COL := 0.08
 static var _voxel_cache := {}
 
 
@@ -625,8 +636,48 @@ func _prewarm_shaders() -> void:
 	holder.queue_free()
 
 
+## Sıralı hücre numaralarında aynı renkli, ardışık (bir hücre boşluğa izin verir) diziler: [baş, son]
+func _runs(idx: Array, color_of: Callable) -> Array:
+	var out: Array = []
+	var start: int = idx[0]
+	var prev: int = idx[0]
+	var col: Color = color_of.call(start)
+	for j in range(1, idx.size()):
+		var x: int = idx[j]
+		var c: Color = color_of.call(x)
+		if x - prev <= 2 and c == col:
+			prev = x
+			continue
+		out.append([start, prev])
+		start = x
+		prev = x
+		col = c
+	out.append([start, prev])
+	return out
+
+
+## Yüzeyleri hücre ızgarasına oturtur: her dolu hücre ilk değen yüzün rengini alır
+func _sample_grid(tris: Array, cell: Vector3) -> Dictionary:
+	var grid := {}
+	var inv := Vector3(1.0 / cell.x, 1.0 / cell.y, 1.0 / cell.z)
+	for tri: Array in tris:
+		# Hücre biriminde (her eksen kendi hücre boyuyla) yarım hücre aralıklı örnekler
+		var a: Vector3 = tri[0] * inv
+		var ab: Vector3 = (tri[1] as Vector3) * inv - a
+		var ac: Vector3 = (tri[2] as Vector3) * inv - a
+		var bc := ac - ab
+		var n := maxi(1, ceili(maxf(ab.length(), maxf(ac.length(), bc.length())) / 0.5))
+		for i in n + 1:
+			for j in n + 1 - i:
+				var q: Vector3 = a + ab * (float(i) / n) + ac * (float(j) / n)
+				var g := Vector3i(floori(q.x), floori(q.y), floori(q.z))
+				if not grid.has(g):
+					grid[g] = tri[3]
+	return grid
+
+
 func _voxel_key() -> String:
-	var k := str(model.variant)
+	var k := ("b" if shard_bars else "c") + str(model.variant)
 	for mi in _body.find_children("*", "MeshInstance3D", true, false):
 		k += "1" if (mi as MeshInstance3D).is_visible_in_tree() else "0"
 	return k
@@ -658,61 +709,108 @@ func _voxels() -> Dictionary:
 				var b: Vector3 = t * vs[idx[i + 1] if idx.size() > 0 else i + 1]
 				var c: Vector3 = t * vs[idx[i + 2] if idx.size() > 0 else i + 2]
 				tris.append([a, b, c, col])
-	var size := VOXEL
-	var grid := {}
-	for attempt in 4:
-		grid = {}
-		var step := size * 0.5
-		for tri: Array in tris:
-			var a: Vector3 = tri[0]
-			var ab: Vector3 = tri[1] - a
-			var ac: Vector3 = tri[2] - a
-			var n := maxi(1, ceili(maxf(ab.length(), maxf(ac.length(), (tri[2] - tri[1]).length())) / step))
-			for i in n + 1:
-				for j in n + 1 - i:
-					var q: Vector3 = a + ab * (float(i) / n) + ac * (float(j) / n)
-					var g := Vector3i(floori(q.x / size), floori(q.y / size), floori(q.z / size))
-					if not grid.has(g):
-						grid[g] = tri[3]
-		if grid.size() <= VOXEL_MAX or attempt == 3:
-			break
-		size *= sqrt(float(grid.size()) / VOXEL_MAX) * 1.02
-	# Ekran kartı verisi (küp başına 20 sayı): yerel dönüşüm, renk, ayrılma itkisi (yerel), ileri hız
+	# Parçalar: [merkez (yerel), boyut, renk]. Küp: VOXEL'lik ızgara; çubuk: araba yatay katmanlara
+	# dilimlenir, her katman sırasında yan yana aynı renkli hücreler tek uzun yatay çubuk olur.
+	var pieces: Array = []
+	var zsize := VOXEL
+	if shard_bars:
+		var cell := BAR_CELL
+		zsize = cell.z
+		var grid := _sample_grid(tris, cell)
+		# Katmanlar: y -> {(x, z): renk}
+		var layers := {}
+		for g: Vector3i in grid:
+			if not layers.has(g.y):
+				layers[g.y] = {}
+			layers[g.y][Vector2i(g.x, g.z)] = grid[g]
+		for gy: int in layers:
+			var cells: Dictionary = layers[gy]
+			var y := (gy + 0.5) * cell.y
+			var used := {}
+			# Önce enine (x) uzun çubuklar: her z sırasında aynı renkli en az BAR_MIN hücre
+			var rows := {}
+			for c2: Vector2i in cells:
+				if not rows.has(c2.y):
+					rows[c2.y] = []
+				rows[c2.y].append(c2.x)
+			for gz: int in rows:
+				var xs: Array = rows[gz]
+				xs.sort()
+				var runs := _runs(xs, func(x): return cells[Vector2i(x, gz)])
+				for r: Array in runs:
+					if r[1] - r[0] + 1 < BAR_MIN:
+						continue
+					for x in range(r[0], r[1] + 1):
+						used[Vector2i(x, gz)] = true
+					pieces.append([Vector3((r[0] + r[1] + 1) * 0.5 * cell.x, y, (gz + 0.5) * cell.z),
+						Vector3((r[1] - r[0] + 1) * cell.x - cell.x * 0.15, cell.y * 0.86, cell.z * 0.82), cells[Vector2i(r[0], gz)]])
+			# Kalanlar (yan duvarlar, tekerlek yanları): boyuna (z) çubuklar
+			var cols := {}
+			for c2: Vector2i in cells:
+				if used.has(c2):
+					continue
+				if not cols.has(c2.x):
+					cols[c2.x] = []
+				cols[c2.x].append(c2.y)
+			for gx: int in cols:
+				var zs: Array = cols[gx]
+				zs.sort()
+				var runs := _runs(zs, func(z): return cells[Vector2i(gx, z)])
+				for r: Array in runs:
+					pieces.append([Vector3((gx + 0.5) * cell.x, y, (r[0] + r[1] + 1) * 0.5 * cell.z),
+						Vector3(cell.x * 0.82, cell.y * 0.86, (r[1] - r[0] + 1) * cell.z - cell.z * 0.15), cells[Vector2i(gx, r[0])]])
+	else:
+		var size := VOXEL
+		var grid := {}
+		for attempt in 4:
+			grid = _sample_grid(tris, Vector3.ONE * size)
+			if grid.size() <= VOXEL_MAX or attempt == 3:
+				break
+			size *= sqrt(float(grid.size()) / VOXEL_MAX) * 1.02
+		zsize = size
+		for g: Vector3i in grid:
+			pieces.append([(Vector3(g) + Vector3.ONE * 0.5) * size, Vector3.ONE * size * 0.96, grid[g]])
+	# Ekran kartı verisi (parça başına 20 sayı): yerel dönüşüm, renk, ayrılma itkisi (yerel), ileri hız
 	# kesri. Rastgelelik ayrı üreteçle: oyunun (yol üretiminin) rastgele sırası bozulmasın.
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
-	var n := grid.size()
+	var n := pieces.size()
 	var buf := PackedFloat32Array()
 	buf.resize(n * 20)
 	var sub := PackedVector3Array()
 	var sub_kick := PackedVector3Array()
 	var sub_f := PackedFloat32Array()
 	var cols := {}  # kesit (z) -> {sütun (x) -> en üst}
-	var sz := size * 0.96
-	var i := 0
-	for g: Vector3i in grid:
-		var p := (Vector3(g) + Vector3.ONE * 0.5) * size
-		var c: Color = grid[g]
+	var sub_step := maxi(1, n / 300)
+	for i in n:
+		var pc: Array = pieces[i]
+		var p: Vector3 = pc[0]
+		var sz: Vector3 = pc[1]
+		var c: Color = pc[2]
 		# Hızlı dağılma: merkezden dışa güçlü, yukarı ve geriye savrulur; ileri hızın bir kısmı kalır
 		var kick := Vector3(p.x * rng.randf_range(5.0, 9.0) + rng.randf_range(-4.0, 4.0), rng.randf_range(1.5, 6.5), rng.randf_range(-3.0, 4.5))
 		var f := rng.randf_range(0.65, 0.9)
 		var o := i * 20
-		buf[o] = sz; buf[o + 3] = p.x
-		buf[o + 5] = sz; buf[o + 7] = p.y
-		buf[o + 10] = sz; buf[o + 11] = p.z
+		buf[o] = sz.x; buf[o + 3] = p.x
+		buf[o + 5] = sz.y; buf[o + 7] = p.y
+		buf[o + 10] = sz.z; buf[o + 11] = p.z
 		buf[o + 12] = c.r; buf[o + 13] = c.g; buf[o + 14] = c.b; buf[o + 15] = 1.0
 		buf[o + 16] = kick.x; buf[o + 17] = kick.y; buf[o + 18] = kick.z; buf[o + 19] = f
-		if i % 8 == 0:
+		if i % sub_step == 0:
 			sub.append(p)
 			sub_kick.append(kick)
 			sub_f.append(f)
-		var top := (g.y + 1) * size
+		# Tarama şeridi için kesitin üst hattı: parçanın kapladığı sütunlar (TOP_COL aralıkla)
+		var top := p.y + sz.y * 0.5
+		var gz := floori(p.z / zsize)
+		var x0 := floori((p.x - sz.x * 0.5) / TOP_COL)
+		var x1 := floori((p.x + sz.x * 0.5) / TOP_COL)
 		for dz in range(-1, 2):
-			var zc: Dictionary = cols.get(g.z + dz, {})
-			if not zc.has(g.x) or zc[g.x] < top:
-				zc[g.x] = top
-			cols[g.z + dz] = zc
-		i += 1
+			var zc: Dictionary = cols.get(gz + dz, {})
+			for gx in range(x0, x1 + 1):
+				if not zc.has(gx) or zc[gx] < top:
+					zc[gx] = top
+			cols[gz + dz] = zc
 	# Tarama şeridinin kesit hatları: x boyunca sıralı, yumuşatılmış üst hat, iki yana taşma
 	var slices := {}
 	for zi: int in cols:
@@ -731,12 +829,12 @@ func _voxels() -> Dictionary:
 				sm[j] = acc / 5.0
 			ys = sm
 		var line := PackedVector2Array()
-		line.append(Vector2((keys[0] + 0.5) * size - SCAN_OVER, ys[0]))
+		line.append(Vector2((keys[0] + 0.5) * TOP_COL - SCAN_OVER, ys[0]))
 		for j in keys.size():
-			line.append(Vector2((keys[j] + 0.5) * size, ys[j]))
-		line.append(Vector2((keys[-1] + 0.5) * size + SCAN_OVER, ys[-1]))
+			line.append(Vector2((keys[j] + 0.5) * TOP_COL, ys[j]))
+		line.append(Vector2((keys[-1] + 0.5) * TOP_COL + SCAN_OVER, ys[-1]))
 		slices[zi] = line
-	var out := {"n": n, "size": size, "buf": buf, "sub": sub, "sub_kick": sub_kick, "sub_f": sub_f, "slices": slices}
+	var out := {"n": n, "size": zsize, "buf": buf, "sub": sub, "sub_kick": sub_kick, "sub_f": sub_f, "slices": slices}
 	_voxel_cache[key] = out
 	return out
 
@@ -791,7 +889,7 @@ func _spawn_shards() -> void:
 	_shard_mat.set_shader_parameter("life", SHARD_LIFE)
 	_shard_mat.set_shader_parameter("drag", SHARD_DRAG)
 	_shard_mat.set_shader_parameter("grav", SHARD_GRAV)
-	_shard_mat.set_shader_parameter("hold", SHARD_HOLD)
+	_shard_mat.set_shader_parameter("hold", shard_hold)
 	_shard_mat.set_shader_parameter("t", 0.0)
 	_shard_mat.set_shader_parameter("cut_hot", _cut_color.lerp(Color(1.0, 0.95, 0.85), 0.35))
 	box.surface_set_material(0, _shard_mat)
@@ -828,11 +926,11 @@ func _shard_at(i: int, t: float) -> Vector3:
 	var tr := _shard_cut[i]
 	if t < tr:
 		return p0 + _shatter_v0 * t
-	var age := t - tr - SHARD_HOLD
+	var age := t - tr - shard_hold
 	if age < 0.0:
 		return p0 + _shatter_v0 * t
 	var e := exp(-SHARD_DRAG * age)
-	var c := p0 + _shatter_v0 * (tr + SHARD_HOLD) + _shard_vel[i] * (1.0 - e) / SHARD_DRAG
+	var c := p0 + _shatter_v0 * (tr + shard_hold) + _shard_vel[i] * (1.0 - e) / SHARD_DRAG
 	c.y += SHARD_GRAV / SHARD_DRAG * ((1.0 - e) / SHARD_DRAG - age)
 	return c
 

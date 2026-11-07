@@ -125,6 +125,10 @@ func _ready() -> void:
 	if seed_value >= 0:
 		seed(seed_value)  # testler tekrarlanabilir olsun (sendeleme vb. randf kullanır)
 	car.roads = roads
+	if _args.has("shard_style"):
+		Car.shard_bars = _args.shard_style != "cube"
+	if _args.has("shard_hold"):
+		Car.shard_hold = float(_args.shard_hold)
 	if _args.has("autopilot"):
 		car.autopilot = Autopilot.new(car, roads, lower, float(_args.get("dive", "0")), not _args.has("noboost"))
 		car.autopilot.seek_dead_ends = _args.has("deadend")
@@ -586,9 +590,11 @@ func _on_game_over(reason: String) -> void:
 	# Patlamanın görülmesi için oyun sonu ekranı biraz gecikmeli gelir (kamera yerinde kalır;
 	# göğe dönüş denemesi: follow_camera.look_sky)
 	# Işık bariyerinde parçalanma: bulut biraz süzülsün, sonra oyun sonu
-	var wait := 1.2 if car.shattering else 1.0
-	get_tree().create_timer(wait).timeout.connect(hud.show_game_over.bind(reason, final, best, _start_z - car.global_position.z))
-	get_tree().create_timer(wait).timeout.connect(Audio.play.bind("game_over"))
+	# (gerçek saat: ışık bariyerinde ağır çekim oyun sonuna kadar sürer, kamera göğe yükselir)
+	var wait := 1.7 if car.shattering else 1.0
+	var real := car.shattering
+	get_tree().create_timer(wait, true, false, real).timeout.connect(hud.show_game_over.bind(reason, final, best, _start_z - car.global_position.z))
+	get_tree().create_timer(wait, true, false, real).timeout.connect(Audio.play.bind("game_over"))
 	print("GAME_OVER reason=%s %s frame=%d" % [reason, _stats_text(), Engine.get_process_frames()])
 	if car.autopilot:
 		print("  car pos=%v vel=%v boost=%.2f" % [car.global_position, car.velocity, car.boost_level])

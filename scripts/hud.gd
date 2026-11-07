@@ -472,4 +472,4 @@ func show_game_over(reason: String, score: int, best: int, meters := 0.0) -> voi
 	_over_new.visible = score >= best and score > 0
 	_over.visible = true
 	_over.modulate.a = 0.0
-	create_tween().tween_property(_over, "modulate:a", 1.0, 0.4)
+	create_tween().set_ignore_time_scale(true).tween_property(_over, "modulate:a", 1.0, 0.4)

@@ -28,6 +28,15 @@ var sky_view := 0.0
 var _sky_from := Vector3.ZERO
 ## Son baktığı nokta: araba patlayınca bakış buradan arabaya yumuşakça kayar (birden atlamaz)
 var _look := Vector3.ZERO
+## Işık bariyerinde kesilme bitince: kamera aynı hızla ileri gitmeyi sürdürür, göğe doğru yükselir
+## ve bakışını kaldırır, orada kalır (oyun sonu ekranı gökyüzünün üstüne gelir). Süreler gerçek saat
+## (oyun ağır çekimde kalır); ileri hız oyun saatiyle (dünya ile birlikte yavaş).
+var _fly := -1.0
+var _fly_from := Vector3.ZERO
+var _fly_look := Vector3.ZERO
+@export var fly_time := 1.6
+@export var fly_rise := 9.0
+@export var fly_pitch := 32.0
 
 
 func _ready() -> void:
@@ -40,7 +49,13 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	var t := _target.get_global_transform_interpolated().origin
 	var p := global_position
-	if _target.alive or _target.shattering:
+	if _fly < 0.0 and _target.shattering and not _target.is_cutting():
+		_fly = 0.0
+		_fly_from = global_position
+		_fly_look = _look
+	if _fly >= 0.0:
+		_fly_away(delta)
+	elif _target.alive or _target.shattering:
 		p.z = t.z + offset.z
 		p.x = lerpf(p.x, t.x + offset.x, 1.0 - exp(-follow_x * delta))
 		# Hızlı yükselip alçalırken (dalış, portal) kamera arabayı kaçırmasın
@@ -76,6 +91,23 @@ func _process(delta: float) -> void:
 	var k := _trauma * _trauma
 	h_offset = randf_range(-1.0, 1.0) * 0.6 * k
 	v_offset = randf_range(-1.0, 1.0) * 0.6 * k
+
+
+func _fly_away(delta: float) -> void:
+	var real := delta / maxf(Engine.time_scale, 0.01)
+	_fly = minf(_fly + real / fly_time, 1.0)
+	var k := _fly * _fly * (3.0 - 2.0 * _fly)
+	# İleri: kesilme anındaki hızla; sona doğru yumuşakça durur (gökyüzünde kalır)
+	var v := _target.shatter_velocity()
+	var p := global_position
+	p.z += v.z * delta * (1.0 - _fly)
+	p.x += v.x * delta * (1.0 - _fly)
+	p.y = _fly_from.y + fly_rise * k
+	global_position = p
+	var sky := p + Vector3(0, tan(deg_to_rad(fly_pitch)), -1).normalized() * 200.0
+	var ahead := Vector3(p.x, _fly_look.y + (p.y - _fly_from.y), p.z - look_ahead)
+	look_at(ahead.lerp(sky, k))
+	fov = lerpf(fov, base_fov, 1.0 - exp(-2.0 * real))
 
 
 ## Oyun sonu: kamerayı süre boyunca göğe çevir
