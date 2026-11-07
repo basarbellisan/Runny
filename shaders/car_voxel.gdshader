@@ -1,12 +1,14 @@
 // Arabanın küp (voksel) ikizi. Her küpün rengi arabanın o noktadaki rengi, arabayla aynı ışıkla
 // çizilir. Hareket burada hesaplanır (işlemciye yük yok, her karede akıcı): küp kesme düzlemine
 // varana kadar arabayla birlikte gizli gider (orada gerçek araba görünür), vardığı an (tr) tam
-// yerinde belirir; ayrılma hızıyla (INSTANCE_CUSTOM.xyz) açılır, sürüklenmeyle yavaşlar, hafifçe
+// yerinde belirir; ayrılma itkisiyle (INSTANCE_CUSTOM.xyz, gövdeye göre) açılır, sürüklenmeyle yavaşlar, hafifçe
 // düşer, döner, küçülüp kaybolur. Bariyer hizasında (cut_z) kızgın parlar.
 // Aynı hesap car.gd _shard_at içinde (kameranın takibi için).
 shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley, specular_schlick_ggx, skip_vertex_transform;
 
+// Kesilme anındaki gövde dönüşümü: küp verisi arabaya göre (yerel) ve önceden hazır
+uniform mat4 body = mat4(1.0);
 uniform float t = 0.0;
 uniform vec3 v0 = vec3(0.0, 0.0, -30.0);
 uniform float cut_z = -1e9;
@@ -33,8 +35,13 @@ mat3 rot(vec3 a, float ang) {
 }
 
 void vertex() {
-	vec3 p0 = MODEL_MATRIX[3].xyz;
-	mat3 B = mat3(MODEL_MATRIX[0].xyz, MODEL_MATRIX[1].xyz, MODEL_MATRIX[2].xyz);
+	mat4 W = body * MODEL_MATRIX;
+	vec3 p0 = W[3].xyz;
+	mat3 B = mat3(W[0].xyz, W[1].xyz, W[2].xyz);
+	// Ayrılma hızı: arabanın hızı + (gövdeye göre) itki; ileri hızın bir kesri korunur
+	vec3 kw = mat3(body) * INSTANCE_CUSTOM.xyz;
+	vec3 vr = v0 + kw;
+	vr.z = (v0.z + kw.z) * INSTANCE_CUSTOM.w;
 	float tr = v0.z < -0.01 ? max((cut_z - p0.z) / v0.z, 0.0) : 0.0;
 	float age = t - tr;
 	vec3 c = p0 + v0 * t;
@@ -42,10 +49,10 @@ void vertex() {
 	mat3 R = mat3(1.0);
 	if (age >= 0.0) {
 		float e = exp(-drag * age);
-		c = p0 + v0 * tr + INSTANCE_CUSTOM.xyz * (1.0 - e) / drag;
+		c = p0 + v0 * tr + vr * (1.0 - e) / drag;
 		c.y += grav / drag * ((1.0 - e) / drag - age);
 		sc = clamp(1.0 - pow(age / life, 2.0), 0.0, 1.0);
-		vec3 h = hash3(INSTANCE_CUSTOM.w * 17.0 + 1.0);
+		vec3 h = hash3(INSTANCE_CUSTOM.w * 911.0 + INSTANCE_CUSTOM.x * 37.0 + 1.0);
 		vec3 ax = normalize(h * 2.0 - 1.0 + vec3(0.001));
 		R = rot(ax, (1.0 + 4.0 * h.x) * max(age - 0.08, 0.0));
 	}

@@ -399,8 +399,9 @@ var _shard_vel := PackedVector3Array()
 var _shard_cut := PackedFloat32Array()  # kesme düzlemine vardığı an (sn)
 var _shard_last := 0.0  # son küpün kesildiği an
 var _shard_mat: ShaderMaterial
-## Küplerin gövdeye göre yeri (tarama şeridi kesitteki üst hattı bundan bulur)
-var _vox_local: Array = []
+## Kesilen arabanın küp ikizi (_voxels) ve kesilme anındaki gövde dönüşümü
+var _vox := {}
+var _shatter_bt := Transform3D.IDENTITY
 var _scan_mi: MeshInstance3D
 var _shard_time := 0.0
 var _cut_z := 0.0
@@ -526,17 +527,73 @@ func _cut_variant(src: BaseMaterial3D) -> ShaderMaterial:
 
 ## Arabanın küplerden (voksel) ikizi: gövdedeki her görünür parçanın yüzeyi VOXEL aralıklı
 ## ızgaraya oturtulur; her küp tam bulunduğu yerin rengini alır (lastik, jant, gövde, kokpit, kanat).
-## Gövdeye göre (yerel) hesaplanır, arabanın biçimi ve kanat durumu için saklanır.
-const VOXEL := 0.06
-const VOXEL_MAX := 4200
-var _voxel_cache := {}
+## Gövdeye göre (yerel) hesaplanır; ekran kartına gidecek veri, tarama şeridinin kesit hatları ve
+## kamera için örnekler bir kez hazırlanır, oyun yeniden başlasa da saklanır (static).
+const VOXEL := 0.065
+const VOXEL_MAX := 3000
+static var _voxel_cache := {}
 
 
 func _prepare_voxels() -> void:
 	var t0 := Time.get_ticks_msec()
-	var n := _voxels().size()
+	var n: int = _voxels().n
 	if OS.get_cmdline_user_args().has("--trace"):
 		print("VOXELS n=%d ms=%d model=%d" % [n, Time.get_ticks_msec() - t0, model.variant])
+	_prewarm_shaders()
+
+
+## Kesilme gölgelendiricileri (kesme, küp, şerit) ilk kullanıldıkları an derlenir: web'de bu
+## çarpma anında belirgin bir takılma yapar. Oyun açılırken kameranın önünde görünmeyecek kadar
+## küçük birer nesneyle bir kez çizilip derlenirler.
+func _prewarm_shaders() -> void:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var at := cam.global_transform * Vector3(0, 0, -3.0)
+	var holder := Node3D.new()
+	holder.top_level = true
+	add_child(holder)
+	holder.global_transform = Transform3D(Basis.from_scale(Vector3.ONE * 0.002), at)
+	var tiny := BoxMesh.new()
+	tiny.size = Vector3.ONE
+	# Kesme malzemesi: arabanın parçaları gibi gölge alır ve gölge düşürür
+	var cut := MeshInstance3D.new()
+	cut.mesh = tiny
+	var cm := ShaderMaterial.new()
+	cm.shader = preload("res://shaders/car_cut.gdshader")
+	cut.material_override = cm
+	holder.add_child(cut)
+	var line := MeshInstance3D.new()
+	line.mesh = tiny
+	var lm := ShaderMaterial.new()
+	lm.shader = preload("res://shaders/scan_line.gdshader")
+	line.material_override = lm
+	line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	holder.add_child(line)
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.use_custom_data = true
+	var vbox := BoxMesh.new()
+	vbox.size = Vector3.ONE
+	mm.mesh = vbox
+	mm.instance_count = 1
+	mm.set_instance_transform(0, Transform3D(Basis.from_scale(Vector3.ONE * 0.002), Vector3.ZERO))
+	var vm := ShaderMaterial.new()
+	vm.shader = preload("res://shaders/car_voxel.gdshader")
+	vm.set_shader_parameter("body", Transform3D(Basis.IDENTITY, at))
+	vm.set_shader_parameter("cut_z", 1e6)
+	vm.set_shader_parameter("t", 0.1)
+	vbox.surface_set_material(0, vm)
+	var vox := MultiMeshInstance3D.new()
+	vox.multimesh = mm
+	vox.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	vox.top_level = true
+	holder.add_child(vox)
+	vox.global_transform = Transform3D.IDENTITY
+	for i in 3:
+		await get_tree().process_frame
+	holder.queue_free()
 
 
 func _voxel_key() -> String:
@@ -546,12 +603,12 @@ func _voxel_key() -> String:
 	return k
 
 
-func _voxels() -> Array:
+func _voxels() -> Dictionary:
 	var key := _voxel_key()
 	if _voxel_cache.has(key):
 		return _voxel_cache[key]
 	var inv := _body.global_transform.affine_inverse()
-	# Yüzey örnekleri: [yerel nokta, renk]
+	# Yüzeyler: [üç köşe (yerel), renk]
 	var tris: Array = []
 	for mi in _body.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
@@ -573,9 +630,9 @@ func _voxels() -> Array:
 				var c: Vector3 = t * vs[idx[i + 2] if idx.size() > 0 else i + 2]
 				tris.append([a, b, c, col])
 	var size := VOXEL
-	var out: Array = []
+	var grid := {}
 	for attempt in 4:
-		var grid := {}
+		grid = {}
 		var step := size * 0.5
 		for tri: Array in tris:
 			var a: Vector3 = tri[0]
@@ -589,56 +646,104 @@ func _voxels() -> Array:
 					if not grid.has(g):
 						grid[g] = tri[3]
 		if grid.size() <= VOXEL_MAX or attempt == 3:
-			for g: Vector3i in grid:
-				out.append([(Vector3(g) + Vector3.ONE * 0.5) * size, grid[g], size])
 			break
 		size *= sqrt(float(grid.size()) / VOXEL_MAX) * 1.02
+	# Ekran kartı verisi (küp başına 20 sayı): yerel dönüşüm, renk, ayrılma itkisi (yerel), ileri hız
+	# kesri. Rastgelelik ayrı üreteçle: oyunun (yol üretiminin) rastgele sırası bozulmasın.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var n := grid.size()
+	var buf := PackedFloat32Array()
+	buf.resize(n * 20)
+	var sub := PackedVector3Array()
+	var sub_kick := PackedVector3Array()
+	var sub_f := PackedFloat32Array()
+	var cols := {}  # kesit (z) -> {sütun (x) -> en üst}
+	var sz := size * 0.96
+	var i := 0
+	for g: Vector3i in grid:
+		var p := (Vector3(g) + Vector3.ONE * 0.5) * size
+		var c: Color = grid[g]
+		var kick := Vector3(p.x * rng.randf_range(0.8, 2.2) + rng.randf_range(-0.5, 0.5), rng.randf_range(0.0, 1.2), rng.randf_range(-0.4, 0.8))
+		var f := rng.randf_range(0.9, 1.0)
+		var o := i * 20
+		buf[o] = sz; buf[o + 3] = p.x
+		buf[o + 5] = sz; buf[o + 7] = p.y
+		buf[o + 10] = sz; buf[o + 11] = p.z
+		buf[o + 12] = c.r; buf[o + 13] = c.g; buf[o + 14] = c.b; buf[o + 15] = 1.0
+		buf[o + 16] = kick.x; buf[o + 17] = kick.y; buf[o + 18] = kick.z; buf[o + 19] = f
+		if i % 8 == 0:
+			sub.append(p)
+			sub_kick.append(kick)
+			sub_f.append(f)
+		var top := (g.y + 1) * size
+		for dz in range(-1, 2):
+			var zc: Dictionary = cols.get(g.z + dz, {})
+			if not zc.has(g.x) or zc[g.x] < top:
+				zc[g.x] = top
+			cols[g.z + dz] = zc
+		i += 1
+	# Tarama şeridinin kesit hatları: x boyunca sıralı, yumuşatılmış üst hat, iki yana taşma
+	var slices := {}
+	for zi: int in cols:
+		var zc: Dictionary = cols[zi]
+		var keys := zc.keys()
+		keys.sort()
+		var ys := PackedFloat32Array()
+		for k: int in keys:
+			ys.append(zc[k])
+		for pass_i in 3:
+			var sm := ys.duplicate()
+			for j in ys.size():
+				var acc := 0.0
+				for oo in range(-2, 3):
+					acc += ys[clampi(j + oo, 0, ys.size() - 1)]
+				sm[j] = acc / 5.0
+			ys = sm
+		var line := PackedVector2Array()
+		line.append(Vector2((keys[0] + 0.5) * size - SCAN_OVER, ys[0]))
+		for j in keys.size():
+			line.append(Vector2((keys[j] + 0.5) * size, ys[j]))
+		line.append(Vector2((keys[-1] + 0.5) * size + SCAN_OVER, ys[-1]))
+		slices[zi] = line
+	var out := {"n": n, "size": size, "buf": buf, "sub": sub, "sub_kick": sub_kick, "sub_f": sub_f, "slices": slices}
 	_voxel_cache[key] = out
 	return out
 
 
 func _spawn_shards() -> void:
 	var vox := _voxels()
-	if vox.is_empty():
+	var n: int = vox.n
+	if n == 0:
 		return
-	var n := vox.size()
-	_vox_local = vox
-	var bt := _body.global_transform
-	var bb := bt.basis.orthonormalized()
+	_vox = vox
+	var bt := _body.global_transform.orthonormalized()
+	_shatter_bt = bt
 	var v0 := velocity
 	if v0.z > -5.0:
 		v0.z = -maxf(forward_speed, 5.0)
 	_shatter_v0 = v0
-	_shard_pos.resize(n)
-	_shard_vel.resize(n)
-	_shard_cut.resize(n)
-	_shard_last = 0.0
-	# Her küpün yolu baştan belli: arabayla v0 hızında gider, kesme düzlemine vardığı an (tr)
-	# ayrılır; ayrılma hızı ileri hızın çoğu + merkezden dışa ve yukarı hafif açılma
-	var buf := PackedFloat32Array()
-	buf.resize(n * 20)
-	var cx := bt.origin.x
-	for i in n:
-		var v: Array = vox[i]
-		var p0: Vector3 = bt * (v[0] as Vector3)
-		var tr := maxf((_cut_z - p0.z) / v0.z, 0.0)
-		var vr := v0 + Vector3((p0.x - cx) * randf_range(0.8, 2.2) + randf_range(-0.5, 0.5), randf_range(0.0, 1.2), randf_range(-0.4, 0.8))
-		vr.z = (v0.z + randf_range(-0.4, 0.8)) * randf_range(0.9, 1.0)
-		_shard_pos[i] = p0
-		_shard_vel[i] = vr
-		_shard_cut[i] = tr
-		_shard_last = maxf(_shard_last, tr)
-		var sz := float(v[2]) * 0.96
-		var bx := bb.x * sz
-		var by := bb.y * sz
-		var bz := bb.z * sz
-		var c := v[1] as Color
-		var o := i * 20
-		buf[o] = bx.x; buf[o + 1] = by.x; buf[o + 2] = bz.x; buf[o + 3] = p0.x
-		buf[o + 4] = bx.y; buf[o + 5] = by.y; buf[o + 6] = bz.y; buf[o + 7] = p0.y
-		buf[o + 8] = bx.z; buf[o + 9] = by.z; buf[o + 10] = bz.z; buf[o + 11] = p0.z
-		buf[o + 12] = c.r; buf[o + 13] = c.g; buf[o + 14] = c.b; buf[o + 15] = 1.0
-		buf[o + 16] = vr.x; buf[o + 17] = vr.y; buf[o + 18] = vr.z; buf[o + 19] = randf()
+	# Kamera için örnek küplerin yolu (gölgelendiriciyle aynı hesap)
+	var sub: PackedVector3Array = vox.sub
+	var sub_kick: PackedVector3Array = vox.sub_kick
+	var sub_f: PackedFloat32Array = vox.sub_f
+	_shard_pos.resize(sub.size())
+	_shard_vel.resize(sub.size())
+	_shard_cut.resize(sub.size())
+	for j in sub.size():
+		var p0 := bt * sub[j]
+		var kw := bt.basis * sub_kick[j]
+		var vr := v0 + kw
+		vr.z = (v0.z + kw.z) * sub_f[j]
+		_shard_pos[j] = p0
+		_shard_vel[j] = vr
+		_shard_cut[j] = maxf((_cut_z - p0.z) / v0.z, 0.0)
+	# Son küp: arabanın en arka noktası kesme düzlemine vardığında
+	var rear := -INF
+	var slices: Dictionary = vox.slices
+	for zi: int in slices:
+		rear = maxf(rear, (zi + 1) * float(vox.size))
+	_shard_last = maxf((_cut_z - (bt * Vector3(0, 0, rear)).z) / v0.z, 0.0)
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_colors = true
@@ -647,9 +752,10 @@ func _spawn_shards() -> void:
 	box.size = Vector3.ONE
 	mm.mesh = box
 	mm.instance_count = n
-	mm.buffer = buf
+	mm.buffer = vox.buf
 	_shard_mat = ShaderMaterial.new()
 	_shard_mat.shader = preload("res://shaders/car_voxel.gdshader")
+	_shard_mat.set_shader_parameter("body", bt)
 	_shard_mat.set_shader_parameter("cut_z", _cut_z)
 	_shard_mat.set_shader_parameter("v0", v0)
 	_shard_mat.set_shader_parameter("life", SHARD_LIFE)
@@ -657,7 +763,7 @@ func _spawn_shards() -> void:
 	_shard_mat.set_shader_parameter("grav", SHARD_GRAV)
 	_shard_mat.set_shader_parameter("t", 0.0)
 	_shard_mat.set_shader_parameter("cut_hot", _cut_color.lerp(Color(1.0, 0.95, 0.85), 0.35))
-	mm.mesh.surface_set_material(0, _shard_mat)
+	box.surface_set_material(0, _shard_mat)
 	_shards = MultiMeshInstance3D.new()
 	_shards.multimesh = mm
 	_shards.top_level = true
@@ -684,8 +790,8 @@ const SHARD_DRAG := 1.2
 const SHARD_GRAV := 2.0
 
 
-## Küplerin yolu (car_voxel gölgelendiricisiyle aynı hesap): kesilmeden önce arabayla birlikte,
-## sonra sürüklenmeyle yavaşlar, hafifçe düşer
+## Örnek küpün yolu (car_voxel gölgelendiricisiyle aynı hesap): kesilmeden önce arabayla
+## birlikte, sonra sürüklenmeyle yavaşlar, hafifçe düşer
 func _shard_at(i: int, t: float) -> Vector3:
 	var p0 := _shard_pos[i]
 	var tr := _shard_cut[i]
@@ -713,7 +819,7 @@ func _process(_delta: float) -> void:
 	_update_scan()
 
 
-## Tarama şeridi: bariyer hizasındaki kesitte arabanın üst hattı (x'e göre en yüksek küp),
+## Tarama şeridi: bariyer hizasındaki kesitte arabanın üst hattı (önceden hesaplı, yumuşatılmış),
 ## arabanın iki yanından biraz taşan, kameraya bakan ince parlak bir şerit
 const SCAN_W := 0.2
 const SCAN_OVER := 0.18
@@ -729,61 +835,26 @@ func _update_scan() -> void:
 		return
 	var bt := _body.get_global_transform_interpolated()
 	var lz := (bt.affine_inverse() * Vector3(bt.origin.x, bt.origin.y, _cut_z)).z
-	var tops := {}
-	var xmin := INF
-	var xmax := -INF
-	for v: Array in _vox_local:
-		var q: Vector3 = v[0]
-		var h: float = v[2]
-		if absf(q.z - lz) > h:
-			continue
-		var bx := roundi(q.x / h)
-		var y := q.y + h * 0.5
-		if not tops.has(bx) or tops[bx] < y:
-			tops[bx] = y
-		xmin = minf(xmin, q.x)
-		xmax = maxf(xmax, q.x)
-	if tops.is_empty():
+	var slices: Dictionary = _vox.slices
+	var zi := floori(lz / float(_vox.size))
+	if not slices.has(zi):
 		_scan_mi.visible = false
 		return
 	_scan_mi.visible = true
-	var h0: float = (_vox_local[0] as Array)[2]
-	# Üst hat: x boyunca sıralı noktalar (boş sütunlar komşulardan doldurulur), iki uca taşma
-	var keys := tops.keys()
-	keys.sort()
-	# Yumuşatma: tek tek küplerin basamakları değil, kesitin düzgün üst hattı (yatay şerit)
-	var raw := {}
-	for k: int in keys:
-		raw[k] = tops[k]
-	for pass_i in 3:
-		for idx in keys.size():
-			var acc := 0.0
-			var cnt := 0.0
-			for o in range(-2, 3):
-				var j := clampi(idx + o, 0, keys.size() - 1)
-				acc += raw[keys[j]]
-				cnt += 1.0
-			tops[keys[idx]] = acc / cnt
-		for k: int in keys:
-			raw[k] = tops[k]
-	var pts: Array[Vector3] = []
-	pts.append(Vector3(xmin - SCAN_OVER, tops[keys[0]], lz))
-	for k: int in keys:
-		pts.append(Vector3(k * h0, tops[k], lz))
-	pts.append(Vector3(xmax + SCAN_OVER, tops[keys[-1]], lz))
+	var line: PackedVector2Array = slices[zi]
 	var cam := get_viewport().get_camera_3d()
 	var total := 0.0
 	var lens := PackedFloat32Array([0.0])
-	for i in range(1, pts.size()):
-		total += pts[i].distance_to(pts[i - 1])
+	for i in range(1, line.size()):
+		total += line[i].distance_to(line[i - 1])
 		lens.append(total)
 	im.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
-	for i in pts.size():
-		var w := bt * pts[i]
+	for i in line.size():
+		var w := bt * Vector3(line[i].x, line[i].y, lz)
 		w.z = _cut_z
-		var a := pts[maxi(i - 1, 0)]
-		var b := pts[mini(i + 1, pts.size() - 1)]
-		var dir := (bt.basis * (b - a)).normalized()
+		var a := line[maxi(i - 1, 0)]
+		var b := line[mini(i + 1, line.size() - 1)]
+		var dir := (bt.basis * Vector3(b.x - a.x, b.y - a.y, 0.0)).normalized()
 		var to_cam: Vector3 = (cam.global_position - w).normalized() if cam else Vector3.BACK
 		var side := dir.cross(to_cam).normalized() * SCAN_W
 		var u := lens[i] / maxf(total, 1e-3)
@@ -1119,7 +1190,7 @@ func _dead_motion(delta: float) -> void:
 		if n > 0:
 			var sum := Vector3.ZERO
 			var cnt := 0
-			for i in range(0, n, 8):
+			for i in n:
 				sum += _shard_at(i, _shard_time)
 				cnt += 1
 			var c := sum / cnt
