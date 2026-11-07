@@ -125,6 +125,8 @@ func _ready() -> void:
 	if seed_value >= 0:
 		seed(seed_value)  # testler tekrarlanabilir olsun (sendeleme vb. randf kullanır)
 	car.roads = roads
+	# Gölgeler tam kara değil: gölgeye de ortam (gök) ışığı düşer
+	$Sun.shadow_opacity = float(_args.get("shadow", SHADOW_OPACITY))
 	if _args.has("shard_style"):
 		Car.shard_bars = _args.shard_style != "cube"
 	if _args.has("slowmo"):
@@ -489,6 +491,8 @@ func _on_exploded() -> void:
 
 ## Performans sayacı (web: adresin sonuna ?debug=1, masaüstü: --perf): FPS, son 2 sn'deki en uzun
 ## kare ve çarpmadan sonraki 2 sn'deki en uzun kare. Telefonda takılmanın yerini bulmak için.
+## Güneş gölgelerinin koyuluğu (1 tam koyu): araba, kesilme küpleri, kanat, rampa, kaya gölgeleri
+const SHADOW_OPACITY := 0.6
 ## Patlamalı çarpmada (yol, kaya, devrilme) kamera sarsıntısı (0..1, kayma karesiyle büyür)
 const CRASH_SHAKE := 0.45
 var _perf_label: Label
