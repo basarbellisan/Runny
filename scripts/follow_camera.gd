@@ -34,6 +34,11 @@ var _look := Vector3.ZERO
 var _fly := -1.0
 var _fly_from := Vector3.ZERO
 var _fly_look := Vector3.ZERO
+## Önce bu kadar (gerçek sn) düz devam: yandığı anlaşılsın, dağılan parçalar görünsün
+@export var fly_straight := 1.5
+## Düz giderken parça bulutuna (araba noktası onu izler) en fazla bu kadar yaklaşır
+@export var fly_gap := 6.0
+var _straight := 0.0
 @export var fly_time := 1.6
 @export var fly_rise := 9.0
 @export var fly_pitch := 32.0
@@ -95,11 +100,23 @@ func _process(delta: float) -> void:
 
 func _fly_away(delta: float) -> void:
 	var real := delta / maxf(Engine.time_scale, 0.01)
+	var v := _target.shatter_velocity()
+	var t := _target.get_global_transform_interpolated().origin
+	var p := global_position
+	if _straight < fly_straight:
+		# Düz: kesilme anındaki hızla ileri, aynı yükseklik ve bakış; bulutu geçip kaçırmaz
+		_straight += real
+		p.z = maxf(p.z + v.z * delta, t.z + fly_gap)
+		p.x = lerpf(p.x, t.x + offset.x, 1.0 - exp(-follow_x * delta))
+		global_position = p
+		_look = Vector3(lerpf(p.x, t.x, 0.6), _look.y, p.z - offset.z - look_ahead)
+		look_at(_look)
+		_fly_from = p
+		_fly_look = _look
+		return
 	_fly = minf(_fly + real / fly_time, 1.0)
 	var k := _fly * _fly * (3.0 - 2.0 * _fly)
 	# İleri: kesilme anındaki hızla; sona doğru yumuşakça durur (gökyüzünde kalır)
-	var v := _target.shatter_velocity()
-	var p := global_position
 	p.z += v.z * delta * (1.0 - _fly)
 	p.x += v.x * delta * (1.0 - _fly)
 	p.y = _fly_from.y + fly_rise * k

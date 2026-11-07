@@ -591,7 +591,7 @@ func _on_game_over(reason: String) -> void:
 	# göğe dönüş denemesi: follow_camera.look_sky)
 	# Işık bariyerinde parçalanma: bulut biraz süzülsün, sonra oyun sonu
 	# (gerçek saat: ışık bariyerinde ağır çekim oyun sonuna kadar sürer, kamera göğe yükselir)
-	var wait := 1.7 if car.shattering else 1.0
+	var wait := 3.0 if car.shattering else 1.0
 	var real := car.shattering
 	get_tree().create_timer(wait, true, false, real).timeout.connect(hud.show_game_over.bind(reason, final, best, _start_z - car.global_position.z))
 	get_tree().create_timer(wait, true, false, real).timeout.connect(Audio.play.bind("game_over"))
