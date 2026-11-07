@@ -401,6 +401,10 @@ var _shard_time := 0.0
 var _cut_z := 0.0
 var _cut_color := Color("ff6a00")
 var _front_cache := {}
+## Kesilme sürerken araba (gerçek model) bariyerden geçer: geçen kısmı maskeyle kaybolur
+var _body_cutting := false
+var _shatter_v0 := Vector3.ZERO
+var _cut_mats := {}
 const SHARD_COUNT := 700
 ## Kesilme anında oyun bu hızda akar (0.35 sn), sonra normale döner
 const SHATTER_SLOWMO := 0.12
@@ -454,7 +458,10 @@ func shatter(reason: String) -> void:
 	if mode == Mode.DEAD:
 		return
 	_spawn_shards()
-	_body.visible = false
+	# Gerçek araba hemen silinmez: bariyerden akarak geçer, geçen kısmı maskeyle kesilir ve
+	# o kısmın parçaları tam kesik çizgiden açılır
+	_apply_cut_material()
+	_body_cutting = true
 	shattering = true
 	# Kesilme anı ağır çekim: araba çubuktan saniyenin onda birinde geçer; yavaşlayınca
 	# "hızardan geçen odun" gibi parça parça kesildiği görülür, sonra hız yavaşça geri gelir
@@ -466,6 +473,40 @@ func shatter(reason: String) -> void:
 		tw.tween_property(Engine, "time_scale", 1.0, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	exploded.emit()
 	_die(reason)
+
+
+## Gövdedeki bütün parçalara kesme malzemesi: arabanın kendi malzemesinin gölgelendiricisi birebir
+## alınıp yalnız maske eklenir (görünüm hiç değişmez); bariyeri geçen kısım görünmez, kesik
+## yüzeyde ince kızgın bir kenar parlar
+func _apply_cut_material() -> void:
+	var edge_col := _cut_color.lerp(Color(1.0, 0.95, 0.85), 0.35)
+	for mi in _body.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null or not m.is_visible_in_tree():
+			continue
+		var src := m.material_override if m.material_override else m.get_active_material(0)
+		if not src is BaseMaterial3D:
+			continue
+		var key := src.get_instance_id()
+		if not _cut_mats.has(key):
+			var sm := _cut_variant(src as BaseMaterial3D)
+			if sm == null:
+				continue
+			sm.set_shader_parameter("cut_z", _cut_z)
+			sm.set_shader_parameter("cut_hot", edge_col)
+			_cut_mats[key] = sm
+		m.material_override = _cut_mats[key]
+
+
+## Kesme malzemesi: arabanın malzemesinin değerleriyle (BaseMaterial3D ile aynı hesap) + maske
+func _cut_variant(src: BaseMaterial3D) -> ShaderMaterial:
+	var sm := ShaderMaterial.new()
+	sm.shader = preload("res://shaders/car_cut.gdshader")
+	sm.set_shader_parameter("albedo", src.albedo_color)
+	sm.set_shader_parameter("roughness", src.roughness)
+	sm.set_shader_parameter("metallic", src.metallic)
+	sm.set_shader_parameter("specular", src.metallic_specular)
+	return sm
 
 
 ## Modelin yüzeyinden (alanla orantılı) noktalar: her biri bir parça, rengi o yüzün rengi
@@ -503,6 +544,7 @@ func _spawn_shards() -> void:
 	var v0 := velocity
 	if v0.z > -5.0:
 		v0.z = -maxf(forward_speed, 5.0)
+	_shatter_v0 = v0
 	for i in SHARD_COUNT:
 		var r := randf() * total
 		var k := areas.bsearch(r)
@@ -563,6 +605,8 @@ func _update_shards(delta: float) -> void:
 		_shard_vel[i] = v
 		var c := _shard_col[i]
 		var sz := _shard_size[i]
+		if cut < 0.0:
+			sz = 0.0  # henüz kesilmedi: araba (model) burada görünüyor
 		if cut >= 0.0:
 			var age := _shard_time - cut
 			var hot := clampf(1.0 - age / 0.45, 0.0, 1.0)
@@ -883,9 +927,21 @@ func _die(reason: String) -> void:
 
 func _dead_motion(delta: float) -> void:
 	if shattering:
-		# Kamera bulutu takip etsin: araba noktası parçalarla birlikte ileri süzülür, yavaşlar
 		if _shards:
 			_update_shards(delta)
+		if _body_cutting:
+			# Model, kesilmemiş parçalarla aynı hızda bariyerden geçer; tamamen geçince gizlenir
+			position += _shatter_v0 * delta
+			var all_cut := true
+			for c in _shard_cut:
+				if c < 0.0:
+					all_cut = false
+					break
+			if all_cut:
+				_body_cutting = false
+				_body.visible = false
+			return
+		# Kamera bulutu takip etsin: araba noktası parçalarla birlikte ileri süzülür, yavaşlar
 		# Araba noktası (kameranın hedefi) parça bulutunun merkezini izler
 		var sum := Vector3.ZERO
 		for q in _shard_pos:
