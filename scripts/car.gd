@@ -283,6 +283,8 @@ func _ready() -> void:
 	model = $Body/Model
 	_build_wings()
 	_set_wings(false, true)
+	# Kesilme anında takılma olmasın: küp ikizi önceden hesaplanır
+	_prepare_voxels.call_deferred()
 	trail = CarTrail.new()
 	add_child(trail)
 	fx = CarFx.new()
@@ -394,9 +396,12 @@ var shattering := false
 var _shards: MultiMeshInstance3D
 var _shard_pos := PackedVector3Array()
 var _shard_vel := PackedVector3Array()
-var _shard_col := PackedColorArray()
-var _shard_size := PackedFloat32Array()
-var _shard_cut := PackedFloat32Array()  # kesildiği an (sn), kesilmediyse -1
+var _shard_cut := PackedFloat32Array()  # kesme düzlemine vardığı an (sn)
+var _shard_last := 0.0  # son küpün kesildiği an
+var _shard_mat: ShaderMaterial
+## Küplerin gövdeye göre yeri (tarama şeridi kesitteki üst hattı bundan bulur)
+var _vox_local: Array = []
+var _scan_mi: MeshInstance3D
 var _shard_time := 0.0
 var _cut_z := 0.0
 var _cut_color := Color("ff6a00")
@@ -405,7 +410,6 @@ var _front_cache := {}
 var _body_cutting := false
 var _shatter_v0 := Vector3.ZERO
 var _cut_mats := {}
-const SHARD_COUNT := 700
 ## Kesilme anında oyun bu hızda akar (0.35 sn), sonra normale döner
 const SHATTER_SLOWMO := 0.12
 const SHARD_LIFE := 3.2
@@ -520,111 +524,274 @@ func _cut_variant(src: BaseMaterial3D) -> ShaderMaterial:
 	return sm
 
 
-## Modelin yüzeyinden (alanla orantılı) noktalar: her biri bir parça, rengi o yüzün rengi
-func _spawn_shards() -> void:
+## Arabanın küplerden (voksel) ikizi: gövdedeki her görünür parçanın yüzeyi VOXEL aralıklı
+## ızgaraya oturtulur; her küp tam bulunduğu yerin rengini alır (lastik, jant, gövde, kokpit, kanat).
+## Gövdeye göre (yerel) hesaplanır, arabanın biçimi ve kanat durumu için saklanır.
+const VOXEL := 0.06
+const VOXEL_MAX := 4200
+var _voxel_cache := {}
+
+
+func _prepare_voxels() -> void:
+	var t0 := Time.get_ticks_msec()
+	var n := _voxels().size()
+	if OS.get_cmdline_user_args().has("--trace"):
+		print("VOXELS n=%d ms=%d model=%d" % [n, Time.get_ticks_msec() - t0, model.variant])
+
+
+func _voxel_key() -> String:
+	var k := str(model.variant)
+	for mi in _body.find_children("*", "MeshInstance3D", true, false):
+		k += "1" if (mi as MeshInstance3D).is_visible_in_tree() else "0"
+	return k
+
+
+func _voxels() -> Array:
+	var key := _voxel_key()
+	if _voxel_cache.has(key):
+		return _voxel_cache[key]
+	var inv := _body.global_transform.affine_inverse()
+	# Yüzey örnekleri: [yerel nokta, renk]
 	var tris: Array = []
-	var areas := PackedFloat32Array()
-	var total := 0.0
-	for mi in model.find_children("*", "MeshInstance3D", true, false):
+	for mi in _body.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
 		if m.mesh == null or not m.is_visible_in_tree():
 			continue
-		var col := Color(0.6, 0.6, 0.6)
-		var mat := m.material_override if m.material_override else m.get_active_material(0)
-		if mat is StandardMaterial3D:
-			col = (mat as StandardMaterial3D).albedo_color
-		var t := m.global_transform
-		var f := m.mesh.get_faces()
-		for i in range(0, f.size(), 3):
-			var a: Vector3 = t * f[i]
-			var b: Vector3 = t * f[i + 1]
-			var c: Vector3 = t * f[i + 2]
-			var ar := (b - a).cross(c - a).length() * 0.5
-			if ar < 1e-5:
-				continue
-			total += ar
-			tris.append([a, b, c, col])
-			areas.append(total)
-	if tris.is_empty():
+		var t := inv * m.global_transform
+		for si in m.mesh.get_surface_count():
+			var mat := m.material_override if m.material_override else m.get_active_material(si)
+			var col := Color(0.6, 0.6, 0.6)
+			if mat is BaseMaterial3D:
+				col = (mat as BaseMaterial3D).albedo_color
+			var arr := m.mesh.surface_get_arrays(si)
+			var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+			var n := idx.size() if idx.size() > 0 else vs.size()
+			for i in range(0, n - 2, 3):
+				var a: Vector3 = t * vs[idx[i] if idx.size() > 0 else i]
+				var b: Vector3 = t * vs[idx[i + 1] if idx.size() > 0 else i + 1]
+				var c: Vector3 = t * vs[idx[i + 2] if idx.size() > 0 else i + 2]
+				tris.append([a, b, c, col])
+	var size := VOXEL
+	var out: Array = []
+	for attempt in 4:
+		var grid := {}
+		var step := size * 0.5
+		for tri: Array in tris:
+			var a: Vector3 = tri[0]
+			var ab: Vector3 = tri[1] - a
+			var ac: Vector3 = tri[2] - a
+			var n := maxi(1, ceili(maxf(ab.length(), maxf(ac.length(), (tri[2] - tri[1]).length())) / step))
+			for i in n + 1:
+				for j in n + 1 - i:
+					var q: Vector3 = a + ab * (float(i) / n) + ac * (float(j) / n)
+					var g := Vector3i(floori(q.x / size), floori(q.y / size), floori(q.z / size))
+					if not grid.has(g):
+						grid[g] = tri[3]
+		if grid.size() <= VOXEL_MAX or attempt == 3:
+			for g: Vector3i in grid:
+				out.append([(Vector3(g) + Vector3.ONE * 0.5) * size, grid[g], size])
+			break
+		size *= sqrt(float(grid.size()) / VOXEL_MAX) * 1.02
+	_voxel_cache[key] = out
+	return out
+
+
+func _spawn_shards() -> void:
+	var vox := _voxels()
+	if vox.is_empty():
 		return
-	_shard_pos.resize(SHARD_COUNT)
-	_shard_vel.resize(SHARD_COUNT)
-	_shard_col.resize(SHARD_COUNT)
-	_shard_size.resize(SHARD_COUNT)
-	_shard_cut.resize(SHARD_COUNT)
+	var n := vox.size()
+	_vox_local = vox
+	var bt := _body.global_transform
+	var bb := bt.basis.orthonormalized()
 	var v0 := velocity
 	if v0.z > -5.0:
 		v0.z = -maxf(forward_speed, 5.0)
 	_shatter_v0 = v0
-	for i in SHARD_COUNT:
-		var r := randf() * total
-		var k := areas.bsearch(r)
-		k = clampi(k, 0, tris.size() - 1)
-		var tri: Array = tris[k]
-		var u := randf()
-		var w := randf()
-		if u + w > 1.0:
-			u = 1.0 - u
-			w = 1.0 - w
-		_shard_pos[i] = tri[0] + (tri[1] - tri[0]) * u + (tri[2] - tri[0]) * w
-		_shard_vel[i] = v0
-		_shard_col[i] = tri[3]
-		_shard_size[i] = randf_range(0.05, 0.13)
-		_shard_cut[i] = -1.0
+	_shard_pos.resize(n)
+	_shard_vel.resize(n)
+	_shard_cut.resize(n)
+	_shard_last = 0.0
+	# Her küpün yolu baştan belli: arabayla v0 hızında gider, kesme düzlemine vardığı an (tr)
+	# ayrılır; ayrılma hızı ileri hızın çoğu + merkezden dışa ve yukarı hafif açılma
+	var buf := PackedFloat32Array()
+	buf.resize(n * 20)
+	var cx := bt.origin.x
+	for i in n:
+		var v: Array = vox[i]
+		var p0: Vector3 = bt * (v[0] as Vector3)
+		var tr := maxf((_cut_z - p0.z) / v0.z, 0.0)
+		var vr := v0 + Vector3((p0.x - cx) * randf_range(0.8, 2.2) + randf_range(-0.5, 0.5), randf_range(0.0, 1.2), randf_range(-0.4, 0.8))
+		vr.z = (v0.z + randf_range(-0.4, 0.8)) * randf_range(0.9, 1.0)
+		_shard_pos[i] = p0
+		_shard_vel[i] = vr
+		_shard_cut[i] = tr
+		_shard_last = maxf(_shard_last, tr)
+		var sz := float(v[2]) * 0.96
+		var bx := bb.x * sz
+		var by := bb.y * sz
+		var bz := bb.z * sz
+		var c := v[1] as Color
+		var o := i * 20
+		buf[o] = bx.x; buf[o + 1] = by.x; buf[o + 2] = bz.x; buf[o + 3] = p0.x
+		buf[o + 4] = bx.y; buf[o + 5] = by.y; buf[o + 6] = bz.y; buf[o + 7] = p0.y
+		buf[o + 8] = bx.z; buf[o + 9] = by.z; buf[o + 10] = bz.z; buf[o + 11] = p0.z
+		buf[o + 12] = c.r; buf[o + 13] = c.g; buf[o + 14] = c.b; buf[o + 15] = 1.0
+		buf[o + 16] = vr.x; buf[o + 17] = vr.y; buf[o + 18] = vr.z; buf[o + 19] = randf()
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_colors = true
+	mm.use_custom_data = true
 	var box := BoxMesh.new()
 	box.size = Vector3.ONE
 	mm.mesh = box
-	mm.instance_count = SHARD_COUNT
-	var smat := StandardMaterial3D.new()
-	smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	smat.vertex_color_use_as_albedo = true
-	mm.mesh.surface_set_material(0, smat)
+	mm.instance_count = n
+	mm.buffer = buf
+	_shard_mat = ShaderMaterial.new()
+	_shard_mat.shader = preload("res://shaders/car_voxel.gdshader")
+	_shard_mat.set_shader_parameter("cut_z", _cut_z)
+	_shard_mat.set_shader_parameter("v0", v0)
+	_shard_mat.set_shader_parameter("life", SHARD_LIFE)
+	_shard_mat.set_shader_parameter("drag", SHARD_DRAG)
+	_shard_mat.set_shader_parameter("grav", SHARD_GRAV)
+	_shard_mat.set_shader_parameter("t", 0.0)
+	_shard_mat.set_shader_parameter("cut_hot", _cut_color.lerp(Color(1.0, 0.95, 0.85), 0.35))
+	mm.mesh.surface_set_material(0, _shard_mat)
 	_shards = MultiMeshInstance3D.new()
 	_shards.multimesh = mm
 	_shards.top_level = true
 	_shards.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Küpler gölgelendiricide yer değiştirir: görünürlük kutusu geniş tutulur
+	_shards.custom_aabb = AABB(Vector3(-500, -100, -500), Vector3(1000, 200, 1000))
 	add_child(_shards)
 	_shards.global_transform = Transform3D.IDENTITY
 	_shard_time = 0.0
-	_update_shards(0.0)
+	_scan_mi = MeshInstance3D.new()
+	_scan_mi.mesh = ImmediateMesh.new()
+	var lm := ShaderMaterial.new()
+	lm.shader = preload("res://shaders/scan_line.gdshader")
+	lm.set_shader_parameter("hot", _cut_color)
+	_scan_mi.material_override = lm
+	_scan_mi.top_level = true
+	_scan_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_scan_mi.custom_aabb = AABB(Vector3(-500, -100, -500), Vector3(1000, 200, 1000))
+	add_child(_scan_mi)
+	_scan_mi.global_transform = Transform3D.IDENTITY
 
 
-## Parçalar: kesme düzlemini geçene kadar araba biçiminde ileri gider; geçince kesilir —
-## bir an kızgın (bariyer renginde, beyaza yakın) parlar, dağılır, yavaşlar, küçülüp kaybolur
+const SHARD_DRAG := 1.2
+const SHARD_GRAV := 2.0
+
+
+## Küplerin yolu (car_voxel gölgelendiricisiyle aynı hesap): kesilmeden önce arabayla birlikte,
+## sonra sürüklenmeyle yavaşlar, hafifçe düşer
+func _shard_at(i: int, t: float) -> Vector3:
+	var p0 := _shard_pos[i]
+	var tr := _shard_cut[i]
+	if t < tr:
+		return p0 + _shatter_v0 * t
+	var age := t - tr
+	var e := exp(-SHARD_DRAG * age)
+	var c := p0 + _shatter_v0 * tr + _shard_vel[i] * (1.0 - e) / SHARD_DRAG
+	c.y += SHARD_GRAV / SHARD_DRAG * ((1.0 - e) / SHARD_DRAG - age)
+	return c
+
+
+## Küpler gölgelendiricide hareket eder; burada yalnız saat ilerler
 func _update_shards(delta: float) -> void:
 	_shard_time += delta
-	var mm := _shards.multimesh
-	for i in SHARD_COUNT:
-		var p := _shard_pos[i]
-		var v := _shard_vel[i]
-		var cut := _shard_cut[i]
-		if cut < 0.0:
-			if p.z <= _cut_z:
-				cut = _shard_time
-				_shard_cut[i] = cut
-				# Kesilme: yanlara ve yukarı savrulur, ileri hız biraz düşer
-				v += Vector3(randf_range(-3.5, 3.5), randf_range(-0.5, 3.0), randf_range(-2.0, 4.0))
-				v.z *= randf_range(0.6, 0.95)
-		else:
-			v *= exp(-1.4 * delta)
-			v.y -= 2.5 * delta
-		p += v * delta
-		_shard_pos[i] = p
-		_shard_vel[i] = v
-		var c := _shard_col[i]
-		var sz := _shard_size[i]
-		if cut < 0.0:
-			sz = 0.0  # henüz kesilmedi: araba (model) burada görünüyor
-		if cut >= 0.0:
-			var age := _shard_time - cut
-			var hot := clampf(1.0 - age / 0.45, 0.0, 1.0)
-			c = c.lerp(_cut_color.lerp(Color(1, 0.95, 0.85), 0.35), hot)
-			sz *= clampf(1.0 - age / SHARD_LIFE, 0.0, 1.0)
-		mm.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3.ONE * maxf(sz, 0.0001)), p))
-		mm.set_instance_color(i, c)
+
+
+## Ekrana çizilen an: fizik adımları arası (interpolasyon) dahil, araba gövdesiyle aynı zaman
+func _process(_delta: float) -> void:
+	if _shards == null:
+		return
+	var tick := 1.0 / Engine.physics_ticks_per_second
+	var clock := maxf(_shard_time + (Engine.get_physics_interpolation_fraction() - 1.0) * tick, 0.0)
+	_shard_mat.set_shader_parameter("t", clock)
+	_update_scan()
+
+
+## Tarama şeridi: bariyer hizasındaki kesitte arabanın üst hattı (x'e göre en yüksek küp),
+## arabanın iki yanından biraz taşan, kameraya bakan ince parlak bir şerit
+const SCAN_W := 0.2
+const SCAN_OVER := 0.18
+
+
+func _update_scan() -> void:
+	if _scan_mi == null:
+		return
+	var im := _scan_mi.mesh as ImmediateMesh
+	im.clear_surfaces()
+	if not _body_cutting:
+		_scan_mi.visible = false
+		return
+	var bt := _body.get_global_transform_interpolated()
+	var lz := (bt.affine_inverse() * Vector3(bt.origin.x, bt.origin.y, _cut_z)).z
+	var tops := {}
+	var xmin := INF
+	var xmax := -INF
+	for v: Array in _vox_local:
+		var q: Vector3 = v[0]
+		var h: float = v[2]
+		if absf(q.z - lz) > h:
+			continue
+		var bx := roundi(q.x / h)
+		var y := q.y + h * 0.5
+		if not tops.has(bx) or tops[bx] < y:
+			tops[bx] = y
+		xmin = minf(xmin, q.x)
+		xmax = maxf(xmax, q.x)
+	if tops.is_empty():
+		_scan_mi.visible = false
+		return
+	_scan_mi.visible = true
+	var h0: float = (_vox_local[0] as Array)[2]
+	# Üst hat: x boyunca sıralı noktalar (boş sütunlar komşulardan doldurulur), iki uca taşma
+	var keys := tops.keys()
+	keys.sort()
+	# Yumuşatma: tek tek küplerin basamakları değil, kesitin düzgün üst hattı (yatay şerit)
+	var raw := {}
+	for k: int in keys:
+		raw[k] = tops[k]
+	for pass_i in 3:
+		for idx in keys.size():
+			var acc := 0.0
+			var cnt := 0.0
+			for o in range(-2, 3):
+				var j := clampi(idx + o, 0, keys.size() - 1)
+				acc += raw[keys[j]]
+				cnt += 1.0
+			tops[keys[idx]] = acc / cnt
+		for k: int in keys:
+			raw[k] = tops[k]
+	var pts: Array[Vector3] = []
+	pts.append(Vector3(xmin - SCAN_OVER, tops[keys[0]], lz))
+	for k: int in keys:
+		pts.append(Vector3(k * h0, tops[k], lz))
+	pts.append(Vector3(xmax + SCAN_OVER, tops[keys[-1]], lz))
+	var cam := get_viewport().get_camera_3d()
+	var total := 0.0
+	var lens := PackedFloat32Array([0.0])
+	for i in range(1, pts.size()):
+		total += pts[i].distance_to(pts[i - 1])
+		lens.append(total)
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	for i in pts.size():
+		var w := bt * pts[i]
+		w.z = _cut_z
+		var a := pts[maxi(i - 1, 0)]
+		var b := pts[mini(i + 1, pts.size() - 1)]
+		var dir := (bt.basis * (b - a)).normalized()
+		var to_cam: Vector3 = (cam.global_position - w).normalized() if cam else Vector3.BACK
+		var side := dir.cross(to_cam).normalized() * SCAN_W
+		var u := lens[i] / maxf(total, 1e-3)
+		im.surface_set_uv(Vector2(u, -1.0))
+		im.surface_add_vertex(w - side)
+		im.surface_set_uv(Vector2(u, 1.0))
+		im.surface_add_vertex(w + side)
+	im.surface_end()
 
 
 func crash(reason: String) -> void:
@@ -941,24 +1108,21 @@ func _dead_motion(delta: float) -> void:
 		if _shards:
 			_update_shards(delta)
 		if _body_cutting:
-			# Model, kesilmemiş parçalarla aynı hızda bariyerden geçer; tamamen geçince gizlenir
+			# Model, kesilmemiş küplerle aynı hızda bariyerden geçer; tamamen geçince gizlenir
 			position += _shatter_v0 * delta
-			var all_cut := true
-			for c in _shard_cut:
-				if c < 0.0:
-					all_cut = false
-					break
-			if all_cut:
+			if _shard_time >= _shard_last:
 				_body_cutting = false
 				_body.visible = false
 			return
-		# Kamera bulutu takip etsin: araba noktası parçalarla birlikte ileri süzülür, yavaşlar
-		# Araba noktası (kameranın hedefi) parça bulutunun merkezini izler
-		var sum := Vector3.ZERO
-		for q in _shard_pos:
-			sum += q
-		if not _shard_pos.is_empty():
-			var c := sum / _shard_pos.size()
+		# Kamera bulutu takip etsin: araba noktası (kameranın hedefi) küp bulutunun merkezini izler
+		var n := _shard_pos.size()
+		if n > 0:
+			var sum := Vector3.ZERO
+			var cnt := 0
+			for i in range(0, n, 8):
+				sum += _shard_at(i, _shard_time)
+				cnt += 1
+			var c := sum / cnt
 			var prev := position
 			position.x = lerpf(position.x, c.x, 1.0 - exp(-6.0 * delta))
 			position.z = lerpf(position.z, c.z, 1.0 - exp(-10.0 * delta))

@@ -21,9 +21,11 @@ void fragment() {
 	if (d < 0.0) {
 		discard;
 	}
-	float e = 1.0 - smoothstep(0.0, 0.07, d);
+	// Bariyer hizasında parlak şerit: kızgın turuncu bant, ortası beyaza yakın
+	float e = 1.0 - smoothstep(0.0, 0.09, d);
+	float core = 1.0 - smoothstep(0.0, 0.03, d);
 	ALBEDO = mix(albedo.rgb, cut_hot.rgb, e);
-	EMISSION = cut_hot.rgb * e * 2.5;
+	EMISSION = cut_hot.rgb * e * 3.0 + vec3(1.0, 0.92, 0.8) * core * 1.8;
 	METALLIC = metallic;
 	ROUGHNESS = roughness;
 	SPECULAR = specular;
