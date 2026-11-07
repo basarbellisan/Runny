@@ -414,6 +414,8 @@ var _shatter_v0 := Vector3.ZERO
 var _cut_mats := {}
 ## Küp ayrıldıktan sonra bu kadar (oyun saniyesi) arabanın biçiminde birlikte gider, sonra dağılır
 static var shard_hold := 0.0
+## Işık bariyerine çarpınca oyunun hızı (ağır çekim); 0 kapalı (normal hızda devam)
+static var shatter_slowmo := 0.28
 var _slowmo_on := false
 var _steps_before := 8
 
@@ -499,7 +501,15 @@ func shatter(reason: String) -> void:
 	_apply_cut_material()
 	_body_cutting = true
 	shattering = true
-	# Ağır çekim yok: kesilme ve dağılma oyunun normal hızında, takılmadan geçer
+	# Ağır çekim (deneme): çarptığı an oyun yavaşlar ve öyle kalır; oyun sonu ekranı gelir, düğmeye
+	# basılana kadar arkada ağır çekimde akar (yeniden başla / garaj: _exit_tree normal hıza döner).
+	# Kesilme sürerken takılmada kesilme atlanmasın diye karede tek fizik adımı (_end_slowmo kaldırır).
+	# shatter_slowmo = 0 ise ağır çekim yok.
+	if shatter_slowmo > 0.0 and is_equal_approx(Engine.time_scale, 1.0) and Lesson.current < 0:
+		Engine.time_scale = shatter_slowmo
+		_slowmo_on = true
+		_steps_before = Engine.max_physics_steps_per_frame
+		Engine.max_physics_steps_per_frame = 1
 	exploded.emit()
 	_die(reason)
 

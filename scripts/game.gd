@@ -127,6 +127,8 @@ func _ready() -> void:
 	car.roads = roads
 	if _args.has("shard_style"):
 		Car.shard_bars = _args.shard_style != "cube"
+	if _args.has("slowmo"):
+		Car.shatter_slowmo = float(_args.slowmo)  # test: --slowmo=0 ağır çekimsiz
 	if _args.has("shard_hold"):
 		Car.shard_hold = float(_args.shard_hold)
 	if _args.has("autopilot"):
