@@ -28,6 +28,10 @@ var _time := 0.0
 var _side := 1.0
 
 
+## Arka lamba izi gövdenin arka yüzünün bu kadar gerisinden (m) başlar, bu boyda (m) yumuşakça belirir
+const REAR_GAP := 0.04
+const REAR_SOFT := 0.3
+
 ## Kanat izi: genişlik (m); kanadın gerisinde bu mesafeler (m) arasında solar. Kamera uçağın
 ## hemen arkasında: uzun iz kameranın yanından geçerken perspektifle ekranın kenarlarına açılıp
 ## kanadın ötesine taşmış gibi görünür. Kısa ve uca yakın kalınca kanadın arkasında bir çizgi olur.
@@ -67,6 +71,7 @@ func _ready() -> void:
 	var light := Color(Palette.ENERGY, 0.95)
 	for x in [-0.55, 0.55]:
 		var lt := _make_ribbon(1, Vector3(x, 0.55, 1.75), 0.16, light)
+		lt.lx = x
 		lt.body = true  # arka lambalara bağlı: gövdeyle yatar ve döner (Car.body_point)
 		_ribbons.append(lt)
 	_ribbons.append(_make_ribbon(3, Vector3(0, 0.06, 1.5), 1.7, Color(Palette.SNOW, 0.5)))
@@ -121,6 +126,13 @@ func wing_life() -> float:
 	return lerpf(0.12, 0.9, clampf(car.reserve / car.reserve_max, 0.0, 1.0))
 
 
+## Arka lamba izinin gövdeye göre çıkış noktası: modelin arka yüzünün hemen gerisi
+func _rear_offset(r: Dictionary) -> Vector3:
+	var y := 0.55
+	var z := car.rear_z(float(r.lx), y)
+	return Vector3(float(r.lx), y, z + REAR_GAP)
+
+
 ## Yumuşak yuvarlak parıltı dokusu (ortası beyaz, kenara doğru saydam)
 static func _radial_tex() -> GradientTexture2D:
 	var gr := Gradient.new()
@@ -165,7 +177,7 @@ func _physics_process(delta: float) -> void:
 			continue
 		var pts: Array = r.points
 		if emitting:
-			var p: Vector3 = car.body_point(r.offset) if r.get("body", false) else car.global_position + r.offset
+			var p: Vector3 = car.body_point(_rear_offset(r)) if r.get("body", false) else car.global_position + r.offset
 			if pts.is_empty() or pts[-1].p.distance_to(p) > 0.25:
 				pts.append({"p": p, "t": _time})
 		while not pts.is_empty() and _time - pts[0].t > l:
@@ -181,7 +193,7 @@ func _process(_delta: float) -> void:
 		if r.get("wing", false):
 			_draw_ribbon(r, car.wing_tip(r.side, true) if car.alive and _wing_trail_on() else Vector3.INF)
 		elif r.style == style:
-			var hp: Vector3 = car.body_point(r.offset, true) if r.get("body", false) else head + r.offset
+			var hp: Vector3 = car.body_point(_rear_offset(r), true) if r.get("body", false) else head + r.offset
 			_draw_ribbon(r, hp if car.alive else Vector3.INF)
 
 
@@ -252,6 +264,8 @@ func _draw_ribbon(r: Dictionary, head: Vector3) -> void:
 		var alpha := color.a * lerpf(k * k, sqrt(k), bl)
 		var col: Color = color
 		var c: Vector3 = pts[i].p
+		if r.get("body", false):
+			alpha *= smoothstep(0.0, REAR_SOFT, c.z - tip.z)  # gövdenin dibinden yumuşakça belirir
 		if wing:
 			# Dış kenar kanat ucunda: şerit içeri (gövdeye doğru) kayık
 			var inward := -signf(float(r.side)) * Vector3.RIGHT

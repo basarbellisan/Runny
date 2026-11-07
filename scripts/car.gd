@@ -1339,6 +1339,49 @@ func _fit_wings() -> void:
 		trim.visible = dark
 
 
+## Gövdenin arka yüzü (Body'ye göre z, artı = geri): (x, y) hizasında z boyunca giden çizginin
+## gövde (tekerler hariç) yüzeylerini kestiği en arka nokta. Model değişince yeniden ölçülür.
+var _rear_cache := {}
+
+
+func rear_z(x: float, y: float) -> float:
+	var key := "%d/%.2f/%.2f" % [model.variant, x, y]
+	if _rear_cache.has(key):
+		return _rear_cache[key]
+	var inv := _body.global_transform.affine_inverse()
+	var best := -INF
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null or not m.visible:
+			continue
+		var wheel := false
+		for wh in model.wheels:
+			if (wh.mount as Node3D).is_ancestor_of(m):
+				wheel = true
+		if wheel:
+			continue
+		var t := inv * m.global_transform
+		var f := m.mesh.get_faces()
+		for i in range(0, f.size(), 3):
+			var a: Vector3 = t * f[i]
+			var b: Vector3 = t * f[i + 1]
+			var c: Vector3 = t * f[i + 2]
+			# (x, y) noktası üçgenin xy izdüşümünün içinde mi: ağırlık katsayıları
+			var d := (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y)
+			if absf(d) < 1e-9:
+				continue
+			var l1 := ((b.y - c.y) * (x - c.x) + (c.x - b.x) * (y - c.y)) / d
+			var l2 := ((c.y - a.y) * (x - c.x) + (a.x - c.x) * (y - c.y)) / d
+			var l3 := 1.0 - l1 - l2
+			if l1 < 0.0 or l2 < 0.0 or l3 < 0.0:
+				continue
+			best = maxf(best, l1 * a.z + l2 * b.z + l3 * c.z)
+	if best == -INF:
+		best = half_length
+	_rear_cache[key] = best
+	return best
+
+
 ## Gövdeye bağlı bir noktanın (gövdeye göre yerel, m) dünyadaki yeri: araba yatınca, dönünce,
 ## burnu kalkınca nokta da onunla döner (iz bunun için arka lambalara bağlı kalır)
 func body_point(local: Vector3, interpolated := false) -> Vector3:
