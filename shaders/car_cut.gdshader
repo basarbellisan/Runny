@@ -28,8 +28,3 @@ void fragment() {
 	ROUGHNESS = roughness;
 	SPECULAR = specular;
 }
-
-// Sürüşte araba kendi kanatlarının gölgesinde: doğrudan ışık almaz, yalnız ortam ışığıyla görünür.
-// Kesme anında renk değişmesin diye burada da doğrudan ışık eklenmez.
-void light() {
-}
