@@ -29,8 +29,9 @@ var _side := 1.0
 
 
 ## Arka lamba izi gövdenin arka yüzünün bu kadar gerisinden (m) başlar, bu boyda (m) yumuşakça belirir
-const REAR_GAP := 0.04
-const REAR_SOFT := 0.3
+const REAR_GAP := 0.03
+## Kökteki parlak, doygun bölümün boyu (m)
+const REAR_HOT := 0.6
 
 ## Kanat izi: genişlik (m); kanadın gerisinde bu mesafeler (m) arasında solar. Kamera uçağın
 ## hemen arkasında: uzun iz kameranın yanından geçerken perspektifle ekranın kenarlarına açılıp
@@ -129,7 +130,11 @@ func wing_life() -> float:
 ## Arka lamba izinin gövdeye göre çıkış noktası: modelin arka yüzünün hemen gerisi
 func _rear_offset(r: Dictionary) -> Vector3:
 	var y := 0.55
-	var z := car.rear_z(float(r.lx), y)
+	# Gövdenin bu x'teki en arka noktası, iz yüksekliğinin altında ve üstünde (alt kısmı daha geride
+	# olan arabalarda iz gövdenin üstünde kalıp içinden çıkıyormuş gibi görünmesin)
+	var z := -INF
+	for yy in [0.2, 0.35, 0.55, 0.75, 0.9]:
+		z = maxf(z, car.rear_z(float(r.lx), yy))
 	return Vector3(float(r.lx), y, z + REAR_GAP)
 
 
@@ -265,7 +270,10 @@ func _draw_ribbon(r: Dictionary, head: Vector3) -> void:
 		var col: Color = color
 		var c: Vector3 = pts[i].p
 		if r.get("body", false):
-			alpha *= smoothstep(0.0, REAR_SOFT, c.z - tip.z)  # gövdenin dibinden yumuşakça belirir
+			# Gövdenin dibinden en parlak ve doygun haliyle çıkar (yanıcı bir şey gibi); geriye doğru söner
+			var hot := 1.0 - smoothstep(0.0, REAR_HOT, c.z - tip.z)
+			col = color.lerp(Color(Palette.ENERGY.lightened(0.15), 1.0), hot)
+			alpha = minf(1.0, alpha + hot * 0.35)
 		if wing:
 			# Dış kenar kanat ucunda: şerit içeri (gövdeye doğru) kayık
 			var inward := -signf(float(r.side)) * Vector3.RIGHT
