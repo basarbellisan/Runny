@@ -40,6 +40,10 @@ var _straight := 0.0
 @export var fly_drift := 0.18
 @export var fly_brake := 1.6
 var _fly_speed := 1.0
+## Akarken arabadan en fazla bu kadar uzaklaşır (yolların bittiği yere gelmesin), son bu kadar
+## metrede yavaşlayıp durur
+@export var fly_max := 300.0
+@export var fly_ease := 60.0
 
 
 func _ready() -> void:
@@ -104,13 +108,22 @@ func _fly_away(delta: float) -> void:
 	# hızın fly_drift kadarıyla akmayı sürdürür. Yükselmez, bakış aynı kalır.
 	if _straight > fly_straight:
 		_fly_speed = lerpf(_fly_speed, fly_drift, 1.0 - exp(-fly_brake * real))
-	p.z += v.z * delta * _fly_speed
+	# Yollar arabanın view_distance (450 m) önüne kadar üretilir ve araba ölünce orada kalır:
+	# kamera arabanın fly_max metre ötesine geçmez, son fly_ease metrede yumuşakça durur
+	var gone := (t.z + offset.z) - p.z
+	var room := clampf((fly_max - gone) / fly_ease, 0.0, 1.0)
+	p.z += v.z * delta * _fly_speed * room
 	if _target.shattering:
 		p.z = maxf(p.z, t.z + fly_gap)  # parça bulutunu geçip kaçırmaz
 	p.x = lerpf(p.x, t.x + offset.x, 1.0 - exp(-follow_x * delta))
 	global_position = p
 	_look = Vector3(lerpf(p.x, t.x, 0.6), _look.y, p.z - offset.z - look_ahead)
 	look_at(_look)
+
+
+## Oyun sonu akışında mı (kamera arabadan ayrılıp ileri gidiyor): arka plan buna göre yerleşir
+func is_drifting() -> bool:
+	return _fly >= 0.0
 
 
 ## Oyun sonu: kamerayı süre boyunca göğe çevir

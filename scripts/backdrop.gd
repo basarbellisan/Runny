@@ -259,6 +259,12 @@ func update(pal: Dictionary, mood: float) -> void:
 	# Kayma: inişte FADE_LIFT, çıkışta FADE_LIFT_UP; geçiş yumuşak
 	_lift_k = move_toward(_lift_k, FADE_LIFT_UP if appearing else FADE_LIFT, 40.0 * dt)
 	var c := car.global_position
+	# Oyun sonunda kamera arabadan ayrılıp ileri akar: dağlar, güneş ve parıltılar kamerayla
+	# birlikte ilerler (yoksa kamera dağlara yaklaşır, alt kenarları açığa çıkar). Akış başlarken
+	# kamera arabanın tam offset.z arkasındadır: geçiş sıçramasız
+	var cam := get_viewport().get_camera_3d()
+	if cam and cam.has_method("is_drifting") and cam.is_drifting():
+		c.z = cam.global_position.z - float(cam.get("offset").z)
 	var mtn: Array = pal.mountains
 	for i in _layers.size():
 		var lift: float = _lift_k * (1.0 - seen) * (1.0 + 0.25 * i)  # öndeki biraz daha çok

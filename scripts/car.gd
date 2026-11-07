@@ -393,6 +393,8 @@ func boost_extra(level := boost_level) -> float:
 
 ## Parçalanma sürüyor mu (kamera bulutu takip eder)
 var shattering := false
+## Işık bariyerinde parçalanma bitti (oyun sonu): araba yerinde kalır
+var _shattered := false
 var _shards: MultiMeshInstance3D
 var _shard_pos := PackedVector3Array()
 var _shard_vel := PackedVector3Array()
@@ -1373,9 +1375,16 @@ func _dead_motion(delta: float) -> void:
 			speed = maxf(-velocity.z, 0.0)
 		if _shard_time > SHARD_LIFE:
 			shattering = false
+			_shattered = true
+			velocity = Vector3.ZERO
+			speed = 0.0
 			if _shards:
 				_shards.queue_free()
 				_shards = null
+		return
+	# Işık bariyerinde parçalanma bitti: (görünmez) araba olduğu yerde kalır. Düşseydi renkler
+	# yüksekliğe göre alt katmanın mercan tonlarına kayıyordu
+	if _shattered:
 		return
 	# Patladıysak parçalar kendi fiziğiyle hareket eder; değilse uçuruma düşüş
 	if not _debris.is_empty():
