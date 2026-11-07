@@ -161,6 +161,8 @@ func _ready() -> void:
 		car.hull_guard = false
 	if _args.has("trail"):
 		car.trail.style = int(_args.trail)
+	if _args.has("wing_style"):
+		car.trail.wing_style = int(_args.wing_style)  # kanat izi kökü denemesi
 	roads.keep_history = _args.has("dump_roads")
 	if _args.has("crystal_color"):
 		roads.crystal_color = Color(_args.crystal_color)

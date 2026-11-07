@@ -41,6 +41,20 @@ const WING_CLIMB_FADE := Vector2(5.5, 9.5)
 const WING_CLIMB_WIDTH := 1.5
 ## Yükselme etkisi (0..1): basınca ~0.35 sn'de dolar, bırakınca ~0.5 sn'de söner
 var _wing_boost := 0.0
+## Kanat izinin görünürlüğü (0..1), kökteki parıltı bununla açılıp kapanır
+var _wing_vis := 0.0
+## Kanat izinin kök tasarımı (motordan çıkan enerji): 0 eski (uzakta, eriyerek başlar),
+## 1 parlak çekirdek + yuvarlak parıltı, 2 alev dili (uzun parlak kök), 3 ince çekirdek + geniş hale
+@export_range(0, 3) var wing_style := 0
+## [boşluk başı, boşluk sonu (m), içeri kayma (m), parlak kök boyu (m), parıltı boyu (m), parıltı biçimi]
+const WING_STYLES := [
+	[1.1, 1.6, 0.0, 0.0, 0.0, 0],
+	[0.25, 0.4, 0.3, 0.9, 0.9, 0],
+	[0.05, 0.15, 0.4, 1.8, 0.7, 1],
+	[0.2, 0.35, 0.3, 1.2, 1.3, 0],
+]
+var _wing_glow: Array[MeshInstance3D] = []
+var _wing_halo_ribbons: Array[Dictionary] = []
 
 
 func _ready() -> void:
@@ -57,6 +71,22 @@ func _ready() -> void:
 		w.wing = true
 		w.side = side  # iz kanadın ucundan çıkar (Car.wing_tip)
 		_ribbons.append(w)
+		# Kökte parıltı (motorun yandığı yer): kameraya bakan, eklemeli yumuşak leke
+		var g := MeshInstance3D.new()
+		var q := QuadMesh.new()
+		g.mesh = q
+		var gm := StandardMaterial3D.new()
+		gm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		gm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		gm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		gm.no_depth_test = false
+		gm.albedo_texture = _radial_tex()
+		g.material_override = gm
+		g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		g.visible = false
+		add_child(g)
+		_wing_glow.append(g)
 	_cubes = MultiMeshInstance3D.new()
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
@@ -87,6 +117,23 @@ func wing_life() -> float:
 	return lerpf(0.12, 0.9, clampf(car.reserve / car.reserve_max, 0.0, 1.0))
 
 
+## Yumuşak yuvarlak parıltı dokusu (ortası beyaz, kenara doğru saydam)
+static func _radial_tex() -> GradientTexture2D:
+	var gr := Gradient.new()
+	gr.set_color(0, Color(1, 1, 1, 1))
+	gr.set_color(1, Color(1, 1, 1, 0))
+	gr.add_point(0.25, Color(1, 1, 1, 0.75))
+	gr.add_point(0.55, Color(1, 1, 1, 0.22))
+	var t := GradientTexture2D.new()
+	t.gradient = gr
+	t.fill = GradientTexture2D.FILL_RADIAL
+	t.fill_from = Vector2(0.5, 0.5)
+	t.fill_to = Vector2(1.0, 0.5)
+	t.width = 64
+	t.height = 64
+	return t
+
+
 ## Kanat izi ne zaman çıkar: uçarken boost (iki parmak) ya da kanat yedeği açıkken
 func _wing_trail_on() -> bool:
 	return car.reserve_on or car.climbing
@@ -96,6 +143,8 @@ func _physics_process(delta: float) -> void:
 	_time += delta
 	var climbing := car.climbing
 	_wing_boost = move_toward(_wing_boost, 1.0 if climbing else 0.0, delta / (0.35 if climbing else 0.5))
+	var on := car.alive and _wing_trail_on()
+	_wing_vis = move_toward(_wing_vis, 1.0 if on else 0.0, delta / (0.12 if on else 0.3))
 	var emitting := car.alive
 	var l := life()
 	for r in _ribbons:
@@ -123,11 +172,32 @@ func _physics_process(delta: float) -> void:
 
 func _process(_delta: float) -> void:
 	var head := car.get_global_transform_interpolated().origin
+	_place_wing_glow()
 	for r in _ribbons:
 		if r.get("wing", false):
 			_draw_ribbon(r, car.wing_tip(r.side, true) if car.alive and _wing_trail_on() else Vector3.INF)
 		elif r.style == style:
 			_draw_ribbon(r, head + r.offset if car.alive else Vector3.INF)
+
+
+## Kökteki parıltı: kanat ucunun gerisinde, iz başladığı yerde; boostta büyür ve hafifçe titrer
+func _place_wing_glow() -> void:
+	var ws: Array = WING_STYLES[clampi(wing_style, 0, WING_STYLES.size() - 1)]
+	for i in _wing_glow.size():
+		var g := _wing_glow[i]
+		var size: float = ws[4]
+		if size <= 0.0 or _wing_vis <= 0.01 or not car.alive:
+			g.visible = false
+			continue
+		var side := -1.0 if i == 0 else 1.0
+		var tip := car.wing_tip(side, true)
+		var flick := 0.92 + 0.08 * sin(_time * 37.0 + side * 2.0)
+		var s := size * lerpf(1.0, 1.35, _wing_boost) * flick
+		g.visible = true
+		g.global_position = tip + Vector3(-side * float(ws[2]), 0.0, float(ws[0]) + 0.05)
+		(g.mesh as QuadMesh).size = Vector2(s, s * (0.6 if int(ws[5]) == 1 else 1.0))
+		var gm := g.material_override as StandardMaterial3D
+		gm.albedo_color = Color(Palette.ENERGY.lerp(Color.WHITE, 0.35), 0.85 * _wing_vis)
 
 
 func _make_ribbon(for_style: int, offset: Vector3, width: float, color: Color) -> Dictionary:
@@ -175,18 +245,29 @@ func _draw_ribbon(r: Dictionary, head: Vector3) -> void:
 		if wing:
 			half *= lerpf(1.0, WING_CLIMB_WIDTH, _wing_boost)
 		var alpha := color.a * lerpf(k * k, sqrt(k), bl)
+		var col: Color = color
 		var c: Vector3 = pts[i].p
 		if wing:
 			# Dış kenar kanat ucunda: şerit içeri (gövdeye doğru) kayık
 			var inward := -signf(float(r.side)) * Vector3.RIGHT
 			c += inward * half
+			var ws: Array = WING_STYLES[clampi(wing_style, 0, WING_STYLES.size() - 1)]
+			c += inward * float(ws[2])
 			var behind := c.z - tip.z
 			var f0 := lerpf(WING_FADE_FROM, WING_CLIMB_FADE.x, _wing_boost)
 			var f1 := lerpf(WING_FADE_TO, WING_CLIMB_FADE.y, _wing_boost)
-			alpha *= smoothstep(WING_GAP.x, WING_GAP.y, behind) * (1.0 - smoothstep(f0, f1, behind))
-		mesh.surface_set_color(Color(color, alpha))
+			alpha *= smoothstep(float(ws[0]), float(ws[1]), behind) * (1.0 - smoothstep(f0, f1, behind))
+			# Parlak kök: başladığı yerde beyaza yakın ve tam opak, geriye doğru enerji yeşiline döner
+			var root: float = ws[3]
+			if root > 0.0:
+				var hot := 1.0 - smoothstep(float(ws[1]), float(ws[1]) + root, behind)
+				col = color.lerp(Color(1.0, 1.0, 0.85), hot * 0.75)
+				alpha = minf(1.0, alpha * (1.0 + hot * 0.6))
+				if int(ws[5]) == 1:
+					half *= 1.0 + hot * 0.7  # alev dili: kökte kalın, geriye incelir
+		mesh.surface_set_color(Color(col, alpha))
 		mesh.surface_add_vertex(c - side * half)
-		mesh.surface_set_color(Color(color, alpha))
+		mesh.surface_set_color(Color(col, alpha))
 		mesh.surface_add_vertex(c + side * half)
 	mesh.surface_end()
 
