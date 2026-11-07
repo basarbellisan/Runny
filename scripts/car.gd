@@ -923,7 +923,8 @@ func _spawn_shards() -> void:
 	_shards = MultiMeshInstance3D.new()
 	_shards.multimesh = mm
 	_shards.top_level = true
-	_shards.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Küpler yola gölge düşürür (gölge çiziminde de gölgelendiricideki yolu izlerler)
+	_shards.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	# Küpler gölgelendiricide yer değiştirir: görünürlük kutusu çarpma yerinin çevresinde, ileri
 	# gidişi kapsayacak kadar geniş (dünyanın merkezine göre sabit kutu, araba 500 m'yi geçince
 	# küpleri görünmez yapıyordu)
