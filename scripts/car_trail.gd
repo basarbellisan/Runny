@@ -44,14 +44,16 @@ var _wing_boost := 0.0
 ## Kanat izinin görünürlüğü (0..1), kökteki parıltı bununla açılıp kapanır
 var _wing_vis := 0.0
 ## Kanat izinin kök tasarımı (motordan çıkan enerji): 0 eski (uzakta, eriyerek başlar),
-## 1 parlak çekirdek + yuvarlak parıltı, 2 alev dili (uzun parlak kök), 3 ince çekirdek + geniş hale
-@export_range(0, 3) var wing_style := 0
+## 1 parlak çekirdek + yuvarlak parıltı, 2 alev dili (uzun parlak kök), 3 ince çekirdek + geniş hale,
+## 4 eskisi gibi ama kanada değmesine ramak kala başlar, başlangıcı hafif yumuşak (parıltı yok)
+@export_range(0, 4) var wing_style := 4
 ## [boşluk başı, boşluk sonu (m), içeri kayma (m), parlak kök boyu (m), parıltı boyu (m), parıltı biçimi]
 const WING_STYLES := [
 	[1.1, 1.6, 0.0, 0.0, 0.0, 0],
 	[0.25, 0.4, 0.3, 0.9, 0.9, 0],
 	[0.05, 0.15, 0.4, 1.8, 0.7, 1],
 	[0.2, 0.35, 0.3, 1.2, 1.3, 0],
+	[0.1, 0.45, 0.0, 0.0, 0.0, 0],
 ]
 var _wing_glow: Array[MeshInstance3D] = []
 var _wing_halo_ribbons: Array[Dictionary] = []
