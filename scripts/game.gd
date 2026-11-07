@@ -479,7 +479,8 @@ func _on_exploded() -> void:
 		Audio.play("shatter")
 	else:
 		Audio.play("explosion")
-	$Camera.shake(0.35 if car.shattering else 1.0)
+	# Yola çakılma / kaya / devrilme: hafif sarsıntı (eskiden 1.0, kamera 60 cm'ye kadar savruluyordu)
+	$Camera.shake(0.35 if car.shattering else CRASH_SHAKE)
 	if _perf_label:
 		_perf_crash_at = Time.get_ticks_msec()
 		_perf_crash_worst = 0.0
@@ -488,6 +489,8 @@ func _on_exploded() -> void:
 
 ## Performans sayacı (web: adresin sonuna ?debug=1, masaüstü: --perf): FPS, son 2 sn'deki en uzun
 ## kare ve çarpmadan sonraki 2 sn'deki en uzun kare. Telefonda takılmanın yerini bulmak için.
+## Patlamalı çarpmada (yol, kaya, devrilme) kamera sarsıntısı (0..1, kayma karesiyle büyür)
+const CRASH_SHAKE := 0.45
 var _perf_label: Label
 var _start_x_done := false
 var _perf_last := 0
