@@ -15,6 +15,8 @@ uniform float cut_z = -1e9;
 uniform float life = 3.2;
 uniform float drag = 1.2;
 uniform float grav = 2.0;
+// Ayrıldıktan sonra arabanın biçiminde birlikte gittiği süre (sn), sonra dağılır
+uniform float hold = 0.0;
 uniform vec4 cut_hot : source_color = vec4(1.0, 0.5, 0.1, 1.0);
 uniform float roughness = 0.6;
 
@@ -48,13 +50,16 @@ void vertex() {
 	float sc = 0.0;
 	mat3 R = mat3(1.0);
 	if (age >= 0.0) {
-		float e = exp(-drag * age);
-		c = p0 + v0 * tr + vr * (1.0 - e) / drag;
-		c.y += grav / drag * ((1.0 - e) / drag - age);
 		sc = clamp(1.0 - pow(age / life, 2.0), 0.0, 1.0);
-		vec3 h = hash3(INSTANCE_CUSTOM.w * 911.0 + INSTANCE_CUSTOM.x * 37.0 + 1.0);
-		vec3 ax = normalize(h * 2.0 - 1.0 + vec3(0.001));
-		R = rot(ax, (1.0 + 4.0 * h.x) * max(age - 0.08, 0.0));
+		float a2 = age - hold;
+		if (a2 > 0.0) {
+			float e = exp(-drag * a2);
+			c = p0 + v0 * (tr + hold) + vr * (1.0 - e) / drag;
+			c.y += grav / drag * ((1.0 - e) / drag - a2);
+			vec3 h = hash3(INSTANCE_CUSTOM.w * 911.0 + INSTANCE_CUSTOM.x * 37.0 + 1.0);
+			vec3 ax = normalize(h * 2.0 - 1.0 + vec3(0.001));
+			R = rot(ax, (1.0 + 4.0 * h.x) * max(a2 - 0.08, 0.0));
+		}
 	}
 	vec3 w = c + R * (B * VERTEX) * sc;
 	wpos = w;

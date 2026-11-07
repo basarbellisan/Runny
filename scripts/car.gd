@@ -411,8 +411,35 @@ var _front_cache := {}
 var _body_cutting := false
 var _shatter_v0 := Vector3.ZERO
 var _cut_mats := {}
-## Kesilme anında oyun bu hızda akar (0.35 sn), sonra normale döner
+## Kesilme anında oyun bu hızda akar (araba bariyerden tamamen geçene kadar), sonra normale döner
 const SHATTER_SLOWMO := 0.12
+## Kesilme bitince ağır çekimde bekleme ve normale dönüş süresi (gerçek saniye)
+const SLOWMO_HOLD := 0.45
+const SLOWMO_RAMP := 1.0
+## Küp ayrıldıktan sonra bu kadar (oyun saniyesi) arabanın biçiminde birlikte gider, sonra dağılır
+const SHARD_HOLD := 0.05
+var _slowmo_on := false
+var _steps_before := 8
+
+
+func _end_slowmo() -> void:
+	if not _slowmo_on:
+		return
+	var steps := _steps_before  # sahne bu arada değişse de (araba silinse de) geri yüklensin
+	var tw := get_tree().create_tween()
+	tw.set_ignore_time_scale(true)
+	tw.tween_interval(SLOWMO_HOLD)
+	tw.tween_callback(func(): Engine.max_physics_steps_per_frame = steps)
+	tw.tween_property(Engine, "time_scale", 1.0, SLOWMO_RAMP).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	_slowmo_on = false
+
+
+func _exit_tree() -> void:
+	# Ağır çekimdeyken sahne değişirse (yeniden başla, garaj) oyun normal hızda kalsın
+	if _slowmo_on:
+		Engine.time_scale = 1.0
+		Engine.max_physics_steps_per_frame = _steps_before
+		_slowmo_on = false
 const SHARD_LIFE := 3.2
 
 
@@ -469,13 +496,15 @@ func shatter(reason: String) -> void:
 	_body_cutting = true
 	shattering = true
 	# Kesilme anı ağır çekim: araba çubuktan saniyenin onda birinde geçer; yavaşlayınca
-	# "hızardan geçen odun" gibi parça parça kesildiği görülür, sonra hız yavaşça geri gelir
+	# "hızardan geçen odun" gibi parça parça kesildiği görülür. Ağır çekim saate değil kesilmeye
+	# bağlı: araba tamamen geçene kadar sürer (telefon o an takılsa bile kesilme atlanmaz), sonra
+	# kısa bir duraksamayla hız yavaşça geri gelir (_end_slowmo). Takılmadan sonra oyun bir karede
+	# en fazla bir fizik adımı ilerler: kesilme birkaç karede birden geçip görünmez olmasın.
 	if is_equal_approx(Engine.time_scale, 1.0) and Lesson.current < 0:  # derste kendi ağır çekimi var
 		Engine.time_scale = SHATTER_SLOWMO
-		var tw := get_tree().create_tween()
-		tw.set_ignore_time_scale(true)
-		tw.tween_interval(0.35)
-		tw.tween_property(Engine, "time_scale", 1.0, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		_slowmo_on = true
+		_steps_before = Engine.max_physics_steps_per_frame
+		Engine.max_physics_steps_per_frame = 1
 	exploded.emit()
 	_die(reason)
 
@@ -761,6 +790,7 @@ func _spawn_shards() -> void:
 	_shard_mat.set_shader_parameter("life", SHARD_LIFE)
 	_shard_mat.set_shader_parameter("drag", SHARD_DRAG)
 	_shard_mat.set_shader_parameter("grav", SHARD_GRAV)
+	_shard_mat.set_shader_parameter("hold", SHARD_HOLD)
 	_shard_mat.set_shader_parameter("t", 0.0)
 	_shard_mat.set_shader_parameter("cut_hot", _cut_color.lerp(Color(1.0, 0.95, 0.85), 0.35))
 	box.surface_set_material(0, _shard_mat)
@@ -797,9 +827,11 @@ func _shard_at(i: int, t: float) -> Vector3:
 	var tr := _shard_cut[i]
 	if t < tr:
 		return p0 + _shatter_v0 * t
-	var age := t - tr
+	var age := t - tr - SHARD_HOLD
+	if age < 0.0:
+		return p0 + _shatter_v0 * t
 	var e := exp(-SHARD_DRAG * age)
-	var c := p0 + _shatter_v0 * tr + _shard_vel[i] * (1.0 - e) / SHARD_DRAG
+	var c := p0 + _shatter_v0 * (tr + SHARD_HOLD) + _shard_vel[i] * (1.0 - e) / SHARD_DRAG
 	c.y += SHARD_GRAV / SHARD_DRAG * ((1.0 - e) / SHARD_DRAG - age)
 	return c
 
@@ -1184,6 +1216,7 @@ func _dead_motion(delta: float) -> void:
 			if _shard_time >= _shard_last:
 				_body_cutting = false
 				_body.visible = false
+				_end_slowmo()
 			return
 		# Kamera bulutu takip etsin: araba noktası (kameranın hedefi) küp bulutunun merkezini izler
 		var n := _shard_pos.size()

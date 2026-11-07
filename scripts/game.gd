@@ -120,6 +120,7 @@ var lesson: Lesson
 
 func _ready() -> void:
 	_parse_args()
+	_setup_perf()
 	var seed_value := int(_args.get("seed", "-1"))
 	if seed_value >= 0:
 		seed(seed_value)  # testler tekrarlanabilir olsun (sendeleme vb. randf kullanır)
@@ -295,6 +296,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _process(delta: float) -> void:
+	_update_perf()
 	var target := clampf(inverse_lerp(MOOD_HEIGHTS.x, MOOD_HEIGHTS.y, car.global_position.y), 0.0, 1.0)
 	var m := lerpf(_mood, target, 1.0 - exp(-3.0 * delta))
 	_mood = m
@@ -464,6 +466,60 @@ func _on_boost_empty() -> void:
 func _on_exploded() -> void:
 	Audio.play("explosion")
 	$Camera.shake(0.35 if car.shattering else 1.0)
+	if _perf_label:
+		_perf_crash_at = Time.get_ticks_msec()
+		_perf_crash_worst = 0.0
+		_perf_crash_kind = "küp" if car.shattering else "patlama"
+
+
+## Performans sayacı (web: adresin sonuna ?debug=1, masaüstü: --perf): FPS, son 2 sn'deki en uzun
+## kare ve çarpmadan sonraki 2 sn'deki en uzun kare. Telefonda takılmanın yerini bulmak için.
+var _perf_label: Label
+var _perf_last := 0
+var _perf_times: Array[Vector2] = []  # (an ms, kare süresi ms)
+var _perf_crash_at := -1
+var _perf_crash_worst := 0.0
+var _perf_crash_kind := ""
+var _perf_shown := 0
+
+
+func _setup_perf() -> void:
+	if _web_param("debug") == "" and not _args.has("perf"):
+		return
+	var layer := CanvasLayer.new()
+	layer.layer = 100
+	add_child(layer)
+	_perf_label = Label.new()
+	_perf_label.position = Vector2(12, 90)
+	_perf_label.add_theme_font_size_override("font_size", 26)
+	_perf_label.add_theme_color_override("font_color", Color(1, 1, 1))
+	_perf_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	_perf_label.add_theme_constant_override("outline_size", 6)
+	layer.add_child(_perf_label)
+
+
+func _update_perf() -> void:
+	if _perf_label == null:
+		return
+	var now := Time.get_ticks_usec()
+	var ms := (now - _perf_last) / 1000.0 if _perf_last > 0 else 0.0
+	_perf_last = now
+	var t := Time.get_ticks_msec()
+	_perf_times.append(Vector2(t, ms))
+	while not _perf_times.is_empty() and _perf_times[0].x < t - 2000:
+		_perf_times.pop_front()
+	if _perf_crash_at >= 0 and t - _perf_crash_at <= 2000:
+		_perf_crash_worst = maxf(_perf_crash_worst, ms)
+	if t - _perf_shown < 250:
+		return
+	_perf_shown = t
+	var worst := 0.0
+	for v in _perf_times:
+		worst = maxf(worst, v.y)
+	var txt := "FPS %d   en uzun kare %d ms" % [Engine.get_frames_per_second(), int(worst)]
+	if _perf_crash_at >= 0:
+		txt += "\nçarpma (%s): en uzun kare %d ms" % [_perf_crash_kind, int(_perf_crash_worst)]
+	_perf_label.text = txt
 
 
 ## İlk birkaç uçuşta yükselme ipucu
