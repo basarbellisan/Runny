@@ -301,6 +301,10 @@ func _physics_process(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	_update_perf()
+	if _args.has("start_x") and not _start_x_done and not roads.custom_log.is_empty():
+		# test: araba tasarımın bu x'ine (tasarım koordinatı) alınır, düz sürülür
+		_start_x_done = true
+		car.global_position.x = float(roads.custom_log[0].ox) + float(_args.start_x)
 	var target := clampf(inverse_lerp(MOOD_HEIGHTS.x, MOOD_HEIGHTS.y, car.global_position.y), 0.0, 1.0)
 	var m := lerpf(_mood, target, 1.0 - exp(-3.0 * delta))
 	_mood = m
@@ -483,6 +487,7 @@ func _on_exploded() -> void:
 ## Performans sayacı (web: adresin sonuna ?debug=1, masaüstü: --perf): FPS, son 2 sn'deki en uzun
 ## kare ve çarpmadan sonraki 2 sn'deki en uzun kare. Telefonda takılmanın yerini bulmak için.
 var _perf_label: Label
+var _start_x_done := false
 var _perf_last := 0
 var _perf_times: Array[Vector2] = []  # (an ms, kare süresi ms)
 var _perf_crash_at := -1

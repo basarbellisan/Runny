@@ -491,6 +491,8 @@ const BARRIER_CUT_BACK := 0.1
 func shatter(reason: String) -> void:
 	if mode == Mode.DEAD:
 		return
+	if OS.get_cmdline_user_args().has("--trace"):
+		print("SHATTER x=%.2f z=%.2f frame=%d" % [global_position.x, global_position.z, Engine.get_process_frames()])
 	_spawn_shards()
 	# Gerçek araba hemen silinmez: bariyerden akarak geçer, geçen kısmı maskeyle kesilir ve
 	# o kısmın parçaları tam kesik çizgiden açılır
@@ -569,7 +571,7 @@ func _prepare_voxels() -> void:
 	var t0 := Time.get_ticks_msec()
 	var n: int = _voxels().n
 	if OS.get_cmdline_user_args().has("--trace"):
-		print("VOXELS n=%d ms=%d model=%d" % [n, Time.get_ticks_msec() - t0, model.variant])
+		print("VOXELS n=%d ms=%d model=%d hw=%.2f" % [n, Time.get_ticks_msec() - t0, model.variant, model.half_width])
 	_prewarm_shaders()
 
 
@@ -912,8 +914,10 @@ func _spawn_shards() -> void:
 	_shards.multimesh = mm
 	_shards.top_level = true
 	_shards.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	# Küpler gölgelendiricide yer değiştirir: görünürlük kutusu geniş tutulur
-	_shards.custom_aabb = AABB(Vector3(-500, -100, -500), Vector3(1000, 200, 1000))
+	# Küpler gölgelendiricide yer değiştirir: görünürlük kutusu çarpma yerinin çevresinde, ileri
+	# gidişi kapsayacak kadar geniş (dünyanın merkezine göre sabit kutu, araba 500 m'yi geçince
+	# küpleri görünmez yapıyordu)
+	_shards.custom_aabb = _shatter_aabb()
 	add_child(_shards)
 	_shards.global_transform = Transform3D.IDENTITY
 	_shard_time = 0.0
@@ -925,9 +929,16 @@ func _spawn_shards() -> void:
 	_scan_mi.material_override = lm
 	_scan_mi.top_level = true
 	_scan_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_scan_mi.custom_aabb = AABB(Vector3(-500, -100, -500), Vector3(1000, 200, 1000))
+	_scan_mi.custom_aabb = _shatter_aabb()
 	add_child(_scan_mi)
 	_scan_mi.global_transform = Transform3D.IDENTITY
+
+
+## Kesilmenin görünürlük kutusu (dünya koordinatı; düğümler birim dönüşümde): çarpma yeri ve
+## parçaların ileri savrulacağı yol
+func _shatter_aabb() -> AABB:
+	var p := global_position
+	return AABB(Vector3(p.x - 40.0, p.y - 40.0, p.z - 220.0), Vector3(80.0, 80.0, 260.0))
 
 
 const SHARD_DRAG := 0.8
@@ -1015,6 +1026,8 @@ func _update_scan() -> void:
 func crash(reason: String) -> void:
 	if mode == Mode.DEAD:
 		return
+	if OS.get_cmdline_user_args().has("--trace"):
+		print("EXPLODE %s x=%.2f z=%.2f" % [reason, global_position.x, global_position.z])
 	_spawn_debris()
 	_body.visible = false
 	exploded.emit()
