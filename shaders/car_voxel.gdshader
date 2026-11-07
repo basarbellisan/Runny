@@ -58,7 +58,7 @@ void vertex() {
 			c.y += grav / drag * ((1.0 - e) / drag - a2);
 			vec3 h = hash3(INSTANCE_CUSTOM.w * 911.0 + INSTANCE_CUSTOM.x * 37.0 + 1.0);
 			vec3 ax = normalize(h * 2.0 - 1.0 + vec3(0.001));
-			R = rot(ax, (1.0 + 4.0 * h.x) * max(a2 - 0.08, 0.0));
+			R = rot(ax, (4.0 + 8.0 * h.x) * a2);
 		}
 	}
 	vec3 w = c + R * (B * VERTEX) * sc;

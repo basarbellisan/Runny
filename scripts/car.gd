@@ -412,12 +412,12 @@ var _body_cutting := false
 var _shatter_v0 := Vector3.ZERO
 var _cut_mats := {}
 ## Kesilme anında oyun bu hızda akar (araba bariyerden tamamen geçene kadar), sonra normale döner
-const SHATTER_SLOWMO := 0.12
+const SHATTER_SLOWMO := 0.28
 ## Kesilme bitince ağır çekimde bekleme ve normale dönüş süresi (gerçek saniye)
-const SLOWMO_HOLD := 0.45
-const SLOWMO_RAMP := 1.0
+const SLOWMO_HOLD := 0.15
+const SLOWMO_RAMP := 0.5
 ## Küp ayrıldıktan sonra bu kadar (oyun saniyesi) arabanın biçiminde birlikte gider, sonra dağılır
-const SHARD_HOLD := 0.05
+const SHARD_HOLD := 0.0
 var _slowmo_on := false
 var _steps_before := 8
 
@@ -440,7 +440,7 @@ func _exit_tree() -> void:
 		Engine.time_scale = 1.0
 		Engine.max_physics_steps_per_frame = _steps_before
 		_slowmo_on = false
-const SHARD_LIFE := 3.2
+const SHARD_LIFE := 1.3
 
 
 ## Modelin en ön noktası (Body'ye göre z, eksi = ileri)
@@ -558,8 +558,8 @@ func _cut_variant(src: BaseMaterial3D) -> ShaderMaterial:
 ## ızgaraya oturtulur; her küp tam bulunduğu yerin rengini alır (lastik, jant, gövde, kokpit, kanat).
 ## Gövdeye göre (yerel) hesaplanır; ekran kartına gidecek veri, tarama şeridinin kesit hatları ve
 ## kamera için örnekler bir kez hazırlanır, oyun yeniden başlasa da saklanır (static).
-const VOXEL := 0.065
-const VOXEL_MAX := 3000
+const VOXEL := 0.1
+const VOXEL_MAX := 1500
 static var _voxel_cache := {}
 
 
@@ -693,8 +693,9 @@ func _voxels() -> Dictionary:
 	for g: Vector3i in grid:
 		var p := (Vector3(g) + Vector3.ONE * 0.5) * size
 		var c: Color = grid[g]
-		var kick := Vector3(p.x * rng.randf_range(0.8, 2.2) + rng.randf_range(-0.5, 0.5), rng.randf_range(0.0, 1.2), rng.randf_range(-0.4, 0.8))
-		var f := rng.randf_range(0.9, 1.0)
+		# Hızlı dağılma: merkezden dışa güçlü, yukarı ve geriye savrulur; ileri hızın bir kısmı kalır
+		var kick := Vector3(p.x * rng.randf_range(5.0, 9.0) + rng.randf_range(-4.0, 4.0), rng.randf_range(1.5, 6.5), rng.randf_range(-3.0, 4.5))
+		var f := rng.randf_range(0.65, 0.9)
 		var o := i * 20
 		buf[o] = sz; buf[o + 3] = p.x
 		buf[o + 5] = sz; buf[o + 7] = p.y
@@ -816,8 +817,8 @@ func _spawn_shards() -> void:
 	_scan_mi.global_transform = Transform3D.IDENTITY
 
 
-const SHARD_DRAG := 1.2
-const SHARD_GRAV := 2.0
+const SHARD_DRAG := 2.0
+const SHARD_GRAV := 9.0
 
 
 ## Örnek küpün yolu (car_voxel gölgelendiricisiyle aynı hesap): kesilmeden önce arabayla
