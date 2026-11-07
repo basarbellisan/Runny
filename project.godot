@@ -37,3 +37,14 @@ common/physics_interpolation=true
 
 renderer/rendering_method="mobile"
 textures/vram_compression/import_etc2_astc=true
+
+[shader_globals]
+
+far_fog_begin={
+"type": "float",
+"value": 60.0
+}
+far_fog_end={
+"type": "float",
+"value": 280.0
+}

@@ -4,6 +4,14 @@
 shader_type spatial;
 render_mode unshaded, blend_add, depth_draw_never, cull_disabled, fog_disabled, shadows_disabled;
 
+// Uzakta sisle aynı mesafede söner (eklemeli parıltı sise karışamaz; game.gd _apply_fog)
+global uniform float far_fog_begin;
+global uniform float far_fog_end;
+
+float far_fade(vec3 view_pos) {
+	return 1.0 - smoothstep(far_fog_begin, far_fog_end, length(view_pos));
+}
+
 uniform vec4 light : source_color = vec4(0.18, 0.36, 1.0, 1.0);
 uniform vec4 core : source_color = vec4(0.77, 0.83, 1.0, 1.0);
 uniform float max_height = 0.65;
@@ -35,4 +43,5 @@ void fragment() {
 	float fade = pow(1.0 - y01, 3.2) + 0.7 * exp(-y01 * 16.0);
 	vec3 col = mix(light.rgb, core.rgb, pow(1.0 - y01, 5.0) * 0.7);
 	ALBEDO = col * fade * ends * strength * mix(0.3, 1.2, bv);
+	ALBEDO *= far_fade(VERTEX);
 }

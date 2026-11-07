@@ -5,6 +5,14 @@
 shader_type spatial;
 render_mode unshaded, blend_add, depth_draw_never, cull_disabled, fog_disabled, shadows_disabled;
 
+// Uzakta sisle aynı mesafede söner (eklemeli parıltı sise karışamaz; game.gd _apply_fog)
+global uniform float far_fog_begin;
+global uniform float far_fog_end;
+
+float far_fade(vec3 view_pos) {
+	return 1.0 - smoothstep(far_fog_begin, far_fog_end, length(view_pos));
+}
+
 uniform int pattern = 0;
 uniform vec4 color : source_color = vec4(0.86, 0.92, 1.0, 1.0);
 uniform float strength = 0.5;
@@ -49,4 +57,5 @@ void fragment() {
 		a = line * pow(1.0 - k, 1.6) * side * smoothstep(0.0, 0.08, y);
 	}
 	ALBEDO = color.rgb * a * strength;
+	ALBEDO *= far_fade(VERTEX);
 }

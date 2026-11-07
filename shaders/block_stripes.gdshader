@@ -1,6 +1,6 @@
 // Blok ön yüzündeki ışıklı çapraz uyarı şeritleri (dünya konumuna göre, yüz boyutundan bağımsız)
 shader_type spatial;
-render_mode unshaded, fog_disabled;
+render_mode unshaded;
 
 uniform vec4 color : source_color = vec4(1.0, 0.353, 0.122, 1.0);
 uniform vec4 dark : source_color = vec4(0.11, 0.118, 0.133, 1.0);

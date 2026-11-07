@@ -330,10 +330,14 @@ func _ready() -> void:
 	_block_top_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	for m: StandardMaterial3D in [_blk_glow, _blk_lamp_a, _blk_lamp_b, _blk_halo]:
 		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		m.disable_fog = true
 		m.albedo_color = Palette.ACCENT
 	_blk_halo.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_blk_halo.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	# Eklemeli hale sise karışamaz: uzakta (derinlik sisiyle aynı mesafede) söner
+	_blk_halo.disable_fog = true
+	_blk_halo.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_ALPHA
+	_blk_halo.distance_fade_max_distance = 60.0
+	_blk_halo.distance_fade_min_distance = 280.0
 	_blk_halo.albedo_color = Color(Palette.ACCENT, 0.28)
 	_blk_halo.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_blk_halo.no_depth_test = false

@@ -20,7 +20,7 @@ const MOOD_HEIGHTS := Vector2(-22.0, -48.0)
 const MOOD_KEYS := {
 	"sky:sky_top_color": "sky_top", "sky:sky_horizon_color": "sky_horizon",
 	"sky:ground_horizon_color": "ground_horizon", "sky:ground_bottom_color": "ground_bottom",
-	"env:fog_light_color": "fog", "env:fog_density": "fog_density", "env:fog_height": "fog_height",
+	"env:fog_light_color": "fog", "env:fog_height": "fog_height",
 	"env:fog_height_density": "fog_height_density",
 	"env:ambient_light_color": "ambient", "env:ambient_light_energy": "ambient_energy",
 	"sun:light_color": "sun", "sun:light_energy": "sun_energy", "cloud:albedo_color": "cloud",
@@ -357,6 +357,30 @@ var _ink := Palette.INK_LIGHT
 var backdrop: Backdrop
 
 
+## Derinlik sisi: yakın oyun alanı tamamen net, uzak yollar sisin içinden çıkar (uzakta ince
+## çizgiler ve kenarlar piksel boyutuna inip titremesin). [başlangıç, bitiş (tam sis), eğri]
+## Üst katman: 60 m'ye kadar net, 280 m'de tam sis (yollar 450 m'ye kadar üretilir). Alt katman:
+## eski yoğun üstel sisin görünümü (yakından başlar, hızla artar).
+const FOG_UPPER := Vector3(60.0, 280.0, 1.0)
+const FOG_LOWER := Vector3(0.0, 400.0, 0.55)
+
+
+func _apply_fog(m: float) -> void:
+	var env: Environment = _mood_targets.env
+	var f := FOG_UPPER.lerp(FOG_LOWER, m)
+	if _args.has("fog"):
+		var v: PackedStringArray = str(_args.fog).split(",")  # test: --fog=başlangıç,bitiş
+		f = Vector3(float(v[0]), float(v[1]), f.z)
+	env.fog_mode = Environment.FOG_MODE_DEPTH
+	env.fog_density = 1.0
+	env.fog_depth_begin = f.x
+	env.fog_depth_end = f.y
+	env.fog_depth_curve = f.z
+	# Eklemeli (blend_add) parıltılar sisi kendileri hesaplar: aynı mesafede sönerler
+	RenderingServer.global_shader_parameter_set("far_fog_begin", f.x)
+	RenderingServer.global_shader_parameter_set("far_fog_end", f.y)
+
+
 func _apply_mood(m: float) -> void:
 	_mood = m
 	hud.set_mood(m, _ink)
@@ -364,6 +388,7 @@ func _apply_mood(m: float) -> void:
 		var parts := key.split(":")
 		var pair: Array = _moods[key]
 		_mood_targets[parts[0]].set(parts[1], lerp(pair[0], pair[1], m))
+	_apply_fog(m)
 
 
 func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:

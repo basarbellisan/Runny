@@ -1,7 +1,7 @@
 // Direkli blok tasarımlarının ışık veren katı parçaları (floresan tüp, lazer, tabela, segment çubuk).
 // Kutular birim kutu ölçeklenerek kurulur; boyut MODEL_MATRIX'ten okunur (desen metre cinsinden).
 shader_type spatial;
-render_mode unshaded, fog_disabled;
+render_mode unshaded;
 
 // 0 floresan tüp, 1 lazer ışını, 2 led tabela, 3 segment çubuk, 4 düz ışık (lamba, ray),
 // 5 sırayla yanan çubuk (seed = sıra: 0 en üst; yukarıdan aşağı yumuşak dalga)

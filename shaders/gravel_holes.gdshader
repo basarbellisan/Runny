@@ -2,7 +2,7 @@
 // Deliğin içinde dipte parlak ışık (ortada açık), kenarında koyu duvar. Parlaklık, üstündeki ışık
 // sütunuyla aynı nabızda (gravel_beam ile aynı hash/faz). Birim düzlem ölçeklenerek kurulur.
 shader_type spatial;
-render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, fog_disabled, shadows_disabled;
+render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, shadows_disabled;
 
 uniform vec4 light : source_color = vec4(0.18, 0.36, 1.0, 1.0);
 uniform vec4 core : source_color = vec4(0.77, 0.83, 1.0, 1.0);

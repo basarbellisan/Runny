@@ -2,7 +2,7 @@
 // kolu ayrı bir yarık (köşelerde boşluk). Yarığın içi dipten ışıklı (ortası açık), kenarı koyu duvar;
 // parlaklık üstündeki ışık perdesiyle aynı nabızda (gravel_curtain ile aynı faz).
 shader_type spatial;
-render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, fog_disabled, shadows_disabled;
+render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, shadows_disabled;
 
 uniform vec4 light : source_color = vec4(0.18, 0.36, 1.0, 1.0);
 uniform vec4 core : source_color = vec4(0.77, 0.83, 1.0, 1.0);

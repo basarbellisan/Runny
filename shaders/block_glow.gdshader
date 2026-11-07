@@ -3,6 +3,14 @@
 shader_type spatial;
 render_mode unshaded, blend_add, depth_draw_never, cull_disabled, fog_disabled, shadows_disabled;
 
+// Uzakta sisle aynı mesafede söner (eklemeli parıltı sise karışamaz; game.gd _apply_fog)
+global uniform float far_fog_begin;
+global uniform float far_fog_end;
+
+float far_fade(vec3 view_pos) {
+	return 1.0 - smoothstep(far_fog_begin, far_fog_end, length(view_pos));
+}
+
 // 0 yatay hale bandı, 1 elektrik arkı, 2 kuvvet alanı, 3 yerde ışık lekesi, 4 yerde yumuşak ışık,
 // 5 yerde çizgi ışık (yatay çubukların altına düşen, çubuk boyunca uzanan dar şerit)
 uniform int pattern = 0;
@@ -166,4 +174,5 @@ void fragment() {
 		col = to_linear(to_srgb(base.rgb + add) - to_srgb(base.rgb));
 	}
 	ALBEDO = col;
+	ALBEDO *= far_fade(VERTEX);
 }

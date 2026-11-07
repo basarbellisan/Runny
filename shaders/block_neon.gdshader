@@ -2,7 +2,7 @@
 // Birim kutu ölçeklenerek kurulur (RoadGenerator._add_box); boyut MODEL_MATRIX'ten okunur,
 // desenler metre cinsinden (blok genişliğinden bağımsız). Her yüz kendi düzleminde çizilir.
 shader_type spatial;
-render_mode unshaded, fog_disabled;
+render_mode unshaded;
 
 // 0 ışık kafesi, 1 enerji duvarı, 2 ok (iki yana), 3 devre, 4 led matris, 5 neon tuğla
 uniform int pattern = 0;
