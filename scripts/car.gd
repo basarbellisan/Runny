@@ -484,18 +484,29 @@ func _apply_cut_material() -> void:
 		var m := mi as MeshInstance3D
 		if m.mesh == null or not m.is_visible_in_tree():
 			continue
-		var src := m.material_override if m.material_override else m.get_active_material(0)
-		if not src is BaseMaterial3D:
+		if m.material_override:
+			var cm := _cut_mat_for(m.material_override, edge_col)
+			if cm:
+				m.material_override = cm
 			continue
-		var key := src.get_instance_id()
-		if not _cut_mats.has(key):
-			var sm := _cut_variant(src as BaseMaterial3D)
-			if sm == null:
-				continue
-			sm.set_shader_parameter("cut_z", _cut_z)
-			sm.set_shader_parameter("cut_hot", edge_col)
-			_cut_mats[key] = sm
-		m.material_override = _cut_mats[key]
+		# Birden çok malzemeli parça (GEM gövdesi: antrasit, kristal yeşili, jant): her yüzey kendi
+		# malzemesinin kesme hâlini alır
+		for i in m.mesh.get_surface_count():
+			var cm := _cut_mat_for(m.get_active_material(i), edge_col)
+			if cm:
+				m.set_surface_override_material(i, cm)
+
+
+func _cut_mat_for(src: Material, edge_col: Color) -> ShaderMaterial:
+	if not src is BaseMaterial3D:
+		return null
+	var key := src.get_instance_id()
+	if not _cut_mats.has(key):
+		var sm := _cut_variant(src as BaseMaterial3D)
+		sm.set_shader_parameter("cut_z", _cut_z)
+		sm.set_shader_parameter("cut_hot", edge_col)
+		_cut_mats[key] = sm
+	return _cut_mats[key]
 
 
 ## Kesme malzemesi: arabanın malzemesinin değerleriyle (BaseMaterial3D ile aynı hesap) + maske
