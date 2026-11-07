@@ -550,8 +550,9 @@ func _cut_variant(src: BaseMaterial3D) -> ShaderMaterial:
 ## ızgaraya oturtulur; her küp tam bulunduğu yerin rengini alır (lastik, jant, gövde, kokpit, kanat).
 ## Gövdeye göre (yerel) hesaplanır; ekran kartına gidecek veri, tarama şeridinin kesit hatları ve
 ## kamera için örnekler bir kez hazırlanır, oyun yeniden başlasa da saklanır (static).
-const VOXEL := 0.18
-const VOXEL_MAX := 350
+const VOXEL := 0.22
+const VOXEL_MIN := 120
+const VOXEL_MAX := 150
 ## Parça biçimi: true yatay uzun çubuklar (araba yatay dilimlenmiş gibi), false küpler
 static var shard_bars := false
 ## Çubuk hücresi: x yönünde çözünürlük, katman kalınlığı (y), dilim derinliği (z)
@@ -751,11 +752,30 @@ func _voxels() -> Dictionary:
 	else:
 		var size := VOXEL
 		var grid := {}
-		for attempt in 4:
+		# Her araba için küp boyu: sayı VOXEL_MIN..VOXEL_MAX aralığına girene kadar ayarlanır
+		# (ikiye bölerek arar; en yakın sonuç saklanır)
+		var lo := size * 0.5
+		var hi := size * 5.0
+		var best := {}
+		var best_size := size
+		var best_err := INF
+		for attempt in 12:
 			grid = _sample_grid(tris, Vector3.ONE * size)
-			if grid.size() <= VOXEL_MAX or attempt == 3:
+			var cnt := grid.size()
+			var err := maxf(VOXEL_MIN - cnt, cnt - VOXEL_MAX)
+			if err < best_err:
+				best_err = err
+				best = grid
+				best_size = size
+			if err <= 0.0:
 				break
-			size *= sqrt(float(grid.size()) / VOXEL_MAX) * 1.02
+			if cnt < VOXEL_MIN:
+				hi = size
+			else:
+				lo = size
+			size = (lo + hi) * 0.5
+		grid = best
+		size = best_size
 		zsize = size
 		for g: Vector3i in grid:
 			pieces.append([(Vector3(g) + Vector3.ONE * 0.5) * size, Vector3.ONE * size * 0.96, grid[g]])

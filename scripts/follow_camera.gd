@@ -28,20 +28,18 @@ var sky_view := 0.0
 var _sky_from := Vector3.ZERO
 ## Son baktığı nokta: araba patlayınca bakış buradan arabaya yumuşakça kayar (birden atlamaz)
 var _look := Vector3.ZERO
-## Işık bariyerinde kesilme bitince: kamera aynı hızla ileri gitmeyi sürdürür, göğe doğru yükselir
-## ve bakışını kaldırır, orada kalır (oyun sonu ekranı gökyüzünün üstüne gelir). Süreler gerçek saat
-## (oyun ağır çekimde kalır); ileri hız oyun saatiyle (dünya ile birlikte yavaş).
+## Işık bariyerinde kesilme bitince: kamera aynı hızla düz gitmeyi sürdürür, bir süre sonra
+## yavaşlar ama akmaya devam eder (oyun sonu ekranı yolun üstüne gelir).
 var _fly := -1.0
-var _fly_from := Vector3.ZERO
-var _fly_look := Vector3.ZERO
-## Önce bu kadar (gerçek sn) düz devam: yandığı anlaşılsın, dağılan parçalar görünsün
+## Önce bu kadar (gerçek sn) aynı hızla düz gider: yandığı anlaşılsın, dağılan parçalar görünsün
 @export var fly_straight := 1.0
 ## Düz giderken parça bulutuna (araba noktası onu izler) en fazla bu kadar yaklaşır
 @export var fly_gap := 6.0
 var _straight := 0.0
-@export var fly_time := 1.4
-@export var fly_rise := 9.0
-@export var fly_pitch := 32.0
+## Yavaşlayınca kalan hız (kesilme anındaki hızın kesri) ve yavaşlama hızı
+@export var fly_drift := 0.18
+@export var fly_brake := 1.6
+var _fly_speed := 1.0
 
 
 func _ready() -> void:
@@ -56,8 +54,6 @@ func _process(delta: float) -> void:
 	var p := global_position
 	if _fly < 0.0 and _target.shattering and not _target.is_cutting():
 		_fly = 0.0
-		_fly_from = global_position
-		_fly_look = _look
 	if _fly >= 0.0:
 		_fly_away(delta)
 	elif _target.alive or _target.shattering:
@@ -103,30 +99,18 @@ func _fly_away(delta: float) -> void:
 	var v := _target.shatter_velocity()
 	var t := _target.get_global_transform_interpolated().origin
 	var p := global_position
-	if _straight < fly_straight:
-		# Düz: kesilme anındaki hızla ileri, aynı yükseklik ve bakış; bulutu geçip kaçırmaz
-		_straight += real
-		p.z += v.z * delta
-		if _target.shattering:
-			p.z = maxf(p.z, t.z + fly_gap)
-		p.x = lerpf(p.x, t.x + offset.x, 1.0 - exp(-follow_x * delta))
-		global_position = p
-		_look = Vector3(lerpf(p.x, t.x, 0.6), _look.y, p.z - offset.z - look_ahead)
-		look_at(_look)
-		_fly_from = p
-		_fly_look = _look
-		return
-	_fly = minf(_fly + real / fly_time, 1.0)
-	var k := _fly * _fly * (3.0 - 2.0 * _fly)
-	# İleri: kesilme anındaki hızla; sona doğru yumuşakça durur (gökyüzünde kalır)
-	p.z += v.z * delta * (1.0 - _fly)
-	p.x += v.x * delta * (1.0 - _fly)
-	p.y = _fly_from.y + fly_rise * k
+	_straight += real
+	# Kesilme anındaki hızla düz devam; fly_straight sn sonra yavaşlamaya başlar ama durmaz,
+	# hızın fly_drift kadarıyla akmayı sürdürür. Yükselmez, bakış aynı kalır.
+	if _straight > fly_straight:
+		_fly_speed = lerpf(_fly_speed, fly_drift, 1.0 - exp(-fly_brake * real))
+	p.z += v.z * delta * _fly_speed
+	if _target.shattering:
+		p.z = maxf(p.z, t.z + fly_gap)  # parça bulutunu geçip kaçırmaz
+	p.x = lerpf(p.x, t.x + offset.x, 1.0 - exp(-follow_x * delta))
 	global_position = p
-	var sky := p + Vector3(0, tan(deg_to_rad(fly_pitch)), -1).normalized() * 200.0
-	var ahead := Vector3(p.x, _fly_look.y + (p.y - _fly_from.y), p.z - look_ahead)
-	look_at(ahead.lerp(sky, k))
-	fov = lerpf(fov, base_fov, 1.0 - exp(-2.0 * real))
+	_look = Vector3(lerpf(p.x, t.x, 0.6), _look.y, p.z - offset.z - look_ahead)
+	look_at(_look)
 
 
 ## Oyun sonu: kamerayı süre boyunca göğe çevir
