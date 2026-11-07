@@ -36,6 +36,11 @@ const WING_FADE_FROM := 2.4
 const WING_FADE_TO := 4.4
 ## İz kanada değmez: kanat ucunun bu kadar gerisinde (m) yumuşakça belirir
 const WING_GAP := Vector2(1.1, 1.6)
+## Uçarken iki parmak (yükselme): iz arabadaki gibi uzar ve genişler (sönme mesafeleri, genişlik katı)
+const WING_CLIMB_FADE := Vector2(5.5, 9.5)
+const WING_CLIMB_WIDTH := 1.5
+## Yükselme etkisi (0..1): basınca ~0.35 sn'de dolar, bırakınca ~0.5 sn'de söner
+var _wing_boost := 0.0
 
 
 func _ready() -> void:
@@ -82,6 +87,8 @@ func wing_life() -> float:
 
 func _physics_process(delta: float) -> void:
 	_time += delta
+	var climbing := car.climbing and car.reserve_on
+	_wing_boost = move_toward(_wing_boost, 1.0 if climbing else 0.0, delta / (0.35 if climbing else 0.5))
 	var emitting := car.alive
 	var l := life()
 	for r in _ribbons:
@@ -158,6 +165,8 @@ func _draw_ribbon(r: Dictionary, head: Vector3) -> void:
 		# Gazda iz genişler ve boyunca eşit kalır; sönük ucu yalnız saydamlaşır
 		var bl := car.boost_level if r.style == 1 and not wing else 0.0
 		var half: float = r.width * 0.5 * lerpf(1.0, boost_width, bl) * lerpf(0.35 + 0.65 * k, 1.0, bl)
+		if wing:
+			half *= lerpf(1.0, WING_CLIMB_WIDTH, _wing_boost)
 		var alpha := color.a * lerpf(k * k, sqrt(k), bl)
 		var c: Vector3 = pts[i].p
 		if wing:
@@ -165,7 +174,9 @@ func _draw_ribbon(r: Dictionary, head: Vector3) -> void:
 			var inward := -signf(float(r.side)) * Vector3.RIGHT
 			c += inward * half
 			var behind := c.z - tip.z
-			alpha *= smoothstep(WING_GAP.x, WING_GAP.y, behind) * (1.0 - smoothstep(WING_FADE_FROM, WING_FADE_TO, behind))
+			var f0 := lerpf(WING_FADE_FROM, WING_CLIMB_FADE.x, _wing_boost)
+			var f1 := lerpf(WING_FADE_TO, WING_CLIMB_FADE.y, _wing_boost)
+			alpha *= smoothstep(WING_GAP.x, WING_GAP.y, behind) * (1.0 - smoothstep(f0, f1, behind))
 		mesh.surface_set_color(Color(color, alpha))
 		mesh.surface_add_vertex(c - side * half)
 		mesh.surface_set_color(Color(color, alpha))

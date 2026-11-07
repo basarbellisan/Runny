@@ -38,7 +38,13 @@ func _init(p_car: Car, p_roads: RoadGenerator, p_lower: LowerLayer, p_dive_inter
 
 
 ## x: direksiyon, y: gaz (Car._read_input ile aynı biçim)
+## Test: uçarken hep iki parmak (yükselme) (--climb)
+var force_climb := false
+
+
 func input() -> Vector2:
+	if force_climb and car.mode == Car.Mode.FLYING:
+		return Vector2(_fly_steer(), 1.0)
 	if car.mode == Car.Mode.FLYING or car.mode == Car.Mode.FALLING:
 		_drive_time = 0.0
 		_diving = false
