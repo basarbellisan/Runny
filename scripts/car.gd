@@ -1339,6 +1339,15 @@ func _fit_wings() -> void:
 		trim.visible = dark
 
 
+## Gövdeye bağlı bir noktanın (gövdeye göre yerel, m) dünyadaki yeri: araba yatınca, dönünce,
+## burnu kalkınca nokta da onunla döner (iz bunun için arka lambalara bağlı kalır)
+func body_point(local: Vector3, interpolated := false) -> Vector3:
+	var p: Vector3 = _body.global_transform * local
+	if interpolated:
+		p += get_global_transform_interpolated().origin - global_position
+	return p
+
+
 ## Kanat ucunun (firar köşesi) dünyadaki yeri: kanatla birlikte yatar, döner, açılır/kapanır.
 ## interpolated: çizim karesinde (fizik adımları arasında yumuşak) arabanın konumuna göre
 func wing_tip(side: float, interpolated := false) -> Vector3:

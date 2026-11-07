@@ -66,7 +66,9 @@ func _ready() -> void:
 	car = get_parent()
 	var light := Color(Palette.ENERGY, 0.95)
 	for x in [-0.55, 0.55]:
-		_ribbons.append(_make_ribbon(1, Vector3(x, 0.55, 1.75), 0.16, light))
+		var lt := _make_ribbon(1, Vector3(x, 0.55, 1.75), 0.16, light)
+		lt.body = true  # arka lambalara bağlı: gövdeyle yatar ve döner (Car.body_point)
+		_ribbons.append(lt)
 	_ribbons.append(_make_ribbon(3, Vector3(0, 0.06, 1.5), 1.7, Color(Palette.SNOW, 0.5)))
 	for side in [-1.0, 1.0]:
 		var w := _make_ribbon(0, Vector3.ZERO, WING_TRAIL_W, light)
@@ -163,7 +165,7 @@ func _physics_process(delta: float) -> void:
 			continue
 		var pts: Array = r.points
 		if emitting:
-			var p: Vector3 = car.global_position + r.offset
+			var p: Vector3 = car.body_point(r.offset) if r.get("body", false) else car.global_position + r.offset
 			if pts.is_empty() or pts[-1].p.distance_to(p) > 0.25:
 				pts.append({"p": p, "t": _time})
 		while not pts.is_empty() and _time - pts[0].t > l:
@@ -179,7 +181,8 @@ func _process(_delta: float) -> void:
 		if r.get("wing", false):
 			_draw_ribbon(r, car.wing_tip(r.side, true) if car.alive and _wing_trail_on() else Vector3.INF)
 		elif r.style == style:
-			_draw_ribbon(r, head + r.offset if car.alive else Vector3.INF)
+			var hp: Vector3 = car.body_point(r.offset, true) if r.get("body", false) else head + r.offset
+			_draw_ribbon(r, hp if car.alive else Vector3.INF)
 
 
 ## Kökteki parıltı: kanat ucunun gerisinde, iz başladığı yerde; boostta büyür ve hafifçe titrer
