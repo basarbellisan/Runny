@@ -156,6 +156,7 @@ func _ready() -> void:
 	lower.rock_hit.connect(_on_rock_hit)
 	lower.ghost_passed.connect(_on_ghost_passed)
 	lower.ghost_aim = _args.has("ghost_aim")
+	lower.use_debris = not _args.has("rocks")  # test: eski kayalar
 	lower.portal_entered.connect(_on_portal)
 	Tuning.register({"game": self, "car": car, "roads": roads, "lower": lower,
 		"camera": $Camera, "audio": Audio, "trail": car.trail, "speedo": hud.speedometer})
@@ -609,7 +610,7 @@ func _on_crystal() -> void:
 
 func _on_rock_hit() -> void:
 	if car.mode == Car.Mode.FLYING:
-		car.crash("HIT A ROCK!")
+		car.crash("HIT DEBRIS!" if lower.use_debris else "HIT A ROCK!")
 
 
 ## Hayalet içimizden geçti: enerjinin GHOST_DRAIN kadarını emer (çarpma yok)

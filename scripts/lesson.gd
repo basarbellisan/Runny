@@ -366,7 +366,7 @@ func _say_text() -> String:
 			if not _flew:
 				return "Road ends: keep going, wings open"
 			if done < 2:
-				return "Rock ahead: hold TWO fingers to climb"
+				return ("Debris ahead" if game.lower.use_debris else "Rock ahead") + ": hold TWO fingers to climb"
 			return "Steer into the orange tunnel"
 	return ""
 
