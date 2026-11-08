@@ -36,6 +36,7 @@ common/physics_interpolation=true
 [rendering]
 
 renderer/rendering_method="mobile"
+environment/defaults/default_clear_color=Color(0.94902, 0.941176, 0.921569, 1)
 textures/vram_compression/import_etc2_astc=true
 
 [shader_globals]
