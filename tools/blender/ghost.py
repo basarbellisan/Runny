@@ -113,14 +113,14 @@ def build():
             f = bm.faces.new((grid[j][i], grid[j][i2], grid[j + 1][i2], grid[j + 1][i]))
             f.material_index = 1 if phi_of(j + 1) <= face_phi + 1e-6 else 0
             for loop, (ii, jj) in zip(f.loops, ((i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1))):
-                loop[uv].uv = (ii / SEG, lens[jj] / total)
+                loop[uv].uv = (ii / SEG, gv(lens[jj] / total))
     for i in range(SEG):
         i2 = (i + 1) % SEG
         f = bm.faces.new((grid[-1][i], grid[-1][i2], pole))
         f.material_index = 1
         for loop, (u, v) in zip(f.loops, ((i / SEG, lens[-2] / total), ((i + 1) / SEG, lens[-2] / total),
                                           ((i + 0.5) / SEG, 1.0))):
-            loop[uv].uv = (u, v)
+            loop[uv].uv = (u, gv(v))
 
     # Gözler: tepeden bakınca dikey hap (uzun ekseni Y), kubbenin yüzeyine oturur, biraz önde
     for side in (-1.0, 1.0):
@@ -149,7 +149,7 @@ def build():
         for f in bm.faces:
             if f.material_index == 2:
                 for loop in f.loops:
-                    loop[uv].uv = (0.5, 1.0)
+                    loop[uv].uv = (0.5, gv(1.0))
 
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     # Orijin gövdenin ortası
@@ -165,6 +165,11 @@ def build():
     for name in ("Body", "Face", "Eye"):
         me.materials.append(material(name))
     return ob
+
+
+def gv(v):
+    """glTF dışa aktarımı UV'nin dikeyini çevirir (v -> 1 - v): oyunda UV.y = v olsun diye ters yazılır."""
+    return 1.0 - v
 
 
 def on_dome(x, y, lift=0.012):

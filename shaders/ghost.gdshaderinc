@@ -34,6 +34,12 @@ uniform vec4 hood_color : source_color = vec4(0.16, 0.08, 0.22, 1.0);
 uniform float holo = 0.0;
 // Yüzün (gözlerin) baktığı açı (turun kesri; 0 ön): öne yatırılmış hayalette yukarıya bakan taraf
 uniform float face_angle = 0.0;
+// Dalganın etekten yukarı sönme hızı (büyüdükçe yalnız etek dalgalanır, yanlar düz kalır)
+uniform float wave_power = 2.0;
+// Yüksekliğe göre saydamlık: >0 ise opaklık etek ucunda alpha_bottom, tepede alpha_top
+uniform float alpha_by_height = 0.0;
+uniform float alpha_bottom = 0.5;
+uniform float alpha_top = 1.0;
 
 varying float v_h;
 varying float v_da;
@@ -45,7 +51,7 @@ float hash(float n) {
 void vertex() {
 	float a = UV.x * 6.28318;
 	float h = UV.y;
-	float k = pow(1.0 - h, 2.0);
+	float k = pow(1.0 - h, wave_power);
 	float tt = t * wave_speed + phase;
 	vec2 rad = length(VERTEX.xz) > 0.001 ? normalize(VERTEX.xz) : vec2(0.0);
 	// Etek: yukarı-aşağı ve içe-dışa dalga (dilimler dolaşır)
@@ -83,8 +89,13 @@ void fragment() {
 	}
 	float fres = pow(1.0 - abs(dot(NORMAL, VIEW)), 2.0);
 	float a = mix(alpha_center, alpha_edge, fres);
-	// Etek ucuna doğru incelir (kumaşın ucu saydamlaşır)
-	a *= smoothstep(0.0, 0.18, h + 0.04);
+	if (alpha_by_height > 0.0) {
+		// Tepede (yüz) opak, etek ucuna doğru yumuşakça saydamlaşır
+		a = mix(alpha_bottom, alpha_top, smoothstep(0.0, 1.0, h));
+	} else {
+		// Etek ucuna doğru incelir (kumaşın ucu saydamlaşır)
+		a *= smoothstep(0.0, 0.18, h + 0.04);
+	}
 	vec3 col = color.rgb;
 	vec3 em = color.rgb * glow + rim_color.rgb * fres * 0.35;
 	float front = FRONT_FACING ? 1.0 : 0.0;

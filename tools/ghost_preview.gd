@@ -7,6 +7,9 @@ extends SceneTree
 var _out := "user://"
 var _alpha := Vector2(0.7, 0.95)
 var _frames := 72
+## Yandan yakın çekim: hayalet yerinde (uçuş duruşunda), dalgalanma görünsün
+var _side := false
+var _amp := 0.22
 
 
 func _initialize() -> void:
@@ -18,6 +21,10 @@ func _initialize() -> void:
 			_alpha = Vector2(float(v[0]), float(v[1]))
 		elif a.begins_with("--frames="):
 			_frames = int(a.trim_prefix("--frames="))
+		elif a == "--side":
+			_side = true
+		elif a.begins_with("--amp="):
+			_amp = float(a.trim_prefix("--amp="))
 	_shoot.call_deferred()
 
 
@@ -57,11 +64,16 @@ func _shoot() -> void:
 	cam.fov = 62
 	world.add_child(cam)
 	cam.look_at_from_position(Vector3(0, 6, 10), Vector3(0, 1.0, -22))
+	if _side:
+		cam.fov = 40
+		cam.look_at_from_position(Vector3(11.0, 1.2, 0.0), Vector3(0, 0.3, 0.0))
 	# Hayaletler: farklı uzaklıklardan bize doğru, farklı hızlarda
 	var scene: PackedScene = load("res://models/ghosts/ghost.glb")
 	var mats: Array[ShaderMaterial] = []
 	var ghosts: Array = []
 	var starts := [Vector3(-2.5, 1.5, -70), Vector3(4.5, 3.5, -110), Vector3(-6.0, 0.5, -150)]
+	if _side:
+		starts = [Vector3(0, 0, 0)]
 	for p: Vector3 in starts:
 		var g: Node3D = scene.instantiate()
 		world.add_child(g)
@@ -80,7 +92,8 @@ func _shoot() -> void:
 			m.set_shader_parameter("t", t)
 		for k in ghosts.size():
 			var g: Node3D = ghosts[k]
-			g.position.z = starts[k].z + t * 38.0
+			if not _side:
+				g.position.z = starts[k].z + t * 38.0
 			g.position.y = starts[k].y + 0.25 * sin(t * 2.2 + k)
 		await process_frame
 		await RenderingServer.frame_post_draw
@@ -96,12 +109,15 @@ func _body_mat(mats: Array[ShaderMaterial]) -> ShaderMaterial:
 	for m: ShaderMaterial in [front, back]:
 		m.set_shader_parameter("color", Color("f7f4ff"))
 		m.set_shader_parameter("glow", 1.0)
-		m.set_shader_parameter("alpha_center", _alpha.x)
-		m.set_shader_parameter("alpha_edge", _alpha.y)
+		# Tepede (yüz) opak, etek ucunda alpha.x
+		m.set_shader_parameter("alpha_by_height", 1.0)
+		m.set_shader_parameter("alpha_bottom", _alpha.x)
+		m.set_shader_parameter("alpha_top", _alpha.y)
+		m.set_shader_parameter("wave_power", 4.0)
 		m.set_shader_parameter("eyes", 0.0)
 		m.set_shader_parameter("hem", 0)
 		m.set_shader_parameter("scallops", 8.0)
-		m.set_shader_parameter("wave_amp", 0.12)
+		m.set_shader_parameter("wave_amp", _amp)
 		m.set_shader_parameter("trail", 0.0)
 		mats.append(m)
 	back.next_pass = front
