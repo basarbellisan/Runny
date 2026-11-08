@@ -38,8 +38,6 @@ static func _mat(key: String) -> StandardMaterial3D:
 		"line":
 			m.albedo_color = Palette.line_for(sky.road_top)
 			m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		"rebar":
-			m.albedo_color = Color("2e2430")
 	_mats[key] = m
 	return m
 
@@ -139,7 +137,6 @@ static func _slab(rng: RandomNumberGenerator, L: float, W: float, T: float, size
 	side_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var broken_st := SurfaceTool.new()
 	broken_st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var rebars: Array = []
 	var n := poly.size()
 	for i in n:
 		var a := poly[i]
@@ -152,13 +149,6 @@ static func _slab(rng: RandomNumberGenerator, L: float, W: float, T: float, size
 		var v3 := Vector3(a.x, bot_y, a.y)
 		for v in [v0, v2, v1, v0, v3, v2]:
 			tgt.add_vertex(v)
-		# İnşaat demiri: büyük kırık yüzlerden seyrek, dışarı taşan ince çubuk
-		if not intact and size >= Size.MEDIUM and a.distance_to(b) > 2.5 and rng.randf() < 0.3:
-			var mid := a.lerp(b, rng.randf_range(0.25, 0.75))
-			var out := (b - a).orthogonal().normalized()
-			if out.dot(mid) < 0.0:
-				out = -out
-			rebars.append([Vector3(mid.x, rng.randf_range(-0.2, 0.2) * T, mid.y), Vector3(out.x, rng.randf_range(-0.2, 0.2), out.y).normalized(), rng.randf_range(0.5, 1.2)])
 	for pair in [[side_st, "side"], [broken_st, "broken"]]:
 		var s: SurfaceTool = pair[0]
 		s.generate_normals()
@@ -168,17 +158,6 @@ static func _slab(rng: RandomNumberGenerator, L: float, W: float, T: float, size
 		_lines(mesh, poly, W, hl, top_y, style, z_off)
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
-	for rb: Array in rebars:
-		var rod := MeshInstance3D.new()
-		var bm := BoxMesh.new()
-		var len: float = rb[2]
-		bm.size = Vector3(0.07, 0.07, len)
-		rod.mesh = bm
-		rod.material_override = _mat("rebar")
-		var dir: Vector3 = rb[1]
-		rod.basis = Basis.looking_at(dir, Vector3.UP)
-		rod.position = (rb[0] as Vector3) + dir * len * 0.5
-		mi.add_child(rod)
 	return mi
 
 
