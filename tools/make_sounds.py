@@ -437,6 +437,28 @@ def sfx_drain():
     return room(fade(s, 0.005, 0.03), 0.1, 0.4)
 
 
+def sfx_debris():
+    """Küçük beton molozu kanada değip savruldu: kuru, hafif bir "tok" (kısa parlak çıtırtı +
+    oyuk gövde tınısı), ardından dönerek uzaklaşan birkaç minik kırıntı tıkırtısı. Yumuşak, kısa."""
+    d = 0.32
+    buf = np.zeros(n_of(d))
+    # Çıtırtı: dar bantlı gürültü, çok kısa
+    tick = filt(noise(0.018), lo=2200, hi=6500) * env(0.018, 0.0008, 0.012)
+    place(buf, tick, 0.0, 0.7)
+    # Oyuk gövde: iki yakın, hızla sönen alçak-orta ton (beton parçası)
+    lo = sine(glide(520, 380, 0.09, 0.6), 0.09)
+    hi = sine(glide(860, 640, 0.07, 0.6), 0.07)
+    body = lo.copy()
+    body[: len(hi)] += 0.45 * hi
+    body = body * env(0.09, 0.002, 0.035)
+    place(buf, body, 0.002, 0.55)
+    # Kırıntılar: giderek seyrelen, kısıklaşan minik tıkırtılar
+    for k, (t0, g) in enumerate([(0.05, 0.3), (0.09, 0.22), (0.14, 0.16), (0.2, 0.1), (0.26, 0.06)]):
+        c = filt(noise(0.008), lo=3000 - 300 * k, hi=8000 - 700 * k) * env(0.008, 0.0005, 0.005)
+        place(buf, c, t0 + rng.uniform(-0.01, 0.01), g, pan=rng.uniform(-0.3, 0.3))
+    return room(fade(buf, 0.0005, 0.03), 0.08, 0.35)
+
+
 def sfx_energy_low():
     buf = np.zeros(n_of(0.4))
     f = 880.0
@@ -760,7 +782,7 @@ def main():
         ("sfx_energy_low.wav", sfx_energy_low), ("sfx_game_over.wav", sfx_game_over),
         ("sfx_climb.wav", sfx_climb), ("sfx_boost.wav", sfx_boost), ("sfx_empty.wav", sfx_empty),
         ("sfx_hiss.wav", sfx_hiss), ("sfx_shatter.wav", sfx_shatter),
-        ("sfx_drain.wav", sfx_drain),
+        ("sfx_drain.wav", sfx_drain), ("sfx_debris.wav", sfx_debris),
         ("loop_engine.ogg", loop_engine), ("loop_road.ogg", loop_road), ("loop_wind.ogg", loop_wind),
         ("loop_plane.ogg", loop_plane), ("loop_climb.ogg", loop_climb), ("loop_tire.ogg", loop_tire),
         ("loop_gravel.ogg", loop_gravel),

@@ -1926,6 +1926,9 @@ func _set_wings(open: bool, instant := false) -> void:
 ## araba değişince renk de değişir). Sahnedeki eski düz kutu kanatların yerine kurulur.
 ## Kanat planı (yerel, m): kök x=0, uç x=±WING_LEN; z eksi ileri
 const WING_LEN := 3.0
+## Uçuşta kırık yol parçalarına çarpma kutuları bu katmanda: kanatlar (kanatla açılır, yatar,
+## eğilir) ve gövde. Parçalar bu katmanı izler (kayalar izlemez)
+const HIT_LAYER := 16
 const WING_ROOT := Vector2(-0.8, 0.85)   # kökte hücum (ön) ve firar (arka) kenarı z (en geniş hali)
 const WING_TAPER := 0.4                  # uç genişliği / kök genişliği
 const WING_THICK := Vector2(0.13, 0.035)  # kök ve uç kalınlığı
@@ -2031,6 +2034,18 @@ func _fit_wings() -> void:
 		var trim := holder.get_node("Trim") as MeshInstance3D
 		trim.mesh = _bars([[r_le, t_le], [t_le, t_te], [t_te, r_te]])
 		trim.visible = dark
+		# Çarpma kutusu: kanadın kendisi (kök kalınlığında, ince)
+		var pts := PackedVector3Array()
+		for p in [r_le, t_le, t_te, r_te]:
+			for h in [-0.1, 0.1]:
+				pts.append(p + Vector3(0, h, 0))
+		_hit_area(holder, "Hit").shape = _convex(pts)
+	# Gövde: modelin genişliği ve boyu, tekerden tavana
+	var body_box := BoxShape3D.new()
+	body_box.size = Vector3(model.half_width * 2.0, 1.15, half_length * 2.0)
+	var body_col := _hit_area(_body, "Hit")
+	body_col.shape = body_box
+	body_col.position = Vector3(0, 0.6, 0)
 
 
 ## Gövdenin arka yüzü (Body'ye göre z, artı = geri): (x, y) hizasında z boyunca giden çizginin
@@ -2215,3 +2230,24 @@ func _spawn_debris() -> void:
 	tw.tween_property(flash, "scale", Vector3.ONE * 7.0, 0.35).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
 	tw.tween_property(flash_mat, "albedo_color:a", 0.0, 0.35)
 	tw.tween_property(light, "light_energy", 0.0, 0.5)
+
+
+## Uçuş çarpma kutusu (yoksa kurar): parent'ın altında name adlı Area3D; şekli döndürür
+func _hit_area(parent: Node3D, area_name: String) -> CollisionShape3D:
+	var area := parent.get_node_or_null(area_name) as Area3D
+	if area == null:
+		area = Area3D.new()
+		area.name = area_name
+		area.collision_layer = HIT_LAYER
+		area.collision_mask = 0
+		area.monitoring = false
+		area.set_meta("car_hit", true)
+		parent.add_child(area)
+		area.add_child(CollisionShape3D.new())
+	return area.get_child(0) as CollisionShape3D
+
+
+func _convex(pts: PackedVector3Array) -> ConvexPolygonShape3D:
+	var sh := ConvexPolygonShape3D.new()
+	sh.points = pts
+	return sh

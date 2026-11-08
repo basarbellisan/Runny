@@ -441,8 +441,8 @@ func _on_landed(air_time: float, quality: float, impact: float) -> void:
 	if shake > 0.08:
 		$Camera.shake(shake)
 	if lower.active:
-		# Alt katmandan yola döndük
-		lower.deactivate()
+		# Alt katmandan yola döndük: kalan enkaz birden silinmez, geride kaldıkça gider
+		lower.retire()
 		Audio.play("return")
 		Audio.touchdown(1.3)
 		_stats.returns += 1

@@ -75,6 +75,10 @@ var scripted := false
 var _time := 0.0
 ## Uçuşa geçilen z (alt katman açıldığında)
 var _start_z := 0.0
+## Yola dönüldü, kalan enkaz geride kalana dek yaşar (retire)
+var _lingering := false
+## Üretilen parça boyunun portal sınırı (parçalar bunun önüne taşmaz)
+var _chunk_stop := -INF
 var _next_comet := 0.0
 var _comet_mat := StandardMaterial3D.new()
 ## Hayaletler: { node, v } (kaya değil: kaya kuralları ve otomatik pilotun kaçışı onları saymaz)
@@ -113,8 +117,11 @@ var _warm: Node3D
 var _warm_frames := 0
 ## Molozun arabaya değdiği kutu (yarı genişlik): x kanatlar, y gövde, z araba boyu
 const RUBBLE_REACH := Vector3(3.6, 1.3, 2.6)
-## Savrulan molozun çarpmadan aldığı hızın payı (0 yapışır, 1 tam esnek sekme)
-const RUBBLE_BOUNCE := 0.25
+## Savrulan moloz: yana itilme hızı (m/s), arabanın hızından aldığı pay, hız sönümü (1/sn)
+const RUBBLE_SIDE := Vector2(5.0, 10.0)
+const RUBBLE_CARRY := 0.35
+const RUBBLE_DRAG := 0.6
+var _last_rubble_sfx := 0
 var _crystal_mesh: Mesh
 var _rock_mats: Array[StandardMaterial3D] = []
 var _crystal_mat := StandardMaterial3D.new()
@@ -202,6 +209,9 @@ func setup(p_car: Car, p_roads: RoadGenerator, seed_value := -1) -> void:
 func activate() -> void:
 	if active:
 		return
+	var prev_row := _next_row_z
+	var lingered := _lingering
+	_lingering = false
 	active = true
 	while use_debris and not pool_step():
 		pass
@@ -210,10 +220,26 @@ func activate() -> void:
 	var z := car.global_position.z
 	_start_z = z
 	_next_row_z = z - 70.0
+	# Önceki uçuştan kalan enkaz hâlâ öndeyse üretim onun bittiği yerden sürer (üst üste binmesin)
+	if lingered:
+		_next_row_z = minf(_next_row_z, prev_row)
 	_next_portal = _plan_portal(z - car.speed * _rng.randf_range(first_portal_time.x, first_portal_time.y))
 
 
+## Yola dönünce: yeni engel üretmez ama mevcutlar birden silinmez; dönmeye devam eder, araba
+## geçtikçe geride kalanlar silinir (aşağıda kalan enkaz yumuşakça sisin içinde kalır). Kalan
+## portallar artık çalışmaz
+func retire() -> void:
+	if not active:
+		return
+	active = false
+	_lingering = true
+	portals.clear()
+	_next_portal = null
+
+
 func deactivate() -> void:
+	_lingering = false
 	active = false
 	for n in _items:
 		if is_instance_valid(n):
@@ -237,6 +263,10 @@ var perf_us := {"update": 0, "rubble": 0, "max": 0}
 
 func update(delta: float) -> void:
 	if not active:
+		if _lingering:
+			_update_inner(delta, false)
+			if _items.is_empty():
+				deactivate()
 		return
 	var _t0 := Time.get_ticks_usec()
 	_update_inner(delta)
@@ -245,10 +275,10 @@ func update(delta: float) -> void:
 	perf_us.max = maxi(perf_us.max, _dt)
 
 
-func _update_inner(delta: float) -> void:
+func _update_inner(delta: float, spawn := true) -> void:
 	var z := car.global_position.z
 	_time += delta
-	while _next_row_z > z - fill_distance:
+	while spawn and _next_row_z > z - fill_distance:
 		# Portalın önünde kısa bir kayasız yaklaşma payı (tünelin ağzına hizalanmak için)
 		if _next_portal and _next_row_z <= _next_portal.z + 35.0:
 			_spawn_portal(_next_portal)
@@ -266,7 +296,7 @@ func _update_inner(delta: float) -> void:
 		if use_debris and _next_row_z < z - 250.0:
 			break
 	# Kuyruklu kayalar: uzaktan parlayarak bize doğru gelir
-	if _time >= _next_comet and not scripted:
+	if spawn and _time >= _next_comet and not scripted:
 		_next_comet = _time + _rng.randf_range(comet_interval.x, comet_interval.y)
 		if comets_are_ghosts:
 			_spawn_ghost()
@@ -426,6 +456,7 @@ func _spawn_chunk(z: float, stop_z: float) -> float:
 	var dens := lerpf(rock_density.x, rock_density.y, clampf(_time / maxf(density_time, 0.1), 0.0, 1.0))
 	var n := roundi(dens * (z - z_end) / 100.0 * _rng.randf_range(0.7, 1.3))
 	if use_debris:
+		_chunk_stop = stop_z
 		_spawn_debris_chunk(z, z_end, roundi(n * debris_amount))
 		_spawn_decor(roads.path_x_at(z), (z + z_end) * 0.5)
 		return z_end
@@ -757,7 +788,7 @@ func _spawn_portal(p: Portal) -> void:
 	col.rotation.x = PI * 0.5
 	root.add_child(col)
 	root.body_entered.connect(func(body):
-		if body == car:
+		if body == car and portals.has(p):
 			portal_entered.emit(p))
 
 	p.node = root
@@ -901,8 +932,8 @@ static func _build_next_debris() -> void:
 
 
 ## Parçanın tüm yüzeyleri tek örgüde (renkler köşe renginde): gölgeli ve gölgesiz (şerit çizgisi)
-## iki yüzey, az çizim. Çarpışma: her yarı boyuna ~6 m'lik bantlara bölünür, her bant dış bükey
-## (bükülmüş ya da yokuşlu parçada boşluğu doldurmasın); biraz içeri çekilir (sıyırınca affeder)
+## iki yüzey, az çizim. Çarpışma görünen biçimin aynısı: düz parça tek dış bükey, biçimli parça
+## boyuna bantlar (yokuşta, eğimde boşluğu doldurmasın)
 static func _bake_debris(root: Node3D, with_hulls: bool, banded := false) -> Dictionary:
 	var lit_v := PackedVector3Array()
 	var lit_n := PackedVector3Array()
@@ -921,7 +952,9 @@ static func _bake_debris(root: Node3D, with_hulls: bool, banded := false) -> Dic
 		var local_box := mi.mesh.get_aabb()
 		box = xf * local_box if first else box.merge(xf * local_box)
 		first = false
-		var bands := maxi(1, ceili(local_box.size.z / 6.0)) if banded else 1
+		# Düz parça tek dış bükey (kesikler dış bükeyliği bozmaz: görünen biçimin aynısı); biçimli
+		# parça boyuna 3 m'lik bantlar (kıvrımı izler)
+		var bands := maxi(1, ceili(local_box.size.z / 3.0)) if banded else 1
 		var band_len := maxf(local_box.size.z / bands, 0.01)
 		var band_pts: Array = []
 		for b in bands:
@@ -974,8 +1007,6 @@ static func _bake_debris(root: Node3D, with_hulls: bool, banded := false) -> Dic
 			for p in pts:
 				c += p
 			c /= pts.size()
-			for i in pts.size():
-				pts[i] = c + (pts[i] - c) * 0.92
 			# Şekil bir kez kurulur, tüm kopyalar paylaşır (her parçada yeniden hesaplanmasın)
 			var sh := ConvexPolygonShape3D.new()
 			sh.points = pts
@@ -1074,6 +1105,10 @@ func _place_debris(proto: Dictionary, place: Dictionary, check := true, merge :=
 func _debris_fits(blobs: Array, merge: bool) -> bool:
 	var span: float = car.wing_half_span * 2.0 + 0.6
 	var fy := car.flight_altitude
+	# Portalın önündeki yaklaşma payına taşmasın (büyük parça da)
+	for b: Dictionary in blobs:
+		if b.z - b.rad < _chunk_stop + 5.0:
+			return false
 	# Yalnız yakındakiler (boyuna): tüm listeyi her yuvar için dolaşmasın
 	var z_lo := INF
 	var z_hi := -INF
@@ -1133,7 +1168,13 @@ func _spawn_debris(proto: Dictionary, pos: Vector3, base: Basis, axis: Vector3, 
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	node.add_child(mi)
 	if collide:
-		(node as Area3D).monitorable = false
+		var area := node as Area3D
+		area.monitorable = false
+		# Gövde (araba cismi) ve kanat/gövde çarpma kutuları (Car.HIT_LAYER)
+		area.collision_mask = 1 | Car.HIT_LAYER
+		area.area_entered.connect(func(other: Area3D):
+			if other.has_meta("car_hit"):
+				rock_hit.emit())
 		for sh: Shape3D in proto.hulls:
 			var col := CollisionShape3D.new()
 			col.shape = sh
@@ -1237,6 +1278,10 @@ func _update_rubble(delta: float) -> void:
 	for r: Dictionary in _rubble:
 		r.p += r.v * delta
 		r.a += r.ws * delta
+		if r.hit:
+			# Savrulan moloz: hızı ve dönüşü yavaşça söner (yumuşak süzülme)
+			r.v = (r.v as Vector3) * exp(-RUBBLE_DRAG * delta)
+			r.ws = lerpf(r.ws, signf(r.ws) * 1.2, 1.0 - exp(-0.7 * delta))
 		if r.p.z > cp.z + 30.0 or r.p.z < cp.z - 900.0:
 			continue
 		if cp.z - r.p.z > debris_view - 40.0:
@@ -1259,14 +1304,22 @@ func _update_rubble(delta: float) -> void:
 
 func _kick_rubble(r: Dictionary, d: Vector3) -> void:
 	r.hit = true
-	# Çarpma yönü: arabanın kutusuna göre (burundaki moloz ileri, kanat ucundaki yana-ileri)
-	var n := Vector3(d.x / RUBBLE_REACH.x, d.y / RUBBLE_REACH.y, -maxf(absf(d.z) / RUBBLE_REACH.z, 0.35)).normalized()
-	var push := (1.0 + RUBBLE_BOUNCE) * maxf((car.velocity - (r.v as Vector3)).dot(n), 0.0)
-	r.v = (r.v as Vector3) + n * push + _rand_axis() * 1.5
+	# Kenara itilir: değdiği yanın dışına (kanat ucundaki daha çok yana, ortadaki az yana, biraz
+	# yukarı-aşağı), arabanın hızının bir kısmını alıp kısa süre onunla gider, sonra geride kalır
+	var sx := signf(d.x) if absf(d.x) > 0.05 else _rand_sign()
+	var side := Vector3(sx * (0.5 + absf(d.x) / RUBBLE_REACH.x), clampf(d.y / RUBBLE_REACH.y, -1.0, 1.0) * 0.6 + 0.25, 0.0).normalized()
+	r.v = (r.v as Vector3) + side * _rng.randf_range(RUBBLE_SIDE.x, RUBBLE_SIDE.y) + car.velocity * RUBBLE_CARRY
+	# Dönüşü hızlanır (sonra yavaşça söner)
 	r.b = Basis(r.w, r.a) * r.b
 	r.a = 0.0
 	r.w = _rand_axis()
-	r.ws = _rng.randf_range(3.0, 9.0) * _rand_sign()
+	r.ws = _rng.randf_range(8.0, 15.0) * _rand_sign()
+	var now := Time.get_ticks_msec()
+	if OS.get_cmdline_user_args().has("--lowerperf"):
+		print("KICK v=%v" % r.v)
+	if now - _last_rubble_sfx > 70:
+		_last_rubble_sfx = now
+		Audio.play("debris", _rng.randf_range(-9.0, -5.0), _rng.randf_range(0.85, 1.2))
 
 
 func _prewarm() -> void:
