@@ -68,6 +68,10 @@ var _rng: RandomNumberGenerator
 var _nodes: Array[Node3D] = []
 ## Ölçüm (test): moloz süresi (µs, toplam)
 var perf_rubble_us := 0
+## Araba parçalandı: parçalar katı (küpler seker)
+var _solid := false
+## Katılaşan parçaların uzaklığı (çarpma yerinin önünde, m): küpler bu kadar ileri gidebilir
+const SOLID_AHEAD := 200.0
 
 
 func setup(p_layer: LowerLayer, rng: RandomNumberGenerator) -> void:
@@ -177,6 +181,44 @@ func clear_zone(x: float, z_near: float, z_far: float, half_w: float) -> void:
 		if o.has("rad") and o.z - o.rad < z_near and o.z + o.rad > z_far and absf(o.x - x) < o.rad + half_w:
 			if is_instance_valid(o.node):
 				o.node.queue_free()
+
+
+## Araba parçalandı: kırık yol parçaları küplerin çarpıp sekebileceği katı cisim olur (kendi
+## şekilleriyle, dönerken de). skip/radius: çarpılan parça bu kadar yakınsa şimdilik atlanır (küpler
+## içinde doğmasın; az sonra yeniden çağrılınca o da katılaşır). Bundan sonra kurulanlar da katı
+func make_solid(skip: Vector3 = Vector3.INF, radius := 0.0) -> void:
+	_solid = true
+	var z := car.global_position.z
+	for d in _debris:
+		var node: Node3D = d.node
+		if not is_instance_valid(node) or not (node is Area3D) or node.has_node("Solid"):
+			continue
+		# Yalnız küplerin gidebileceği yerdekiler (dönen katı cisim fizikte pahalı)
+		if node.position.z > z + 20.0 or node.position.z < z - SOLID_AHEAD:
+			continue
+		if skip != Vector3.INF and _near(node, skip, radius):
+			continue
+		_add_solid(node, d.proto)
+
+
+## Parçanın kapladığı yer (yuvarları) p'ye margin kadar yakın mı
+func _near(node: Node3D, p: Vector3, margin: float) -> bool:
+	for o in layer.rocks:
+		if o.get("node") == node and Vector3(o.x, o.y, o.z).distance_to(p) < float(o.get("rad", 0.0)) + margin:
+			return true
+	return false
+
+
+func _add_solid(node: Node3D, proto: Dictionary) -> void:
+	var body := AnimatableBody3D.new()
+	body.name = "Solid"
+	body.collision_layer = Car.SOLID_LAYER
+	body.collision_mask = 0
+	for sh: Shape3D in proto.hulls:
+		var col := CollisionShape3D.new()
+		col.shape = sh
+		body.add_child(col)
+	node.add_child(body)
 
 
 func rubble_count() -> int:
@@ -550,7 +592,9 @@ func _spawn_debris(proto: Dictionary, pos: Vector3, base: Basis, axis: Vector3, 
 			if body == car:
 				hit.emit())
 	_nodes.append(node)
-	_debris.append({"node": node, "axis": axis, "spin": spin, "base": base, "a": 0.0, "s": scale_by})
+	_debris.append({"node": node, "axis": axis, "spin": spin, "base": base, "a": 0.0, "s": scale_by, "proto": proto})
+	if _solid and collide and car.global_position.z - pos.z < SOLID_AHEAD:
+		_add_solid(node, proto)
 	return node
 
 

@@ -535,6 +535,15 @@ func _on_boost_empty() -> void:
 
 
 func _on_exploded() -> void:
+	# Uçarken çarpma: iri küplere ayrılma (kendi sesi); kırık yol parçaları katılaşır, küpler seker
+	if car.smashing:
+		Audio.play("smash")
+		if lower.use_debris:
+			# Çarpılan parça küpler geçene kadar katı değil (ileri saçılsınlar, içinde doğmasınlar)
+			lower.field.make_solid(car.global_position, 5.0)
+			get_tree().create_timer(1.0).timeout.connect(func(): lower.field.make_solid())
+		$Camera.shake(0.3)
+		return
 	# Işık bariyerinde parçalanma: "tıss"; diğer çarpmalarda tok patlama
 	if car.shattering:
 		Audio.play("shatter")
@@ -690,7 +699,8 @@ func _on_game_over(reason: String) -> void:
 	# göğe dönüş denemesi: follow_camera.look_sky)
 	# Işık bariyerinde parçalanma: bulut biraz süzülsün, sonra oyun sonu
 	# (ışık bariyerinde kamera düz gider, sonra yavaşlayarak akmaya devam eder)
-	var wait := 2.0 if car.shattering else 1.0
+	# Uçarken parçalanma uzun sürer (küpler saçılıp seksin, görülsün)
+	var wait := 3.5 if car.smashing else (2.0 if car.shattering else 1.0)
 	var real := car.shattering
 	get_tree().create_timer(wait, true, false, real).timeout.connect(hud.show_game_over.bind(reason, final, best, _start_z - car.global_position.z))
 	get_tree().create_timer(wait, true, false, real).timeout.connect(Audio.play.bind("game_over"))

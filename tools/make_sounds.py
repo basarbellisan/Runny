@@ -459,6 +459,44 @@ def sfx_debris():
     return room(fade(buf, 0.0005, 0.03), 0.08, 0.35)
 
 
+def sfx_smash():
+    """Uçarken kırık yola çarpıp iri parçalara ayrılma: tok, ağır bir darbe (alçak gümbürtü),
+    ezilen metal/plastik çatırtısı (kırık kırık gürültü), ardından ileri saçılan parçaların
+    seyrelen, uzaklaşan tıkırtıları ve kısa bir hava süpürmesi. Patlama ve "tıss"tan farklı:
+    ateş yok, ezilme ve dağılma var."""
+    d = 1.9
+    buf = np.zeros(n_of(d))
+    # Darbe: alçak gümbürtü (aşağı kayan) + kısa boğuk gürültü
+    thump = sine(glide(95, 38, 0.45, 0.5), 0.45) * env(0.45, 0.003, 0.22)
+    place(buf, thump, 0.0, 0.9)
+    hit = filt(noise(0.12), lo=80, hi=900) * env(0.12, 0.001, 0.06)
+    place(buf, hit, 0.0, 0.8)
+    # Ezilme: kırık kırık, çatırdayan orta-tiz gürültü (genlik titrek), 0.35 sn
+    t = np.arange(n_of(0.35)) / SR
+    crack = filt(noise(0.35), lo=700, hi=5200)
+    jag = (rng.random(len(t)) > 0.86).astype(float)
+    jag = np.convolve(jag, np.ones(int(SR * 0.004)) / (SR * 0.004), mode="same")
+    crunch = crack * (0.35 + 1.4 * jag) * np.exp(-t / 0.12)
+    place(buf, crunch, 0.005, 0.55)
+    # Metalik çınlama: birkaç uyumsuz, hızla sönen kısmi
+    for f, g in [(1310, 0.12), (1870, 0.09), (2630, 0.06)]:
+        ring = sine(f, 0.5) * env(0.5, 0.002, 0.11)
+        place(buf, ring, 0.01, g)
+    # Saçılan parçalar: seyrelen, kısıklaşan, iki yana dağılan tıkırtılar
+    k = 0
+    tt = 0.12
+    while tt < d - 0.1:
+        g = 0.32 * np.exp(-tt / 0.55)
+        c = filt(noise(0.01), lo=1800 - min(k * 40, 1200), hi=7000 - min(k * 150, 4500)) * env(0.01, 0.0005, 0.006)
+        place(buf, c, tt, g, pan=rng.uniform(-0.6, 0.6))
+        tt += rng.uniform(0.02, 0.07) * (1.0 + tt * 1.5)
+        k += 1
+    # Hava süpürmesi: parçalar ileri fırlarken
+    sw = filt(noise(0.6), lo=400, hi=2500) * env(0.6, 0.05, 0.3) * 0.25
+    place(buf, sw, 0.03, 1.0)
+    return room(fade(buf, 0.0005, 0.08), 0.14, 0.7)
+
+
 def sfx_energy_low():
     buf = np.zeros(n_of(0.4))
     f = 880.0
@@ -783,6 +821,7 @@ def main():
         ("sfx_climb.wav", sfx_climb), ("sfx_boost.wav", sfx_boost), ("sfx_empty.wav", sfx_empty),
         ("sfx_hiss.wav", sfx_hiss), ("sfx_shatter.wav", sfx_shatter),
         ("sfx_drain.wav", sfx_drain), ("sfx_debris.wav", sfx_debris),
+        ("sfx_smash.wav", sfx_smash),
         ("loop_engine.ogg", loop_engine), ("loop_road.ogg", loop_road), ("loop_wind.ogg", loop_wind),
         ("loop_plane.ogg", loop_plane), ("loop_climb.ogg", loop_climb), ("loop_tire.ogg", loop_tire),
         ("loop_gravel.ogg", loop_gravel),

@@ -23,6 +23,7 @@ const SFX := {
 	"shatter": preload("res://audio/sfx_shatter.wav"),
 	"drain": preload("res://audio/sfx_drain.wav"),
 	"debris": preload("res://audio/sfx_debris.wav"),
+	"smash": preload("res://audio/sfx_smash.wav"),
 }
 ## Art arda toplanan kristaller minör pentatonik dizide yükselir
 const CRYSTAL_STEPS := [1.0, 1.2, 1.335, 1.498, 1.782, 2.0]

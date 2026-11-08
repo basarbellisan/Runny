@@ -302,6 +302,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _trace_phys and Engine.get_physics_frames() % 30 == 0:
+		print("PHYS mode=%d physics_ms=%.2f" % [mode, Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0])
 	if mode == Mode.DEAD:
 		_dead_motion(delta)
 		return
@@ -636,6 +638,19 @@ func _prewarm_shaders() -> void:
 	vox.top_level = true
 	holder.add_child(vox)
 	vox.global_transform = Transform3D.IDENTITY
+	# Uçarken parçalanmanın iri küpleri (renkli çoklu örnek, gölgeli)
+	var smm := MultiMesh.new()
+	smm.transform_format = MultiMesh.TRANSFORM_3D
+	smm.use_colors = true
+	var sbox := BoxMesh.new()
+	sbox.size = Vector3.ONE
+	sbox.material = _smash_material()
+	smm.mesh = sbox
+	smm.instance_count = 1
+	smm.set_instance_transform(0, Transform3D())
+	var smi := MultiMeshInstance3D.new()
+	smi.multimesh = smm
+	holder.add_child(smi)
 	for i in 3:
 		await get_tree().process_frame
 	holder.queue_free()
@@ -982,6 +997,8 @@ func _update_shards(delta: float) -> void:
 
 ## Ekrana çizilen an: fizik adımları arası (interpolasyon) dahil, araba gövdesiyle aynı zaman
 func _process(_delta: float) -> void:
+	if smashing:
+		_draw_smash()
 	if _shards == null:
 		return
 	var tick := 1.0 / Engine.physics_ticks_per_second
@@ -1038,6 +1055,10 @@ func _update_scan() -> void:
 
 func crash(reason: String) -> void:
 	if mode == Mode.DEAD:
+		return
+	# Uçarken çarpma: iri küplere ve kanat parçalarına ayrılır (gerçek fizikle saçılır)
+	if mode == Mode.FLYING and smash_enabled:
+		smash(reason)
 		return
 	if OS.get_cmdline_user_args().has("--trace"):
 		print("EXPLODE %s x=%.2f z=%.2f" % [reason, global_position.x, global_position.z])
@@ -1348,6 +1369,9 @@ func _die(reason: String) -> void:
 
 
 func _dead_motion(delta: float) -> void:
+	if smashing:
+		_smash_motion(delta)
+		return
 	if shattering:
 		if _shards:
 			_update_shards(delta)
@@ -2251,3 +2275,235 @@ func _convex(pts: PackedVector3Array) -> ConvexPolygonShape3D:
 	var sh := ConvexPolygonShape3D.new()
 	sh.points = pts
 	return sh
+
+
+# --- Uçarken çarpma: iri küplerle gerçek fizikli saçılma --------------------------------------
+
+## Uçarken (kırık yol parçasına, yola) çarpınca: araba ve kanatlar iri küplere ayrılır, her küp
+## gerçek bir fizik cismi (gölgeli); bulut ileri saçılır, yollardan ve kırık parçalardan seker.
+## Kamera durmaz, bulutu izler (shattering ile aynı akış). false: eski patlama
+static var smash_enabled := true
+## Test (--physperf): fizik adımı süresi günlüğü
+var _trace_phys := OS.get_cmdline_user_args().has("--physperf")
+var smashing := false
+var _smash_bodies: Array[RigidBody3D] = []
+var _smash_mm: MultiMeshInstance3D
+var _smash_sizes := PackedVector3Array()
+var _smash_time := 0.0
+var _smash_tick_ms := 0
+## Küp sayısı aralığı (araba başına küp boyu buna göre ayarlanır; ışık bariyerinden iri)
+const SMASH_COUNT := Vector2i(45, 65)
+## Küpler: yerçekimi payı (havada uzun süzülsün), hız ve dönüş sönümü, sekme, sürtünme
+const SMASH_GRAVITY := 0.35
+const SMASH_DAMP := Vector2(0.12, 0.25)
+const SMASH_BOUNCE := 0.5
+const SMASH_FRICTION := 0.4
+## Küplerin çarptığı kırık yol parçalarının katmanı (DebrisField.make_solid)
+const SOLID_LAYER := 64
+static var _smash_cache := {}
+static var _smash_mat: StandardMaterial3D
+static var _smash_phys: PhysicsMaterial
+
+
+func smash(reason: String) -> void:
+	if mode == Mode.DEAD:
+		return
+	if OS.get_cmdline_user_args().has("--trace"):
+		print("SMASH %s x=%.2f z=%.2f frame=%d" % [reason, global_position.x, global_position.z, Engine.get_process_frames()])
+	var v0 := velocity
+	if v0.z > -5.0:
+		v0.z = -maxf(forward_speed, 5.0)
+	_shatter_v0 = v0
+	_spawn_smash(v0)
+	# Görünmez araba gövdesi küplere engel olmasın (kamera hedefi olarak bulutla gider)
+	collision_layer = 0
+	collision_mask = 0
+	_body.visible = false
+	smashing = true
+	shattering = true  # kamera akışı ve oyun sonu bekleyişi ışık bariyeriyle aynı
+	exploded.emit()
+	_die(reason)
+
+
+## İri küpler: arabanın (ve açık kanatların) yüzeyleri hücre ızgarasına oturtulur; küp boyu sayı
+## SMASH_COUNT aralığına girene kadar ayarlanır. [merkez (yerel), boyut, renk]
+func _smash_pieces() -> Array:
+	var key := "s" + _voxel_key()
+	if _smash_cache.has(key):
+		return _smash_cache[key]
+	var inv := _body.global_transform.affine_inverse()
+	var tris: Array = []
+	for mi in _body.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null or not m.is_visible_in_tree():
+			continue
+		var t := inv * m.global_transform
+		for si in m.mesh.get_surface_count():
+			var mat := m.material_override if m.material_override else m.get_active_material(si)
+			var col := Color(0.6, 0.6, 0.6)
+			if mat is BaseMaterial3D:
+				col = (mat as BaseMaterial3D).albedo_color
+			var arr := m.mesh.surface_get_arrays(si)
+			var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+			var n := idx.size() if idx.size() > 0 else vs.size()
+			for i in range(0, n - 2, 3):
+				tris.append([t * vs[idx[i] if idx.size() > 0 else i], t * vs[idx[i + 1] if idx.size() > 0 else i + 1],
+					t * vs[idx[i + 2] if idx.size() > 0 else i + 2], col])
+	var size := 0.45
+	var lo := 0.2
+	var hi := 1.2
+	var best := {}
+	var best_size := size
+	var best_err := INF
+	for attempt in 12:
+		var grid := _sample_grid(tris, Vector3.ONE * size)
+		var cnt := grid.size()
+		var err := maxf(SMASH_COUNT.x - cnt, cnt - SMASH_COUNT.y)
+		if err < best_err:
+			best_err = err
+			best = grid
+			best_size = size
+		if err <= 0.0:
+			break
+		if cnt < SMASH_COUNT.x:
+			hi = size
+		else:
+			lo = size
+		size = (lo + hi) * 0.5
+	var out: Array = []
+	for g: Vector3i in best:
+		out.append([(Vector3(g) + Vector3.ONE * 0.5) * best_size, Vector3.ONE * best_size * 0.94, best[g]])
+	_smash_cache[key] = out
+	return out
+
+
+static func _smash_material() -> StandardMaterial3D:
+	if _smash_mat == null:
+		_smash_mat = StandardMaterial3D.new()
+		_smash_mat.vertex_color_use_as_albedo = true
+		_smash_mat.vertex_color_is_srgb = true
+		_smash_mat.roughness = 0.75
+		_smash_phys = PhysicsMaterial.new()
+		_smash_phys.bounce = SMASH_BOUNCE
+		_smash_phys.friction = SMASH_FRICTION
+	return _smash_mat
+
+
+func _spawn_smash(v0: Vector3) -> void:
+	var pieces := _smash_pieces()
+	var n := pieces.size()
+	if n == 0:
+		return
+	_smash_material()
+	var bt := _body.global_transform.orthonormalized()
+	# Ayrı üreteç: oyunun (yol üretiminin) rastgele sırası bozulmasın
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11 + int(absf(global_position.z))
+	_smash_sizes.resize(n)
+	for i in n:
+		var pc: Array = pieces[i]
+		var p: Vector3 = pc[0]
+		var sz: Vector3 = pc[1]
+		var body := RigidBody3D.new()
+		# Hiçbir katmanda değil (alt katmanın çarpma alanları ve araba görmez); yalnız yolları ve
+		# kırık yol parçalarını (SOLID_LAYER) görür
+		body.collision_layer = 0
+		body.collision_mask = _default_mask | SOLID_LAYER
+		body.mass = maxf(sz.x * sz.y * sz.z * 40.0, 0.2)
+		body.gravity_scale = SMASH_GRAVITY
+		body.linear_damp = SMASH_DAMP.x
+		body.angular_damp = SMASH_DAMP.y
+		body.physics_material_override = _smash_phys
+		body.contact_monitor = true
+		body.max_contacts_reported = 1
+		var shape := BoxShape3D.new()
+		shape.size = sz
+		var col := CollisionShape3D.new()
+		col.shape = shape
+		body.add_child(col)
+		body.top_level = true
+		add_child(body)
+		body.global_transform = Transform3D(bt.basis, bt * p)
+		# İleri saçılma: her küp ileri hızın farklı bir kesrini korur (bulut yol boyunca uzar);
+		# arabanın merkezinden dışarı ve biraz yukarı itilir, hızla döner
+		var out := bt.basis * Vector3(p.x * rng.randf_range(0.6, 1.6) + rng.randf_range(-1.2, 1.2),
+			rng.randf_range(0.5, 4.0), rng.randf_range(-2.5, 2.5))
+		var keep := rng.randf_range(0.55, 1.0)
+		body.linear_velocity = Vector3(v0.x * keep, v0.y * keep, v0.z * keep) + out
+		body.angular_velocity = Vector3(rng.randf_range(-9, 9), rng.randf_range(-9, 9), rng.randf_range(-9, 9))
+		body.body_entered.connect(_on_smash_hit.bind(body))
+		_smash_bodies.append(body)
+		_smash_sizes[i] = sz
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	var box := BoxMesh.new()
+	box.size = Vector3.ONE
+	box.material = _smash_mat
+	mm.mesh = box
+	mm.instance_count = n
+	for i in n:
+		mm.set_instance_color(i, (pieces[i] as Array)[2])
+	_smash_mm = MultiMeshInstance3D.new()
+	_smash_mm.multimesh = mm
+	_smash_mm.top_level = true
+	_smash_mm.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	_smash_mm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	mm.custom_aabb = AABB(Vector3(-1e5, -1e5, -1e5), Vector3(2e5, 2e5, 2e5))
+	add_child(_smash_mm)
+	_smash_mm.global_transform = Transform3D.IDENTITY
+	_smash_time = 0.0
+	_draw_smash()
+
+
+## Küplerin çizimi (görüntü karesinde, fizik adımları arası yumuşak)
+func _draw_smash() -> void:
+	if _smash_mm == null:
+		return
+	var mm := _smash_mm.multimesh
+	for i in _smash_bodies.size():
+		var b := _smash_bodies[i]
+		if not is_instance_valid(b):
+			continue
+		var t := b.get_global_transform_interpolated()
+		mm.set_instance_transform(i, Transform3D(t.basis.scaled_local(_smash_sizes[i]), t.origin))
+
+
+## Kamera bulutu izlesin: araba noktası (kameranın hedefi) ileri saçılan küplerin ortasını izler
+func _smash_motion(delta: float) -> void:
+	_smash_time += delta
+	if OS.get_cmdline_user_args().has("--trace") and Engine.get_physics_frames() % 30 == 0:
+		print("SMASH_PERF physics_ms=%.2f t=%.1f" % [Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0, _smash_time])
+	# Takılıp kalanlar değil, ileri saçılan bulut: en öndeki yarının ortası
+	var ps: Array[Vector3] = []
+	for b in _smash_bodies:
+		if is_instance_valid(b):
+			ps.append(b.global_position)
+	if ps.is_empty():
+		return
+	ps.sort_custom(func(a: Vector3, b: Vector3) -> bool: return a.z < b.z)
+	var front := maxi(1, ps.size() / 2)
+	var sum := Vector3.ZERO
+	for i in front:
+		sum += ps[i]
+	var c := sum / front
+	var prev := position
+	position.x = lerpf(position.x, c.x, 1.0 - exp(-6.0 * delta))
+	position.z = lerpf(position.z, c.z, 1.0 - exp(-10.0 * delta))
+	velocity = (position - prev) / maxf(delta, 1e-4)
+	speed = maxf(-velocity.z, 0.0)
+
+
+## Küp bir yola ya da kırık parçaya çarptı: hızına göre kırıntı tıkırtısı (seyreltilmiş)
+func _on_smash_hit(other: Node, body: RigidBody3D) -> void:
+	if OS.get_cmdline_user_args().has("--trace"):
+		print("SMASH_HIT %s v=%.1f t=%.2f" % [other.name, body.linear_velocity.length(), _smash_time])
+	var now := Time.get_ticks_msec()
+	if now - _smash_tick_ms < 45:
+		return
+	var v := body.linear_velocity.length()
+	if v < 2.0:
+		return
+	_smash_tick_ms = now
+	Audio.play("debris", clampf(-20.0 + v * 0.5, -20.0, -6.0), randf_range(0.7, 1.15))
