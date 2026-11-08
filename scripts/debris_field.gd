@@ -12,8 +12,11 @@ signal hit
 ## Kırık parça miktarı (kaya yoğunluğuna göre; telefonda hafif kalsın diye az) ve gölgeleri
 @export var debris_amount := 0.7
 @export var debris_shadows := false
-## Parçaların görünmeye başladığı uzaklık (m): ötesi sisin içinde, gizli (ekranda daha az parça)
-@export var debris_view := 240.0
+## Parçaların görünmeye başladığı uzaklık (m, arabadan): ötesi gizli (ekranda daha az parça). Arada
+## birden belirmezler: kameradan FADE.y'de tamamen görünmez, FADE.x'te tamamen görünür (sisin
+## içinden yavaşça çıkar; malzemenin uzaklık solması, saydamlık maliyeti yok)
+@export var debris_view := 255.0
+const FADE := Vector2(205.0, 265.0)
 
 ## Kırık yol parçası kalıpları (boyut başına): { mesh, hulls (çarpışma: bant bant dış bükey),
 ## aabb, feature }. Menüde kare kare hazırlanır (pool_step), oyun yeniden başlayınca da kalır;
@@ -139,6 +142,11 @@ func is_empty() -> bool:
 	return _nodes.is_empty() and _rubble.is_empty()
 
 
+## İnişte ilk parçaların başladığı uzaklık: belirme bandının ötesi (hiçbiri birden belirmez)
+func first_row_distance() -> float:
+	return FADE.y
+
+
 func rubble_count() -> int:
 	return _rubble.size()
 
@@ -185,6 +193,10 @@ static func _plan_pool() -> void:
 		m.vertex_color_is_srgb = true
 		m.roughness = 1.0
 		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		# Uzakta görünmez, yaklaştıkça belirir (en küçük > en büyük: uzaklaştıkça solar)
+		m.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_DITHER
+		m.distance_fade_min_distance = FADE.y
+		m.distance_fade_max_distance = FADE.x
 	_debris_flat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	# Kalıplar: biçimler orta ve büyük parçalara dağılır (tek rampa, eğimli, yokuş); şerit düzenleri
 	# sırayla, eşit dağılır. Boyutlar dönüşümlü sıraya girer (erken lazım olursa her boyuttan biri hazır)
@@ -601,7 +613,7 @@ func _update_rubble(delta: float) -> void:
 			r.ws = lerpf(r.ws, signf(r.ws) * 1.2, 1.0 - exp(-0.7 * delta))
 		if r.p.z > cp.z + 30.0 or r.p.z < cp.z - 900.0:
 			continue
-		if cp.z - r.p.z > debris_view - 40.0:
+		if cp.z - r.p.z > debris_view:
 			keep.append(r)  # uzakta: çizilmez
 			continue
 		if flying and not r.hit:
