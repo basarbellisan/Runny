@@ -55,10 +55,12 @@ func _shoot() -> void:
 	var cam := Camera3D.new()
 	cam.fov = 40
 	world.add_child(cam)
-	var dist := [12.0, 22.0, 32.0, 50.0]
+	var dist := [15.0, 26.0, 38.0, 56.0]
 	for size in 4:
 		for sd: int in _seeds:
-			var piece := RoadDebris.build(size, sd)
+			# Şerit düzenleri parçalara sırayla, eşit dağılır
+			var style: int = (size * _seeds.size() + _seeds.find(sd)) % RoadGenerator.LINE_STYLES.size()
+			var piece := RoadDebris.build(size, sd, style)
 			world.add_child(piece)
 			var rng := RandomNumberGenerator.new()
 			rng.seed = sd * 31 + size
@@ -78,7 +80,24 @@ func _shoot() -> void:
 			var rr := RandomNumberGenerator.new()
 			rr.seed = sd * 7919 + size * 104729 + 1
 			var dm: Array = RoadDebris.DIMS[size]
-			print("OLCU %d %d %.0fx%.0f" % [size, sd, rr.randf_range(dm[0].x, dm[0].y), rr.randf_range(dm[1].x, dm[1].y)])
+			print("OLCU %d %d %.0fx%.0f %s" % [size, sd, rr.randf_range(dm[0].x, dm[0].y), rr.randf_range(dm[1].x, dm[1].y), RoadGenerator.LINE_STYLES[style].name.replace(" ", "_")])
 			piece.queue_free()
 			await process_frame
+	# Bağımsız molozlar (parçalardan ayrı yüzer)
+	var group := Node3D.new()
+	world.add_child(group)
+	for i in 7:
+		var r := RoadDebris.build_rubble(i + 1)
+		r.position = Vector3((i - 3) * 1.9, sin(i * 1.7) * 0.8, cos(i * 2.3) * 0.8)
+		r.rotation = Vector3(i * 0.9, i * 1.3, i * 0.4)
+		group.add_child(r)
+	cam.look_at_from_position(Vector3(5.5, 4.5, 9.0), Vector3.ZERO)
+	for f in _frames:
+		var t := float(f) / 24.0
+		for k in group.get_child_count():
+			var c: Node3D = group.get_child(k)
+			c.rotate(Vector3(0.3, 1.0, 0.2).normalized(), 0.02 * (1 + k % 3))
+		await process_frame
+		await RenderingServer.frame_post_draw
+		root.get_viewport().get_texture().get_image().save_png("%s/r_%03d.png" % [_out, f])
 	quit()
