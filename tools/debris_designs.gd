@@ -7,6 +7,9 @@ extends SceneTree
 var _out := "user://"
 var _frames := 48
 var _seeds := [1, 2, 3]
+## Yüzey biçimleri: "boyut,tohum" -> biçim
+const FEATURES := {"1,2": RoadDebris.Feature.BUMP, "1,3": RoadDebris.Feature.BANK,
+	"2,2": RoadDebris.Feature.RAMP, "2,3": RoadDebris.Feature.CLIMB}
 
 
 func _initialize() -> void:
@@ -60,16 +63,34 @@ func _shoot() -> void:
 		for sd: int in _seeds:
 			# Şerit düzenleri parçalara sırayla, eşit dağılır
 			var style: int = (size * _seeds.size() + _seeds.find(sd)) % RoadGenerator.LINE_STYLES.size()
-			var piece := RoadDebris.build(size, sd, style)
+			var feat: int = FEATURES.get("%d,%d" % [size, sd], RoadDebris.Feature.NONE)
+			var piece := RoadDebris.build(size, sd, style, feat)
 			world.add_child(piece)
 			var rng := RandomNumberGenerator.new()
 			rng.seed = sd * 31 + size
 			# Kendi ekseninde dönüş: rastgele eksen ve hız (yavaş, ağırbaşlı)
 			var axis := Vector3(rng.randf_range(-1, 1), rng.randf_range(-1, 1), rng.randf_range(-1, 1)).normalized()
+			if feat != RoadDebris.Feature.NONE:
+				# Yüzey biçimi görünsün: çoğunlukla dik eksen etrafında döner, üstü kameraya bakar
+				axis = Vector3(rng.randf_range(-0.15, 0.15), 1.0, rng.randf_range(-0.15, 0.15)).normalized()
 			var spin := rng.randf_range(0.15, 0.45) * (1.0 if rng.randf() < 0.5 else -1.0)
 			var base := Basis.from_euler(Vector3(rng.randf_range(-0.5, 0.5), rng.randf() * TAU, rng.randf_range(-0.4, 0.4)))
+			if feat != RoadDebris.Feature.NONE:
+				base = Basis.from_euler(Vector3(rng.randf_range(-0.12, 0.12), rng.randf_range(0.5, 1.2), 0.0))
 			var dd: float = dist[size]
 			cam.look_at_from_position(Vector3(dd * 0.55, dd * 0.42, dd * 0.75), Vector3.ZERO)
+			# Biçimli parçalar biçimin okunduğu açıdan: tümsek ve yokuş yandan, eğimli uçtan, rampa çaprazdan
+			match feat:
+				RoadDebris.Feature.BUMP, RoadDebris.Feature.CLIMB:
+					base = Basis.from_euler(Vector3(0.0, rng.randf_range(-0.25, 0.25), 0.0))
+					axis = Vector3.UP
+					spin = 0.12
+					cam.look_at_from_position(Vector3(dd * 1.0, dd * 0.22, dd * 0.3), Vector3(0, 1.0, 0))
+				RoadDebris.Feature.BANK:
+					base = Basis.from_euler(Vector3(0.0, rng.randf_range(-0.3, 0.3), 0.0))
+					axis = Vector3.UP
+					spin = 0.12
+					cam.look_at_from_position(Vector3(dd * 0.35, dd * 0.3, dd * 1.0), Vector3(0, 0.5, 0))
 			for f in _frames:
 				var t := float(f) / 24.0
 				piece.basis = Basis(axis, spin * t) * base
@@ -80,7 +101,7 @@ func _shoot() -> void:
 			var rr := RandomNumberGenerator.new()
 			rr.seed = sd * 7919 + size * 104729 + 1
 			var dm: Array = RoadDebris.DIMS[size]
-			print("OLCU %d %d %.0fx%.0f %s" % [size, sd, rr.randf_range(dm[0].x, dm[0].y), rr.randf_range(dm[1].x, dm[1].y), RoadGenerator.LINE_STYLES[style].name.replace(" ", "_")])
+			print("OLCU %d %d %.0fx%.0f %s %s" % [size, sd, rr.randf_range(dm[0].x, dm[0].y), rr.randf_range(dm[1].x, dm[1].y), RoadGenerator.LINE_STYLES[style].name.replace(" ", "_"), RoadDebris.FEATURE_NAMES[feat]])
 			piece.queue_free()
 			await process_frame
 	# Bağımsız molozlar (parçalardan ayrı yüzer)

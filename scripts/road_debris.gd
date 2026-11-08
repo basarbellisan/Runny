@@ -7,6 +7,10 @@ class_name RoadDebris
 ## Moloz ayrı ve bağımsız (build_rubble). Parça orijini kütle merkezine yakın (kendi ekseninde döner).
 
 enum Size { SMALL, MEDIUM, LARGE, LONG }
+## Yüzey biçimi: düz, rampa (oyundaki zıplama rampası üstünde), tümsek (ortası kabarık),
+## eğimli (bir uçta düz, öbüründe yana yatık), yokuş (düz gidip kırılarak tırmanır)
+enum Feature { NONE, RAMP, BUMP, BANK, CLIMB }
+const FEATURE_NAMES := ["Düz", "Rampa", "Tümsek", "Eğimli", "Yokuş"]
 
 const NAMES := ["Küçük", "Orta", "Büyük", "Uzun"]
 ## [uzunluk min-max, genişlik min-max, kalınlık min-max] (m)
@@ -44,7 +48,7 @@ static func _mat(key: String) -> StandardMaterial3D:
 
 ## Parça üret: size sınıfı, seed tohumu, line_style: oyundaki şerit düzeni (RoadGenerator.LINE_STYLES;
 ## -1: tohumdan). Dönen düğüm: tek parça (uzunda bükülmüş iki yarı)
-static func build(size: int, seed_value: int, line_style := -1) -> Node3D:
+static func build(size: int, seed_value: int, line_style := -1, feature := Feature.NONE) -> Node3D:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value * 7919 + size * 104729 + 1
 	var d: Array = DIMS[size]
@@ -60,7 +64,7 @@ static func build(size: int, seed_value: int, line_style := -1) -> Node3D:
 		var la := L * split
 		var lb := L * (1.0 - split)
 		var a := _slab(rng, la, W, T, size, style, 0.0)
-		var b := _slab(rng, lb, W, T, size, style, la)
+		var b := _slab(rng, lb, W, T, size, style, la, feature)
 		var bend := deg_to_rad(rng.randf_range(8.0, 18.0)) * (1.0 if rng.randf() < 0.5 else -1.0)
 		var twist := deg_to_rad(rng.randf_range(-6.0, 6.0))
 		a.position = Vector3(0, 0, -la * 0.5)
@@ -72,7 +76,7 @@ static func build(size: int, seed_value: int, line_style := -1) -> Node3D:
 		root.add_child(a)
 		root.add_child(b)
 	else:
-		root.add_child(_slab(rng, L, W, T, size, style, 0.0))
+		root.add_child(_slab(rng, L, W, T, size, style, 0.0, feature))
 	return root
 
 
@@ -90,7 +94,7 @@ static func build_rubble(seed_value: int) -> MeshInstance3D:
 
 ## Tek yol dilimi: dikdörtgen yol, kırık kenarlarda 1-3 düz kesikle kırpılır, kalınlıkta
 ## yükseltilir. style: şerit düzeni (-1 çizgisiz), z_off: çizgi kesiklerinin başlangıcı (uzunda süreklilik)
-static func _slab(rng: RandomNumberGenerator, L: float, W: float, T: float, size: int, style: int, z_off: float) -> MeshInstance3D:
+static func _slab(rng: RandomNumberGenerator, L: float, W: float, T: float, size: int, style: int, z_off: float, feature := Feature.NONE) -> MeshInstance3D:
 	var hl := L * 0.5
 	var hw := W * 0.5
 	var poly := PackedVector2Array([Vector2(-hw, -hl), Vector2(hw, -hl), Vector2(hw, hl), Vector2(-hw, hl)])
@@ -126,36 +130,62 @@ static func _slab(rng: RandomNumberGenerator, L: float, W: float, T: float, size
 		var side := 1.0 if rng.randf() < 0.5 else -1.0
 		var z0 := rng.randf_range(-hl, hl * 0.2)
 		poly = _cut(poly, Vector2(side * hw, z0), Vector2(side * (hw - W * rng.randf_range(0.25, 0.45)), z0 + L * rng.randf_range(0.3, 0.6)), Vector2(side, 0))
+	# Yüzey biçimi: parçanın her noktası (x, z) bu kadar yukarı kayar (kalınlık sabit; bükülmüş yol)
+	var off := _feature_offset(rng, feature, L, W)
 	var mesh := ArrayMesh.new()
 	var top_y := T * 0.5
 	var bot_y := -T * 0.5
-	var tri := Geometry2D.triangulate_polygon(poly)
-	_surface_from(mesh, poly, tri, top_y, Vector3.UP, _mat("top"))
-	_surface_from(mesh, poly, tri, bot_y, Vector3.DOWN, _mat("broken"))
-	# Yan yüzler: dikdörtgenin uzun kenarında kalan (sağlam) kenar pembe yan duvar, kesikler koyu
+	# Üst ve alt yüz: biçim düzgün kıvrılsın diye boyuna ince şeritlere bölünür
+	var top_st := SurfaceTool.new()
+	top_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var bot_st := SurfaceTool.new()
+	bot_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for piece: PackedVector2Array in _strips(poly, hl):
+		var tri := Geometry2D.triangulate_polygon(piece)
+		for k in range(0, tri.size(), 3):
+			var q := [piece[tri[k]], piece[tri[k + 1]], piece[tri[k + 2]]]
+			_tri(top_st, q, top_y, off, 1.0)
+			_tri(bot_st, q, bot_y, off, -1.0)
+	top_st.set_material(_mat("top"))
+	top_st.commit(mesh)
+	bot_st.set_material(_mat("broken"))
+	bot_st.commit(mesh)
+	# Yan yüzler: dikdörtgenin uzun kenarında kalan (sağlam) kenar pembe yan duvar, kesikler koyu;
+	# kenarlar biçimi izlesin diye kısa parçalara bölünür
 	var side_st := SurfaceTool.new()
 	side_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var broken_st := SurfaceTool.new()
 	broken_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var n := poly.size()
+	# Çokgen saat yönünün tersindeyse (alan > 0) dış normal kenarın orthogonal()'ı
+	var ccw := _area(poly) > 0.0
 	for i in n:
 		var a := poly[i]
 		var b := poly[(i + 1) % n]
 		var intact := absf(absf(a.x) - hw) < 0.01 and absf(absf(b.x) - hw) < 0.01 and signf(a.x) == signf(b.x)
 		var tgt := side_st if intact else broken_st
-		var v0 := Vector3(a.x, top_y, a.y)
-		var v1 := Vector3(b.x, top_y, b.y)
-		var v2 := Vector3(b.x, bot_y, b.y)
-		var v3 := Vector3(a.x, bot_y, a.y)
-		for v in [v0, v2, v1, v0, v3, v2]:
-			tgt.add_vertex(v)
+		var out2 := (b - a).orthogonal().normalized() * (1.0 if ccw else -1.0)
+		var parts := maxi(1, ceili(a.distance_to(b) / 0.5))
+		for j in parts:
+			var p0 := a.lerp(b, float(j) / parts)
+			var p1 := a.lerp(b, float(j + 1) / parts)
+			var y0: float = off.call(p0.x, p0.y)
+			var y1: float = off.call(p1.x, p1.y)
+			var v0 := Vector3(p0.x, top_y + y0, p0.y)
+			var v1 := Vector3(p1.x, top_y + y1, p1.y)
+			var v2 := Vector3(p1.x, bot_y + y1, p1.y)
+			var v3 := Vector3(p0.x, bot_y + y0, p0.y)
+			for v in [v0, v2, v1, v0, v3, v2]:
+				tgt.set_normal(Vector3(out2.x, 0.0, out2.y))
+				tgt.add_vertex(v)
 	for pair in [[side_st, "side"], [broken_st, "broken"]]:
-		var s: SurfaceTool = pair[0]
-		s.generate_normals()
-		s.set_material(_mat(pair[1]))
-		s.commit(mesh)
+		var st2: SurfaceTool = pair[0]
+		st2.set_material(_mat(pair[1]))
+		st2.commit(mesh)
 	if style >= 0:
-		_lines(mesh, poly, W, hl, top_y, style, z_off)
+		_lines(mesh, poly, W, hl, top_y, style, z_off, off)
+	if feature == Feature.RAMP:
+		_ramp(mesh, rng, poly, L, W, top_y)
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
 	return mi
@@ -163,7 +193,7 @@ static func _slab(rng: RandomNumberGenerator, L: float, W: float, T: float, size
 
 ## Oyundaki şerit düzeni (RoadGenerator.LINE_STYLES[style]): kenardan uzaklık, genişlik, kesik
 ## boyu ve payı aynı; parça sınırında kırpılır
-static func _lines(mesh: ArrayMesh, poly: PackedVector2Array, W: float, hl: float, y: float, style: int, z_off: float) -> void:
+static func _lines(mesh: ArrayMesh, poly: PackedVector2Array, W: float, hl: float, y: float, style: int, z_off: float, off: Callable) -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var any := false
@@ -184,15 +214,145 @@ static func _lines(mesh: ArrayMesh, poly: PackedVector2Array, W: float, hl: floa
 					z += p
 			for r: PackedVector2Array in rects:
 				for clipped: PackedVector2Array in Geometry2D.intersect_polygons(r, poly):
-					var t2 := Geometry2D.triangulate_polygon(clipped)
-					for k in range(0, t2.size(), 3):
-						for q in [t2[k], t2[k + 2], t2[k + 1]]:
-							st.set_normal(Vector3.UP)
-							st.add_vertex(Vector3(clipped[q].x, y + 0.02, clipped[q].y))
-						any = true
+					for piece: PackedVector2Array in _strips(clipped, hl):
+						var t2 := Geometry2D.triangulate_polygon(piece)
+						for k in range(0, t2.size(), 3):
+							_tri(st, [piece[t2[k]], piece[t2[k + 1]], piece[t2[k + 2]]], y + 0.02, off, 1.0)
+							any = true
 	if any:
 		st.set_material(_mat("line"))
 		st.commit(mesh)
+
+
+## Yüzey biçiminin kaydırması: (x, z) -> yukarı (m)
+static func _feature_offset(rng: RandomNumberGenerator, feature: int, L: float, W: float) -> Callable:
+	match feature:
+		Feature.BUMP:
+			# Ortada yumuşak kabarık: yolun yarısı boyunca yükselip iner
+			var zc := rng.randf_range(-0.12, 0.12) * L
+			var lb := maxf(L * 0.55, 6.0)
+			var h := rng.randf_range(1.1, 1.6)
+			return func(_x: float, z: float) -> float:
+				var u := (z - zc) / lb + 0.5
+				return 0.0 if u <= 0.0 or u >= 1.0 else h * (0.5 - 0.5 * cos(TAU * u))
+		Feature.CLIMB:
+			# Düz gider, yumuşak bir dirsekle kırılıp tırmanır (yokuş başlangıcı)
+			var zk := rng.randf_range(-0.12, 0.05) * L
+			var slope := tan(deg_to_rad(rng.randf_range(16.0, 22.0)))
+			var r := 1.6
+			return func(_x: float, z: float) -> float:
+				var t := z - zk
+				if t <= -r:
+					return 0.0
+				if t >= r:
+					return slope * t
+				return slope * (t + r) * (t + r) / (4.0 * r)
+		Feature.BANK:
+			# Bir uçta düz, öbür uçta yana yatık (yatık yola geçiş)
+			var ang := deg_to_rad(rng.randf_range(13.0, 19.0)) * (1.0 if rng.randf() < 0.5 else -1.0)
+			var t2 := tan(ang)
+			return func(x: float, z: float) -> float:
+				return x * t2 * smoothstep(-0.35 * L, 0.35 * L, z)
+	return func(_x: float, _z: float) -> float:
+		return 0.0
+
+
+## Çokgeni boyuna (z) ince şeritlere böl: biçim kıvrımı şerit sınırlarında izlenir
+static func _strips(poly: PackedVector2Array, hl: float, dz := 0.5) -> Array:
+	var out: Array = []
+	var z := -hl - 1.0
+	while z < hl + 1.0:
+		for piece: PackedVector2Array in Geometry2D.intersect_polygons(_rect(-500.0, z, 500.0, z + dz), poly):
+			out.append(piece)
+		z += dz
+	return out
+
+
+## Üçgen ekle: y + biçim kaydırması; normal üçgenden hesaplanır, up yönüne (üst +1, alt -1) çevrilir
+static func _tri(st: SurfaceTool, q: Array, y: float, off: Callable, up: float) -> void:
+	var v: Array[Vector3] = []
+	for p: Vector2 in q:
+		v.append(Vector3(p.x, y + float(off.call(p.x, p.y)), p.y))
+	var nrm := (v[1] - v[0]).cross(v[2] - v[0]).normalized()
+	if nrm.y * up < 0.0:
+		nrm = -nrm
+		v = [v[0], v[2], v[1]]
+	for vv in v:
+		st.set_normal(nrm)
+		st.add_vertex(vv)
+
+
+## Oyundaki zıplama rampası (ramp_style 9) parçanın üstünde: yüzey şerit renginde (ışıksız), yol
+## renginde ileri bakan üç sivri ok ve iki yanda kenar çizgisi; yan duvarlar yol duvarı renginde
+static func _ramp(mesh: ArrayMesh, rng: RandomNumberGenerator, poly: PackedVector2Array, L: float, W: float, top_y: float) -> void:
+	var rw := W * rng.randf_range(0.55, 0.7)
+	var rl := minf(L * 0.38, 8.0)
+	var rise := rng.randf_range(1.5, 1.9)
+	var z0 := -rl * 0.5 + rng.randf_range(-0.1, 0.1) * L
+	var hw := rw * 0.5
+	# Rampa parçanın içinde kalmalı (kırık köşelerden taşmasın)
+	for c in [Vector2(-hw, z0), Vector2(hw, z0), Vector2(hw, z0 + rl), Vector2(-hw, z0 + rl)]:
+		if not Geometry2D.is_point_in_polygon(c, poly):
+			hw *= 0.7
+			break
+	var y := top_y + 0.01
+	var at := func(x: float, f: float, lift := 0.0) -> Vector3:
+		return Vector3(x, y + rise * f + lift, z0 + rl * f)
+	var top := SurfaceTool.new()
+	top.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var wall := SurfaceTool.new()
+	wall.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var deco := SurfaceTool.new()
+	deco.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var slope_n := Vector3(0, rl, -rise).normalized()
+	_quad3(top, at.call(-hw, 0.0), at.call(hw, 0.0), at.call(hw, 1.0), at.call(-hw, 1.0), slope_n)
+	for sx: float in [-1.0, 1.0]:
+		var a0: Vector3 = at.call(sx * hw, 0.0)
+		var a1: Vector3 = at.call(sx * hw, 1.0)
+		var b1 := Vector3(sx * hw, y, z0 + rl)
+		for v in [a0, a1, b1]:
+			wall.set_normal(Vector3(sx, 0, 0))
+			wall.add_vertex(v)
+	_quad3(wall, at.call(-hw, 1.0), at.call(hw, 1.0), Vector3(hw, y, z0 + rl), Vector3(-hw, y, z0 + rl), Vector3(0, 0, 1))
+	# Oklar: rampa boyunca ileri (yükselen uca) bakan üç sivri ^
+	var arm := minf(rw * 0.32, 1.6)
+	var thick := 0.26
+	var dir := Vector2(0.0, 1.0)
+	for k in 3:
+		var fc := (k + 0.7) / 3.4
+		var p0 := Vector2(0.0, fc * rl)
+		var notch := dir * (thick * 2.0 / sin(deg_to_rad(50.0)))
+		for sgn: float in [-1.0, 1.0]:
+			var back := dir.rotated(sgn * deg_to_rad(130.0))
+			var p1 := p0 + back * arm
+			var q := [p0, p1, p1 - notch, p0 - notch]
+			var pts: Array[Vector3] = []
+			for v2: Vector2 in q:
+				pts.append(at.call(v2.x, clampf(v2.y / rl, 0.0, 1.0), 0.03))
+			_quad3(deco, pts[0], pts[1], pts[2], pts[3], slope_n)
+	# Kenar çizgileri (okların renginde)
+	for sx: float in [-1.0, 1.0]:
+		var xo := sx * (hw - 0.3)
+		_quad3(deco, at.call(xo - 0.07, 0.0, 0.03), at.call(xo + 0.07, 0.0, 0.03), at.call(xo + 0.07, 1.0, 0.03), at.call(xo - 0.07, 1.0, 0.03), slope_n)
+	var sky: Dictionary = Palette.SKIES[0]
+	var top_m := StandardMaterial3D.new()
+	top_m.albedo_color = Palette.line_for(sky.road_top)
+	top_m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	top_m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var deco_m := StandardMaterial3D.new()
+	deco_m.albedo_color = sky.road_top
+	deco_m.roughness = 0.95
+	deco_m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	for pair in [[top, top_m], [wall, _mat("side")], [deco, deco_m]]:
+		var st3: SurfaceTool = pair[0]
+		st3.set_material(pair[1])
+		st3.commit(mesh)
+
+
+static func _quad3(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3, nrm: Vector3) -> void:
+	for v in [a, b, c, a, c, d]:
+		st.set_normal(nrm)
+		st.add_vertex(v)
 
 
 ## Çokgeni a-b çizgisinden kes: away yönündeki taraf atılır (düz kırık yüz)
