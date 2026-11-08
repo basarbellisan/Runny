@@ -262,9 +262,10 @@ func _physics_process(delta: float) -> void:
 		for r in lower.get_children():
 			if r is Area3D:
 				shapes += r.get_child_count() - 1
-		print("LPERF max_ms=%.2f update_ms=%.2f rubble_ms=%.2f rubble=%d nodes=%d shapes=%d draws=%d prims=%d" % [lower.perf_us.max / 1000.0, lower.perf_us.update / 120000.0, lower.perf_us.rubble / 120000.0, lower._rubble.size(), lower.get_child_count(), shapes,
+		print("LPERF max_ms=%.2f update_ms=%.2f rubble_ms=%.2f rubble=%d nodes=%d shapes=%d draws=%d prims=%d" % [lower.perf_us.max / 1000.0, lower.perf_us.update / 120000.0, lower.field.perf_rubble_us / 120000.0, lower.field.rubble_count(), lower.get_child_count(), shapes,
 			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME), RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)])
-		lower.perf_us = {"update": 0, "rubble": 0, "max": 0}
+		lower.perf_us = {"update": 0, "max": 0}
+		lower.field.perf_rubble_us = 0
 	_check_level_test()
 	score += maxf(-car.velocity.z, 0.0) * delta * multiplier
 	_update_high_route(delta)
@@ -333,7 +334,7 @@ func _process(delta: float) -> void:
 	if _cover and _cover.modulate.a >= 1.0:
 		_cover_frames += 1
 		# Isıtma bitti (ya da kayalar açık / en geç ~1 sn): yumuşakça açılır
-		if (LowerLayer.is_warm() and _cover_frames > 6) or _cover_frames > 60 or not lower.use_debris:
+		if (DebrisField.is_warm() and _cover_frames > 6) or _cover_frames > 60 or not lower.use_debris:
 			var tw := create_tween()
 			tw.tween_property(_cover, "modulate:a", 0.0, 0.35)
 			tw.tween_callback(_cover.queue_free)
