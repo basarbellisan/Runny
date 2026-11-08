@@ -154,6 +154,8 @@ func _ready() -> void:
 	lower.setup(car, roads, seed_value)
 	lower.crystal_collected.connect(_on_crystal)
 	lower.rock_hit.connect(_on_rock_hit)
+	lower.ghost_passed.connect(_on_ghost_passed)
+	lower.ghost_aim = _args.has("ghost_aim")
 	lower.portal_entered.connect(_on_portal)
 	Tuning.register({"game": self, "car": car, "roads": roads, "lower": lower,
 		"camera": $Camera, "audio": Audio, "trail": car.trail, "speedo": hud.speedometer})
@@ -608,6 +610,23 @@ func _on_crystal() -> void:
 func _on_rock_hit() -> void:
 	if car.mode == Car.Mode.FLYING:
 		car.crash("HIT A ROCK!")
+
+
+## Hayalet içimizden geçti: enerjinin GHOST_DRAIN kadarını emer (çarpma yok)
+const GHOST_DRAIN := 0.05
+
+
+func _on_ghost_passed() -> void:
+	if car.mode != Car.Mode.FLYING:
+		return
+	var amount := car.max_energy * GHOST_DRAIN
+	car.add_energy(-amount)
+	hud.gauge.drained(amount)
+	Audio.play("drain")
+	$Camera.shake(0.12)
+	_stats.ghosts = int(_stats.get("ghosts", 0)) + 1
+	if _args.has("trace"):
+		print("GHOST energy=%.0f frame=%d" % [car.energy, Engine.get_process_frames()])
 
 
 func _on_portal(p: LowerLayer.Portal) -> void:

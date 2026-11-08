@@ -40,6 +40,9 @@ uniform float wave_power = 2.0;
 uniform float alpha_by_height = 0.0;
 uniform float alpha_bottom = 0.5;
 uniform float alpha_top = 1.0;
+// Kameraya yaklaşınca söner (içimizden geçip kameradan da geçerken ekranı kaplamasın): bu
+// uzaklıktan (m) yakında tamamen görünmez, near_fade.y'den uzakta tam görünür; (0, 0) kapalı
+uniform vec2 near_fade = vec2(0.0, 0.0);
 
 varying float v_h;
 varying float v_da;
@@ -95,6 +98,9 @@ void fragment() {
 	} else {
 		// Etek ucuna doğru incelir (kumaşın ucu saydamlaşır)
 		a *= smoothstep(0.0, 0.18, h + 0.04);
+	}
+	if (near_fade.y > 0.0) {
+		a *= smoothstep(near_fade.x, near_fade.y, length(VERTEX));
 	}
 	vec3 col = color.rgb;
 	vec3 em = color.rgb * glow + rim_color.rgb * fres * 0.35;

@@ -21,6 +21,7 @@ const SFX := {
 	"empty": preload("res://audio/sfx_empty.wav"),
 	"hiss": preload("res://audio/sfx_hiss.wav"),
 	"shatter": preload("res://audio/sfx_shatter.wav"),
+	"drain": preload("res://audio/sfx_drain.wav"),
 }
 ## Art arda toplanan kristaller minör pentatonik dizide yükselir
 const CRYSTAL_STEPS := [1.0, 1.2, 1.335, 1.498, 1.782, 2.0]

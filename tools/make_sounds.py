@@ -403,6 +403,40 @@ def sfx_shatter():
     return room(fade(buf, 0.0003, 0.06), 0.07, 0.35)
 
 
+def sfx_drain():
+    """Hayalet içimizden geçip enerji emdi ("sucking energy"): içe çeken, şişip birden kesilen
+    hava sesi (tersine fışş), tizden peseye kayan titrek hayaletimsi ton ve emmeyi hissettiren,
+    giderek hızlanan dalgalanma. Sonunda kısa, boğuk bir "yutma"."""
+    d = 0.85
+    n = n_of(d)
+    t = np.arange(n) / SR
+    # Zarf: yavaş şişer (~0.55 sn), sonra hızla kesilir
+    swell = np.clip(t / 0.55, 0.0, 1.0) ** 2.2
+    cut = np.clip((d - 0.06 - t) / 0.22, 0.0, 1.0)
+    e = swell * cut
+    # İçe çeken hava: gürültünün rengi parlaktan boğuğa kayar
+    nz = noise(d)
+    bright = filt(nz, lo=3500, hi=9000)
+    dark = filt(nz, lo=500, hi=2200)
+    k = np.clip(t / 0.6, 0.0, 1.0)
+    air = (bright * (1.0 - k) + dark * k) * e
+    # Hayaletimsi ton: tizden peseye kayar, hafif titrer (vibrato), iki armonik
+    f = 1400.0 * (180.0 / 1400.0) ** (t / d)
+    f = f * (1.0 + 0.025 * np.sin(2 * np.pi * 7.0 * t))
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    tone = (np.sin(ph) + 0.35 * np.sin(2 * ph) + 0.15 * np.sin(3.01 * ph)) * e
+    # Emme dalgalanması: hızlanan genlik titreşimi (vuv-vuv-vuvvv)
+    wob_f = 6.0 + 22.0 * (t / d) ** 1.5
+    wob = 0.65 + 0.35 * np.sin(2 * np.pi * np.cumsum(wob_f) / SR)
+    s = (0.55 * air + 0.5 * tone) * wob
+    # Sonda boğuk yutma: kısa alçak darbe
+    gulp = sine(glide(220, 70, 0.12, 0.5), 0.12) * env(0.12, 0.004, 0.06)
+    buf = np.zeros(n)
+    place(buf, gulp, d - 0.2, 0.5)
+    s = s + buf
+    return room(fade(s, 0.005, 0.03), 0.1, 0.4)
+
+
 def sfx_energy_low():
     buf = np.zeros(n_of(0.4))
     f = 880.0
@@ -726,6 +760,7 @@ def main():
         ("sfx_energy_low.wav", sfx_energy_low), ("sfx_game_over.wav", sfx_game_over),
         ("sfx_climb.wav", sfx_climb), ("sfx_boost.wav", sfx_boost), ("sfx_empty.wav", sfx_empty),
         ("sfx_hiss.wav", sfx_hiss), ("sfx_shatter.wav", sfx_shatter),
+        ("sfx_drain.wav", sfx_drain),
         ("loop_engine.ogg", loop_engine), ("loop_road.ogg", loop_road), ("loop_wind.ogg", loop_wind),
         ("loop_plane.ogg", loop_plane), ("loop_climb.ogg", loop_climb), ("loop_tire.ogg", loop_tire),
         ("loop_gravel.ogg", loop_gravel),

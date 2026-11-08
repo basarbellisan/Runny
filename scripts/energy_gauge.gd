@@ -19,6 +19,9 @@ var value := 100.0
 var max_value := 100.0
 var _shown := 100.0
 var _gain := 0.0
+## Emilen enerji (hayalet): kırmızı "-N" yazısı
+var _drain := 0.0
+var _drain_t := 9.0
 var _gain_t := 9.0
 var _shake_t := 9.0
 var _flash_t := 9.0
@@ -50,6 +53,13 @@ func gained(amount: float) -> void:
 	_flash_t = 0.0
 
 
+## Hayalet enerji emdi: kaç enerji gitti (kırmızı yazı ve kısa titreme)
+func drained(amount: float) -> void:
+	_drain = _drain + amount if _drain_t < 0.5 else amount
+	_drain_t = 0.0
+	_shake_t = 0.0
+
+
 ## Enerji yokken gaza basıldı
 func empty() -> void:
 	_shake_t = 0.0
@@ -58,6 +68,7 @@ func empty() -> void:
 func _process(delta: float) -> void:
 	_shown = move_toward(_shown, value, maxf(absf(value - _shown) * 10.0, 30.0) * delta)
 	_gain_t += delta
+	_drain_t += delta
 	_shake_t += delta
 	_flash_t += delta
 	queue_redraw()
@@ -106,6 +117,10 @@ func _draw() -> void:
 		var y := -R - 28 - _gain_t * 22.0
 		_crystal(c + Vector2(-26, y), 7.0, Color(color, a))
 		_text("+%d" % int(round(_gain)), c + Vector2(6, y), 24, Color(color.darkened(0.15), a))
+	if _drain_t < 0.9:
+		var a2 := 1.0 - smoothstep(0.5, 0.9, _drain_t)
+		var y2 := -R - 28 + _drain_t * 18.0
+		_text("-%d" % int(round(_drain)), c + Vector2(6, y2), 24, Color(LOW, a2))
 
 
 func _crystal(p: Vector2, r: float, col: Color) -> void:

@@ -6,6 +6,8 @@ extends Node3D
 
 signal crystal_collected
 signal rock_hit
+## Hayalet arabanın içinden geçti (çarpmaz: enerji emer)
+signal ghost_passed
 signal portal_entered(portal: Portal)
 
 ## Portal planı: portal nerede, araba yukarıda nereye inecek
@@ -37,6 +39,11 @@ const CRYSTAL_REACH := Vector3(3.2, 1.8, 2.6)
 ## Kuyruklu kaya: kaç sn'de bir (en az, en çok) ve bize doğru hızı (m/s)
 @export var comet_interval := Vector2(3.0, 6.0)
 @export var comet_speed := Vector2(30.0, 45.0)
+## Kuyruklu kayaların yerine hayalet: aynı yerden aynı hızla bize doğru uçar, çarpılmaz, içimizden
+## geçer (enerji emer: ghost_passed). false: eski kuyruklu kaya
+@export var comets_are_ghosts := true
+## Test: hayalet tam arabanın hizasında ve yüksekliğinde gelir (içimizden geçer)
+var ghost_aim := false
 ## Kaya sırasının yanında kristal dizisi olma şansı (aşağıda kristal yok: 0)
 @export_range(0.0, 1.0) var crystal_row_chance := 0.0
 ## Kristal dizisinin yukarıda çıkma şansı
@@ -60,6 +67,15 @@ var scripted := false
 var _time := 0.0
 var _next_comet := 0.0
 var _comet_mat := StandardMaterial3D.new()
+## Hayaletler: { node, v } (kaya değil: kaya kuralları ve otomatik pilotun kaçışı onları saymaz)
+var ghosts: Array = []
+const GHOST_SCENE := preload("res://models/ghosts/ghost.glb")
+## Kameraya bu kadar (m) yaklaşınca tamamen söner, ikincisinden uzakta tam görünür
+const GHOST_NEAR_FADE := Vector2(3.0, 9.0)
+var _ghost_body: ShaderMaterial
+var _ghost_face: ShaderMaterial
+var _ghost_eye: ShaderMaterial
+var _ghost_mats: Array[ShaderMaterial] = []
 var _tail_mat := StandardMaterial3D.new()
 var _rng := RandomNumberGenerator.new()
 
@@ -105,6 +121,37 @@ func _ready() -> void:
 	_tail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_tail_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_tail_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_setup_ghost_materials()
+
+
+## Hayalet malzemeleri (hepsi ortak): örtü yarı saydam, tepede (yüz) opak, etek ucunda %50;
+## etek dalgalanır. Önce iç yüz, sonra dış yüz çizilir (next_pass)
+func _setup_ghost_materials() -> void:
+	var front := ShaderMaterial.new()
+	front.shader = preload("res://shaders/ghost.gdshader")
+	var back := ShaderMaterial.new()
+	back.shader = preload("res://shaders/ghost_back.gdshader")
+	for m: ShaderMaterial in [front, back]:
+		m.set_shader_parameter("color", Color("f7f4ff"))
+		m.set_shader_parameter("glow", 1.0)
+		m.set_shader_parameter("alpha_by_height", 1.0)
+		m.set_shader_parameter("alpha_bottom", 0.5)
+		m.set_shader_parameter("alpha_top", 1.0)
+		m.set_shader_parameter("wave_power", 4.0)
+		m.set_shader_parameter("wave_amp", 0.22)
+		m.set_shader_parameter("scallops", 8.0)
+		m.set_shader_parameter("eyes", 0.0)
+		m.set_shader_parameter("hem", 0)
+		m.set_shader_parameter("trail", 0.0)
+		m.set_shader_parameter("near_fade", GHOST_NEAR_FADE)
+		_ghost_mats.append(m)
+	back.next_pass = front
+	_ghost_body = back
+	_ghost_face = ShaderMaterial.new()
+	_ghost_face.shader = preload("res://shaders/ghost_face.gdshader")
+	_ghost_face.set_shader_parameter("near_fade", GHOST_NEAR_FADE)
+	_ghost_eye = _ghost_face.duplicate()
+	_ghost_eye.set_shader_parameter("color", Color(1, 1, 1, 1))
 
 
 func setup(p_car: Car, p_roads: RoadGenerator, seed_value := -1) -> void:
@@ -136,6 +183,7 @@ func deactivate() -> void:
 	_spinners.clear()
 	_crystals.clear()
 	rocks.clear()
+	ghosts.clear()
 	portals.clear()
 	_next_portal = null
 
@@ -158,7 +206,21 @@ func update(delta: float) -> void:
 	# Kuyruklu kayalar: uzaktan parlayarak bize doğru gelir
 	if _time >= _next_comet and not scripted:
 		_next_comet = _time + _rng.randf_range(comet_interval.x, comet_interval.y)
-		_spawn_comet()
+		if comets_are_ghosts:
+			_spawn_ghost()
+		else:
+			_spawn_comet()
+	for m in _ghost_mats:
+		m.set_shader_parameter("t", _time)
+	# Geride kalıp silinen hayaletler listeden çıkar
+	ghosts = ghosts.filter(func(gh): return is_instance_valid(gh.node))
+	for gh in ghosts:
+		gh.node.position += gh.v * delta
+		if ghost_aim:
+			# Test: arabanın hizasını ve yüksekliğini izler (mutlaka içinden geçer)
+			var cp := car.global_position
+			gh.node.position.x = lerpf(gh.node.position.x, cp.x, 1.0 - exp(-8.0 * delta))
+			gh.node.position.y = lerpf(gh.node.position.y, cp.y + 0.5, 1.0 - exp(-8.0 * delta))
 	for r in rocks:
 		if r.has("v") and is_instance_valid(r.node):
 			r.node.position += r.v * delta
@@ -479,6 +541,42 @@ func _spawn_comet() -> void:
 	sm.material = smat
 	sparks.mesh = sm
 	info.node.add_child(sparks)
+
+
+## Hayalet (kuyruklu kayanın yerine): uzakta (~240 m) belirir, başı önde, ekseni yataydan 20°
+## yukarı eğik bize doğru uçar; arabanın hizasına yakın bir çizgide gelir. Çarpılmaz: içinden
+## geçilince bir kez enerji emer (ghost_passed). Etek dalgalanır.
+func _spawn_ghost() -> void:
+	var p := car.global_position
+	var y := car.flight_altitude + (_rng.randf_range(-0.8, 1.2) if _rng.randf() < 0.75 else _rng.randf_range(6.0, 8.0))
+	var area := Area3D.new()
+	area.position = Vector3(p.x + _rng.randf_range(-5.0, 5.0), y, p.z - 240.0)
+	if ghost_aim:
+		area.position = Vector3(p.x, p.y, p.z - 240.0)
+	add_child(area)
+	var g: Node3D = GHOST_SCENE.instantiate()
+	# Baş (+Y) bize (+Z) doğru, 20° yukarı
+	g.rotation = Vector3(deg_to_rad(70), 0, 0)
+	area.add_child(g)
+	for mi in g.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		for si in m.mesh.get_surface_count():
+			var src := m.mesh.surface_get_material(si)
+			var name := src.resource_name if src else ""
+			m.set_surface_override_material(si, _ghost_body if name == "Body" else (_ghost_face if name == "Face" else _ghost_eye))
+	var shape := SphereShape3D.new()
+	shape.radius = 1.9
+	var col := CollisionShape3D.new()
+	col.shape = shape
+	area.add_child(col)
+	var info := {"node": area, "v": Vector3(0.0 if ghost_aim else _rng.randf_range(-1.5, 1.5), 0.0, _rng.randf_range(comet_speed.x, comet_speed.y)), "hit": false}
+	area.body_entered.connect(func(body):
+		if body == car and not info.hit:
+			info.hit = true
+			ghost_passed.emit())
+	_items.append(area)
+	ghosts.append(info)
 
 
 func _spawn_crystal(pos: Vector3) -> void:
