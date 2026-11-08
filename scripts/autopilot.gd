@@ -373,13 +373,15 @@ func _fly_steer() -> float:
 			var t := d / maxf(forward + v.z, 1.0)
 			if d < -2.0 or t > 60.0 / forward:
 				continue
-			# Yüksek kaya ancak yükselirken engel
-			if float(r.get("y", car.flight_altitude)) > car.flight_altitude + 5.0 and not car.climbing:
+			# Yüksek kaya ancak yükselirken engel (kırık parça: alt ucu uçuş yüksekliğinin üstündeyse)
+			var bottom: float = float(r.get("y", car.flight_altitude)) - float(r.get("h", 0.0))
+			if bottom > car.flight_altitude + (1.5 if r.has("h") else 5.0) and not car.climbing:
 				continue
 			# Kayanın hizasına geldiğimizde nerede olabiliriz
 			var reach := car.steer_speed * maxf(t - 0.15, 0.0)
 			var x_at := pos.x + clampf(cand - pos.x, -reach, reach)
-			if absf(x_at - (r.x + v.x * t)) < r.r + 2.2:
+			var clear: float = (float(r.rad) + car.wing_half_span + 0.6) if r.has("rad") else r.r + 2.2
+			if absf(x_at - (r.x + v.x * t)) < clear:
 				cost += 1000.0
 		if cost < best_cost:
 			best_cost = cost
@@ -405,8 +407,8 @@ func _should_climb() -> bool:
 			continue
 		var ry: float = r.node.position.y
 		if absf(r.x - pos.x) < r.r + 2.0:
-			# Ortadaki ya da yüksek kaya: yükselmek kurtarmaz
-			if ry > car.flight_altitude + 2.0:
+			# Ortadaki ya da yüksek kaya: yükselmek kurtarmaz (kırık parça: üst ucu tırmanışa yetişiyorsa)
+			if ry > car.flight_altitude + 2.0 or (r.has("h") and float(r.y) + float(r.h) > car.flight_altitude + car.climb_height - 2.0):
 				return false
 			low_ahead = true
 	return low_ahead

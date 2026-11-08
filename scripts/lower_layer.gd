@@ -68,6 +68,8 @@ var _next_portal: Portal
 var scripted := false
 ## Alt katmanda geçen süre ve sıradaki kuyruklu kayanın zamanı
 var _time := 0.0
+## Uçuşa geçilen z (alt katman açıldığında)
+var _start_z := 0.0
 var _next_comet := 0.0
 var _comet_mat := StandardMaterial3D.new()
 ## Hayaletler: { node, v } (kaya değil: kaya kuralları ve otomatik pilotun kaçışı onları saymaz)
@@ -193,6 +195,7 @@ func activate() -> void:
 	_time = 0.0
 	_next_comet = _rng.randf_range(2.0, 4.0)
 	var z := car.global_position.z
+	_start_z = z
 	_next_row_z = z - 70.0
 	_next_portal = _plan_portal(z - car.speed * _rng.randf_range(first_portal_time.x, first_portal_time.y))
 
@@ -406,7 +409,7 @@ func _spawn_chunk(z: float, stop_z: float) -> float:
 				_try_rock(Vector3(x, fy + _rng.randf_range(-1.2, 1.2), wz + _rng.randf_range(-3.5, 3.5)), r, true)
 			x += r * _rng.randf_range(1.5, 2.3)
 		placed = n / 2
-	elif style < 0.4:
+	elif style < 0.4 and z < _start_z - 220.0:
 		# Yığın: birbirine yaslanmış birkaç kaya, farklı yükseklikler
 		var c := Vector3(cx + _rng.randf_range(-10.0, 10.0), fy, _rng.randf_range(z_end + 5.0, z - 5.0))
 		for i in _rng.randi_range(3, 5):
@@ -1008,7 +1011,8 @@ func _debris_fits(blobs: Array, merge: bool) -> bool:
 				continue
 			var orad: float = o.get("rad", 0.85 * o.r)
 			var oh: float = o.get("h", 0.85 * o.r)
-			if absf(o.z - b.z) > b.rad + orad + 3.0 or absf(o.y - b.y) > b.h + oh + 2.0:
+			# Boyuna pay geniş: arka arkaya iki parça arasında keskin zikzak gerekmesin
+			if absf(o.z - b.z) > b.rad + orad + 12.0 or absf(o.y - b.y) > b.h + oh + 2.0:
 				continue
 			var gap: float = absf(o.x - b.x) - b.rad - orad
 			if gap < (0.3 if merge else span):
@@ -1070,13 +1074,16 @@ func _spawn_debris_chunk(z: float, z_end: float, n: int) -> void:
 	var cx := roads.path_x_at(z)
 	var fy := car.flight_altitude
 	var style := _rng.randf()
+	# Uçuşun ilk ~150 m'sinde kopmuş köprü yok (araba daha inerken önüne duvar çıkmasın)
+	if z > _start_z - 150.0 and style < 0.25:
+		style = 0.25 + _rng.randf() * 0.75
 	var weight := 0.0
 	if style < 0.25:
 		# Kopmuş köprü: koridoru enine kesen uzun (ya da büyük) parça, uzun ekseninde yuvarlanır;
 		# yanında kanat açıklığından geniş bir geçit (bazen iki yanında birer parça)
 		var wz := _rng.randf_range(z_end + 4.0, z - 4.0)
 		var gap_x := cx + _rng.randf_range(-9.0, 9.0)
-		var gap_w := _rng.randf_range(9.0, 12.0)
+		var gap_w := _rng.randf_range(10.0, 13.0)
 		var sides := [-1.0, 1.0] if _rng.randf() < 0.6 else [_rand_sign()]
 		for side: float in sides:
 			var proto := _pick_proto(S.LONG if _rng.randf() < 0.55 else S.LARGE)
@@ -1084,7 +1091,7 @@ func _spawn_debris_chunk(z: float, z_end: float, n: int) -> void:
 			var pos := Vector3(gap_x + side * (gap_w * 0.5 + hl), fy + _rng.randf_range(-1.0, 1.0), wz + _rng.randf_range(-2.0, 2.0))
 			_place_debris(proto, _plan_motion(proto, pos, Motion.WALL))
 		weight = n * 0.5
-	elif style < 0.4:
+	elif style < 0.4 and z < _start_z - 220.0:
 		# Yığın: birbirine yakın birkaç küçük-orta parça, bol moloz
 		var c := Vector3(cx + _rng.randf_range(-10.0, 10.0), fy + _rng.randf_range(-1.0, 3.0), _rng.randf_range(z_end + 6.0, z - 6.0))
 		for i in _rng.randi_range(3, 5):
@@ -1107,11 +1114,19 @@ func _spawn_debris_chunk(z: float, z_end: float, n: int) -> void:
 			mode = Motion.ROLL if _rng.randf() < 0.6 else Motion.FLAT
 		var h := _rng.randf()
 		var y := fy + _rng.randf_range(-1.5, 1.5)
-		if h < high_rock_chance:
+		var pz := _rng.randf_range(z_end, z)
+		# Uçuşun başında araba yukarıdan iner: ilk ~220 m'de uçuş yüksekliğinin üstünde parça yok,
+		# alçaktakiler de takla atmaz (iniş yoluna uzanmasın)
+		var descent := pz > _start_z - 220.0
+		if descent:
+			y = fy + _rng.randf_range(-3.0, -1.0)
+			if mode == Motion.TUMBLE:
+				mode = Motion.FLAT
+		elif h < high_rock_chance:
 			y = fy + _rng.randf_range(6.0, 10.0)
 		elif h < high_rock_chance + mid_rock_chance:
 			y = fy + _rng.randf_range(2.5, 4.5)
-		var pos := Vector3(cx + _rng.randf_range(-corridor_half_width - 3.0, corridor_half_width + 3.0), y, _rng.randf_range(z_end, z))
+		var pos := Vector3(cx + _rng.randf_range(-corridor_half_width - 3.0, corridor_half_width + 3.0), y, pz)
 		if _place_debris(proto, _plan_motion(proto, pos, mode)):
 			weight += [1.0, 1.5, 2.5, 3.0][size]
 	# Koridorda dağınık molozlar
