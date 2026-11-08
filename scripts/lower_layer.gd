@@ -31,6 +31,9 @@ const CRYSTAL_REACH := Vector3(3.2, 1.8, 2.6)
 ## Kayaların yerine üst kattaki yolların kırık parçaları (RoadDebris): havada asılı, kendi
 ## eksenlerinde döner; aralarında bağımsız molozlar yüzer (zararsız, çarpınca savrulur). false: eski kayalar
 @export var use_debris := true
+## Kırık parça miktarı (kaya yoğunluğuna göre; telefonda hafif kalsın diye az) ve gölgeleri
+@export var debris_amount := 0.7
+@export var debris_shadows := false
 ## Kaya alanı: 100 m'deki kaya sayısı (yeni düşünce, uzun kalınca)
 @export var rock_density := Vector2(7.0, 13.0)
 ## Yoğunluğun tavana çıktığı süre (alt katmanda kalınan sn)
@@ -218,9 +221,21 @@ func deactivate() -> void:
 	_next_portal = null
 
 
+## Ölçüm (test): update ve moloz süreleri (µs, toplam)
+var perf_us := {"update": 0, "rubble": 0, "max": 0}
+
+
 func update(delta: float) -> void:
 	if not active:
 		return
+	var _t0 := Time.get_ticks_usec()
+	_update_inner(delta)
+	var _dt := Time.get_ticks_usec() - _t0
+	perf_us.update += _dt
+	perf_us.max = maxi(perf_us.max, _dt)
+
+
+func _update_inner(delta: float) -> void:
 	var z := car.global_position.z
 	_time += delta
 	while _next_row_z > z - fill_distance:
@@ -232,7 +247,14 @@ func update(delta: float) -> void:
 			_next_portal = _plan_portal(_next_portal.z - interval)
 			continue
 		var stop := _next_portal.z + 35.0 if _next_portal else -INF
+		var _tc := Time.get_ticks_usec()
+		var _zc := _next_row_z
 		_next_row_z = _spawn_chunk(_next_row_z, stop)
+		if OS.get_cmdline_user_args().has("--lowerperf") and use_debris:
+			print("CHUNK ms=%.2f len=%.0f rocks=%d" % [(Time.get_ticks_usec() - _tc) / 1000.0, _zc - _next_row_z, rocks.size()])
+		# Kırık parçalar: karede en çok bir parça boyu (takılmasın); 250 m'den yakını beklemez
+		if use_debris and _next_row_z < z - 250.0:
+			break
 	# Kuyruklu kayalar: uzaktan parlayarak bize doğru gelir
 	if _time >= _next_comet and not scripted:
 		_next_comet = _time + _rng.randf_range(comet_interval.x, comet_interval.y)
@@ -389,7 +411,7 @@ func _spawn_chunk(z: float, stop_z: float) -> float:
 	var dens := lerpf(rock_density.x, rock_density.y, clampf(_time / maxf(density_time, 0.1), 0.0, 1.0))
 	var n := roundi(dens * (z - z_end) / 100.0 * _rng.randf_range(0.7, 1.3))
 	if use_debris:
-		_spawn_debris_chunk(z, z_end, n)
+		_spawn_debris_chunk(z, z_end, roundi(n * debris_amount))
 		_spawn_decor(roads.path_x_at(z), (z + z_end) * 0.5)
 		return z_end
 	var cx := roads.path_x_at(z)
@@ -480,7 +502,7 @@ func _spawn_decor(cx: float, z: float) -> void:
 	var fy := car.flight_altitude
 	if use_debris:
 		# Uzakta süzülen büyük kırık yol parçaları (çarpışmasız, gölgesiz), çok yavaş döner
-		for i in _rng.randi_range(0, 2):
+		for i in (1 if _rng.randf() < 0.5 else 0):
 			var side := -1.0 if _rng.randf() < 0.5 else 1.0
 			var proto := _pick_proto(RoadDebris.Size.LARGE if _rng.randf() < 0.6 else RoadDebris.Size.LONG)
 			var pos := Vector3(cx + side * _rng.randf_range(45.0, 115.0), fy + _rng.randf_range(-25.0, 15.0), z)
@@ -813,7 +835,9 @@ func _process(delta: float) -> void:
 	if not active and not _pool_queue.is_empty():
 		_build_next_debris()
 	if not _rubble.is_empty():
+		var _t0 := Time.get_ticks_usec()
 		_update_rubble(delta)
+		perf_us.rubble += Time.get_ticks_usec() - _t0
 
 
 func _build_next_debris() -> void:
@@ -827,7 +851,7 @@ func _build_next_debris() -> void:
 		_rubble_meshes.append(baked.mesh)
 		return
 	var node := RoadDebris.build(job.size, job.seed, job.style, job.feature)
-	var proto := _bake_debris(node, true)
+	var proto := _bake_debris(node, true, job.feature != RoadDebris.Feature.NONE)
 	node.free()
 	proto.feature = job.feature
 	proto.size = job.size
@@ -837,7 +861,7 @@ func _build_next_debris() -> void:
 ## Parçanın tüm yüzeyleri tek örgüde (renkler köşe renginde): gölgeli ve gölgesiz (şerit çizgisi)
 ## iki yüzey, az çizim. Çarpışma: her yarı boyuna ~6 m'lik bantlara bölünür, her bant dış bükey
 ## (bükülmüş ya da yokuşlu parçada boşluğu doldurmasın); biraz içeri çekilir (sıyırınca affeder)
-func _bake_debris(root: Node3D, with_hulls: bool) -> Dictionary:
+func _bake_debris(root: Node3D, with_hulls: bool, banded := false) -> Dictionary:
 	var lit_v := PackedVector3Array()
 	var lit_n := PackedVector3Array()
 	var lit_c := PackedColorArray()
@@ -855,7 +879,7 @@ func _bake_debris(root: Node3D, with_hulls: bool) -> Dictionary:
 		var local_box := mi.mesh.get_aabb()
 		box = xf * local_box if first else box.merge(xf * local_box)
 		first = false
-		var bands := maxi(1, ceili(local_box.size.z / 6.0))
+		var bands := maxi(1, ceili(local_box.size.z / 6.0)) if banded else 1
 		var band_len := maxf(local_box.size.z / bands, 0.01)
 		var band_pts: Array = []
 		for b in bands:
@@ -910,7 +934,10 @@ func _bake_debris(root: Node3D, with_hulls: bool) -> Dictionary:
 			c /= pts.size()
 			for i in pts.size():
 				pts[i] = c + (pts[i] - c) * 0.92
-			hulls.append(pts)
+			# Şekil bir kez kurulur, tüm kopyalar paylaşır (her parçada yeniden hesaplanmasın)
+			var sh := ConvexPolygonShape3D.new()
+			sh.points = pts
+			hulls.append(sh)
 	var mesh := ArrayMesh.new()
 	for g in [[lit_v, lit_n, lit_c, _debris_lit], [flat_v, flat_n, flat_c, _debris_flat]]:
 		if (g[0] as PackedVector3Array).is_empty():
@@ -996,7 +1023,7 @@ func _place_debris(proto: Dictionary, place: Dictionary, check := true, merge :=
 	for b: Dictionary in place.blobs:
 		rocks.append({"x": b.x, "y": b.y, "z": b.z, "r": b.rad / 0.85, "rad": b.rad, "h": b.h, "node": node})
 	# Etrafında kendi molozları
-	for i in [2, 4, 6, 8][proto.size] + _rng.randi_range(0, 3):
+	for i in [0, 1, 1, 2][proto.size] + _rng.randi_range(0, 1):
 		var b: Dictionary = place.blobs[_rng.randi() % place.blobs.size()]
 		_add_rubble(Vector3(b.x, b.y, b.z) + _rand_axis() * _rng.randf_range(b.rad * 0.7, b.rad + 4.0))
 	return true
@@ -1005,8 +1032,19 @@ func _place_debris(proto: Dictionary, place: Dictionary, check := true, merge :=
 func _debris_fits(blobs: Array, merge: bool) -> bool:
 	var span: float = car.wing_half_span * 2.0 + 0.6
 	var fy := car.flight_altitude
+	# Yalnız yakındakiler (boyuna): tüm listeyi her yuvar için dolaşmasın
+	var z_lo := INF
+	var z_hi := -INF
 	for b: Dictionary in blobs:
-		for o in rocks:
+		z_lo = minf(z_lo, b.z - b.rad)
+		z_hi = maxf(z_hi, b.z + b.rad)
+	var near: Array = []
+	for o in rocks:
+		if not o.has("v") and o.z > z_lo - 40.0 and o.z < z_hi + 40.0:
+			near.append(o)
+	var near_all := near + blobs
+	for b: Dictionary in blobs:
+		for o in near:
 			if o.has("v"):
 				continue
 			var orad: float = o.get("rad", 0.85 * o.r)
@@ -1020,9 +1058,7 @@ func _debris_fits(blobs: Array, merge: bool) -> bool:
 		if absf(b.y - fy) < b.h + 1.5:
 			var cx := roads.path_x_at(b.z)
 			var blocks: Array[Vector2] = []
-			for o in rocks + blobs:
-				if o.has("v"):
-					continue
+			for o in near_all:
 				var orad: float = o.get("rad", 0.85 * o.get("r", 0.0))
 				var oh: float = o.get("h", orad)
 				if absf(o.z - b.z) < b.rad + orad + 3.0 and absf(o.y - fy) < oh + 1.5:
@@ -1050,13 +1086,12 @@ func _spawn_debris(proto: Dictionary, pos: Vector3, base: Basis, axis: Vector3, 
 	add_child(node)
 	var mi := MeshInstance3D.new()
 	mi.mesh = proto.mesh
-	if not shadow:
+	if not shadow or not debris_shadows:
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	node.add_child(mi)
 	if collide:
-		for pts: PackedVector3Array in proto.hulls:
-			var sh := ConvexPolygonShape3D.new()
-			sh.points = pts
+		(node as Area3D).monitorable = false
+		for sh: Shape3D in proto.hulls:
 			var col := CollisionShape3D.new()
 			col.shape = sh
 			node.add_child(col)
@@ -1094,18 +1129,21 @@ func _spawn_debris_chunk(z: float, z_end: float, n: int) -> void:
 	elif style < 0.4 and z < _start_z - 220.0:
 		# Yığın: birbirine yakın birkaç küçük-orta parça, bol moloz
 		var c := Vector3(cx + _rng.randf_range(-10.0, 10.0), fy + _rng.randf_range(-1.0, 3.0), _rng.randf_range(z_end + 6.0, z - 6.0))
-		for i in _rng.randi_range(3, 5):
-			var proto := _pick_proto(S.SMALL if _rng.randf() < 0.6 else S.MEDIUM)
+		for i in _rng.randi_range(2, 3):
+			var proto := _pick_proto(S.SMALL if _rng.randf() < 0.5 else S.MEDIUM)
 			var pos := c + Vector3(_rng.randf_range(-8.0, 8.0), _rng.randf_range(-3.0, 5.0), _rng.randf_range(-7.0, 7.0))
 			_place_debris(proto, _plan_motion(proto, pos, Motion.TUMBLE), true, true)
-		for i in _rng.randi_range(10, 18):
+		for i in _rng.randi_range(4, 6):
 			_add_rubble(c + Vector3(_rng.randf_range(-10.0, 10.0), _rng.randf_range(-5.0, 7.0), _rng.randf_range(-9.0, 9.0)))
 		weight = n * 0.5
 	var tries := 0
-	while weight < n and tries < n * 6:
+	# Yerleştirme denemeleri süreyle sınırlı (telefonda karede takılma olmasın; sığmayan atlanır)
+	var t_start := Time.get_ticks_usec()
+	while weight < n and tries < n * 4 and Time.get_ticks_usec() - t_start < 900:
 		tries += 1
 		var roll := _rng.randf()
-		var size: int = S.SMALL if roll < 0.45 else (S.MEDIUM if roll < 0.77 else (S.LARGE if roll < 0.92 else S.LONG))
+		# Çoğu büyük ve uzun (yukarıdaki yolların oranında); az sayıda küçük-orta
+		var size: int = S.SMALL if roll < 0.15 else (S.MEDIUM if roll < 0.4 else (S.LARGE if roll < 0.7 else S.LONG))
 		var proto := _pick_proto(size)
 		var mode: int = Motion.ROLL
 		if size == S.SMALL or size == S.MEDIUM:
@@ -1130,7 +1168,7 @@ func _spawn_debris_chunk(z: float, z_end: float, n: int) -> void:
 		if _place_debris(proto, _plan_motion(proto, pos, mode)):
 			weight += [1.0, 1.5, 2.5, 3.0][size]
 	# Koridorda dağınık molozlar
-	for i in _rng.randi_range(6, 14):
+	for i in _rng.randi_range(0, 3):
 		_add_rubble(Vector3(cx + _rng.randf_range(-corridor_half_width - 6.0, corridor_half_width + 6.0),
 			fy + _rng.randf_range(-4.0, 9.0), _rng.randf_range(z_end, z)))
 
@@ -1140,7 +1178,7 @@ func _add_rubble(p: Vector3) -> void:
 	if _rubble_meshes.is_empty():
 		return
 	_rubble.append({"p": p, "b": Basis.from_euler(Vector3(_rng.randf() * TAU, _rng.randf() * TAU, _rng.randf() * TAU)),
-		"v": _rand_axis() * _rng.randf_range(0.0, 0.4), "w": _rand_axis(), "ws": _rng.randf_range(0.3, 1.5) * _rand_sign(),
+		"v": _rand_axis() * _rng.randf_range(0.0, 0.4), "w": _rand_axis(), "ws": _rng.randf_range(0.3, 1.5) * _rand_sign(), "a": 0.0,
 		"k": _rng.randi() % _rubble_meshes.size(), "s": _rng.randf_range(0.8, 2.0), "hit": false})
 
 
@@ -1155,7 +1193,7 @@ func _update_rubble(delta: float) -> void:
 	var keep: Array = []
 	for r: Dictionary in _rubble:
 		r.p += r.v * delta
-		r.b = (Basis(r.w, r.ws * delta) * r.b).orthonormalized()
+		r.a += r.ws * delta
 		if r.p.z > cp.z + 30.0 or r.p.z < cp.z - 900.0:
 			continue
 		if flying and not r.hit:
@@ -1166,7 +1204,7 @@ func _update_rubble(delta: float) -> void:
 		keep.append(r)
 		var k: int = r.k
 		if counts[k] < RUBBLE_CAP:
-			_rubble_mm[k].multimesh.set_instance_transform(counts[k], Transform3D(r.b.scaled(Vector3.ONE * r.s), r.p))
+			_rubble_mm[k].multimesh.set_instance_transform(counts[k], Transform3D((Basis(r.w, r.a) * r.b).scaled(Vector3.ONE * r.s), r.p))
 			counts[k] += 1
 	_rubble = keep
 	for k in _rubble_mm.size():
@@ -1179,5 +1217,7 @@ func _kick_rubble(r: Dictionary, d: Vector3) -> void:
 	var n := Vector3(d.x / RUBBLE_REACH.x, d.y / RUBBLE_REACH.y, -maxf(absf(d.z) / RUBBLE_REACH.z, 0.35)).normalized()
 	var push := (1.0 + RUBBLE_BOUNCE) * maxf((car.velocity - (r.v as Vector3)).dot(n), 0.0)
 	r.v = (r.v as Vector3) + n * push + _rand_axis() * 1.5
+	r.b = Basis(r.w, r.a) * r.b
+	r.a = 0.0
 	r.w = _rand_axis()
 	r.ws = _rng.randf_range(3.0, 9.0) * _rand_sign()

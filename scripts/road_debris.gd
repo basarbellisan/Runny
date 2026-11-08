@@ -237,6 +237,8 @@ static func _slab(rng: RandomNumberGenerator, L: float, W: float, T: float, size
 		poly = _cut(poly, Vector2(side * hw, z0), Vector2(side * (hw - W * rng.randf_range(0.25, 0.45)), z0 + L * rng.randf_range(0.3, 0.6)), Vector2(side, 0))
 	# Yüzey biçimi: parçanın her noktası (x, z) bu kadar yukarı kayar (kalınlık sabit; bükülmüş yol)
 	var off := _feature_offset(rng, feature, L, W)
+	# Düz parça bölünmez (az köşe: telefonda hafif); biçimli parça biçimi izlesin diye ince şeritlere
+	var dz := 0.5 if feature != Feature.NONE else 1000.0
 	var mesh := ArrayMesh.new()
 	var top_y := T * 0.5
 	var bot_y := -T * 0.5
@@ -245,7 +247,7 @@ static func _slab(rng: RandomNumberGenerator, L: float, W: float, T: float, size
 	top_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var bot_st := SurfaceTool.new()
 	bot_st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for piece: PackedVector2Array in _strips(poly, hl):
+	for piece: PackedVector2Array in _strips(poly, hl, dz):
 		var tri := Geometry2D.triangulate_polygon(piece)
 		for k in range(0, tri.size(), 3):
 			var q := [piece[tri[k]], piece[tri[k + 1]], piece[tri[k + 2]]]
@@ -270,7 +272,7 @@ static func _slab(rng: RandomNumberGenerator, L: float, W: float, T: float, size
 		var intact := absf(absf(a.x) - hw) < 0.01 and absf(absf(b.x) - hw) < 0.01 and signf(a.x) == signf(b.x)
 		var tgt := side_st if intact else broken_st
 		var out2 := (b - a).orthogonal().normalized() * (1.0 if ccw else -1.0)
-		var parts := maxi(1, ceili(a.distance_to(b) / 0.5))
+		var parts := maxi(1, ceili(a.distance_to(b) / dz))
 		for j in parts:
 			var p0 := a.lerp(b, float(j) / parts)
 			var p1 := a.lerp(b, float(j + 1) / parts)
@@ -288,7 +290,7 @@ static func _slab(rng: RandomNumberGenerator, L: float, W: float, T: float, size
 		st2.set_material(_mat(pair[1]))
 		st2.commit(mesh)
 	if style >= 0:
-		_lines(mesh, poly, W, hl, top_y, style, z_off, off)
+		_lines(mesh, poly, W, hl, top_y, style, z_off, off, dz)
 	if feature == Feature.RAMP:
 		_ramp(mesh, rng, poly, L, W, top_y)
 	var mi := MeshInstance3D.new()
@@ -298,7 +300,7 @@ static func _slab(rng: RandomNumberGenerator, L: float, W: float, T: float, size
 
 ## Oyundaki şerit düzeni (RoadGenerator.LINE_STYLES[style]): kenardan uzaklık, genişlik, kesik
 ## boyu ve payı aynı; parça sınırında kırpılır
-static func _lines(mesh: ArrayMesh, poly: PackedVector2Array, W: float, hl: float, y: float, style: int, z_off: float, off: Callable) -> void:
+static func _lines(mesh: ArrayMesh, poly: PackedVector2Array, W: float, hl: float, y: float, style: int, z_off: float, off: Callable, dz := 0.5) -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var any := false
@@ -319,7 +321,7 @@ static func _lines(mesh: ArrayMesh, poly: PackedVector2Array, W: float, hl: floa
 					z += p
 			for r: PackedVector2Array in rects:
 				for clipped: PackedVector2Array in Geometry2D.intersect_polygons(r, poly):
-					for piece: PackedVector2Array in _strips(clipped, hl):
+					for piece: PackedVector2Array in _strips(clipped, hl, dz):
 						var t2 := Geometry2D.triangulate_polygon(piece)
 						for k in range(0, t2.size(), 3):
 							_tri(st, [piece[t2[k]], piece[t2[k + 1]], piece[t2[k + 2]]], y + 0.02, off, 1.0)

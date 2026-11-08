@@ -248,6 +248,14 @@ func _physics_process(delta: float) -> void:
 		print("SLOW roads.update %.1f ms at z=%.1f" % [(Time.get_ticks_usec() - _t0) / 1000.0, roads.to_design(car.global_position).y])
 	car.extra_top = maxf(_start_z - car.global_position.z - roads.hard_from, 0.0) / 1000.0 * late_speed_per_km / 3.6
 	lower.update(delta)
+	if _args.has("lowerperf") and lower.active and Engine.get_physics_frames() % 120 == 0:
+		var shapes := 0
+		for r in lower.get_children():
+			if r is Area3D:
+				shapes += r.get_child_count() - 1
+		print("LPERF max_ms=%.2f update_ms=%.2f rubble_ms=%.2f rubble=%d nodes=%d shapes=%d draws=%d prims=%d" % [lower.perf_us.max / 1000.0, lower.perf_us.update / 120000.0, lower.perf_us.rubble / 120000.0, lower._rubble.size(), lower.get_child_count(), shapes,
+			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME), RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)])
+		lower.perf_us = {"update": 0, "rubble": 0, "max": 0}
 	_check_level_test()
 	score += maxf(-car.velocity.z, 0.0) * delta * multiplier
 	_update_high_route(delta)
