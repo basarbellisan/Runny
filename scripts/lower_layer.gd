@@ -263,6 +263,8 @@ func deactivate() -> void:
 	_next_portal = null
 
 
+## Test günlüğü (--lowerperf): parça üretim süreleri, moloz savrulmaları
+var debug_log := false
 ## Ölçüm (test): update ve moloz süreleri (µs, toplam)
 var perf_us := {"update": 0, "rubble": 0, "max": 0}
 
@@ -296,7 +298,7 @@ func _update_inner(delta: float, spawn := true) -> void:
 		var _tc := Time.get_ticks_usec()
 		var _zc := _next_row_z
 		_next_row_z = _spawn_chunk(_next_row_z, stop)
-		if OS.get_cmdline_user_args().has("--lowerperf") and use_debris:
+		if debug_log and use_debris:
 			print("CHUNK ms=%.2f len=%.0f rocks=%d" % [(Time.get_ticks_usec() - _tc) / 1000.0, _zc - _next_row_z, rocks.size()])
 		# Kırık parçalar: karede en çok bir parça boyu (takılmasın); 250 m'den yakını beklemez
 		if use_debris and _next_row_z < z - 250.0:
@@ -854,6 +856,8 @@ func _setup_debris() -> void:
 		var mmi := MultiMeshInstance3D.new()
 		mmi.multimesh = mm
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		# Molozlar görüntü karesinde kendisi akar (fizik adımı aradeğerlemesi gerekmez)
+		mmi.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 		add_child(mmi)
 		_rubble_mm.append(mmi)
 
@@ -909,7 +913,7 @@ func _process(delta: float) -> void:
 		while not pool_step():
 			pass
 		_warmed = true
-		if not OS.get_cmdline_user_args().has("--nowarm"): _prewarm()
+		_prewarm()
 	for k in _rubble_mm.size():
 		if _rubble_mm[k].multimesh.mesh == null and k < _rubble_meshes.size():
 			_rubble_mm[k].multimesh.mesh = _rubble_meshes[k]
@@ -1324,7 +1328,7 @@ func _kick_rubble(r: Dictionary, d: Vector3) -> void:
 	r.w = _rand_axis()
 	r.ws = _rng.randf_range(8.0, 15.0) * _rand_sign()
 	var now := Time.get_ticks_msec()
-	if OS.get_cmdline_user_args().has("--lowerperf"):
+	if debug_log:
 		print("KICK v=%v" % r.v)
 	if now - _last_rubble_sfx > 70:
 		_last_rubble_sfx = now

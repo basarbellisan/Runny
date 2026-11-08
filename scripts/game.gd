@@ -157,6 +157,7 @@ func _ready() -> void:
 	lower.ghost_passed.connect(_on_ghost_passed)
 	lower.ghost_aim = _args.has("ghost_aim")
 	lower.use_debris = not _args.has("rocks")  # test: eski kayalar
+	lower.debug_log = _args.has("lowerperf")
 	lower.portal_entered.connect(_on_portal)
 	Tuning.register({"game": self, "car": car, "roads": roads, "lower": lower,
 		"camera": $Camera, "audio": Audio, "trail": car.trail, "speedo": hud.speedometer})
