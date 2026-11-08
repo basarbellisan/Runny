@@ -19,6 +19,8 @@ class Portal:
 	var node: Node3D
 	var path: PackedVector3Array  # tünelin orta çizgisi (araba içinden geçer)
 
+## Portalın kırık parçalardan boş kalan alanı: önünde (yaklaşma), arkasında (tünel), yarı genişlik
+const PORTAL_ZONE := Vector3(45.0, 15.0, 9.0)
 ## Kristal toplama mesafesi (yarı genişlik): x kanatlar, y gövde, z araba boyu
 const CRYSTAL_REACH := Vector3(3.2, 1.8, 2.6)
 
@@ -31,6 +33,10 @@ const CRYSTAL_REACH := Vector3(3.2, 1.8, 2.6)
 ## Kayaların yerine üst kattaki yolların kırık parçaları (RoadDebris): havada asılı, kendi
 ## eksenlerinde döner; aralarında bağımsız molozlar yüzer (zararsız, çarpınca savrulur). false: eski kayalar
 @export var use_debris := true
+## Alt kat hep yaşar: araba yukarıdaki yollardayken de aşağıda, önünde kırık parçalar üretilir ve
+## döner (uzaktan sisin içinden belirir). Düşünce zaten var olan enkazın içine inilir; portal,
+## hayalet gibi uçuşa ait olanlar yalnız uçarken
+@export var ambient := true
 ## Kaya alanı: 100 m'deki kaya sayısı (yeni düşünce, uzun kalınca)
 @export var rock_density := Vector2(7.0, 13.0)
 ## Yoğunluğun tavana çıktığı süre (alt katmanda kalınan sn)
@@ -171,6 +177,7 @@ func _setup_ghost_materials() -> void:
 func setup(p_car: Car, p_roads: RoadGenerator, seed_value := -1) -> void:
 	car = p_car
 	roads = p_roads
+	_next_row_z = car.global_position.z - 40.0
 	if seed_value >= 0:
 		_rng.seed = seed_value + 1000
 	else:
@@ -192,14 +199,19 @@ func activate() -> void:
 	var z := car.global_position.z
 	flight_start_z = z
 	_next_row_z = z - 70.0
-	# Kırık parçalar inişte hemen yakına da konur (enkazın içine inilir) ama birden belirmez:
-	# görünürlük kameradan dışarı doğru açılır
-	if use_debris and not lingered:
+	if use_debris and ambient:
+		# Alt kat zaten dolu: enkazın içine inilir, üretim kaldığı yerden sürer
+		_next_row_z = minf(_next_row_z, prev_row)
+	elif use_debris and not lingered:
+		# Kırık parçalar inişte hemen yakına konur ama birden belirmez: görünürlük açılır
 		field.reveal()
 	# Önceki uçuştan kalan enkaz hâlâ öndeyse üretim onun bittiği yerden sürer (üst üste binmesin)
 	if lingered:
 		_next_row_z = minf(_next_row_z, prev_row)
 	_next_portal = _plan_portal(z - car.speed * _rng.randf_range(first_portal_time.x, first_portal_time.y))
+	# Portal önceden dolu alana düştüyse ve yanlarda boş yer yoksa yaklaşma yolu açılır
+	if use_debris and _next_portal and _next_portal.z + 45.0 > _next_row_z:
+		field.clear_zone(_next_portal.x, _next_portal.z + PORTAL_ZONE.x, _next_portal.z - PORTAL_ZONE.y, PORTAL_ZONE.z)
 
 
 ## Yola dönünce: yeni engel üretmez ama mevcutlar birden silinmez; dönmeye devam eder, araba
@@ -238,7 +250,12 @@ var perf_us := {"update": 0, "max": 0}
 
 func update(delta: float) -> void:
 	if not active:
-		if _lingering:
+		if use_debris and ambient:
+			var _ta := Time.get_ticks_usec()
+			_update_inner(delta, false, true)
+			perf_us.update += Time.get_ticks_usec() - _ta
+			perf_us.max = maxi(perf_us.max, Time.get_ticks_usec() - _ta)
+		elif _lingering:
 			_update_inner(delta, false)
 			if _items.is_empty() and field.is_empty():
 				deactivate()
@@ -250,18 +267,20 @@ func update(delta: float) -> void:
 	perf_us.max = maxi(perf_us.max, _dt)
 
 
-func _update_inner(delta: float, spawn := true) -> void:
+## spawn: uçuş (parça, portal, hayalet üretir); ambient_only: yalnız kırık parça alanı (yukarıdayken)
+func _update_inner(delta: float, spawn := true, ambient_only := false) -> void:
 	var z := car.global_position.z
 	_time += delta
-	while spawn and _next_row_z > z - fill_distance:
+	while (spawn or ambient_only) and _next_row_z > z - fill_distance:
 		# Portalın önünde kısa bir kayasız yaklaşma payı (tünelin ağzına hizalanmak için)
-		if _next_portal and _next_row_z <= _next_portal.z + 35.0:
+		if spawn and _next_portal and _next_row_z <= _next_portal.z + 35.0:
 			_spawn_portal(_next_portal)
-			_next_row_z = _next_portal.z - 45.0
+			# Alt kat önceden doluysa (ambient) üretim geri dönmez, kaldığı yerden sürer
+			_next_row_z = minf(_next_row_z, _next_portal.z - 45.0)
 			var interval := car.speed * _rng.randf_range(portal_interval.x, portal_interval.y)
 			_next_portal = _plan_portal(_next_portal.z - interval)
 			continue
-		var stop := _next_portal.z + 35.0 if _next_portal else -INF
+		var stop := _next_portal.z + 35.0 if (spawn and _next_portal) else -INF
 		var _tc := Time.get_ticks_usec()
 		var _zc := _next_row_z
 		_next_row_z = _spawn_chunk(_next_row_z, stop)
@@ -402,10 +421,18 @@ func _plan_portal(z_desired: float) -> Portal:
 	var rise_far := p.z - v * 1.8 - 5.0
 	p.clear_y = maxf(roads.max_top_between(p.z + 5.0, rise_far), seg.max_top()) + 2.0
 	p.x = seg.x + corridor_half_width + 10.0
+	var road_ok := NAN
 	for offset in [0.0, 8.0, -8.0, 11.0, -11.0, 14.0, -14.0, 18.0, -18.0, 22.0, -22.0, 27.0, -27.0]:
 		if roads.is_clear(seg.x + offset, p.z + 5.0, rise_far, 3.0):
+			if is_nan(road_ok):
+				road_ok = seg.x + offset
+			# Önceden dolu alt katta: kırık parçaların arasında boş bir yer
+			if use_debris and field.zone_blocked(seg.x + offset, p.z + PORTAL_ZONE.x, p.z - PORTAL_ZONE.y, PORTAL_ZONE.z):
+				continue
 			p.x = seg.x + offset
-			break
+			return p
+	if not is_nan(road_ok):
+		p.x = road_ok
 	return p
 
 

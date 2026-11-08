@@ -163,6 +163,22 @@ static func _set_fade(k: float) -> void:
 		m.distance_fade_min_distance = far
 
 
+## Portal için: bu bölgede (z_near..z_far, x ± half_w) kırık parça var mı
+func zone_blocked(x: float, z_near: float, z_far: float, half_w: float) -> bool:
+	for o in layer.rocks:
+		if o.has("rad") and o.z - o.rad < z_near and o.z + o.rad > z_far and absf(o.x - x) < o.rad + half_w:
+			return true
+	return false
+
+
+## Portalın yaklaşma yolunu aç: bölgeye taşan parçaları kaldır (yalnız boş yer bulunamazsa)
+func clear_zone(x: float, z_near: float, z_far: float, half_w: float) -> void:
+	for o in layer.rocks:
+		if o.has("rad") and o.z - o.rad < z_near and o.z + o.rad > z_far and absf(o.x - x) < o.rad + half_w:
+			if is_instance_valid(o.node):
+				o.node.queue_free()
+
+
 func rubble_count() -> int:
 	return _rubble.size()
 
@@ -545,7 +561,7 @@ func _spawn_debris_chunk(z: float, z_end: float, n: int) -> void:
 	var fy := car.flight_altitude
 	var style := _rng.randf()
 	# Uçuşun ilk ~150 m'sinde kopmuş köprü yok (araba daha inerken önüne duvar çıkmasın)
-	if z > layer.flight_start_z - 150.0 and style < 0.25:
+	if layer.active and z > layer.flight_start_z - 150.0 and style < 0.25:
 		style = 0.25 + _rng.randf() * 0.75
 	var weight := 0.0
 	if style < 0.25:
@@ -561,7 +577,7 @@ func _spawn_debris_chunk(z: float, z_end: float, n: int) -> void:
 			var pos := Vector3(gap_x + side * (gap_w * 0.5 + hl), fy + _rng.randf_range(-1.0, 1.0), wz + _rng.randf_range(-2.0, 2.0))
 			_place_debris(proto, _plan_motion(proto, pos, Motion.WALL))
 		weight = n * 0.5
-	elif style < 0.4 and z < layer.flight_start_z - 220.0:
+	elif style < 0.4 and (not layer.active or z < layer.flight_start_z - 220.0):
 		# Yığın: birbirine yakın birkaç küçük-orta parça, bol moloz
 		var c := Vector3(cx + _rng.randf_range(-10.0, 10.0), fy + _rng.randf_range(-1.0, 3.0), _rng.randf_range(z_end + 6.0, z - 6.0))
 		for i in _rng.randi_range(2, 3):
@@ -590,7 +606,7 @@ func _spawn_debris_chunk(z: float, z_end: float, n: int) -> void:
 		var pz := _rng.randf_range(z_end, z)
 		# Uçuşun başında araba yukarıdan iner: ilk ~220 m'de uçuş yüksekliğinin üstünde parça yok,
 		# alçaktakiler de takla atmaz (iniş yoluna uzanmasın)
-		var descent := pz > layer.flight_start_z - 220.0
+		var descent := layer.active and pz > layer.flight_start_z - 220.0
 		if descent:
 			y = fy + _rng.randf_range(-3.0, -1.0)
 			if mode == Motion.TUMBLE:
