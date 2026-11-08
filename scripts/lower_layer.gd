@@ -34,6 +34,8 @@ const CRYSTAL_REACH := Vector3(3.2, 1.8, 2.6)
 ## Kırık parça miktarı (kaya yoğunluğuna göre; telefonda hafif kalsın diye az) ve gölgeleri
 @export var debris_amount := 0.7
 @export var debris_shadows := false
+## Parçaların görünmeye başladığı uzaklık (m): ötesi sisin içinde, gizli (ekranda daha az parça)
+@export var debris_view := 240.0
 ## Kaya alanı: 100 m'deki kaya sayısı (yeni düşünce, uzun kalınca)
 @export var rock_density := Vector2(7.0, 13.0)
 ## Yoğunluğun tavana çıktığı süre (alt katmanda kalınan sn)
@@ -89,18 +91,26 @@ var _rng := RandomNumberGenerator.new()
 
 var _rock_mesh: Mesh
 ## Kırık yol parçası kalıpları (boyut başına): { mesh, hulls (çarpışma: bant bant dış bükey),
-## aabb, feature }. Oyun başında kare kare hazırlanır (_pool_queue), sonra yalnız kopyalanır
-var _debris_pool: Array = [[], [], [], []]
-var _rubble_meshes: Array[Mesh] = []
-var _pool_queue: Array = []
-var _debris_lit := StandardMaterial3D.new()
-var _debris_flat := StandardMaterial3D.new()
+## aabb, feature }. Menüde kare kare hazırlanır (pool_step), oyun yeniden başlayınca da kalır;
+## oyunda yalnız kopyalanır
+static var _debris_pool: Array = [[], [], [], []]
+static var _rubble_meshes: Array[Mesh] = []
+static var _pool_queue: Array = []
+static var _pool_planned := false
+static var _debris_lit: StandardMaterial3D
+static var _debris_flat: StandardMaterial3D
+## Gölgelendiriciler bu oturumda ısıtıldı mı (derlenen gölgelendirici sahne yenilense de kalır)
+static var _warmed := false
 ## Dönen parçalar: { node, axis (dünya), spin (rad/sn), base (Basis), a (açı), s (ölçek) }
 var _debris: Array = []
 ## Molozlar: { p, b (Basis), v, w (eksen), ws (rad/sn), k (kalıp), s (ölçek), hit }
 var _rubble: Array = []
 var _rubble_mm: Array[MultiMeshInstance3D] = []
 const RUBBLE_CAP := 160
+## Gölgelendirici ısıtma: alt katmanın malzemeleri oyun başında kameranın önünde, görünmeyecek kadar
+## küçük birkaç kare çizilir (ilk inişte ve ilk hayalette derleme takılması olmasın)
+var _warm: Node3D
+var _warm_frames := 0
 ## Molozun arabaya değdiği kutu (yarı genişlik): x kanatlar, y gövde, z araba boyu
 const RUBBLE_REACH := Vector3(3.6, 1.3, 2.6)
 ## Savrulan molozun çarpmadan aldığı hızın payı (0 yapışır, 1 tam esnek sekme)
@@ -193,8 +203,8 @@ func activate() -> void:
 	if active:
 		return
 	active = true
-	while use_debris and not _pool_queue.is_empty():
-		_build_next_debris()
+	while use_debris and not pool_step():
+		pass
 	_time = 0.0
 	_next_comet = _rng.randf_range(2.0, 4.0)
 	var z := car.global_position.z
@@ -276,7 +286,12 @@ func _update_inner(delta: float) -> void:
 	_debris = _debris.filter(func(d): return is_instance_valid(d.node))
 	for d in _debris:
 		d.a += d.spin * delta
-		d.node.basis = (Basis(d.axis, d.a) * d.base).scaled(Vector3.ONE * d.s)
+		# Uzaktakiler gizli (sisin içinde, görünmeden hemen önce belirir): çizilmez, dönmez
+		var shown: bool = z - d.node.position.z < debris_view
+		if shown != d.node.visible:
+			d.node.visible = shown
+		if shown:
+			d.node.basis = (Basis(d.axis, d.a) * d.base).scaled(Vector3.ONE * d.s)
 	for r in rocks:
 		if r.has("v") and is_instance_valid(r.node):
 			r.node.position += r.v * delta
@@ -790,14 +805,42 @@ enum Motion { TUMBLE, FLAT, ROLL, WALL }
 
 
 func _setup_debris() -> void:
+	if not use_debris:
+		return
+	for i in 8:
+		# Moloz kalıbı başına bir çoklu örnek (tek çizim): konumları her kare güncellenir
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.instance_count = RUBBLE_CAP
+		mm.visible_instance_count = 0
+		mm.custom_aabb = AABB(Vector3(-1e5, -1e5, -1e5), Vector3(2e5, 2e5, 2e5))
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mmi)
+		_rubble_mm.append(mmi)
+
+
+## Kalıp hazırlığının bir adımı (menüde ve oyunda kare başına bir kez çağrılır); bitince true
+static func pool_step() -> bool:
+	if not _pool_planned:
+		_plan_pool()
+	if _pool_queue.is_empty():
+		return true
+	_build_next_debris()
+	return _pool_queue.is_empty()
+
+
+static func _plan_pool() -> void:
+	_pool_planned = true
+	_debris_lit = StandardMaterial3D.new()
+	_debris_flat = StandardMaterial3D.new()
 	for m: StandardMaterial3D in [_debris_lit, _debris_flat]:
 		m.vertex_color_use_as_albedo = true
 		m.vertex_color_is_srgb = true
 		m.roughness = 1.0
 		m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_debris_flat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	if not use_debris:
-		return
 	# Kalıplar: biçimler orta ve büyük parçalara dağılır (tek rampa, eğimli, yokuş); şerit düzenleri
 	# sırayla, eşit dağılır. Boyutlar dönüşümlü sıraya girer (erken lazım olursa her boyuttan biri hazır)
 	var F := RoadDebris.Feature
@@ -815,39 +858,38 @@ func _setup_debris() -> void:
 					"style": style % RoadGenerator.LINE_STYLES.size()})
 				style += 1
 		_pool_queue.append({"rubble": i + 1})
-		# Moloz kalıbı başına bir çoklu örnek (tek çizim): konumları her kare güncellenir
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.instance_count = RUBBLE_CAP
-		mm.visible_instance_count = 0
-		mm.custom_aabb = AABB(Vector3(-1e5, -1e5, -1e5), Vector3(2e5, 2e5, 2e5))
-		var mmi := MultiMeshInstance3D.new()
-		mmi.multimesh = mm
-		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(mmi)
-		_rubble_mm.append(mmi)
 
 
 func _process(delta: float) -> void:
 	if not use_debris:
 		return
-	# Kalıplar kare başına bir tane hazırlanır (takılma olmasın); uçuşa geçilince kalanı hemen
-	if not active and not _pool_queue.is_empty():
-		_build_next_debris()
+	# Kalıplar normalde menüde hazırlanır; eksikse oyunun ilk karesinde (yüklenirken) tamamlanır,
+	# gölgelendiriciler de o anda ısıtılır (uçuşta ve ilk hayalette takılma olmasın)
+	if not _warmed and get_viewport().get_camera_3d() != null:
+		while not pool_step():
+			pass
+		_warmed = true
+		if not OS.get_cmdline_user_args().has("--nowarm"): _prewarm()
+	for k in _rubble_mm.size():
+		if _rubble_mm[k].multimesh.mesh == null and k < _rubble_meshes.size():
+			_rubble_mm[k].multimesh.mesh = _rubble_meshes[k]
+	if _warm_frames > 0:
+		_warm_frames -= 1
+		if _warm_frames == 0 and is_instance_valid(_warm):
+			_warm.queue_free()
 	if not _rubble.is_empty():
 		var _t0 := Time.get_ticks_usec()
 		_update_rubble(delta)
 		perf_us.rubble += Time.get_ticks_usec() - _t0
 
 
-func _build_next_debris() -> void:
+static func _build_next_debris() -> void:
 	var job: Dictionary = _pool_queue.pop_front()
 	if job.has("rubble"):
 		var holder := Node3D.new()
 		holder.add_child(RoadDebris.build_rubble(job.rubble))
 		var baked := _bake_debris(holder, false)
 		holder.free()
-		_rubble_mm[_rubble_meshes.size()].multimesh.mesh = baked.mesh
 		_rubble_meshes.append(baked.mesh)
 		return
 	var node := RoadDebris.build(job.size, job.seed, job.style, job.feature)
@@ -861,7 +903,7 @@ func _build_next_debris() -> void:
 ## Parçanın tüm yüzeyleri tek örgüde (renkler köşe renginde): gölgeli ve gölgesiz (şerit çizgisi)
 ## iki yüzey, az çizim. Çarpışma: her yarı boyuna ~6 m'lik bantlara bölünür, her bant dış bükey
 ## (bükülmüş ya da yokuşlu parçada boşluğu doldurmasın); biraz içeri çekilir (sıyırınca affeder)
-func _bake_debris(root: Node3D, with_hulls: bool, banded := false) -> Dictionary:
+static func _bake_debris(root: Node3D, with_hulls: bool, banded := false) -> Dictionary:
 	var lit_v := PackedVector3Array()
 	var lit_n := PackedVector3Array()
 	var lit_c := PackedColorArray()
@@ -953,8 +995,8 @@ func _bake_debris(root: Node3D, with_hulls: bool, banded := false) -> Dictionary
 
 
 func _pick_proto(size: int) -> Dictionary:
-	while (_debris_pool[size] as Array).is_empty() and not _pool_queue.is_empty():
-		_build_next_debris()
+	while (_debris_pool[size] as Array).is_empty() and not pool_step():
+		pass
 	var list: Array = _debris_pool[size]
 	return list[_rng.randi() % list.size()]
 
@@ -1083,6 +1125,7 @@ func _spawn_debris(proto: Dictionary, pos: Vector3, base: Basis, axis: Vector3, 
 	var node: Node3D = Area3D.new() if collide else Node3D.new()
 	node.position = pos
 	node.basis = base.scaled(Vector3.ONE * scale_by)
+	node.visible = car.global_position.z - pos.z < debris_view
 	add_child(node)
 	var mi := MeshInstance3D.new()
 	mi.mesh = proto.mesh
@@ -1196,6 +1239,9 @@ func _update_rubble(delta: float) -> void:
 		r.a += r.ws * delta
 		if r.p.z > cp.z + 30.0 or r.p.z < cp.z - 900.0:
 			continue
+		if cp.z - r.p.z > debris_view - 40.0:
+			keep.append(r)  # uzakta: çizilmez
+			continue
 		if flying and not r.hit:
 			var d: Vector3 = r.p - cp
 			var reach: Vector3 = RUBBLE_REACH + Vector3.ONE * 0.4 * float(r.s)
@@ -1221,3 +1267,47 @@ func _kick_rubble(r: Dictionary, d: Vector3) -> void:
 	r.a = 0.0
 	r.w = _rand_axis()
 	r.ws = _rng.randf_range(3.0, 9.0) * _rand_sign()
+
+
+func _prewarm() -> void:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	_warm = Node3D.new()
+	cam.add_child(_warm)
+	_warm.position = Vector3(0, 0, -3.0)
+	_warm.scale = Vector3.ONE * 0.004
+	# Parça (gölgeli + gölgesiz yüzey: tek rampada ikisi de var), moloz (çoklu örnek)
+	var ramp: Dictionary = {}
+	for proto: Dictionary in _debris_pool[RoadDebris.Size.MEDIUM]:
+		if proto.feature == RoadDebris.Feature.RAMP_ALONE:
+			ramp = proto
+	if not ramp.is_empty():
+		var mi := MeshInstance3D.new()
+		mi.mesh = ramp.mesh
+		_warm.add_child(mi)
+	if not _rubble_meshes.is_empty():
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = _rubble_meshes[0]
+		mm.instance_count = 1
+		mm.set_instance_transform(0, Transform3D())
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		_warm.add_child(mmi)
+	# Hayalet (yarı saydam örtü, yüz, göz)
+	var g: Node3D = GHOST_SCENE.instantiate()
+	_warm.add_child(g)
+	for node in g.find_children("*", "MeshInstance3D", true, false):
+		var m := node as MeshInstance3D
+		for si in m.mesh.get_surface_count():
+			var src := m.mesh.surface_get_material(si)
+			var nm := src.resource_name if src else ""
+			m.set_surface_override_material(si, _ghost_body if nm == "Body" else (_ghost_face if nm == "Face" else _ghost_eye))
+	# Portal halkası ve saydam tüneli, kaya
+	for pair in [[_rock_mesh, _portal_mat], [_rock_mesh, _portal_fill_mat], [_rock_mesh, _rock_mats[0]]]:
+		var mi2 := MeshInstance3D.new()
+		mi2.mesh = pair[0]
+		mi2.material_override = pair[1]
+		_warm.add_child(mi2)
+	_warm_frames = 4

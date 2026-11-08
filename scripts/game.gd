@@ -312,6 +312,11 @@ func _physics_process(delta: float) -> void:
 	hud.set_speed(car.forward_speed * car.surface_drag if driving else -car.velocity.z, car.speed, car.boost_level, driving)
 	_update_hint()
 	clouds.position = Vector3(car.global_position.x, CLOUD_LAYER_Y, car.global_position.z)
+	if _args.has("lowerperf"):
+		var now := Time.get_ticks_usec()
+		if _lp_last > 0:
+			print("FT f=%d ms=%.1f mode=%d lower=%s" % [Engine.get_process_frames(), (now - _lp_last) / 1000.0, car.mode, lower.active])
+		_lp_last = now
 
 
 func _process(delta: float) -> void:
@@ -532,6 +537,7 @@ const SHADOW_OPACITY := 0.6
 ## Patlamalı çarpmada (yol, kaya, devrilme) kamera sarsıntısı (0..1, kayma karesiyle büyür)
 const CRASH_SHAKE := 0.45
 var _perf_label: Label
+var _lp_last := 0
 var _start_x_done := false
 var _perf_last := 0
 var _perf_times: Array[Vector2] = []  # (an ms, kare süresi ms)

@@ -182,6 +182,8 @@ func show_tutorial(start_page := 0) -> void:
 
 
 func _process(delta: float) -> void:
+	# Uçuştaki kırık yol parçalarının kalıpları menüde beklerken hazırlanır (oyunda takılmasın)
+	LowerLayer.pool_step()
 	for i in _turntables.size():
 		var t := _turntables[i]
 		t.rotate_y(0.55 * delta)
