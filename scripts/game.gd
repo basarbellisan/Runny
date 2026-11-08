@@ -230,6 +230,14 @@ func _ready() -> void:
 	backdrop.setup(car)
 	_apply_light_preset(int(_args.get("light", "0")))
 	_apply_mood(0.0)
+	var cover_layer := CanvasLayer.new()
+	cover_layer.layer = 90
+	add_child(cover_layer)
+	_cover = ColorRect.new()
+	_cover.color = Palette.PAPER
+	_cover.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_cover.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	cover_layer.add_child(_cover)
 
 
 func _physics_process(delta: float) -> void:
@@ -321,6 +329,14 @@ func _physics_process(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	_update_perf()
+	if _cover and _cover.modulate.a >= 1.0:
+		_cover_frames += 1
+		# Isıtma bitti (ya da kayalar açık / en geç ~1 sn): yumuşakça açılır
+		if (LowerLayer.is_warm() and _cover_frames > 6) or _cover_frames > 60 or not lower.use_debris:
+			var tw := create_tween()
+			tw.tween_property(_cover, "modulate:a", 0.0, 0.35)
+			tw.tween_callback(_cover.queue_free)
+			_cover.modulate.a = 0.999
 	if _args.has("start_x") and not _start_x_done and not roads.custom_log.is_empty():
 		# test: araba tasarımın bu x'ine (tasarım koordinatı) alınır, düz sürülür
 		_start_x_done = true
@@ -537,6 +553,10 @@ const SHADOW_OPACITY := 0.6
 ## Patlamalı çarpmada (yol, kaya, devrilme) kamera sarsıntısı (0..1, kayma karesiyle büyür)
 const CRASH_SHAKE := 0.45
 var _perf_label: Label
+## Açılış örtüsü: menünün karardığı kâğıt rengiyle başlar, alt katman gölgelendiricileri ısıtılınca
+## açılır (ilk karelerin yerine oturmamış görüntüsü ve derleme donması görünmez)
+var _cover: ColorRect
+var _cover_frames := 0
 var _lp_last := 0
 var _start_x_done := false
 var _perf_last := 0

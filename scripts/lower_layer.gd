@@ -105,6 +105,11 @@ static var _debris_lit: StandardMaterial3D
 static var _debris_flat: StandardMaterial3D
 ## Gölgelendiriciler bu oturumda ısıtıldı mı (derlenen gölgelendirici sahne yenilense de kalır)
 static var _warmed := false
+
+
+## Gölgelendiriciler ısıtıldı mı (açılış örtüsü bunu bekler)
+static func is_warm() -> bool:
+	return _warmed
 ## Dönen parçalar: { node, axis (dünya), spin (rad/sn), base (Basis), a (açı), s (ölçek) }
 var _debris: Array = []
 ## Molozlar: { p, b (Basis), v, w (eksen), ws (rad/sn), k (kalıp), s (ölçek), hit }
@@ -115,6 +120,7 @@ const RUBBLE_CAP := 160
 ## küçük birkaç kare çizilir (ilk inişte ve ilk hayalette derleme takılması olmasın)
 var _warm: Node3D
 var _warm_frames := 0
+var _frame_count := 0
 ## Molozun arabaya değdiği kutu (yarı genişlik): x kanatlar, y gövde, z araba boyu
 const RUBBLE_REACH := Vector3(3.6, 1.3, 2.6)
 ## Savrulan moloz: yana itilme hızı (m/s), arabanın hızından aldığı pay, hız sönümü (1/sn)
@@ -896,7 +902,10 @@ func _process(delta: float) -> void:
 		return
 	# Kalıplar normalde menüde hazırlanır; eksikse oyunun ilk karesinde (yüklenirken) tamamlanır,
 	# gölgelendiriciler de o anda ısıtılır (uçuşta ve ilk hayalette takılma olmasın)
-	if not _warmed and get_viewport().get_camera_3d() != null:
+	# Sahne yerine oturduktan sonra (birkaç kare: kamera, yollar, gökyüzü hazır); oyun açılış
+	# örtüsünün (game.gd) altında: derleme takılması görünmez
+	_frame_count += 1
+	if not _warmed and _frame_count > 3 and car != null:
 		while not pool_step():
 			pass
 		_warmed = true
@@ -1326,10 +1335,11 @@ func _prewarm() -> void:
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:
 		return
+	# Arabanın gövdesinin içinde, minicik: çizilir (derlenir) ama gövde örter, görünmez
 	_warm = Node3D.new()
-	cam.add_child(_warm)
-	_warm.position = Vector3(0, 0, -3.0)
-	_warm.scale = Vector3.ONE * 0.004
+	car.get_node("Body").add_child(_warm)
+	_warm.position = Vector3(0, 0.55, 0)
+	_warm.scale = Vector3.ONE * 0.02
 	# Parça (gölgeli + gölgesiz yüzey: tek rampada ikisi de var), moloz (çoklu örnek)
 	var ramp: Dictionary = {}
 	for proto: Dictionary in _debris_pool[RoadDebris.Size.MEDIUM]:
@@ -1363,4 +1373,6 @@ func _prewarm() -> void:
 		mi2.mesh = pair[0]
 		mi2.material_override = pair[1]
 		_warm.add_child(mi2)
+	for gi in _warm.find_children("*", "GeometryInstance3D", true, false):
+		(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_warm_frames = 4
