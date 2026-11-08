@@ -17,6 +17,9 @@ signal hit
 ## içinden yavaşça çıkar; malzemenin uzaklık solması, saydamlık maliyeti yok)
 @export var debris_view := 255.0
 const FADE := Vector2(205.0, 265.0)
+const REVEAL_TIME := 1.2
+## Görünürlüğün açılma süresi sayacı (-1: açık)
+var _reveal_t := -1.0
 
 ## Kırık yol parçası kalıpları (boyut başına): { mesh, hulls (çarpışma: bant bant dış bükey),
 ## aabb, feature }. Menüde kare kare hazırlanır (pool_step), oyun yeniden başlayınca da kalır;
@@ -76,6 +79,7 @@ func setup(p_layer: LowerLayer, rng: RandomNumberGenerator) -> void:
 
 func _ready() -> void:
 	_setup_debris()
+	_set_fade(1.0)  # önceki oyun açılma ortasında bittiyse
 
 
 ## Bir parça boyu (z..z_end) kırık yol; n: kaya sayısı karşılığı, stop_z: portal sınırı
@@ -142,9 +146,21 @@ func is_empty() -> bool:
 	return _nodes.is_empty() and _rubble.is_empty()
 
 
-## İnişte ilk parçaların başladığı uzaklık: belirme bandının ötesi (hiçbiri birden belirmez)
-func first_row_distance() -> float:
-	return FADE.y
+## İnişte görünürlüğün açılması: uçuşa geçilince sınır kameradan dışarı doğru REVEAL_TIME'da
+## FADE'e genişler (önce yakındaki parçalar, sonra uzaktakiler sisin içinden belirir)
+func reveal() -> void:
+	_reveal_t = 0.0
+	_set_fade(0.0)
+
+
+static func _set_fade(k: float) -> void:
+	if _debris_lit == null:
+		return
+	var near := lerpf(0.0, FADE.x, k)
+	var far := near + lerpf(25.0, FADE.y - FADE.x, k)
+	for m: StandardMaterial3D in [_debris_lit, _debris_flat]:
+		m.distance_fade_max_distance = near
+		m.distance_fade_min_distance = far
 
 
 func rubble_count() -> int:
@@ -237,6 +253,12 @@ func _process(delta: float) -> void:
 		_warm_frames -= 1
 		if _warm_frames == 0 and is_instance_valid(_warm):
 			_warm.queue_free()
+	if _reveal_t >= 0.0:
+		_reveal_t += delta
+		var k := clampf(_reveal_t / REVEAL_TIME, 0.0, 1.0)
+		_set_fade(k * k * (3.0 - 2.0 * k))
+		if k >= 1.0:
+			_reveal_t = -1.0
 	if not _rubble.is_empty():
 		var _t0 := Time.get_ticks_usec()
 		_update_rubble(delta)

@@ -192,9 +192,10 @@ func activate() -> void:
 	var z := car.global_position.z
 	flight_start_z = z
 	_next_row_z = z - 70.0
-	# Kırık parçalar: yakına birden konmaz, belirme bandının ötesinden başlar (sisin içinden çıkar)
-	if use_debris:
-		_next_row_z = z - field.first_row_distance()
+	# Kırık parçalar inişte hemen yakına da konur (enkazın içine inilir) ama birden belirmez:
+	# görünürlük kameradan dışarı doğru açılır
+	if use_debris and not lingered:
+		field.reveal()
 	# Önceki uçuştan kalan enkaz hâlâ öndeyse üretim onun bittiği yerden sürer (üst üste binmesin)
 	if lingered:
 		_next_row_z = minf(_next_row_z, prev_row)
