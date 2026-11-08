@@ -9,8 +9,9 @@ class_name RoadDebris
 enum Size { SMALL, MEDIUM, LARGE, LONG }
 ## Yüzey biçimi: düz, rampa (oyundaki zıplama rampası üstünde), tümsek (ortası kabarık),
 ## eğimli (bir uçta düz, öbüründe yana yatık), yokuş (düz gidip kırılarak tırmanır)
-enum Feature { NONE, RAMP, BUMP, BANK, CLIMB }
-const FEATURE_NAMES := ["Düz", "Rampa", "Tümsek", "Eğimli", "Yokuş"]
+## RAMP_ALONE: rampanın kendisi tek başına bir enkaz parçası (kama biçimli blok)
+enum Feature { NONE, RAMP, BUMP, BANK, CLIMB, RAMP_ALONE }
+const FEATURE_NAMES := ["Düz", "Rampa", "Tümsek", "Eğimli", "Yokuş", "Tek rampa"]
 
 const NAMES := ["Küçük", "Orta", "Büyük", "Uzun"]
 ## [uzunluk min-max, genişlik min-max, kalınlık min-max] (m)
@@ -75,9 +76,113 @@ static func build(size: int, seed_value: int, line_style := -1, feature := Featu
 		b.position -= c
 		root.add_child(a)
 		root.add_child(b)
+	elif feature == Feature.RAMP_ALONE:
+		root.add_child(_ramp_piece(rng, L, W, T))
 	else:
 		root.add_child(_slab(rng, L, W, T, size, style, 0.0, feature))
 	return root
+
+
+## Tek başına rampa: kama biçimli blok; yüzey alçak uçtan yüksek uca yükselir (oyundaki zıplama
+## rampası: şerit renginde, yol renginde sivri oklar ve kenar çizgileri), yanlar pembe yan duvar,
+## alt ve kopuk köşe koyu. Bir köşesi düz bir kesikle kopuk (enkaz)
+static func _ramp_piece(rng: RandomNumberGenerator, L: float, W: float, T: float) -> MeshInstance3D:
+	var rl := L * 0.85
+	var hw := W * 0.42
+	var hl := rl * 0.5
+	var base := T * 0.6
+	var rise := rng.randf_range(2.0, 2.6)
+	var poly := PackedVector2Array([Vector2(-hw, -hl), Vector2(hw, -hl), Vector2(hw, hl), Vector2(-hw, hl)])
+	# Kopuk köşe: yüksek uçta bir köşe
+	var side := 1.0 if rng.randf() < 0.5 else -1.0
+	poly = _cut(poly, Vector2(side * hw, hl - rl * rng.randf_range(0.2, 0.35)), Vector2(side * (hw - W * rng.randf_range(0.18, 0.3)), hl + 0.1), Vector2(side, 1).normalized())
+	# Kütle merkezi orijine yakın: kama yüksek uca doğru kalın
+	var bot_y := -base * 0.5 - rise * 0.25
+	var top0 := bot_y + base
+	var slope := func(_x: float, z: float) -> float:
+		return rise * (z + hl) / rl
+	var flat := func(_x: float, _z: float) -> float:
+		return 0.0
+	var mesh := ArrayMesh.new()
+	var sky: Dictionary = Palette.SKIES[0]
+	var top_m := StandardMaterial3D.new()
+	top_m.albedo_color = Palette.line_for(sky.road_top)
+	top_m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	top_m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var top_st := SurfaceTool.new()
+	top_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var bot_st := SurfaceTool.new()
+	bot_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var tri := Geometry2D.triangulate_polygon(poly)
+	for k in range(0, tri.size(), 3):
+		var q := [poly[tri[k]], poly[tri[k + 1]], poly[tri[k + 2]]]
+		_tri(top_st, q, top0, slope, 1.0)
+		_tri(bot_st, q, bot_y, flat, -1.0)
+	top_st.set_material(top_m)
+	top_st.commit(mesh)
+	bot_st.set_material(_mat("broken"))
+	bot_st.commit(mesh)
+	# Yan yüzler: uzun yanlar ve yüksek uç pembe yan duvar (oyundaki rampa gibi), kopuk köşe koyu
+	var wall_st := SurfaceTool.new()
+	wall_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var broken_st := SurfaceTool.new()
+	broken_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var ccw := _area(poly) > 0.0
+	for i in poly.size():
+		var a := poly[i]
+		var b := poly[(i + 1) % poly.size()]
+		var on_side := absf(absf(a.x) - hw) < 0.01 and absf(absf(b.x) - hw) < 0.01 and signf(a.x) == signf(b.x)
+		var on_end := absf(a.y - b.y) < 0.01 and absf(absf(a.y) - hl) < 0.01
+		var tgt := wall_st if (on_side or on_end) else broken_st
+		var out2 := (b - a).orthogonal().normalized() * (1.0 if ccw else -1.0)
+		var ya: float = slope.call(a.x, a.y)
+		var yb: float = slope.call(b.x, b.y)
+		var v0 := Vector3(a.x, top0 + ya, a.y)
+		var v1 := Vector3(b.x, top0 + yb, b.y)
+		var v2 := Vector3(b.x, bot_y, b.y)
+		var v3 := Vector3(a.x, bot_y, a.y)
+		for v in [v0, v2, v1, v0, v3, v2]:
+			tgt.set_normal(Vector3(out2.x, 0.0, out2.y))
+			tgt.add_vertex(v)
+	wall_st.set_material(_mat("side"))
+	wall_st.commit(mesh)
+	broken_st.set_material(_mat("broken"))
+	broken_st.commit(mesh)
+	# Oklar ve kenar çizgileri (yol renginde), kopuk köşeden taşanlar kırpılmaz ama içeride kalır
+	var deco := SurfaceTool.new()
+	deco.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var slope_n := Vector3(0, rl, -rise).normalized()
+	var at := func(x: float, z: float) -> Vector3:
+		return Vector3(x, top0 + float(slope.call(x, z)) + 0.03, z)
+	var arm := minf(hw * 0.64, 1.6)
+	var thick := 0.26
+	var dir := Vector2(0.0, 1.0)
+	for k in 3:
+		var p0 := Vector2(0.0, -hl + (k + 0.7) / 3.4 * rl)
+		var notch := dir * (thick * 2.0 / sin(deg_to_rad(50.0)))
+		for sgn: float in [-1.0, 1.0]:
+			var back := dir.rotated(sgn * deg_to_rad(130.0))
+			var p1 := p0 + back * arm
+			var q := [p0, p1, p1 - notch, p0 - notch]
+			var pts: Array[Vector3] = []
+			for v2: Vector2 in q:
+				pts.append(at.call(v2.x, v2.y))
+			_quad3(deco, pts[0], pts[1], pts[2], pts[3], slope_n)
+	for sx: float in [-1.0, 1.0]:
+		var xo := sx * (hw - 0.3)
+		var z1 := hl
+		if signf(sx) == side:
+			z1 = hl - rl * 0.4  # kopuk köşeye varmadan biter
+		_quad3(deco, at.call(xo - 0.07, -hl), at.call(xo + 0.07, -hl), at.call(xo + 0.07, z1), at.call(xo - 0.07, z1), slope_n)
+	var deco_m := StandardMaterial3D.new()
+	deco_m.albedo_color = sky.road_top
+	deco_m.roughness = 0.95
+	deco_m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	deco.set_material(deco_m)
+	deco.commit(mesh)
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	return mi
 
 
 ## Bağımsız moloz: küçük, sade bir yol kırıntısı (üstü yol yüzeyi, yanları kırık). Parçalardan ayrı

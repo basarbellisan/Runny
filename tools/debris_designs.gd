@@ -8,8 +8,8 @@ var _out := "user://"
 var _frames := 48
 var _seeds := [1, 2, 3]
 ## Yüzey biçimleri: "boyut,tohum" -> biçim
-const FEATURES := {"1,2": RoadDebris.Feature.BUMP, "1,3": RoadDebris.Feature.BANK,
-	"2,2": RoadDebris.Feature.RAMP, "2,3": RoadDebris.Feature.CLIMB}
+const FEATURES := {"1,2": RoadDebris.Feature.RAMP_ALONE, "1,3": RoadDebris.Feature.BANK,
+	"2,3": RoadDebris.Feature.CLIMB}
 
 
 func _initialize() -> void:
@@ -81,6 +81,12 @@ func _shoot() -> void:
 			cam.look_at_from_position(Vector3(dd * 0.55, dd * 0.42, dd * 0.75), Vector3.ZERO)
 			# Biçimli parçalar biçimin okunduğu açıdan: tümsek ve yokuş yandan, eğimli uçtan, rampa çaprazdan
 			match feat:
+				RoadDebris.Feature.RAMP_ALONE:
+					# Alçak ucun önünden, yukarıdan: oklar ve yükselen yüzey okunsun
+					base = Basis.from_euler(Vector3(0.0, rng.randf_range(-0.3, 0.3), 0.0))
+					axis = Vector3.UP
+					spin = 0.12
+					cam.look_at_from_position(Vector3(dd * 0.55, dd * 0.6, -dd * 0.8), Vector3(0, 0.6, 0))
 				RoadDebris.Feature.BUMP, RoadDebris.Feature.CLIMB:
 					base = Basis.from_euler(Vector3(0.0, rng.randf_range(-0.25, 0.25), 0.0))
 					axis = Vector3.UP
