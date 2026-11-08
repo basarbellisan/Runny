@@ -1056,8 +1056,8 @@ func _update_scan() -> void:
 func crash(reason: String) -> void:
 	if mode == Mode.DEAD:
 		return
-	# Uçarken çarpma: iri küplere ve kanat parçalarına ayrılır (gerçek fizikle saçılır)
-	if mode == Mode.FLYING and smash_enabled:
+	# Çarpma (uçarken ve yolda; ışık bariyeri hariç, o kesilir): iri küplere ayrılır, gerçek fizikle saçılır
+	if smash_enabled:
 		smash(reason)
 		return
 	if OS.get_cmdline_user_args().has("--trace"):
@@ -2279,7 +2279,8 @@ func _convex(pts: PackedVector3Array) -> ConvexPolygonShape3D:
 
 # --- Uçarken çarpma: iri küplerle gerçek fizikli saçılma --------------------------------------
 
-## Uçarken (kırık yol parçasına, yola) çarpınca: araba ve kanatlar iri küplere ayrılır, her küp
+## Çarpınca (uçarken kırık yol parçasına, yolda duvara, devrilince; ışık bariyeri hariç): araba ve
+## kanatlar iri küplere ayrılır, her küp
 ## gerçek bir fizik cismi (gölgeli); bulut ileri saçılır, yollardan ve kırık parçalardan seker.
 ## Kamera durmaz, bulutu izler (shattering ile aynı akış). false: eski patlama
 static var smash_enabled := true
@@ -2298,6 +2299,11 @@ const SMASH_GRAVITY := 0.35
 const SMASH_DAMP := Vector2(0.12, 0.25)
 const SMASH_BOUNCE := 0.5
 const SMASH_FRICTION := 0.4
+## Yolda çarpma: tam yerçekimi, az hava sönümü, daha az sekme (asfalt), daha çok sürtünme
+const SMASH_GROUND_DAMP := Vector2(0.05, 0.4)
+const SMASH_GROUND_BOUNCE := 0.3
+const SMASH_GROUND_FRICTION := 0.7
+static var _smash_ground: PhysicsMaterial
 ## Küplerin çarptığı kırık yol parçalarının katmanı (DebrisField.make_solid)
 const SOLID_LAYER := 64
 static var _smash_cache := {}
@@ -2314,7 +2320,8 @@ func smash(reason: String) -> void:
 	if v0.z > -5.0:
 		v0.z = -maxf(forward_speed, 5.0)
 	_shatter_v0 = v0
-	_spawn_smash(v0)
+	# Uçarken alt katmanın boşluğunda süzülür; yolda tam yerçekimi (yola düşer, seker, yuvarlanır)
+	_spawn_smash(v0, mode == Mode.FLYING or mode == Mode.LAUNCH)
 	# Görünmez araba gövdesi küplere engel olmasın (kamera hedefi olarak bulutla gider)
 	collision_layer = 0
 	collision_mask = 0
@@ -2387,10 +2394,13 @@ static func _smash_material() -> StandardMaterial3D:
 		_smash_phys = PhysicsMaterial.new()
 		_smash_phys.bounce = SMASH_BOUNCE
 		_smash_phys.friction = SMASH_FRICTION
+		_smash_ground = PhysicsMaterial.new()
+		_smash_ground.bounce = SMASH_GROUND_BOUNCE
+		_smash_ground.friction = SMASH_GROUND_FRICTION
 	return _smash_mat
 
 
-func _spawn_smash(v0: Vector3) -> void:
+func _spawn_smash(v0: Vector3, floating := true) -> void:
 	var pieces := _smash_pieces()
 	var n := pieces.size()
 	if n == 0:
@@ -2411,10 +2421,10 @@ func _spawn_smash(v0: Vector3) -> void:
 		body.collision_layer = 0
 		body.collision_mask = _default_mask | SOLID_LAYER
 		body.mass = maxf(sz.x * sz.y * sz.z * 40.0, 0.2)
-		body.gravity_scale = SMASH_GRAVITY
-		body.linear_damp = SMASH_DAMP.x
-		body.angular_damp = SMASH_DAMP.y
-		body.physics_material_override = _smash_phys
+		body.gravity_scale = SMASH_GRAVITY if floating else 1.0
+		body.linear_damp = SMASH_DAMP.x if floating else SMASH_GROUND_DAMP.x
+		body.angular_damp = SMASH_DAMP.y if floating else SMASH_GROUND_DAMP.y
+		body.physics_material_override = _smash_phys if floating else _smash_ground
 		body.contact_monitor = true
 		body.max_contacts_reported = 1
 		var shape := BoxShape3D.new()
