@@ -2292,8 +2292,10 @@ var _smash_mm: MultiMeshInstance3D
 var _smash_sizes := PackedVector3Array()
 var _smash_time := 0.0
 var _smash_tick_ms := 0
-## Küp sayısı aralığı (araba başına küp boyu buna göre ayarlanır; ışık bariyerinden iri)
+## Parça sayısı aralığı (araba başına hücre boyu buna göre ayarlanır; ışık bariyerinden iri)
 const SMASH_COUNT := Vector2i(45, 65)
+## Parçanın en ince kalınlığı (hücre boyunun kesri): yüzey levhaları da biraz hacimli görünsün
+const SMASH_MIN_THICK := 0.3
 ## Küpler: yerçekimi payı (havada uzun süzülsün), hız ve dönüş sönümü, sekme, sürtünme
 const SMASH_GRAVITY := 0.35
 const SMASH_DAMP := Vector2(0.12, 0.25)
@@ -2364,12 +2366,12 @@ func _smash_pieces() -> Array:
 	var best_size := size
 	var best_err := INF
 	for attempt in 12:
-		var grid := _sample_grid(tris, Vector3.ONE * size)
-		var cnt := grid.size()
+		var cells := _sample_boxes(tris, size)
+		var cnt := cells.size()
 		var err := maxf(SMASH_COUNT.x - cnt, cnt - SMASH_COUNT.y)
 		if err < best_err:
 			best_err = err
-			best = grid
+			best = cells
 			best_size = size
 		if err <= 0.0:
 			break
@@ -2378,9 +2380,16 @@ func _smash_pieces() -> Array:
 		else:
 			lo = size
 		size = (lo + hi) * 0.5
+	# Her parça hücresindeki gerçek yüzeyin kapladığı kutu (hücreden taşmaz): kanat ince levha
+	# parçalarına, gövde yüzeye oturan parçalara ayrılır; toplam boy arabanınki kadar kalır
 	var out: Array = []
+	var min_t := best_size * SMASH_MIN_THICK
 	for g: Vector3i in best:
-		out.append([(Vector3(g) + Vector3.ONE * 0.5) * best_size, Vector3.ONE * best_size * 0.94, best[g]])
+		var c: Array = best[g]
+		var mn: Vector3 = c[1]
+		var mx: Vector3 = c[2]
+		var sz := (mx - mn).max(Vector3.ONE * min_t).min(Vector3.ONE * best_size)
+		out.append([(mn + mx) * 0.5, sz * 0.96, c[0]])
 	_smash_cache[key] = out
 	return out
 
@@ -2517,3 +2526,27 @@ func _on_smash_hit(other: Node, body: RigidBody3D) -> void:
 		return
 	_smash_tick_ms = now
 	Audio.play("debris", clampf(-20.0 + v * 0.5, -20.0, -6.0), randf_range(0.7, 1.15))
+
+
+## Yüzeyleri hücrelere böler; her dolu hücre: [ilk değen yüzün rengi, yüzey noktalarının en küçüğü,
+## en büyüğü] (yerel). Parçanın gerçek kapladığı yer (hücre kadar büyük değil)
+func _sample_boxes(tris: Array, cell: float) -> Dictionary:
+	var cells := {}
+	var inv := 1.0 / cell
+	for tri: Array in tris:
+		var a: Vector3 = tri[0]
+		var ab: Vector3 = (tri[1] as Vector3) - a
+		var ac: Vector3 = (tri[2] as Vector3) - a
+		var bc := ac - ab
+		var n := maxi(1, ceili(maxf(ab.length(), maxf(ac.length(), bc.length())) * inv / 0.25))
+		for i in n + 1:
+			for j in n + 1 - i:
+				var q: Vector3 = a + ab * (float(i) / n) + ac * (float(j) / n)
+				var g := Vector3i(floori(q.x * inv), floori(q.y * inv), floori(q.z * inv))
+				var c: Array = cells.get(g, [])
+				if c.is_empty():
+					cells[g] = [tri[3], q, q]
+				else:
+					c[1] = (c[1] as Vector3).min(q)
+					c[2] = (c[2] as Vector3).max(q)
+	return cells
