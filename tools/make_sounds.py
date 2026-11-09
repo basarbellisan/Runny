@@ -213,20 +213,39 @@ def loop_engine():
     return normalize(s, 0.8)
 
 
-def loop_engine_hibrit():
-    """Motor (GEZGİN, LATTE, GEM): "hibrit" — yanmalı motorun yumuşatılmış hali, üstünde elektrikli
-    vızıltı (tools/engine_land_designs.py m6_hibrit, dinlenip seçilenin aynısı)"""
+def _car_engine(name):
+    """Arabanın kendi motoru (tools/engine_land_designs.py CARS, dinlenip seçilenlerin aynısı):
+    hibrit ailesi GEZGİN / LATTE / GEM, FM ailesi DRAGSTER / DARK ROSE / FALCON"""
     import engine_land_designs as ed
-    ed.ms.rng = np.random.default_rng(sum(map(ord, "m6_hibrit")))
-    return ed.e6_hibrit()
+    for _model, nm, fn in ed.CARS:
+        if nm == name:
+            ed.ms.rng = np.random.default_rng(sum(map(ord, "car_" + nm)))
+            return fn()
+    raise KeyError(name)
 
 
-def loop_engine_fm():
-    """Motor (DRAGSTER, DARK ROSE, FALCON): "FM hırıltı" — FM bas, hafif hırıltılı, güçlü
-    (tools/engine_land_designs.py m8_fm_hirilti, dinlenip seçilenin aynısı)"""
-    import engine_land_designs as ed
-    ed.ms.rng = np.random.default_rng(sum(map(ord, "m8_fm_hirilti")))
-    return ed.e8_fm_hirilti()
+def loop_engine_gezgin():
+    return _car_engine("GEZGIN")
+
+
+def loop_engine_latte():
+    return _car_engine("LATTE")
+
+
+def loop_engine_gem():
+    return _car_engine("GEM")
+
+
+def loop_engine_dragster():
+    return _car_engine("DRAGSTER")
+
+
+def loop_engine_dark_rose():
+    return _car_engine("DARK ROSE")
+
+
+def loop_engine_falcon():
+    return _car_engine("FALCON")
 
 
 def loop_road():
@@ -800,7 +819,9 @@ def main():
         ("sfx_hiss.wav", sfx_hiss), ("sfx_shatter.wav", sfx_shatter),
         ("sfx_drain.wav", sfx_drain), ("sfx_debris.wav", sfx_debris),
         ("sfx_smash.wav", sfx_smash), ("sfx_bounce.wav", sfx_bounce),
-        ("loop_engine_hibrit.ogg", loop_engine_hibrit), ("loop_engine_fm.ogg", loop_engine_fm), ("loop_road.ogg", loop_road), ("loop_wind.ogg", loop_wind),
+        ("loop_engine_gezgin.ogg", loop_engine_gezgin), ("loop_engine_latte.ogg", loop_engine_latte),
+        ("loop_engine_gem.ogg", loop_engine_gem), ("loop_engine_dragster.ogg", loop_engine_dragster),
+        ("loop_engine_dark_rose.ogg", loop_engine_dark_rose), ("loop_engine_falcon.ogg", loop_engine_falcon), ("loop_road.ogg", loop_road), ("loop_wind.ogg", loop_wind),
         ("loop_plane.ogg", loop_plane), ("loop_climb.ogg", loop_climb), ("loop_tire.ogg", loop_tire),
         ("loop_gravel.ogg", loop_gravel),
         ("music_upper.ogg", music_upper), ("music_lower.ogg", music_lower),
