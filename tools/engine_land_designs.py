@@ -2,6 +2,7 @@
 dinleyip seçmek için). Dijital / Tron havası ağırlıklı, bir kısmı gerçekçi.
 Kullanım: python3 tools/engine_land_designs.py ÇIKIŞ_KLASÖRÜ [SES_GÜNLÜĞÜ]
           python3 tools/engine_land_designs.py ÇIKIŞ_KLASÖRÜ --cars [MODEL=GÜNLÜK ...]  (her arabanın motoru)
+          python3 tools/engine_land_designs.py ÇIKIŞ_KLASÖRÜ --lands2 GÜNLÜK MOTOR.ogg KARE,KARE,..  (iniş, 2. tur)
 Ses günlüğü (oyunun --audtrace AUD/LAND satırları) verilirse her motor ve iniş tasarımı o sürüşün
 devir, seviye ve iniş anlarıyla, oyundaki ses ayarlarıyla bir iz olarak da yazılır."""
 import re
@@ -336,8 +337,136 @@ def cars_main(out, traces):
         print("yazıldı", name)
 
 
+# --- İniş sesleri, ikinci tur (ilk 8'i beğenilmedi): daha dolgun, motorlarla uyumlu yönler ---
+
+def _kick(f0, f1, d, drop=0.04):
+    t = np.arange(n_of(d)) / SR
+    f = f1 + (f0 - f1) * np.exp(-t / drop)
+    return np.sin(2 * np.pi * np.cumsum(f) / SR)
+
+
+def n1_kaucuk():
+    """Ağır kauçuk: alçak gövde darbesi + lastiğin ezilme sesi (aşağı süzülen orta bant) + 110 ms
+    sonra küçük ikinci sekme; gerçekçi ama temiz"""
+    d = 0.6
+    x = np.zeros(n_of(d))
+    place(x, _kick(90, 42, 0.35, 0.05) * env(0.35, 0.002, 0.11), 0.0, 0.9)
+    sq = filt(noise(0.12), lo=250, hi=900) * env(0.12, 0.003, 0.04)
+    place(x, sq, 0.0, 0.45)
+    place(x, _kick(80, 45, 0.2, 0.04) * env(0.2, 0.002, 0.06), 0.11, 0.3)
+    return fade(room(x, 0.05, 0.3), 0.0003, 0.05)
+
+
+def n2_synthwave_tom():
+    """Synthwave tom: 80'ler davulu gibi tok bir tom (140 Hz'den inen) + kapılı (gated) yankı"""
+    d = 0.5
+    x = np.zeros(n_of(d))
+    tom = _kick(160, 85, 0.35, 0.06) * env(0.35, 0.001, 0.12) + 0.3 * filt(noise(0.35), lo=200, hi=2500) * env(0.35, 0.001, 0.03)
+    place(x, tom, 0.0, 0.9)
+    wet = room(x, 0.6, 0.8)
+    wet = mono(wet)[:len(x)]
+    gate = np.where(np.arange(len(x)) / SR < 0.22, 1.0, np.exp(-(np.arange(len(x)) / SR - 0.22) / 0.02))
+    return fade(0.7 * x + 0.5 * wet * gate, 0.0003, 0.03)
+
+
+def n3_sub_dusus():
+    """Sub düşüş: çok derin, temiz bir alt bas 'bum' (55 Hz) + keskin kısa geçiş tıkı; sinematik"""
+    d = 0.6
+    x = np.zeros(n_of(d))
+    place(x, _kick(70, 38, 0.5, 0.08) * env(0.5, 0.002, 0.18), 0.0, 1.0)
+    place(x, filt(click(0.003), lo=1200, hi=6000), 0.0, 0.35)
+    return fade(x, 0.0003, 0.06)
+
+
+def n4_sasi():
+    """Şasi gümlemesi: içi boş araç gövdesinin tınısı (180 / 265 / 410 Hz kısmileri sönerek) + darbe"""
+    d = 0.6
+    x = np.zeros(n_of(d))
+    place(x, _kick(100, 50, 0.3, 0.05) * env(0.3, 0.002, 0.08), 0.0, 0.8)
+    for f, g, dec in [(180, 0.35, 0.12), (265, 0.25, 0.09), (410, 0.15, 0.06)]:
+        place(x, sine(f, 0.5) * env(0.5, 0.002, dec), 0.0, g)
+    return fade(room(x, 0.06, 0.35), 0.0003, 0.05)
+
+
+def n5_fm_gumleme():
+    """FM gümleme: FM bas darbesi (oran 1.5, modülasyon hızla söner); FM motorlarla aynı dil"""
+    d = 0.5
+    t = np.arange(n_of(d)) / SR
+    f = 45 + 50 * np.exp(-t / 0.05)
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    x = np.sin(ph + 3.0 * np.exp(-t / 0.04) * np.sin(ph * 1.5)) * env(d, 0.002, 0.13)
+    return fade(room(x, 0.05, 0.3), 0.0003, 0.05)
+
+
+def n6_hibrit_tok():
+    """Hibrit tok: alçak darbe + yanmalı 'pof' (kısa boğuk patlama) + inen elektrik vızıltısı; hibrit motorlarla uyumlu"""
+    d = 0.6
+    x = np.zeros(n_of(d))
+    place(x, _kick(95, 45, 0.3, 0.05) * env(0.3, 0.002, 0.09), 0.0, 0.85)
+    place(x, filt(noise(0.08), lo=100, hi=600) * env(0.08, 0.001, 0.025), 0.0, 0.5)
+    place(x, sine(glide(520, 260, 0.25, 0.6), 0.25) * env(0.25, 0.003, 0.08), 0.01, 0.12)
+    return fade(room(x, 0.05, 0.3), 0.0003, 0.05)
+
+
+def n7_cift_sekme():
+    """Çift sekme: güçlü darbe, ardından iki küçük sekme (tekerlerin yaylanıp yerine oturması)"""
+    d = 0.7
+    x = np.zeros(n_of(d))
+    for at, g in [(0.0, 0.9), (0.13, 0.35), (0.22, 0.15)]:
+        place(x, _kick(95, 45, 0.25, 0.045) * env(0.25, 0.002, 0.07), at, g)
+        place(x, filt(noise(0.05), lo=150, hi=900) * env(0.05, 0.001, 0.015), at, g * 0.4)
+    return fade(room(x, 0.05, 0.3), 0.0003, 0.05)
+
+
+def n8_kick_hava():
+    """Kick + hava: temiz, vuruşlu bir kick (150'den 45 Hz'e) ve kısa havadar hışırtı; müzikal"""
+    d = 0.5
+    x = np.zeros(n_of(d))
+    place(x, _kick(150, 45, 0.35, 0.035) * env(0.35, 0.001, 0.1), 0.0, 0.95)
+    place(x, filt(click(0.003), lo=2000), 0.0, 0.3)
+    place(x, filt(noise(0.2), lo=1500, hi=7000) * env(0.2, 0.004, 0.06), 0.005, 0.15)
+    return fade(room(x, 0.05, 0.3), 0.0003, 0.05)
+
+
+LANDS2 = [("j0_simdiki", None), ("j1_kaucuk", n1_kaucuk), ("j2_synthwave_tom", n2_synthwave_tom),
+          ("j3_sub_dusus", n3_sub_dusus), ("j4_sasi", n4_sasi), ("j5_fm_gumleme", n5_fm_gumleme),
+          ("j6_hibrit_tok", n6_hibrit_tok), ("j7_cift_sekme", n7_cift_sekme), ("j8_kick_hava", n8_kick_hava)]
+
+
+def lands2_main(out, trace, engine_file, picks):
+    """--lands2: yeni iniş sesleri; sürüş günlüğü verilirse seçili inişler (picks: kare listesi) için
+    her birinin çevresi (0.7 sn önce, 1.3 sn sonra) art arda, motorla birlikte"""
+    frames, lands = [], []
+    for line in open(trace):
+        m = re.match(r"AUD f=(\d+) pitch=([\d.]+) level=([\d.]+)", line)
+        if m:
+            frames.append((int(m.group(1)), float(m.group(2)), float(m.group(3))))
+        m = re.match(r"LAND f=(\d+) strength=([\d.]+)", line)
+        if m:
+            lands.append((int(m.group(1)), float(m.group(2))))
+    total = frames[-1][0] / 60.0
+    eng = render_engine(mono(sf.read(engine_file)[0]), frames, total)
+    root = Path(__file__).resolve().parent.parent
+    for name, fn in LANDS2:
+        ms.rng = np.random.default_rng(sum(map(ord, name)))
+        x = mono(sf.read(str(root / "audio/sfx_land.wav"))[0]) if fn is None else normalize(mono(fn()), 0.8)
+        sf.write(out / f"inis_{name}.wav", np.clip(x, -1, 1), SR, subtype="PCM_16")
+        track = eng + render_lands(x, lands, total)
+        parts = []
+        for f in picks:
+            a = n_of(f / 60.0 - 0.7)
+            parts.append(track[a:a + n_of(2.0)])
+        sf.write(out / f"kesit_{name}.wav", np.clip(np.concatenate(parts), -1, 1), SR, subtype="PCM_16")
+        print("yazıldı", name)
+
+
 def main():
     out = Path(sys.argv[1] if len(sys.argv) > 1 else ".")
+    if "--lands2" in sys.argv:
+        out.mkdir(parents=True, exist_ok=True)
+        a = [x for x in sys.argv[2:] if x != "--lands2"]
+        lands2_main(out, a[0], a[1], [int(v) for v in a[2].split(",")])
+        return
     if "--cars" in sys.argv:
         out.mkdir(parents=True, exist_ok=True)
         traces = {int(a.split("=")[0]): a.split("=")[1] for a in sys.argv[2:] if "=" in a}
