@@ -3,7 +3,7 @@ dinleyip seçmek için). Dijital / Tron havası ağırlıklı, bir kısmı gerç
 Kullanım: python3 tools/engine_land_designs.py ÇIKIŞ_KLASÖRÜ [SES_GÜNLÜĞÜ]
           python3 tools/engine_land_designs.py ÇIKIŞ_KLASÖRÜ --cars [MODEL=GÜNLÜK ...]  (her arabanın motoru)
           python3 tools/engine_land_designs.py ÇIKIŞ_KLASÖRÜ --lands2 GÜNLÜK MOTOR.ogg KARE,KARE,..  (iniş, 2. tur; --lands3: 3. tur dijital lastik, +7 dB;
-          --lands4: 4. tur gerçekçi lastik, +7 dB)
+          --lands4: 4. tur gerçekçi lastik, +7 dB; --lands5: 6 ve 7'den türetilenler)
 Ses günlüğü (oyunun --audtrace AUD/LAND satırları) verilirse her motor ve iniş tasarımı o sürüşün
 devir, seviye ve iniş anlarıyla, oyundaki ses ayarlarıyla bir iz olarak da yazılır."""
 import re
@@ -655,6 +655,94 @@ LANDS4 = [("g0_simdiki", None), ("g1_tok_lastik", g1_tok_lastik), ("g2_lastik_ci
           ("g6_kayma", g6_kayma), ("g7_yumusak", g7_yumusak), ("g8_agir_asfalt", g8_agir_asfalt)]
 
 
+# --- İniş: beşinci tur — 6 (kayma) ve 7 (yumuşak) üzerinden türetme: yumuşak konuş + hafif kayma ---
+
+def _scrub(d=0.3, lo=1200, hi=3500, dec=0.09):
+    """Lastiğin asfaltta sürtünmesi: çığlıktan çok 'şşş' (gürültü ağırlıklı, az tonlu)"""
+    t = np.arange(n_of(d)) / SR
+    nz = filt(noise(d), lo=lo, hi=hi) * (0.75 + 0.25 * np.sin(2 * np.pi * 24 * t))
+    return normalize(nz, 1.0) * env(d, 0.006, dec)
+
+
+def _soft_hit():
+    return _rubber_hit(0.25, 60, 260, 0.07)
+
+
+def h1_yumusak_az_kayma():
+    """7'nin konuşu + 6'nın kayması kısa ve hafif (0.25 sn)"""
+    x = np.zeros(n_of(0.5))
+    place(x, _soft_hit(), 0.0, 0.9)
+    place(x, _chirp(0.25, 1400, 1080, 0.08), 0.01, 0.25)
+    return fade(room(x, 0.05, 0.3), 0.0003, 0.05)
+
+
+def h2_yumusak_pes_kayma():
+    """Yumuşak konuş + daha pes, uzun ve uzaklaşan kayma (0.4 sn)"""
+    x = np.zeros(n_of(0.65))
+    place(x, _soft_hit(), 0.0, 0.9)
+    place(x, _chirp(0.4, 1250, 950, 0.14), 0.012, 0.25)
+    return fade(room(x, 0.05, 0.3), 0.0003, 0.06)
+
+
+def h3_oturup_kayma():
+    """Yumuşak konuş, tekerler oturduktan sonra (40 ms) yavaş başlayan kayma"""
+    x = np.zeros(n_of(0.6))
+    place(x, _soft_hit(), 0.0, 0.9)
+    c = _chirp(0.3, 1380, 1050, 0.1)
+    c *= np.minimum(np.arange(len(c)) / (SR * 0.05), 1.0)
+    place(x, c, 0.04, 0.32)
+    return fade(room(x, 0.05, 0.3), 0.0003, 0.05)
+
+
+def h4_dolgun_kayma():
+    """Biraz daha dolgun konuş (hafif şaplama) + orta kayma (0.3 sn)"""
+    x = np.zeros(n_of(0.6))
+    place(x, _soft_hit(), 0.0, 0.85)
+    place(x, _slap(), 0.0, 0.25)
+    place(x, _chirp(0.3, 1450, 1080, 0.1), 0.01, 0.33)
+    return fade(room(x, 0.05, 0.3), 0.0003, 0.05)
+
+
+def h5_surtunme():
+    """Yumuşak konuş + çığlık yerine sürtünme 'şşş'i (lastik asfaltı sıyırıyor)"""
+    x = np.zeros(n_of(0.6))
+    place(x, _soft_hit(), 0.0, 0.9)
+    place(x, _scrub(0.32), 0.01, 0.3)
+    return fade(room(x, 0.05, 0.3), 0.0003, 0.05)
+
+
+def h6_iki_teker():
+    """Yumuşak konuş + iki tekerin hafif farklı perdeden kayması (iki ses birlikte söner)"""
+    x = np.zeros(n_of(0.6))
+    place(x, _soft_hit(), 0.0, 0.9)
+    place(x, _chirp(0.3, 1350, 1040, 0.1), 0.01, 0.2)
+    place(x, _chirp(0.26, 1620, 1250, 0.085), 0.02, 0.15)
+    return fade(room(x, 0.05, 0.3), 0.0003, 0.05)
+
+
+def h7_kayma_yumusak_vurus():
+    """6'nın kendisi ama vuruşu 7'den (yumuşak): kayma önde, konuş tatlı"""
+    x = np.zeros(n_of(0.6))
+    place(x, _soft_hit(), 0.0, 0.8)
+    place(x, _chirp(0.32, 1450, 1050, 0.11), 0.01, 0.4)
+    return fade(room(x, 0.05, 0.3), 0.0003, 0.06)
+
+
+def h8_kayma_surtunme():
+    """Yumuşak konuş + kısa cıyırtı başlangıcı, sürtünmeye dönerek sönen kayma (en doğal geçiş)"""
+    x = np.zeros(n_of(0.6))
+    place(x, _soft_hit(), 0.0, 0.9)
+    place(x, _chirp(0.12, 1420, 1200, 0.04), 0.01, 0.3)
+    place(x, _scrub(0.3, 1000, 3000, 0.1), 0.05, 0.22)
+    return fade(room(x, 0.05, 0.3), 0.0003, 0.05)
+
+
+LANDS5 = [("x6_kayma", g6_kayma), ("x7_yumusak", g7_yumusak), ("h1_yumusak_az_kayma", h1_yumusak_az_kayma),
+          ("h2_yumusak_pes_kayma", h2_yumusak_pes_kayma), ("h3_oturup_kayma", h3_oturup_kayma),
+          ("h4_dolgun_kayma", h4_dolgun_kayma), ("h5_surtunme", h5_surtunme), ("h6_iki_teker", h6_iki_teker),
+          ("h7_kayma_yumusak_vurus", h7_kayma_yumusak_vurus), ("h8_kayma_surtunme", h8_kayma_surtunme)]
+
+
 def lands2_main(out, trace, engine_file, picks, designs=None, boost_db=0.0):
     """--lands2: yeni iniş sesleri; sürüş günlüğü verilirse seçili inişler (picks: kare listesi) için
     her birinin çevresi (0.7 sn önce, 1.3 sn sonra) art arda, motorla birlikte"""
@@ -687,10 +775,10 @@ def lands2_main(out, trace, engine_file, picks, designs=None, boost_db=0.0):
 
 def main():
     out = Path(sys.argv[1] if len(sys.argv) > 1 else ".")
-    if "--lands4" in sys.argv:
+    if "--lands4" in sys.argv or "--lands5" in sys.argv:
         out.mkdir(parents=True, exist_ok=True)
         a = [x for x in sys.argv[2:] if not x.startswith("--lands")]
-        lands2_main(out, a[0], a[1], [int(v) for v in a[2].split(",")], LANDS4, 7.0)
+        lands2_main(out, a[0], a[1], [int(v) for v in a[2].split(",")], LANDS5 if "--lands5" in sys.argv else LANDS4, 7.0)
         return
     if "--lands2" in sys.argv or "--lands3" in sys.argv:
         out.mkdir(parents=True, exist_ok=True)
