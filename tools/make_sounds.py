@@ -260,6 +260,12 @@ def loop_road():
     return normalize(s, 0.75)
 
 
+def _digital(x, treatment):
+    """Lastik sesine dijital katman (tools/land_digital_designs.py, dinlenip seçilenler)"""
+    import land_digital_designs as dd
+    return dd.normalize(getattr(dd, treatment)(x), 0.8)
+
+
 def _car_land(design, pitch=1.0):
     """Arabanın iniş sesi: gerçekçi lastik, yumuşak konuş + hafif kayma (tools/engine_land_designs.py
     LANDS5, dinlenip seçilenlerin aynısı); pitch < 1 daha kalın"""
@@ -276,33 +282,33 @@ def _car_land(design, pitch=1.0):
 
 
 def sfx_land_gezgin():
-    """GEZGİN: dolgun konuş + kayma, biraz pes (en kalın)"""
-    return _car_land("h4_dolgun_kayma", 0.88)
+    """GEZGİN: dolgun konuş + kayma, biraz pes (en kalın); dijital: hafif bit"""
+    return _digital(_car_land("h4_dolgun_kayma", 0.88), "d1_hafif_bit")
 
 
 def sfx_land_dragster():
-    """DRAGSTER: dolgun konuş + kayma"""
-    return _car_land("h4_dolgun_kayma")
+    """DRAGSTER: dolgun konuş + kayma; dijital: örnekleme düşürme (hırçın)"""
+    return _digital(_car_land("h4_dolgun_kayma"), "d5_ornekleme")
 
 
 def sfx_land_latte():
-    """LATTE: yumuşak konuş + az kayma"""
-    return _car_land("h1_yumusak_az_kayma")
+    """LATTE: yumuşak konuş + az kayma; dijital: bitli kayma"""
+    return _digital(_car_land("h1_yumusak_az_kayma"), "d2_bitli_kayma")
 
 
 def sfx_land_gem():
-    """GEM: yumuşak konuş, kısa cıyırtı sürtünmeye dönerek söner"""
-    return _car_land("h8_kayma_surtunme")
+    """GEM: yumuşak konuş, kısa cıyırtı sürtünmeye dönerek söner; dijital: kekeleme"""
+    return _digital(_car_land("h8_kayma_surtunme"), "d7_kekeleme")
 
 
 def sfx_land_dark_rose():
-    """DARK ROSE: yumuşak konuş + çığlıksız sürtünme 'şşş'"""
-    return _car_land("h5_surtunme")
+    """DARK ROSE: yumuşak konuş + çığlıksız sürtünme 'şşş'; dijital: Tron yankısı"""
+    return _digital(_car_land("h5_surtunme"), "d8_tron_yanki")
 
 
 def sfx_land_falcon():
-    """FALCON: yumuşak vuruş + en tiz, belirgin kayma"""
-    return _car_land("h7_kayma_yumusak_vurus")
+    """FALCON: yumuşak vuruş + en tiz, belirgin kayma; dijital: süpürme"""
+    return _digital(_car_land("h7_kayma_yumusak_vurus"), "d4_dijital_supurme")
 
 
 def loop_tire():

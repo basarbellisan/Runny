@@ -94,7 +94,9 @@ DESIGNS = [("q0_dijitalsiz", lambda x: x), ("q1_hafif_bit", d1_hafif_bit), ("q2_
 def main():
     out = Path(sys.argv[1] if len(sys.argv) > 1 else ".")
     out.mkdir(parents=True, exist_ok=True)
-    base = ed.mono(sf.read(str(ROOT / "audio/sfx_land_latte.wav"))[0])
+    # Temel: LATTE'nin dijitalsiz lastik sesi (oyundaki dosya artık dijital olduğu için tariften)
+    import make_sounds as ms
+    base = ms._car_land("h1_yumusak_az_kayma")
     reel_args = sys.argv[2:5] if len(sys.argv) > 4 else None
     for name, fn in DESIGNS:
         ed.ms.rng = np.random.default_rng(sum(map(ord, name)))
