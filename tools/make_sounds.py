@@ -352,23 +352,6 @@ def sfx_fall():
     return room(fade(s, 0.001, 0.05), 0.1, 0.5)
 
 
-def sfx_explosion():
-    """Kısa, tok patlama: alt frekans darbesi + kapanan gürültü + çıtırtılar."""
-    d = 1.2
-    n = n_of(d)
-    boom = sine(glide(75, 28, d, 0.5), d) * env(d, 0.002, 0.35)
-    knock = sine(glide(260, 90, d, 0.4), d) * env(d, 0.001, 0.05)
-    roar = filt(noise(d), hi=2500) * env(d, 0.003, 0.18)
-    roar = filt(roar, hi=900) * 0.6 + roar * 0.4
-    crackle = np.zeros(n)
-    for _ in range(40):
-        at = rng.uniform(0.02, 0.7)
-        place(crackle, click(0.005), at, rng.uniform(0.2, 0.7) * (1 - at))
-    held = np.repeat(noise(d)[::18], 18)[:n]               # dijital doku
-    s = boom + 0.4 * knock + 0.7 * roar + 0.5 * crackle + 0.15 * filt(held, hi=4000) * env(d, 0.001, 0.08)
-    return fade(room(s, 0.15, 0.9), 0.0005, 0.1)
-
-
 def sfx_shatter():
     """Işık bariyerine değip parçalanma: "tıss". Keskin elektrikli tık ("t"), hızla sönen tiz
     hışırtı ("ıss"; parlaktan biraz boğuğa kayar, çözülme hissi) ve içinde seyrelen minik
@@ -466,44 +449,6 @@ def sfx_smash():
     import smash_sound_designs as sd
     sd.ms.rng = np.random.default_rng(sum(map(ord, "t10_dijital_v2")))
     return sd.t10_dijital_v2()
-
-
-def sfx_smash_crunch():
-    """(Kullanılmıyor: ilk parçalanma sesi) Uçarken kırık yola çarpıp iri parçalara ayrılma: tok, ağır bir darbe (alçak gümbürtü),
-    ezilen metal/plastik çatırtısı (kırık kırık gürültü), ardından ileri saçılan parçaların
-    seyrelen, uzaklaşan tıkırtıları ve kısa bir hava süpürmesi. Patlama ve "tıss"tan farklı:
-    ateş yok, ezilme ve dağılma var."""
-    d = 1.9
-    buf = np.zeros(n_of(d))
-    # Darbe: alçak gümbürtü (aşağı kayan) + kısa boğuk gürültü
-    thump = sine(glide(95, 38, 0.45, 0.5), 0.45) * env(0.45, 0.003, 0.22)
-    place(buf, thump, 0.0, 0.9)
-    hit = filt(noise(0.12), lo=80, hi=900) * env(0.12, 0.001, 0.06)
-    place(buf, hit, 0.0, 0.8)
-    # Ezilme: kırık kırık, çatırdayan orta-tiz gürültü (genlik titrek), 0.35 sn
-    t = np.arange(n_of(0.35)) / SR
-    crack = filt(noise(0.35), lo=700, hi=5200)
-    jag = (rng.random(len(t)) > 0.86).astype(float)
-    jag = np.convolve(jag, np.ones(int(SR * 0.004)) / (SR * 0.004), mode="same")
-    crunch = crack * (0.35 + 1.4 * jag) * np.exp(-t / 0.12)
-    place(buf, crunch, 0.005, 0.55)
-    # Metalik çınlama: birkaç uyumsuz, hızla sönen kısmi
-    for f, g in [(1310, 0.12), (1870, 0.09), (2630, 0.06)]:
-        ring = sine(f, 0.5) * env(0.5, 0.002, 0.11)
-        place(buf, ring, 0.01, g)
-    # Saçılan parçalar: seyrelen, kısıklaşan, iki yana dağılan tıkırtılar
-    k = 0
-    tt = 0.12
-    while tt < d - 0.1:
-        g = 0.32 * np.exp(-tt / 0.55)
-        c = filt(noise(0.01), lo=1800 - min(k * 40, 1200), hi=7000 - min(k * 150, 4500)) * env(0.01, 0.0005, 0.006)
-        place(buf, c, tt, g, pan=rng.uniform(-0.6, 0.6))
-        tt += rng.uniform(0.02, 0.07) * (1.0 + tt * 1.5)
-        k += 1
-    # Hava süpürmesi: parçalar ileri fırlarken
-    sw = filt(noise(0.6), lo=400, hi=2500) * env(0.6, 0.05, 0.3) * 0.25
-    place(buf, sw, 0.03, 1.0)
-    return room(fade(buf, 0.0005, 0.08), 0.14, 0.7)
 
 
 def sfx_energy_low():
@@ -825,7 +770,7 @@ def main():
         ("sfx_jump.wav", sfx_jump), ("sfx_land.wav", sfx_land), ("sfx_perfect.wav", sfx_perfect),
         ("sfx_multiplier.wav", sfx_multiplier), ("sfx_return.wav", sfx_return),
         ("sfx_wings.wav", sfx_wings), ("sfx_crystal.wav", sfx_crystal), ("sfx_portal.wav", sfx_portal),
-        ("sfx_fall.wav", sfx_fall), ("sfx_explosion.wav", sfx_explosion),
+        ("sfx_fall.wav", sfx_fall),
         ("sfx_energy_low.wav", sfx_energy_low), ("sfx_game_over.wav", sfx_game_over),
         ("sfx_climb.wav", sfx_climb), ("sfx_boost.wav", sfx_boost), ("sfx_empty.wav", sfx_empty),
         ("sfx_hiss.wav", sfx_hiss), ("sfx_shatter.wav", sfx_shatter),

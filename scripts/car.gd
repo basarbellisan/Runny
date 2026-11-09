@@ -223,7 +223,6 @@ var _was_on_floor := true
 var _mode_time := 0.0
 var _has_wings := true
 var _steer := 0.0
-var _debris: Array[Dictionary] = []
 var _launch_target := Vector3.ZERO
 var _launch_clear_y := 0.0
 ## Portal tüneli: araba önce bu çizgi boyunca kayar, sonra fırlatılır
@@ -585,9 +584,8 @@ func _prepare_voxels() -> void:
 	var t0 := Time.get_ticks_msec()
 	var n: int = _voxels().n
 	# Çarpma parçaları (yolda: kanat kapalı, uçarken: kanat açık): çarpma anında takılmasın
-	if smash_enabled:
-		_smash_pieces(false)
-		_smash_pieces(true)
+	_smash_pieces(false)
+	_smash_pieces(true)
 	if OS.get_cmdline_user_args().has("--trace"):
 		print("VOXELS n=%d ms=%d model=%d hw=%.2f" % [n, Time.get_ticks_msec() - t0, model.variant, model.half_width])
 	_prewarm_shaders()
@@ -1061,15 +1059,7 @@ func crash(reason: String) -> void:
 	if mode == Mode.DEAD:
 		return
 	# Çarpma (uçarken ve yolda; ışık bariyeri hariç, o kesilir): iri küplere ayrılır, gerçek fizikle saçılır
-	if smash_enabled:
-		smash(reason)
-		return
-	if OS.get_cmdline_user_args().has("--trace"):
-		print("EXPLODE %s x=%.2f z=%.2f" % [reason, global_position.x, global_position.z])
-	_spawn_debris()
-	_body.visible = false
-	exploded.emit()
-	_die(reason)
+	smash(reason)
 
 
 func _drive(delta: float) -> void:
@@ -1414,9 +1404,7 @@ func _dead_motion(delta: float) -> void:
 	# yüksekliğe göre alt katmanın mercan tonlarına kayıyordu
 	if _shattered:
 		return
-	# Patladıysak parçalar kendi fiziğiyle hareket eder; değilse uçuruma düşüş
-	if not _debris.is_empty():
-		return
+	# Uçuruma düşüş
 	velocity.y -= gravity * delta
 	position += velocity * delta
 
@@ -2207,59 +2195,6 @@ func _loft(a: Array, b: Array) -> ArrayMesh:
 	return st.commit()
 
 
-## Patlama: araba renklerinde küçük parçalar ve turuncu bir parlama
-func _spawn_debris() -> void:
-	var mats: Array[Material] = [model.paint_material, model.dark_material, model.tire_material]
-	var origin := global_position + Vector3(0, 0.6, 0)
-	for i in 16:
-		# Gerçek fizik cismi: yollara çarpıp seker, içinden geçmez
-		var piece := RigidBody3D.new()
-		piece.collision_layer = 2
-		piece.collision_mask = _default_mask
-		var size := Vector3(randf_range(0.2, 0.7), randf_range(0.15, 0.5), randf_range(0.2, 0.8))
-		var shape := CollisionShape3D.new()
-		var box_shape := BoxShape3D.new()
-		box_shape.size = size
-		shape.shape = box_shape
-		piece.add_child(shape)
-		var mi := MeshInstance3D.new()
-		var box := BoxMesh.new()
-		box.size = size
-		mi.mesh = box
-		mi.material_override = mats[i % mats.size()]
-		piece.add_child(mi)
-		piece.top_level = true
-		add_child(piece)
-		piece.global_position = origin + Vector3(randf_range(-0.8, 0.8), randf_range(-0.3, 0.4), randf_range(-1.5, 1.5))
-		piece.linear_velocity = Vector3(randf_range(-7, 7), randf_range(3, 11), randf_range(-2, 9))
-		piece.angular_velocity = Vector3(randf_range(-10, 10), randf_range(-10, 10), randf_range(-10, 10))
-		_debris.append({"node": piece})
-	var flash_mat := StandardMaterial3D.new()
-	flash_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	flash_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	flash_mat.albedo_color = Color(Palette.ACCENT, 0.9)
-	var flash := MeshInstance3D.new()
-	var ball := SphereMesh.new()
-	ball.radial_segments = 8
-	ball.rings = 4
-	flash.mesh = ball
-	flash.material_override = flash_mat
-	flash.top_level = true
-	add_child(flash)
-	flash.global_position = origin
-	var light := OmniLight3D.new()
-	light.light_color = Palette.ACCENT
-	light.light_energy = 6.0
-	light.omni_range = 14.0
-	light.top_level = true
-	add_child(light)
-	light.global_position = origin + Vector3(0, 1, 0)
-	var tw := create_tween().set_parallel()
-	tw.tween_property(flash, "scale", Vector3.ONE * 7.0, 0.35).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
-	tw.tween_property(flash_mat, "albedo_color:a", 0.0, 0.35)
-	tw.tween_property(light, "light_energy", 0.0, 0.5)
-
-
 ## Uçuş çarpma kutusu (yoksa kurar): parent'ın altında name adlı Area3D; şekli döndürür
 func _hit_area(parent: Node3D, area_name: String) -> CollisionShape3D:
 	var area := parent.get_node_or_null(area_name) as Area3D
@@ -2286,8 +2221,7 @@ func _convex(pts: PackedVector3Array) -> ConvexPolygonShape3D:
 ## Çarpınca (uçarken kırık yol parçasına, yolda duvara, devrilince; ışık bariyeri hariç): araba ve
 ## kanatlar iri küplere ayrılır, her küp
 ## gerçek bir fizik cismi (gölgeli); bulut ileri saçılır, yollardan ve kırık parçalardan seker.
-## Kamera durmaz, bulutu izler (shattering ile aynı akış). false: eski patlama
-static var smash_enabled := true
+## Kamera durmaz, bulutu izler.
 ## Test (--physperf): fizik adımı süresi günlüğü
 var _trace_phys := OS.get_cmdline_user_args().has("--physperf")
 var smashing := false

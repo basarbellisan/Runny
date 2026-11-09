@@ -535,34 +535,28 @@ func _on_boost_empty() -> void:
 
 
 func _on_exploded() -> void:
-	# Uçarken çarpma: iri küplere ayrılma (kendi sesi); kırık yol parçaları katılaşır, küpler seker
 	if car.smashing:
+		# Çarpma (uçarken ve yolda): parçalanma; kırık yol parçaları katılaşır, parçalar seker
 		Audio.play("smash")
 		if lower.use_debris:
-			# Çarpılan parça küpler geçene kadar katı değil (ileri saçılsınlar, içinde doğmasınlar)
+			# Çarpılan parça parçalar geçene kadar katı değil (ileri saçılsınlar, içinde doğmasınlar)
 			lower.field.make_solid(car.global_position, 5.0)
 			get_tree().create_timer(1.0).timeout.connect(func(): lower.field.make_solid())
 		$Camera.shake(0.3)
-		return
-	# Işık bariyerinde parçalanma: "tıss"; diğer çarpmalarda tok patlama
-	if car.shattering:
-		Audio.play("shatter")
 	else:
-		Audio.play("explosion")
-	# Yola çakılma / kaya / devrilme: hafif sarsıntı (eskiden 1.0, kamera 60 cm'ye kadar savruluyordu)
-	$Camera.shake(0.35 if car.shattering else CRASH_SHAKE)
+		# Işık bariyerinde kesilme: "tıss"
+		Audio.play("shatter")
+		$Camera.shake(0.35)
 	if _perf_label:
 		_perf_crash_at = Time.get_ticks_msec()
 		_perf_crash_worst = 0.0
-		_perf_crash_kind = "küp" if car.shattering else "patlama"
+		_perf_crash_kind = "parçalanma" if car.smashing else "kesilme"
 
 
 ## Performans sayacı (web: adresin sonuna ?debug=1, masaüstü: --perf): FPS, son 2 sn'deki en uzun
 ## kare ve çarpmadan sonraki 2 sn'deki en uzun kare. Telefonda takılmanın yerini bulmak için.
 ## Güneş gölgelerinin koyuluğu (1 tam koyu): araba, kesilme küpleri, kanat, rampa, kaya gölgeleri
 const SHADOW_OPACITY := 0.6
-## Patlamalı çarpmada (yol, kaya, devrilme) kamera sarsıntısı (0..1, kayma karesiyle büyür)
-const CRASH_SHAKE := 0.45
 var _perf_label: Label
 ## Açılış örtüsü: menünün karardığı kâğıt rengiyle başlar, alt katman gölgelendiricileri ısıtılınca
 ## açılır (ilk karelerin yerine oturmamış görüntüsü ve derleme donması görünmez)

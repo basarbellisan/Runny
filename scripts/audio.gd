@@ -13,7 +13,6 @@ const SFX := {
 	"crystal": preload("res://audio/sfx_crystal.wav"),
 	"portal": preload("res://audio/sfx_portal.wav"),
 	"fall": preload("res://audio/sfx_fall.wav"),
-	"explosion": preload("res://audio/sfx_explosion.wav"),
 	"energy_low": preload("res://audio/sfx_energy_low.wav"),
 	"game_over": preload("res://audio/sfx_game_over.wav"),
 	"climb": preload("res://audio/sfx_climb.wav"),
