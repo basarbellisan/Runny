@@ -564,8 +564,8 @@ def lands2_main(out, trace, engine_file, picks, designs=None, boost_db=0.0):
             a = n_of(f / 60.0 - 0.7)
             parts.append(track[a:a + n_of(2.0)])
         reel = np.concatenate(parts)
-        # Tavana vurmasın (bozulmasın): yumuşak sınırlayıcı (denge korunur)
-        reel = np.tanh(reel * 1.2) / np.tanh(1.2)
+        # Tavana vurmasın (bozulmasın): tümü birlikte kısılır (motor / iniş dengesi korunur)
+        reel = reel * min(1.0, 0.95 / max(np.abs(reel).max(), 1e-6))
         sf.write(out / f"kesit_{name}.wav", np.clip(reel, -1, 1), SR, subtype="PCM_16")
         print("yazıldı", name)
 
