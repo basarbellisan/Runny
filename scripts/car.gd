@@ -2462,7 +2462,7 @@ func _smash_motion(delta: float) -> void:
 	speed = maxf(-velocity.z, 0.0)
 
 
-## Küp bir yola ya da kırık parçaya çarptı: hızına göre kırıntı tıkırtısı (seyreltilmiş)
+## Parça bir yola ya da kırık parçaya çarptı: hızına göre "dijital tok" (seyreltilmiş)
 func _on_smash_hit(other: Node, body: RigidBody3D) -> void:
 	if OS.get_cmdline_user_args().has("--trace"):
 		print("SMASH_HIT %s v=%.1f t=%.2f" % [other.name, body.linear_velocity.length(), _smash_time])
@@ -2473,7 +2473,7 @@ func _on_smash_hit(other: Node, body: RigidBody3D) -> void:
 	if v < 2.0:
 		return
 	_smash_tick_ms = now
-	Audio.play("debris", clampf(-20.0 + v * 0.5, -20.0, -6.0), randf_range(0.7, 1.15))
+	Audio.play("bounce", clampf(-20.0 + v * 0.5, -20.0, -6.0), randf_range(0.7, 1.15))
 
 
 ## Yüzeyleri hücrelere böler; her dolu hücre: [ilk değen yüzün rengi, yüzey noktalarının en küçüğü,

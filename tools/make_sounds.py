@@ -451,6 +451,14 @@ def sfx_smash():
     return sd.t10_dijital_v2()
 
 
+def sfx_bounce():
+    """Parçalanmada parça yola / kırık parçaya çarpıp sekti: "dijital tok" (tools/bounce_sound_designs.py
+    b4_dijital_tok, dinlenip seçilenin aynısı): yumuşak, alçalan orta ton, bitli; oyunda hıza göre
+    ses yüksekliği ve rastgele perdeyle çalınır."""
+    import bounce_sound_designs as bd
+    return bd.b4_dijital_tok()
+
+
 def sfx_energy_low():
     buf = np.zeros(n_of(0.4))
     f = 880.0
@@ -775,7 +783,7 @@ def main():
         ("sfx_climb.wav", sfx_climb), ("sfx_boost.wav", sfx_boost), ("sfx_empty.wav", sfx_empty),
         ("sfx_hiss.wav", sfx_hiss), ("sfx_shatter.wav", sfx_shatter),
         ("sfx_drain.wav", sfx_drain), ("sfx_debris.wav", sfx_debris),
-        ("sfx_smash.wav", sfx_smash),
+        ("sfx_smash.wav", sfx_smash), ("sfx_bounce.wav", sfx_bounce),
         ("loop_engine.ogg", loop_engine), ("loop_road.ogg", loop_road), ("loop_wind.ogg", loop_wind),
         ("loop_plane.ogg", loop_plane), ("loop_climb.ogg", loop_climb), ("loop_tire.ogg", loop_tire),
         ("loop_gravel.ogg", loop_gravel),
