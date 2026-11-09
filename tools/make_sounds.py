@@ -460,7 +460,16 @@ def sfx_debris():
 
 
 def sfx_smash():
-    """Uçarken kırık yola çarpıp iri parçalara ayrılma: tok, ağır bir darbe (alçak gümbürtü),
+    """Parçalanma (uçarken ve yolda çarpma; ışık bariyeri hariç): Tron havasında "dijital v2"
+    (tools/smash_sound_designs.py t10_dijital_v2, dinlenip seçilen tasarımın birebir aynısı):
+    keskin "çıt", bitli ve iki yana açılan doku, stereo yankılı piksel blipleri, hafif gövde."""
+    import smash_sound_designs as sd
+    sd.ms.rng = np.random.default_rng(sum(map(ord, "t10_dijital_v2")))
+    return sd.t10_dijital_v2()
+
+
+def sfx_smash_crunch():
+    """(Kullanılmıyor: ilk parçalanma sesi) Uçarken kırık yola çarpıp iri parçalara ayrılma: tok, ağır bir darbe (alçak gümbürtü),
     ezilen metal/plastik çatırtısı (kırık kırık gürültü), ardından ileri saçılan parçaların
     seyrelen, uzaklaşan tıkırtıları ve kısa bir hava süpürmesi. Patlama ve "tıss"tan farklı:
     ateş yok, ezilme ve dağılma var."""
