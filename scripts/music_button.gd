@@ -1,6 +1,7 @@
 class_name MusicButton
 extends Button
-## Müzik aç / kapat düğmesi (garaj ve oyun sonu ekranı): nota simgesi, kapalıyken üstü çizili.
+## Müzik aç / kapat düğmesi (garaj ve oyun sonu ekranı): yuvarlak içinde hoparlör; açıkken ses
+## dalgaları, kapalıyken çarpı.
 ## Seçim kaydedilir (Audio.set_music).
 
 ## Simgenin rengi (garajda koyu, oyun sonunda beyaz)
@@ -33,21 +34,21 @@ func _draw() -> void:
 	var s := size
 	var c := s * 0.5
 	var u := minf(s.x, s.y) / 84.0
-	var col := color if Audio.music_on else Color(color, 0.55)
-	var w := 4.0 * u
-	# Çift nota: iki baş, iki sap, üstte kalın kiriş
-	var h1 := c + Vector2(-14, 16) * u
-	var h2 := c + Vector2(12, 11) * u
-	for h: Vector2 in [h1, h2]:
-		draw_set_transform(h, -0.35, Vector2(1.25, 0.9))
-		draw_circle(Vector2.ZERO, 7.5 * u, col)
-		draw_set_transform(Vector2.ZERO)
-	var top1 := c + Vector2(-6.5, -17) * u
-	var top2 := c + Vector2(19.5, -22) * u
-	draw_line(h1 + Vector2(7.0, -2.0) * u, top1, col, w)
-	draw_line(h2 + Vector2(7.0, -2.0) * u, top2, col, w)
-	draw_colored_polygon(PackedVector2Array([top1 + Vector2(-2, 0) * u, top2 + Vector2(2, 0) * u,
-		top2 + Vector2(2, 7) * u, top1 + Vector2(-2, 7) * u]), col)
-	if not Audio.music_on:
-		# Kapalı: çapraz çizgi
-		draw_line(c + Vector2(-26, -26) * u, c + Vector2(26, 26) * u, color, w * 1.2)
+	var col := color if Audio.music_on else Color(color, 0.6)
+	var w := 3.5 * u
+	# Yuvarlak çerçeve
+	draw_arc(c, 36.0 * u, 0.0, TAU, 64, col, w, true)
+	# Hoparlör: küçük gövde + açılan koni (biraz sola kaymış; sağda dalgalar ya da çarpı)
+	var o := c + Vector2(-8, 0) * u
+	draw_colored_polygon(PackedVector2Array([
+		o + Vector2(-12, -6) * u, o + Vector2(-4, -6) * u, o + Vector2(6, -15) * u,
+		o + Vector2(6, 15) * u, o + Vector2(-4, 6) * u, o + Vector2(-12, 6) * u]), col)
+	if Audio.music_on:
+		# Ses dalgaları
+		draw_arc(o + Vector2(7, 0) * u, 9.0 * u, -0.75, 0.75, 16, col, w, true)
+		draw_arc(o + Vector2(7, 0) * u, 16.0 * u, -0.8, 0.8, 20, col, w, true)
+	else:
+		# Kapalı: hoparlörün sağında çarpı
+		var x := o + Vector2(19, 0) * u
+		draw_line(x + Vector2(-6, -6) * u, x + Vector2(6, 6) * u, col, w, true)
+		draw_line(x + Vector2(-6, 6) * u, x + Vector2(6, -6) * u, col, w, true)
