@@ -22,6 +22,8 @@ const DRAG_SCALE := 0.016
 const SWIPE_MIN := 60.0
 
 var index := 0
+## Döngülü kaydırma: sınırsız konum (index = _slot mod araba sayısı); sondan başa, baştan sona geçer
+var _slot := 0
 var _carousel: Node3D
 var _turntables: Array[Node3D] = []
 var _tween: Tween
@@ -72,7 +74,8 @@ func _ready() -> void:
 			index = i
 	_build_world()
 	_build_ui(int(cfg.get_value("score", "best", 0)))
-	_carousel.position.x = -index * SPACING
+	_slot = index
+	_carousel.position.x = -_slot * SPACING
 	_refresh(false)
 	_fade.modulate.a = 1.0
 	create_tween().tween_property(_fade, "modulate:a", 0.0, 0.5)
@@ -184,11 +187,15 @@ func show_tutorial(start_page := 0) -> void:
 func _process(delta: float) -> void:
 	# Uçuştaki kırık yol parçalarının kalıpları menüde beklerken hazırlanır (oyunda takılmasın)
 	DebrisField.pool_step()
-	for i in _turntables.size():
+	var n := _turntables.size()
+	var center := -_carousel.position.x / SPACING
+	for i in n:
 		var t := _turntables[i]
 		t.rotate_y(0.55 * delta)
+		# Döngü: her platform ortadakine en yakın tekrarına yerleşir (iki yanda hep araba olur)
+		t.position.x = (i + n * roundf((center - i) / n)) * SPACING
 		# Ortadaki model tam boy, kenara kaydıkça küçülür
-		var x := _carousel.position.x + i * SPACING
+		var x := _carousel.position.x + t.position.x
 		var k := clampf(1.0 - absf(x) / SPACING, 0.0, 1.0)
 		t.scale = Vector3.ONE * lerpf(0.72, 1.0, k * k * (3.0 - 2.0 * k))
 	Audio.update_menu(delta)
@@ -216,14 +223,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			else:
 				select(index)
 	elif event is InputEventScreenDrag and _dragging:
-		var x: float = _drag_from + (event.position.x - _drag_start.x) * DRAG_SCALE
-		# Uçlarda esneyerek dirensin
-		var lo := -(MODELS.size() - 1) * SPACING
-		if x > 0.0:
-			x *= 0.35
-		elif x < lo:
-			x = lo + (x - lo) * 0.35
-		_carousel.position.x = x
+		# Döngülü: uç yok, serbest kayar
+		_carousel.position.x = _drag_from + (event.position.x - _drag_start.x) * DRAG_SCALE
 	elif event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_LEFT, KEY_A:
@@ -234,13 +235,15 @@ func _unhandled_input(event: InputEvent) -> void:
 				start()
 
 
+## i: index'e göre (index + 1 sağdaki, index - 1 soldaki); sondan başa, baştan sona döner
 func select(i: int) -> void:
-	var changed := clampi(i, 0, MODELS.size() - 1) != index
-	index = clampi(i, 0, MODELS.size() - 1)
+	_slot += i - index
+	var changed := posmod(_slot, MODELS.size()) != index
+	index = posmod(_slot, MODELS.size())
 	if _tween:
 		_tween.kill()
 	_tween = create_tween()
-	_tween.tween_property(_carousel, "position:x", -index * SPACING, 0.55) \
+	_tween.tween_property(_carousel, "position:x", -_slot * SPACING, 0.55) \
 		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	if changed:
 		Audio.play("multiplier", -10.0, 0.8 + 0.1 * index)
