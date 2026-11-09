@@ -2,7 +2,8 @@
 dinleyip seçmek için). Dijital / Tron havası ağırlıklı, bir kısmı gerçekçi.
 Kullanım: python3 tools/engine_land_designs.py ÇIKIŞ_KLASÖRÜ [SES_GÜNLÜĞÜ]
           python3 tools/engine_land_designs.py ÇIKIŞ_KLASÖRÜ --cars [MODEL=GÜNLÜK ...]  (her arabanın motoru)
-          python3 tools/engine_land_designs.py ÇIKIŞ_KLASÖRÜ --lands2 GÜNLÜK MOTOR.ogg KARE,KARE,..  (iniş, 2. tur; --lands3: 3. tur dijital lastik, +7 dB)
+          python3 tools/engine_land_designs.py ÇIKIŞ_KLASÖRÜ --lands2 GÜNLÜK MOTOR.ogg KARE,KARE,..  (iniş, 2. tur; --lands3: 3. tur dijital lastik, +7 dB;
+          --lands4: 4. tur gerçekçi lastik, +7 dB)
 Ses günlüğü (oyunun --audtrace AUD/LAND satırları) verilirse her motor ve iniş tasarımı o sürüşün
 devir, seviye ve iniş anlarıyla, oyundaki ses ayarlarıyla bir iz olarak da yazılır."""
 import re
@@ -540,6 +541,120 @@ LANDS3 = [("k0_simdiki", None), ("k1_lastik_cigligi", t1_lastik_cigligi), ("k2_l
           ("k6_piksel_ezilme", t6_piksel_ezilme), ("k7_ciglik_tok", t7_ciglik_tok), ("k8_bit_sekme", t8_bit_sekme)]
 
 
+# --- İniş: gerçekçi lastik sesi (dördüncü tur; dijitalleştirme sonra) ---
+
+def _rubber_hit(d=0.18, lo=70, hi=380, dec=0.045):
+    """Kauçuğun asfalta vuruşu: alçak-orta bantta, hızla sönen yoğun gürültü + gövde tınısı"""
+    x = filt(noise(d), lo=lo, hi=hi, order=3) * env(d, 0.001, dec)
+    x = normalize(x, 1.0)
+    body = sine(glide(110, 70, d, 0.6), d) * env(d, 0.002, dec * 1.4)
+    return 0.8 * x + 0.5 * body
+
+
+def _slap(d=0.03):
+    """Lastik sırtının yola şaplaması: çok kısa, geniş bantlı"""
+    return filt(noise(d), lo=900, hi=4500) * env(d, 0.0005, 0.007)
+
+
+def _chirp(d=0.14, f0=1500, f1=1150, gain_env=0.05):
+    """Dönen tekerin yola değince cıyırdaması: dar bantlı, titrek, perdesi hafif inen ton + gürültü"""
+    t = np.arange(n_of(d)) / SR
+    jit = filt(r().uniform(-1, 1, len(t)), hi=60) * 40
+    f = f0 * (f1 / f0) ** (t / d) + jit
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    tone = np.sin(ph) + 0.35 * np.sin(2 * ph) + 0.15 * np.sin(3 * ph)
+    tone *= 0.7 + 0.3 * np.sin(2 * np.pi * 32 * t)
+    nz = filt(noise(d), lo=f1 * 0.8, hi=f0 * 1.6)
+    return (0.7 * tone + 0.6 * normalize(nz, 1.0)) * env(d, 0.004, gain_env)
+
+
+def _creak(d=0.12):
+    """Yay / süspansiyon gıcırtısı: kısa, sürtünmeli, alçalan"""
+    t = np.arange(n_of(d)) / SR
+    f = 420 * (300 / 420) ** (t / d)
+    saw = 2 * ((np.cumsum(f) / SR) % 1.0) - 1
+    return filt(saw * (0.6 + 0.4 * np.sin(2 * np.pi * 55 * t)), lo=300, hi=2500) * env(d, 0.01, 0.04)
+
+
+def g1_tok_lastik():
+    """Tok lastik: kauçuğun asfalta tok vuruşu + kısa şaplama; yalın"""
+    x = np.zeros(n_of(0.45))
+    place(x, _rubber_hit(), 0.0, 0.9)
+    place(x, _slap(), 0.0, 0.45)
+    return fade(room(x, 0.04, 0.3), 0.0003, 0.05)
+
+
+def g2_lastik_cirpma():
+    """Lastik + cıyırtı: tok vuruş, dönen tekerlerin yola değince kısa 'cıyk'ı"""
+    x = np.zeros(n_of(0.5))
+    place(x, _rubber_hit(), 0.0, 0.85)
+    place(x, _slap(), 0.0, 0.4)
+    place(x, _chirp(), 0.008, 0.4)
+    return fade(room(x, 0.05, 0.3), 0.0003, 0.05)
+
+
+def g3_dibe_vurma():
+    """Süspansiyon dibe vurma: ağır 'küt' + metal 'tak' + kısa yay gıcırtısı"""
+    x = np.zeros(n_of(0.55))
+    place(x, _rubber_hit(0.22, 50, 300, 0.06), 0.0, 0.9)
+    for f, g, dec in [(780, 0.18, 0.025), (1340, 0.1, 0.018)]:
+        place(x, sine(f, 0.12) * env(0.12, 0.0005, dec), 0.004, g)
+    place(x, _creak(), 0.05, 0.18)
+    return fade(room(x, 0.05, 0.3), 0.0003, 0.05)
+
+
+def g4_on_arka():
+    """Önce ön, sonra arka tekerler: 70 ms arayla iki lastik vuruşu (ikincisi daha ağır)"""
+    x = np.zeros(n_of(0.5))
+    place(x, _rubber_hit(0.15, 90, 450, 0.035), 0.0, 0.6)
+    place(x, _slap(), 0.0, 0.3)
+    place(x, _rubber_hit(0.18, 70, 380, 0.045), 0.07, 0.9)
+    place(x, _slap(), 0.07, 0.4)
+    return fade(room(x, 0.04, 0.3), 0.0003, 0.05)
+
+
+def g5_sekme():
+    """Lastik sekmesi: vuruş, 140 ms sonra küçük bir sekme ve kısa kayma"""
+    x = np.zeros(n_of(0.6))
+    place(x, _rubber_hit(), 0.0, 0.9)
+    place(x, _slap(), 0.0, 0.4)
+    place(x, _rubber_hit(0.12, 90, 400, 0.03), 0.14, 0.35)
+    place(x, _chirp(0.08, 1300, 1100, 0.025), 0.15, 0.2)
+    return fade(room(x, 0.05, 0.3), 0.0003, 0.05)
+
+
+def g6_kayma():
+    """Kayarak iniş: vuruş + lastiğin yolda biraz kayması (300 ms sönen lastik çığlığı)"""
+    x = np.zeros(n_of(0.6))
+    place(x, _rubber_hit(), 0.0, 0.8)
+    place(x, _slap(), 0.0, 0.35)
+    place(x, _chirp(0.32, 1450, 1050, 0.11), 0.01, 0.4)
+    return fade(room(x, 0.05, 0.3), 0.0003, 0.06)
+
+
+def g7_yumusak():
+    """Yumuşak iniş: boğuk, kauçuksu 'vuump' + çok hafif cıyırtı; tatlı, sert değil"""
+    x = np.zeros(n_of(0.5))
+    place(x, _rubber_hit(0.25, 60, 260, 0.07), 0.0, 0.9)
+    place(x, _chirp(0.1, 1250, 1050, 0.035), 0.012, 0.18)
+    return fade(room(x, 0.04, 0.3), 0.0003, 0.05)
+
+
+def g8_agir_asfalt():
+    """Ağır araba asfalta: derin vuruş + tekerlerin şaplaması + gövde tıkırtısı (vida, kapak)"""
+    x = np.zeros(n_of(0.55))
+    place(x, _rubber_hit(0.22, 45, 320, 0.06), 0.0, 0.95)
+    place(x, _slap(0.04), 0.0, 0.5)
+    for k in range(4):
+        place(x, filt(click(0.003), lo=2000, hi=6000), 0.03 + k * r().uniform(0.015, 0.035), r().uniform(0.1, 0.25))
+    return fade(room(x, 0.05, 0.3), 0.0003, 0.05)
+
+
+LANDS4 = [("g0_simdiki", None), ("g1_tok_lastik", g1_tok_lastik), ("g2_lastik_cirpma", g2_lastik_cirpma),
+          ("g3_dibe_vurma", g3_dibe_vurma), ("g4_on_arka", g4_on_arka), ("g5_sekme", g5_sekme),
+          ("g6_kayma", g6_kayma), ("g7_yumusak", g7_yumusak), ("g8_agir_asfalt", g8_agir_asfalt)]
+
+
 def lands2_main(out, trace, engine_file, picks, designs=None, boost_db=0.0):
     """--lands2: yeni iniş sesleri; sürüş günlüğü verilirse seçili inişler (picks: kare listesi) için
     her birinin çevresi (0.7 sn önce, 1.3 sn sonra) art arda, motorla birlikte"""
@@ -572,6 +687,11 @@ def lands2_main(out, trace, engine_file, picks, designs=None, boost_db=0.0):
 
 def main():
     out = Path(sys.argv[1] if len(sys.argv) > 1 else ".")
+    if "--lands4" in sys.argv:
+        out.mkdir(parents=True, exist_ok=True)
+        a = [x for x in sys.argv[2:] if not x.startswith("--lands")]
+        lands2_main(out, a[0], a[1], [int(v) for v in a[2].split(",")], LANDS4, 7.0)
+        return
     if "--lands2" in sys.argv or "--lands3" in sys.argv:
         out.mkdir(parents=True, exist_ok=True)
         a = [x for x in sys.argv[2:] if not x.startswith("--lands")]
