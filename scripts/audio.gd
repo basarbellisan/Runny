@@ -44,6 +44,12 @@ const CRYSTAL_STEPS := [1.0, 1.2, 1.335, 1.498, 1.782, 2.0]
 var _music_upper: AudioStreamPlayer
 var _music_lower: AudioStreamPlayer
 var _engine: AudioStreamPlayer
+## Arabanın motor sesi: her araba kendi motoruyla (CarModel varyantı -> motor)
+const ENGINES := {
+	"hibrit": preload("res://audio/loop_engine_hibrit.ogg"),
+	"fm": preload("res://audio/loop_engine_fm.ogg"),
+}
+const ENGINE_BY_MODEL := {2: "hibrit", 8: "hibrit", 10: "hibrit", 6: "fm", 7: "fm", 9: "fm"}
 ## Test (--audtrace): motor devri / seviyesi ve iniş anları günlüğü (ses tasarımı denemeleri için)
 var _aud_trace := OS.get_cmdline_user_args().has("--audtrace")
 var _road: AudioStreamPlayer
@@ -75,7 +81,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_music_upper = _make_loop(preload("res://audio/music_upper.ogg"))
 	_music_lower = _make_loop(preload("res://audio/music_lower.ogg"))
-	_engine = _make_loop(preload("res://audio/loop_engine.ogg"))
+	_engine = _make_loop(ENGINES.hibrit)
 	_road = _make_loop(preload("res://audio/loop_road.ogg"))
 	_wind = _make_loop(preload("res://audio/loop_wind.ogg"))
 	_plane = _make_loop(preload("res://audio/loop_plane.ogg"))
@@ -195,6 +201,18 @@ func _update_plane(delta: float, car: Car, speed01: float, playing: bool) -> voi
 	var climb_level := _climb_amount if flying else 0.0
 	_climb.volume_db = climb_volume_db + linear_to_db(maxf(climb_level, 0.001))
 	_climb.pitch_scale = 0.85 + 0.35 * _climb_amount
+
+
+## Oyundaki arabanın motor sesi (araba modeline göre)
+func set_engine_for_model(variant: int) -> void:
+	var stream: AudioStream = ENGINES[ENGINE_BY_MODEL.get(variant, "hibrit")]
+	if _engine.stream == stream:
+		return
+	(stream as AudioStreamOggVorbis).loop = true
+	_engine.stream = stream
+	_engine.play()
+	if _aud_trace:
+		print("ENGINE model=%d %s" % [variant, stream.resource_path.get_file()])
 
 
 ## Garaj ekranı: sadece üst katman müziği

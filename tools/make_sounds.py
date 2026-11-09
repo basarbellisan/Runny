@@ -190,7 +190,7 @@ def write_ogg(name, x):
 # --------------------------------------------------------------------------
 
 def loop_engine():
-    """4 silindirli motor: her ateşleme, rezonanslı kısa bir darbe.
+    """(Tek başına kullanılmıyor; "hibrit" motorun temeli) 4 silindirli motor: her ateşleme, rezonanslı kısa bir darbe.
     2 sn'de tam sayıda devir olduğu için döngü kesintisizdir. Devir,
     oyunda pitch_scale ile değiştirilir."""
     f0 = 90.0                       # ateşleme frekansı (Hz)
@@ -211,6 +211,22 @@ def loop_engine():
     s += 0.18 * filt(rng.uniform(-1, 1, len(s)), lo=80, hi=700, circular=True)   # emme/egzoz hışırtısı
     s = filt(s, lo=35, hi=2200, circular=True)
     return normalize(s, 0.8)
+
+
+def loop_engine_hibrit():
+    """Motor (GEZGİN, LATTE, GEM): "hibrit" — yanmalı motorun yumuşatılmış hali, üstünde elektrikli
+    vızıltı (tools/engine_land_designs.py m6_hibrit, dinlenip seçilenin aynısı)"""
+    import engine_land_designs as ed
+    ed.ms.rng = np.random.default_rng(sum(map(ord, "m6_hibrit")))
+    return ed.e6_hibrit()
+
+
+def loop_engine_fm():
+    """Motor (DRAGSTER, DARK ROSE, FALCON): "FM hırıltı" — FM bas, hafif hırıltılı, güçlü
+    (tools/engine_land_designs.py m8_fm_hirilti, dinlenip seçilenin aynısı)"""
+    import engine_land_designs as ed
+    ed.ms.rng = np.random.default_rng(sum(map(ord, "m8_fm_hirilti")))
+    return ed.e8_fm_hirilti()
 
 
 def loop_road():
@@ -784,7 +800,7 @@ def main():
         ("sfx_hiss.wav", sfx_hiss), ("sfx_shatter.wav", sfx_shatter),
         ("sfx_drain.wav", sfx_drain), ("sfx_debris.wav", sfx_debris),
         ("sfx_smash.wav", sfx_smash), ("sfx_bounce.wav", sfx_bounce),
-        ("loop_engine.ogg", loop_engine), ("loop_road.ogg", loop_road), ("loop_wind.ogg", loop_wind),
+        ("loop_engine_hibrit.ogg", loop_engine_hibrit), ("loop_engine_fm.ogg", loop_engine_fm), ("loop_road.ogg", loop_road), ("loop_wind.ogg", loop_wind),
         ("loop_plane.ogg", loop_plane), ("loop_climb.ogg", loop_climb), ("loop_tire.ogg", loop_tire),
         ("loop_gravel.ogg", loop_gravel),
         ("music_upper.ogg", music_upper), ("music_lower.ogg", music_lower),

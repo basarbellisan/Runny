@@ -169,6 +169,7 @@ func _ready() -> void:
 	# Editörde "Oyna": editör her seferinde rastgele bir araba seçer (?model=)
 	if _web_param("model") != "":
 		car.model.variant = int(_web_param("model"))
+	Audio.set_engine_for_model(car.model.variant)
 	# Test: gövde koruması kapalı (karşılaştırma için)
 	if _args.has("nohull"):
 		car.hull_guard = false
@@ -744,6 +745,7 @@ func _setup_level_test() -> void:
 			_level_auto = true
 			var done := int(JavaScriptBridge.eval("JSON.parse(localStorage.getItem('%s') || '[]').length" % RESULT_KEY))
 			car.model.variant = TEST_MODELS[done % TEST_MODELS.size()]
+			Audio.set_engine_for_model(car.model.variant)
 			car.autopilot = Autopilot.new(car, roads, lower, 0.0, true)
 			Engine.time_scale = 2.0
 	if text == "":
