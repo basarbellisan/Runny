@@ -2,7 +2,7 @@
 dinleyip seçmek için). Dijital / Tron havası ağırlıklı, bir kısmı gerçekçi.
 Kullanım: python3 tools/engine_land_designs.py ÇIKIŞ_KLASÖRÜ [SES_GÜNLÜĞÜ]
           python3 tools/engine_land_designs.py ÇIKIŞ_KLASÖRÜ --cars [MODEL=GÜNLÜK ...]  (her arabanın motoru)
-          python3 tools/engine_land_designs.py ÇIKIŞ_KLASÖRÜ --lands2 GÜNLÜK MOTOR.ogg KARE,KARE,..  (iniş, 2. tur)
+          python3 tools/engine_land_designs.py ÇIKIŞ_KLASÖRÜ --lands2 GÜNLÜK MOTOR.ogg KARE,KARE,..  (iniş, 2. tur; --lands3: 3. tur dijital lastik, +7 dB)
 Ses günlüğü (oyunun --audtrace AUD/LAND satırları) verilirse her motor ve iniş tasarımı o sürüşün
 devir, seviye ve iniş anlarıyla, oyundaki ses ayarlarıyla bir iz olarak da yazılır."""
 import re
@@ -433,7 +433,114 @@ LANDS2 = [("j0_simdiki", None), ("j1_kaucuk", n1_kaucuk), ("j2_synthwave_tom", n
           ("j6_hibrit_tok", n6_hibrit_tok), ("j7_cift_sekme", n7_cift_sekme), ("j8_kick_hava", n8_kick_hava)]
 
 
-def lands2_main(out, trace, engine_file, picks):
+# --- İniş sesleri, üçüncü tur: dijital lastik (orta-tiz ağırlıklı; motorun bas bölgesinin üstünde) ---
+
+def _thump(d=0.15, f0=240, f1=150):
+    """Hafif orta darbe (motor basını ezmez)"""
+    return sine(glide(f0, f1, d, 0.5), d) * env(d, 0.001, d * 0.25)
+
+
+def t1_lastik_cigligi():
+    """Dijital lastik çığlığı: kısa, aşağı süzülen tiz 'cıyk' (titrek), bitli; altında hafif darbe"""
+    d = 0.3
+    t = np.arange(n_of(0.14)) / SR
+    f = 1500 * (900 / 1500) ** (t / 0.14) * (1 + 0.03 * np.sin(2 * np.pi * 45 * t))
+    chirp = np.sin(2 * np.pi * np.cumsum(f) / SR) * env(0.14, 0.002, 0.045)
+    x = np.zeros(n_of(d))
+    place(x, crush(chirp, 5, 3), 0.0, 0.7)
+    place(x, _thump(), 0.0, 0.5)
+    return fade(room(x, 0.05, 0.25), 0.0003, 0.04)
+
+
+def t2_lastik_tokadi():
+    """Lastik tokadı: orta bantta sert, bitli bir 'şap' + 90 ms sonra küçük ikinci 'şap' (sekme)"""
+    d = 0.35
+    x = np.zeros(n_of(d))
+    for at, g in [(0.0, 0.9), (0.09, 0.4)]:
+        slap = crush(filt(noise(0.05), lo=700, hi=3200) * env(0.05, 0.0005, 0.012), 4, 4)
+        place(x, slap, at, g)
+        place(x, _thump(0.1), at, g * 0.5)
+    return fade(room(x, 0.05, 0.25), 0.0003, 0.04)
+
+
+def t3_kare_gicirti():
+    """Kare dalga gıcırtı: 8 bit lastik gıcırtısı (1.6 kHz'den aşağı), kısa tık ile"""
+    d = 0.25
+    x = np.zeros(n_of(d))
+    t = np.arange(n_of(0.09)) / SR
+    f = 1600 * (700 / 1600) ** (t / 0.09)
+    sq = np.sign(np.sin(2 * np.pi * np.cumsum(f) / SR)) * env(0.09, 0.001, 0.03) * 0.5
+    place(x, filt(sq, hi=6000), 0.0, 0.7)
+    place(x, filt(click(0.003), lo=1500), 0.0, 0.5)
+    place(x, _thump(0.12), 0.0, 0.4)
+    return fade(room(x, 0.04, 0.25), 0.0003, 0.03)
+
+
+def t4_dijital_surtunme():
+    """Dijital sürtünme: lastiğin yolu sıyırması gibi kısa tanecikli gürültü, bitli, perdesi iner"""
+    d = 0.3
+    x = np.zeros(n_of(d))
+    for k in range(10):
+        g = filt(noise(0.015), lo=1800 - k * 110, hi=5000 - k * 300) * env(0.015, 0.0005, 0.005)
+        place(x, crush(g, 4, 3), k * 0.016, 0.6 * (1 - k / 12))
+    place(x, _thump(), 0.0, 0.5)
+    return fade(room(x, 0.05, 0.25), 0.0003, 0.04)
+
+
+def t5_lastik_fm():
+    """Lastik FM: FM ile 'boyng' — kauçuğun esneyişi gibi kısa, metalik-dijital sekme (taşıyıcı 900 Hz)"""
+    d = 0.3
+    t = np.arange(n_of(d)) / SR
+    f = 600 + 400 * np.exp(-t / 0.05)
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    x = np.sin(ph + 2.5 * np.exp(-t / 0.03) * np.sin(1.5 * ph)) * env(d, 0.001, 0.06)
+    x = x + 0.5 * np.pad(_thump(), (0, len(x) - n_of(0.15)))
+    return fade(room(x, 0.05, 0.25), 0.0003, 0.04)
+
+
+def t6_piksel_ezilme():
+    """Piksel ezilme: kauçuk sıkışıyormuş gibi tiz'den peşe kayan bantlı gürültü 'vıjj', bitli"""
+    d = 0.3
+    t = np.arange(n_of(0.15)) / SR
+    nz = noise(0.15)
+    lo = filt(nz, lo=500, hi=1200)
+    hi = filt(nz, lo=1800, hi=4000)
+    k = np.clip(t / 0.12, 0, 1)
+    sw = (hi * (1 - k) + lo * k) * env(0.15, 0.002, 0.05)
+    x = np.zeros(n_of(d))
+    place(x, crush(sw, 4, 3), 0.0, 0.8)
+    place(x, _thump(), 0.0, 0.5)
+    return fade(room(x, 0.05, 0.25), 0.0003, 0.04)
+
+
+def t7_ciglik_tok():
+    """Çığlık + tok: kısa tiz lastik çığlığı (titreşimli bant gürültü) + orta tok darbe, bitli"""
+    d = 0.3
+    t = np.arange(n_of(0.12)) / SR
+    scr = filt(noise(0.12), lo=2000, hi=4200) * (0.6 + 0.4 * np.sin(2 * np.pi * 70 * t)) * env(0.12, 0.002, 0.04)
+    x = np.zeros(n_of(d))
+    place(x, crush(scr, 5, 2), 0.0, 0.6)
+    place(x, crush(_thump(0.14, 300, 170), 5, 3), 0.0, 0.7)
+    return fade(room(x, 0.05, 0.25), 0.0003, 0.04)
+
+
+def t8_bit_sekme():
+    """Bit sekme: alçalan üç kısa, bitli 'şap' (lastik sekip yerine oturuyor), orta bantta"""
+    d = 0.35
+    x = np.zeros(n_of(d))
+    for k, (at, g) in enumerate([(0.0, 0.9), (0.07, 0.5), (0.12, 0.25)]):
+        s = crush(filt(noise(0.03), lo=900 - k * 150, hi=3500 - k * 600) * env(0.03, 0.0005, 0.008), 3, 4)
+        place(x, s, at, g)
+    place(x, _thump(), 0.0, 0.5)
+    return fade(room(x, 0.05, 0.25), 0.0003, 0.04)
+
+
+LANDS3 = [("k0_simdiki", None), ("k1_lastik_cigligi", t1_lastik_cigligi), ("k2_lastik_tokadi", t2_lastik_tokadi),
+          ("k3_kare_gicirti", t3_kare_gicirti), ("k4_dijital_surtunme", t4_dijital_surtunme), ("k5_lastik_fm", t5_lastik_fm),
+          ("k6_piksel_ezilme", t6_piksel_ezilme), ("k7_ciglik_tok", t7_ciglik_tok), ("k8_bit_sekme", t8_bit_sekme)]
+
+
+def lands2_main(out, trace, engine_file, picks, designs=None, boost_db=0.0):
     """--lands2: yeni iniş sesleri; sürüş günlüğü verilirse seçili inişler (picks: kare listesi) için
     her birinin çevresi (0.7 sn önce, 1.3 sn sonra) art arda, motorla birlikte"""
     frames, lands = [], []
@@ -447,25 +554,31 @@ def lands2_main(out, trace, engine_file, picks):
     total = frames[-1][0] / 60.0
     eng = render_engine(mono(sf.read(engine_file)[0]), frames, total)
     root = Path(__file__).resolve().parent.parent
-    for name, fn in LANDS2:
+    for name, fn in (designs or LANDS2):
         ms.rng = np.random.default_rng(sum(map(ord, name)))
         x = mono(sf.read(str(root / "audio/sfx_land.wav"))[0]) if fn is None else normalize(mono(fn()), 0.8)
         sf.write(out / f"inis_{name}.wav", np.clip(x, -1, 1), SR, subtype="PCM_16")
-        track = eng + render_lands(x, lands, total)
+        track = eng + render_lands(x * 10 ** (boost_db / 20), lands, total)
         parts = []
         for f in picks:
             a = n_of(f / 60.0 - 0.7)
             parts.append(track[a:a + n_of(2.0)])
-        sf.write(out / f"kesit_{name}.wav", np.clip(np.concatenate(parts), -1, 1), SR, subtype="PCM_16")
+        reel = np.concatenate(parts)
+        # Tavana vurmasın (bozulmasın): yumuşak sınırlayıcı (denge korunur)
+        reel = np.tanh(reel * 1.2) / np.tanh(1.2)
+        sf.write(out / f"kesit_{name}.wav", np.clip(reel, -1, 1), SR, subtype="PCM_16")
         print("yazıldı", name)
 
 
 def main():
     out = Path(sys.argv[1] if len(sys.argv) > 1 else ".")
-    if "--lands2" in sys.argv:
+    if "--lands2" in sys.argv or "--lands3" in sys.argv:
         out.mkdir(parents=True, exist_ok=True)
-        a = [x for x in sys.argv[2:] if x != "--lands2"]
-        lands2_main(out, a[0], a[1], [int(v) for v in a[2].split(",")])
+        a = [x for x in sys.argv[2:] if not x.startswith("--lands")]
+        if "--lands3" in sys.argv:
+            lands2_main(out, a[0], a[1], [int(v) for v in a[2].split(",")], LANDS3, 7.0)
+        else:
+            lands2_main(out, a[0], a[1], [int(v) for v in a[2].split(",")])
         return
     if "--cars" in sys.argv:
         out.mkdir(parents=True, exist_ok=True)
