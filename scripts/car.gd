@@ -2294,10 +2294,13 @@ var smashing := false
 var _smash_bodies: Array[RigidBody3D] = []
 var _smash_mm: MultiMeshInstance3D
 var _smash_sizes := PackedVector3Array()
+var _smash_shapes: Array[BoxShape3D] = []
 var _smash_time := 0.0
 var _smash_tick_ms := 0
 ## Parça sayısı aralığı (araba başına hücre boyu buna göre ayarlanır; ışık bariyerinden iri)
 const SMASH_COUNT := Vector2i(95, 120)
+## Ayrılınca küçülme: son boy (ilk boyun kesri) ve süresi (sn), yumuşak yavaşlayarak
+const SMASH_SHRINK := Vector2(0.55, 0.5)
 ## Parçanın en ince kalınlığı (hücre boyunun kesri): yüzey levhaları da biraz hacimli görünsün
 const SMASH_MIN_THICK := 0.3
 ## Küpler: yerçekimi payı (havada uzun süzülsün), hız ve dönüş sönümü, sekme, sürtünme
@@ -2427,6 +2430,7 @@ func _spawn_smash(v0: Vector3, floating := true) -> void:
 		body.max_contacts_reported = 1
 		var shape := BoxShape3D.new()
 		shape.size = sz
+		_smash_shapes.append(shape)
 		var col := CollisionShape3D.new()
 		col.shape = shape
 		body.add_child(col)
@@ -2472,17 +2476,23 @@ func _draw_smash() -> void:
 	if _smash_mm == null:
 		return
 	var mm := _smash_mm.multimesh
+	var k := _smash_scale(_smash_time)
 	for i in _smash_bodies.size():
 		var b := _smash_bodies[i]
 		if not is_instance_valid(b):
 			continue
 		var t := b.get_global_transform_interpolated()
-		mm.set_instance_transform(i, Transform3D(t.basis.scaled_local(_smash_sizes[i]), t.origin))
+		mm.set_instance_transform(i, Transform3D(t.basis.scaled_local(_smash_sizes[i] * k), t.origin))
 
 
 ## Kamera bulutu izlesin: araba noktası (kameranın hedefi) ileri saçılan küplerin ortasını izler
 func _smash_motion(delta: float) -> void:
 	_smash_time += delta
+	# Ayrılınca küçülürler: çarpışma kutuları da birlikte (yola gerçek boylarıyla değsinler)
+	if _smash_time <= SMASH_SHRINK.y + delta:
+		var k := _smash_scale(_smash_time)
+		for i in _smash_shapes.size():
+			_smash_shapes[i].size = _smash_sizes[i] * k
 	if OS.get_cmdline_user_args().has("--trace") and Engine.get_physics_frames() % 30 == 0:
 		print("SMASH_PERF physics_ms=%.2f t=%.1f" % [Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0, _smash_time])
 	# Takılıp kalanlar değil, ileri saçılan bulut: en öndeki yarının ortası
@@ -2591,3 +2601,9 @@ func _smash_tris(open_wings: bool) -> Array:
 				tris.append([t * vs[idx[i] if idx.size() > 0 else i], t * vs[idx[i + 1] if idx.size() > 0 else i + 1],
 					t * vs[idx[i + 2] if idx.size() > 0 else i + 2], col])
 	return tris
+
+
+## Parçaların o anki boy çarpanı: 1'den SMASH_SHRINK.x'e, SMASH_SHRINK.y sn'de (yavaşlayarak)
+func _smash_scale(t: float) -> float:
+	var u := clampf(t / SMASH_SHRINK.y, 0.0, 1.0)
+	return lerpf(1.0, SMASH_SHRINK.x, 1.0 - (1.0 - u) * (1.0 - u))
