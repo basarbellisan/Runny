@@ -33,9 +33,9 @@ const CRYSTAL_REACH := Vector3(3.2, 1.8, 2.6)
 ## Kayaların yerine üst kattaki yolların kırık parçaları (RoadDebris): havada asılı, kendi
 ## eksenlerinde döner; aralarında bağımsız molozlar yüzer (zararsız, çarpınca savrulur). false: eski kayalar
 @export var use_debris := true
-## Alt kat hep yaşar: araba yukarıdaki yollardayken de aşağıda, önünde kırık parçalar üretilir ve
-## döner (uzaktan sisin içinden belirir). Düşünce zaten var olan enkazın içine inilir; portal,
-## hayalet gibi uçuşa ait olanlar yalnız uçarken
+## Alt kat hep yaşar: araba yukarıdaki yollardayken de aşağıda, önünde kırık parçalar ve portallar
+## kurulur (uzaktan sisin içinden belirir). Düşünce zaten var olan enkazın ve tünellerin içine
+## inilir; hayaletler yalnız uçarken
 @export var ambient := true
 ## Kaya alanı: 100 m'deki kaya sayısı (yeni düşünce, uzun kalınca)
 @export var rock_density := Vector2(7.0, 13.0)
@@ -128,6 +128,12 @@ func _ready() -> void:
 	_portal_fill_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_portal_fill_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_portal_fill_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	# Portal da kırık parçalar gibi uzaktan sisin içinden yavaşça belirir (birden çıkmaz)
+	_portal_mat.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_DITHER
+	_portal_fill_mat.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_ALPHA
+	for m: StandardMaterial3D in [_portal_mat, _portal_fill_mat]:
+		m.distance_fade_min_distance = DebrisField.FADE.y
+		m.distance_fade_max_distance = DebrisField.FADE.x
 	_comet_mat.albedo_color = Color("ffb067")
 	_comet_mat.emission_enabled = true
 	_comet_mat.emission = Color("ff7a2e")
@@ -208,7 +214,9 @@ func activate() -> void:
 	# Önceki uçuştan kalan enkaz hâlâ öndeyse üretim onun bittiği yerden sürer (üst üste binmesin)
 	if lingered:
 		_next_row_z = minf(_next_row_z, prev_row)
-	_next_portal = _plan_portal(z - car.speed * _rng.randf_range(first_portal_time.x, first_portal_time.y))
+	# Alt kat hep yaşıyorsa önde zaten planlı / kurulu portal vardır (birden belirmesin); yoksa planla
+	if not (use_debris and ambient and next_portal(z) != null):
+		_next_portal = _plan_portal(z - car.speed * _rng.randf_range(first_portal_time.x, first_portal_time.y))
 	# Portal önceden dolu alana düştüyse ve yanlarda boş yer yoksa yaklaşma yolu açılır
 	if use_debris and _next_portal and _next_portal.z + 45.0 > _next_row_z:
 		field.clear_zone(_next_portal.x, _next_portal.z + PORTAL_ZONE.x, _next_portal.z - PORTAL_ZONE.y, PORTAL_ZONE.z)
@@ -222,8 +230,10 @@ func retire() -> void:
 		return
 	active = false
 	_lingering = true
-	portals.clear()
-	_next_portal = null
+	# Alt kat hep yaşıyorsa portallar da kalır (yeniden düşünce kullanılır); değilse artık çalışmaz
+	if not (use_debris and ambient):
+		portals.clear()
+		_next_portal = null
 
 
 func deactivate() -> void:
@@ -273,14 +283,17 @@ func _update_inner(delta: float, spawn := true, ambient_only := false) -> void:
 	_time += delta
 	while (spawn or ambient_only) and _next_row_z > z - fill_distance:
 		# Portalın önünde kısa bir kayasız yaklaşma payı (tünelin ağzına hizalanmak için)
-		if spawn and _next_portal and _next_row_z <= _next_portal.z + 35.0:
+		var portals_on := spawn or (ambient_only and not scripted)
+		if ambient_only and portals_on and _next_portal == null and next_portal(z) == null:
+			_next_portal = _plan_portal(z - car.speed * _rng.randf_range(first_portal_time.x, first_portal_time.y))
+		if portals_on and _next_portal and _next_row_z <= _next_portal.z + 35.0:
 			_spawn_portal(_next_portal)
 			# Alt kat önceden doluysa (ambient) üretim geri dönmez, kaldığı yerden sürer
 			_next_row_z = minf(_next_row_z, _next_portal.z - 45.0)
 			var interval := car.speed * _rng.randf_range(portal_interval.x, portal_interval.y)
 			_next_portal = _plan_portal(_next_portal.z - interval)
 			continue
-		var stop := _next_portal.z + 35.0 if (spawn and _next_portal) else -INF
+		var stop := _next_portal.z + 35.0 if (portals_on and _next_portal) else -INF
 		var _tc := Time.get_ticks_usec()
 		var _zc := _next_row_z
 		_next_row_z = _spawn_chunk(_next_row_z, stop)
