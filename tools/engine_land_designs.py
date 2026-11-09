@@ -1,6 +1,7 @@
 """Arabanın motor sesi (döngü) ve zıplayıp yere inme sesi için tasarım denemeleri (oyuna girmez;
 dinleyip seçmek için). Dijital / Tron havası ağırlıklı, bir kısmı gerçekçi.
 Kullanım: python3 tools/engine_land_designs.py ÇIKIŞ_KLASÖRÜ [SES_GÜNLÜĞÜ]
+          python3 tools/engine_land_designs.py ÇIKIŞ_KLASÖRÜ --cars [MODEL=GÜNLÜK ...]  (her arabanın motoru)
 Ses günlüğü (oyunun --audtrace AUD/LAND satırları) verilirse her motor ve iniş tasarımı o sürüşün
 devir, seviye ve iniş anlarıyla, oyundaki ses ayarlarıyla bir iz olarak da yazılır."""
 import re
@@ -206,6 +207,84 @@ LANDS = [("i0_simdiki", None), ("i1_dijital_tok", l1_dijital_tok), ("i2_yaylanma
          ("i6_piksel_sekme", l6_piksel_sekme), ("i7_hava_suspansiyon", l7_hava_suspansiyon), ("i8_manyetik", l8_manyetik)]
 
 
+# --- Her arabaya kendi motoru: seçilen iki sesten (6 hibrit, 8 FM hırıltı) türetilir ---
+
+def _combustion(f0, res):
+    """make_sounds.loop_engine'in ayarlı hali: ateşleme f0 (0.5 Hz katı), rezonans res"""
+    period = int(SR / f0)
+    cycles = int(LOOP * f0)
+    t = np.arange(period) / SR
+    out = []
+    for k in range(cycles):
+        amp = (1.0, 0.82, 0.93, 0.78)[k % 4] * (1 + 0.08 * r().standard_normal())
+        rr = res * (1 + 0.04 * r().standard_normal())
+        burst = (np.exp(-t * 55) * np.sin(2 * np.pi * rr * t) + 0.6 * np.exp(-t * 25) * np.sin(2 * np.pi * 150 * t)
+                 + 0.25 * np.exp(-t * 120) * np.sin(2 * np.pi * 2.4 * rr * t))
+        out.append(amp * burst)
+    s = np.concatenate(out)
+    s = np.resize(s, int(SR * LOOP))
+    tt = np.arange(len(s)) / SR
+    s += 0.45 * np.sin(2 * np.pi * f0 * tt) + 0.2 * np.sin(2 * np.pi * f0 * 0.5 * tt)
+    s += 0.18 * filt(r().uniform(-1, 1, len(s)), lo=80, hi=700, circular=True)
+    return normalize(filt(s, lo=35, hi=2200, circular=True), 0.8)
+
+
+def _hibrit(f0, res, whine, whine_mix, lp):
+    base = _combustion(f0, res)
+    t = np.arange(len(base)) / SR
+    w = np.sin(2 * np.pi * whine * t) + 0.4 * np.sin(2 * np.pi * whine * 2 * t)
+    return normalize((1 - whine_mix) * _lp(base, lp) + whine_mix * w, 0.8)
+
+
+def _fm(fc, ratio, index, wobble, sub, lp, chorus=0.0, whine=0.0):
+    t = _t()
+    out = np.zeros(len(t))
+    voices = [fc] if chorus <= 0 else [fc, fc + chorus]
+    for f in voices:
+        mod = np.sin(2 * np.pi * f * ratio * t) * (index + wobble * np.sin(2 * np.pi * 2.0 * t))
+        out += np.sin(2 * np.pi * f * t + mod)
+    out /= len(voices)
+    out += sub * np.sin(2 * np.pi * fc / 2 * t)
+    if whine > 0:
+        out += whine * (np.sin(2 * np.pi * 1520 * t) + 0.5 * np.sin(2 * np.pi * 2280 * t))
+    return normalize(_lp(out, lp), 0.8)
+
+
+def c_gezgin():
+    """GEZGİN (hibrit ailesi): derin, ağır, tok; vızıltı az"""
+    return _hibrit(75.0, 320, 300.0, 0.15, 1100)
+
+
+def c_latte():
+    """LATTE (hibrit ailesi): seçilen hibrit, aynen"""
+    ms.rng = np.random.default_rng(sum(map(ord, "m6_hibrit")))
+    return e6_hibrit()
+
+
+def c_gem():
+    """GEM (hibrit ailesi): tiz, canlı, çevik; elektrikli vızıltı belirgin"""
+    return _hibrit(105.0, 430, 420.0, 0.35, 1800)
+
+
+def c_dragster():
+    """DRAGSTER (FM ailesi): seçilen FM hırıltı, aynen"""
+    return e8_fm_hirilti()
+
+
+def c_dark_rose():
+    """DARK ROSE (FM ailesi): pürüzsüz, zarif; hafif koro (iki ses), hırıltı az"""
+    return _fm(82.0, 2.0, 1.6, 0.4, 0.25, 2200, chorus=0.5)
+
+
+def c_falcon():
+    """FALCON (FM ailesi): en tiz ve keskin; parlak FM (oran 3), üstünde ince türbin ıslığı"""
+    return _fm(95.0, 3.0, 2.4, 0.5, 0.2, 3200, whine=0.06)
+
+
+CARS = [(2, "GEZGIN", c_gezgin), (8, "LATTE", c_latte), (10, "GEM", c_gem),
+        (6, "DRAGSTER", c_dragster), (7, "DARK ROSE", c_dark_rose), (9, "FALCON", c_falcon)]
+
+
 def mono(x):
     return x if x.ndim == 1 else x.mean(axis=1)
 
@@ -235,8 +314,35 @@ def render_lands(sfx, lands, total):
     return out
 
 
+def cars_main(out, traces):
+    """--cars: her arabanın motoru ve (varsa) o arabanın sürüş günlüğüyle izi. traces: model -> günlük"""
+    for model, name, fn in CARS:
+        ms.rng = np.random.default_rng(sum(map(ord, "car_" + name)))
+        x = mono(fn())
+        tag = name.lower().replace(" ", "_")
+        sf.write(out / f"araba_{model}_{tag}.wav", np.clip(np.tile(x, 2), -1, 1), SR, subtype="PCM_16")
+        if model in traces:
+            frames, lands = [], []
+            for line in open(traces[model]):
+                m = re.match(r"AUD f=(\d+) pitch=([\d.]+) level=([\d.]+)", line)
+                if m:
+                    frames.append((int(m.group(1)), float(m.group(2)), float(m.group(3))))
+                m = re.match(r"LAND f=(\d+) strength=([\d.]+)", line)
+                if m:
+                    lands.append((int(m.group(1)), float(m.group(2))))
+            total = frames[-1][0] / 60.0
+            land = mono(sf.read(str(Path(__file__).resolve().parent.parent / "audio/sfx_land.wav"))[0])
+            sf.write(out / f"iz_araba_{model}.wav", np.clip(render_engine(x, frames, total) + render_lands(land, lands, total), -1, 1), SR, subtype="PCM_16")
+        print("yazıldı", name)
+
+
 def main():
     out = Path(sys.argv[1] if len(sys.argv) > 1 else ".")
+    if "--cars" in sys.argv:
+        out.mkdir(parents=True, exist_ok=True)
+        traces = {int(a.split("=")[0]): a.split("=")[1] for a in sys.argv[2:] if "=" in a}
+        cars_main(out, traces)
+        return
     out.mkdir(parents=True, exist_ok=True)
     root = Path(__file__).resolve().parent.parent
     frames, lands = [], []
