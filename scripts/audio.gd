@@ -44,6 +44,8 @@ const CRYSTAL_STEPS := [1.0, 1.2, 1.335, 1.498, 1.782, 2.0]
 var _music_upper: AudioStreamPlayer
 var _music_lower: AudioStreamPlayer
 var _engine: AudioStreamPlayer
+## Test (--audtrace): motor devri / seviyesi ve iniş anları günlüğü (ses tasarımı denemeleri için)
+var _aud_trace := OS.get_cmdline_user_args().has("--audtrace")
 var _road: AudioStreamPlayer
 var _wind: AudioStreamPlayer
 var _plane: AudioStreamPlayer
@@ -150,6 +152,8 @@ func update(delta: float, car: Car, mood: float, playing: bool) -> void:
 	# Gazda devir yükselir; sınırı aşmasın
 	_engine_pitch = minf(_engine_pitch, 1.9)
 	_engine.pitch_scale = _engine_pitch
+	if _aud_trace:
+		print("AUD f=%d pitch=%.3f level=%.3f mode=%d" % [Engine.get_process_frames(), _engine_pitch, _engine_level, car.mode])
 	_road.volume_db = road_volume_db + linear_to_db(maxf(_road_level, 0.001))
 	_road.pitch_scale = 0.8 + 0.5 * speed01
 	_wind.volume_db = wind_volume_db + linear_to_db(maxf(_wind_level, 0.001))
@@ -216,6 +220,8 @@ func update_menu(delta: float) -> void:
 
 ## Tekerlekler yere değdi: devir bir an düşer (yük bindi)
 func touchdown(strength := 1.0) -> void:
+	if _aud_trace:
+		print("LAND f=%d strength=%.2f" % [Engine.get_process_frames(), strength])
 	_engine_pitch -= 0.12 * strength
 	play("land", 1.0 + 3.0 * (strength - 1.0), randf_range(0.95, 1.05))
 
