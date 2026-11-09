@@ -5,7 +5,12 @@ extends Node
 
 const SFX := {
 	"jump": preload("res://audio/sfx_jump.wav"),
-	"land": preload("res://audio/sfx_land.wav"),
+	"land_gezgin": preload("res://audio/sfx_land_gezgin.wav"),
+	"land_dragster": preload("res://audio/sfx_land_dragster.wav"),
+	"land_latte": preload("res://audio/sfx_land_latte.wav"),
+	"land_gem": preload("res://audio/sfx_land_gem.wav"),
+	"land_dark_rose": preload("res://audio/sfx_land_dark_rose.wav"),
+	"land_falcon": preload("res://audio/sfx_land_falcon.wav"),
 	"perfect": preload("res://audio/sfx_perfect.wav"),
 	"multiplier": preload("res://audio/sfx_multiplier.wav"),
 	"return": preload("res://audio/sfx_return.wav"),
@@ -46,6 +51,10 @@ var _music_lower: AudioStreamPlayer
 var _engine: AudioStreamPlayer
 ## Arabanın motor sesi: her araba kendi motoruyla (CarModel varyantı -> motor). Hibrit ailesi:
 ## GEZGİN, LATTE, GEM; FM ailesi: DRAGSTER, DARK ROSE, FALCON (tools/engine_land_designs.py CARS)
+## İniş sesi (gerçekçi lastik: yumuşak konuş + hafif kayma), arabaya göre; motorun üstünde duyulsun
+const LANDS := {2: "land_gezgin", 8: "land_latte", 10: "land_gem", 6: "land_dragster", 7: "land_dark_rose", 9: "land_falcon"}
+const LAND_BOOST_DB := 7.0
+var _land_key := "land_latte"
 const ENGINES := {
 	2: preload("res://audio/loop_engine_gezgin.ogg"),
 	8: preload("res://audio/loop_engine_latte.ogg"),
@@ -207,8 +216,9 @@ func _update_plane(delta: float, car: Car, speed01: float, playing: bool) -> voi
 	_climb.pitch_scale = 0.85 + 0.35 * _climb_amount
 
 
-## Oyundaki arabanın motor sesi (araba modeline göre)
+## Oyundaki arabanın motor ve iniş sesi (araba modeline göre)
 func set_engine_for_model(variant: int) -> void:
+	_land_key = LANDS.get(variant, "land_latte")
 	var stream: AudioStream = ENGINES.get(variant, ENGINES[8])
 	if _engine.stream == stream:
 		return
@@ -245,7 +255,7 @@ func touchdown(strength := 1.0) -> void:
 	if _aud_trace:
 		print("LAND f=%d strength=%.2f" % [Engine.get_process_frames(), strength])
 	_engine_pitch -= 0.12 * strength
-	play("land", 1.0 + 3.0 * (strength - 1.0), randf_range(0.95, 1.05))
+	play(_land_key, LAND_BOOST_DB + 1.0 + 3.0 * (strength - 1.0), randf_range(0.95, 1.05))
 
 
 func _make_loop(stream: AudioStreamOggVorbis) -> AudioStreamPlayer:

@@ -287,6 +287,11 @@ CARS = [(2, "GEZGIN", c_gezgin), (8, "LATTE", c_latte), (10, "GEM", c_gem),
         (6, "DRAGSTER", c_dragster), (7, "DARK ROSE", c_dark_rose), (9, "FALCON", c_falcon)]
 
 
+def _current_land():
+    """Oyundaki iniş sesi (karşılaştırma için): LATTE'ninki"""
+    return mono(sf.read(str(Path(__file__).resolve().parent.parent / "audio/sfx_land_latte.wav"))[0])
+
+
 def mono(x):
     return x if x.ndim == 1 else x.mean(axis=1)
 
@@ -333,7 +338,7 @@ def cars_main(out, traces):
                 if m:
                     lands.append((int(m.group(1)), float(m.group(2))))
             total = frames[-1][0] / 60.0
-            land = mono(sf.read(str(Path(__file__).resolve().parent.parent / "audio/sfx_land.wav"))[0])
+            land = _current_land()
             sf.write(out / f"iz_araba_{model}.wav", np.clip(render_engine(x, frames, total) + render_lands(land, lands, total), -1, 1), SR, subtype="PCM_16")
         print("yazıldı", name)
 
@@ -759,7 +764,7 @@ def lands2_main(out, trace, engine_file, picks, designs=None, boost_db=0.0):
     root = Path(__file__).resolve().parent.parent
     for name, fn in (designs or LANDS2):
         ms.rng = np.random.default_rng(sum(map(ord, name)))
-        x = mono(sf.read(str(root / "audio/sfx_land.wav"))[0]) if fn is None else normalize(mono(fn()), 0.8)
+        x = _current_land() if fn is None else normalize(mono(fn()), 0.8)
         sf.write(out / f"inis_{name}.wav", np.clip(x, -1, 1), SR, subtype="PCM_16")
         track = eng + render_lands(x * 10 ** (boost_db / 20), lands, total)
         parts = []
@@ -806,7 +811,7 @@ def main():
                 lands.append((int(m.group(1)), float(m.group(2))))
     total = frames[-1][0] / 60.0 if frames else 0
     cur_engine = mono(sf.read(str(root / "audio/loop_engine.ogg"))[0])
-    cur_land = mono(sf.read(str(root / "audio/sfx_land.wav"))[0])
+    cur_land = _current_land()
     loops = {}
     for name, fn in ENGINES:
         ms.rng = np.random.default_rng(sum(map(ord, name)))

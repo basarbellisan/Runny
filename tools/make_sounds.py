@@ -260,27 +260,49 @@ def loop_road():
     return normalize(s, 0.75)
 
 
-def sfx_land():
-    """Ağır bir arabanın yola konması: tonal değil, gürültü temelli.
-    Tok gövde darbesi + kirli süspansiyon "küt"ü + lastik "çat"ı + tıkırtılar.
-    Hafif doygunluk ağırlık hissi verir ve basın telefonda da duyulmasını sağlar."""
-    d = 0.7
-    n = n_of(d)
-    thud = normalize(filt(noise(d), lo=35, hi=160, order=3), 1.0) * env(d, 0.002, 0.09)
-    body = filt(noise(d), lo=120, hi=650, order=3) * env(d, 0.001, 0.045)
-    # Süspansiyon: iki bant gürültü, çok kısa ve kirli
-    clunk = (filt(noise(d), lo=380, hi=800, order=2) + 0.7 * filt(noise(d), lo=1100, hi=1800, order=2)) \
-        * env(d, 0.001, 0.028)
-    # Lastiğin yola vuruşu: kısa, geniş bantlı "çat"
-    bark = filt(noise(d), lo=900, hi=3800, order=2) * env(d, 0.002, 0.03)
-    rattle = np.zeros(n)
-    for _ in range(6):
-        place(rattle, click(0.004), rng.uniform(0.04, 0.16), rng.uniform(0.15, 0.45))
-    rattle = filt(rattle, lo=800, hi=5000)
-    s = 0.9 * thud + 1.2 * normalize(body, 1.0) + 0.35 * normalize(clunk, 1.0) \
-        + 0.45 * normalize(bark, 1.0) + 0.4 * rattle
-    s = np.tanh(1.8 * s / np.max(np.abs(s))) / np.tanh(1.8)
-    return fade(room(s, 0.05, 0.35), 0.0005, 0.05)
+def _car_land(design, pitch=1.0):
+    """Arabanın iniş sesi: gerçekçi lastik, yumuşak konuş + hafif kayma (tools/engine_land_designs.py
+    LANDS5, dinlenip seçilenlerin aynısı); pitch < 1 daha kalın"""
+    import engine_land_designs as ed
+    for nm, fn in ed.LANDS5:
+        if nm == design:
+            ed.ms.rng = np.random.default_rng(sum(map(ord, nm)))
+            x = ed.normalize(ed.mono(fn()), 0.8)
+            if pitch != 1.0:
+                idx = np.arange(0, len(x) - 1, pitch)
+                x = np.interp(idx, np.arange(len(x)), x)
+            return x
+    raise KeyError(design)
+
+
+def sfx_land_gezgin():
+    """GEZGİN: dolgun konuş + kayma, biraz pes (en kalın)"""
+    return _car_land("h4_dolgun_kayma", 0.88)
+
+
+def sfx_land_dragster():
+    """DRAGSTER: dolgun konuş + kayma"""
+    return _car_land("h4_dolgun_kayma")
+
+
+def sfx_land_latte():
+    """LATTE: yumuşak konuş + az kayma"""
+    return _car_land("h1_yumusak_az_kayma")
+
+
+def sfx_land_gem():
+    """GEM: yumuşak konuş, kısa cıyırtı sürtünmeye dönerek söner"""
+    return _car_land("h8_kayma_surtunme")
+
+
+def sfx_land_dark_rose():
+    """DARK ROSE: yumuşak konuş + çığlıksız sürtünme 'şşş'"""
+    return _car_land("h5_surtunme")
+
+
+def sfx_land_falcon():
+    """FALCON: yumuşak vuruş + en tiz, belirgin kayma"""
+    return _car_land("h7_kayma_yumusak_vurus")
 
 
 def loop_tire():
@@ -810,7 +832,9 @@ def main():
     global rng
     OUT.mkdir(exist_ok=True)
     outputs = [
-        ("sfx_jump.wav", sfx_jump), ("sfx_land.wav", sfx_land), ("sfx_perfect.wav", sfx_perfect),
+        ("sfx_jump.wav", sfx_jump), ("sfx_land_gezgin.wav", sfx_land_gezgin), ("sfx_land_dragster.wav", sfx_land_dragster),
+        ("sfx_land_latte.wav", sfx_land_latte), ("sfx_land_gem.wav", sfx_land_gem),
+        ("sfx_land_dark_rose.wav", sfx_land_dark_rose), ("sfx_land_falcon.wav", sfx_land_falcon), ("sfx_perfect.wav", sfx_perfect),
         ("sfx_multiplier.wav", sfx_multiplier), ("sfx_return.wav", sfx_return),
         ("sfx_wings.wav", sfx_wings), ("sfx_crystal.wav", sfx_crystal), ("sfx_portal.wav", sfx_portal),
         ("sfx_fall.wav", sfx_fall),
