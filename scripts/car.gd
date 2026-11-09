@@ -584,6 +584,10 @@ static var _voxel_cache := {}
 func _prepare_voxels() -> void:
 	var t0 := Time.get_ticks_msec()
 	var n: int = _voxels().n
+	# Çarpma parçaları (yolda: kanat kapalı, uçarken: kanat açık): çarpma anında takılmasın
+	if smash_enabled:
+		_smash_pieces(false)
+		_smash_pieces(true)
 	if OS.get_cmdline_user_args().has("--trace"):
 		print("VOXELS n=%d ms=%d model=%d hw=%.2f" % [n, Time.get_ticks_msec() - t0, model.variant, model.half_width])
 	_prewarm_shaders()
@@ -2293,7 +2297,7 @@ var _smash_sizes := PackedVector3Array()
 var _smash_time := 0.0
 var _smash_tick_ms := 0
 ## Parça sayısı aralığı (araba başına hücre boyu buna göre ayarlanır; ışık bariyerinden iri)
-const SMASH_COUNT := Vector2i(45, 65)
+const SMASH_COUNT := Vector2i(95, 120)
 ## Parçanın en ince kalınlığı (hücre boyunun kesri): yüzey levhaları da biraz hacimli görünsün
 const SMASH_MIN_THICK := 0.3
 ## Küpler: yerçekimi payı (havada uzun süzülsün), hız ve dönüş sönümü, sekme, sürtünme
@@ -2334,31 +2338,14 @@ func smash(reason: String) -> void:
 	_die(reason)
 
 
-## İri küpler: arabanın (ve açık kanatların) yüzeyleri hücre ızgarasına oturtulur; küp boyu sayı
-## SMASH_COUNT aralığına girene kadar ayarlanır. [merkez (yerel), boyut, renk]
-func _smash_pieces() -> Array:
-	var key := "s" + _voxel_key()
+## Parçalar: arabanın (ve açık kanatların) yüzeyleri hücre ızgarasına oturtulur; hücre boyu sayı
+## SMASH_COUNT aralığına girene kadar ayarlanır. [merkez (yerel), boyut, renk]. Pahalı (onlarca ms):
+## oyun açılırken iki hali de (kanat açık / kapalı) önceden hesaplanır (_prepare_voxels)
+func _smash_pieces(open_wings: bool) -> Array:
+	var key := _smash_key(open_wings)
 	if _smash_cache.has(key):
 		return _smash_cache[key]
-	var inv := _body.global_transform.affine_inverse()
-	var tris: Array = []
-	for mi in _body.find_children("*", "MeshInstance3D", true, false):
-		var m := mi as MeshInstance3D
-		if m.mesh == null or not m.is_visible_in_tree():
-			continue
-		var t := inv * m.global_transform
-		for si in m.mesh.get_surface_count():
-			var mat := m.material_override if m.material_override else m.get_active_material(si)
-			var col := Color(0.6, 0.6, 0.6)
-			if mat is BaseMaterial3D:
-				col = (mat as BaseMaterial3D).albedo_color
-			var arr := m.mesh.surface_get_arrays(si)
-			var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
-			var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
-			var n := idx.size() if idx.size() > 0 else vs.size()
-			for i in range(0, n - 2, 3):
-				tris.append([t * vs[idx[i] if idx.size() > 0 else i], t * vs[idx[i + 1] if idx.size() > 0 else i + 1],
-					t * vs[idx[i + 2] if idx.size() > 0 else i + 2], col])
+	var tris := _smash_tris(open_wings)
 	var size := 0.45
 	var lo := 0.2
 	var hi := 1.2
@@ -2410,7 +2397,9 @@ static func _smash_material() -> StandardMaterial3D:
 
 
 func _spawn_smash(v0: Vector3, floating := true) -> void:
-	var pieces := _smash_pieces()
+	var _t0 := Time.get_ticks_usec()
+	var pieces := _smash_pieces(floating)
+	var _t1 := Time.get_ticks_usec()
 	var n := pieces.size()
 	if n == 0:
 		return
@@ -2474,6 +2463,8 @@ func _spawn_smash(v0: Vector3, floating := true) -> void:
 	_smash_mm.global_transform = Transform3D.IDENTITY
 	_smash_time = 0.0
 	_draw_smash()
+	if OS.get_cmdline_user_args().has("--trace"):
+		print("SMASH_COST pieces_ms=%.1f spawn_ms=%.1f n=%d" % [(_t1 - _t0) / 1000.0, (Time.get_ticks_usec() - _t1) / 1000.0, n])
 
 
 ## Küplerin çizimi (görüntü karesinde, fizik adımları arası yumuşak)
@@ -2550,3 +2541,53 @@ func _sample_boxes(tris: Array, cell: float) -> Dictionary:
 					c[1] = (c[1] as Vector3).min(q)
 					c[2] = (c[2] as Vector3).max(q)
 	return cells
+
+
+## Önbellek anahtarı: model, kanatlar dışındaki görünür parçalar, kanat açık mı
+func _smash_key(open_wings: bool) -> String:
+	var k := "s%d%s" % [model.variant, "k" if open_wings else "y"]
+	var holders: Array[Node3D] = [_wing_l, _wing_r, _tail]
+	for mi in _body.find_children("*", "MeshInstance3D", true, false):
+		if holders.any(func(h): return h.is_ancestor_of(mi)):
+			continue
+		k += "1" if (mi as MeshInstance3D).is_visible_in_tree() else "0"
+	return k
+
+
+## Yüzeyler (Body'ye göre): [üç köşe, renk]. Kanatlar ve kuyruk açık hallerindeki yerleriyle
+## (kapalıyken de hesaplanabilsin diye görünürlüğe ve küçültülmüş ölçeğe bakılmaz)
+func _smash_tris(open_wings: bool) -> Array:
+	var inv := _body.global_transform.affine_inverse()
+	var holders: Array[Node3D] = [_wing_l, _wing_r, _tail]
+	var tris: Array = []
+	for mi in _body.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null:
+			continue
+		var holder: Node3D = null
+		for h in holders:
+			if h.is_ancestor_of(m):
+				holder = h
+		var t: Transform3D
+		if holder:
+			if not open_wings or not m.visible:
+				continue
+			var rot := Vector3(0, 0, 0.06) if holder == _wing_l else (Vector3(0, 0, -0.06) if holder == _wing_r else Vector3.ZERO)
+			t = Transform3D(Basis.from_euler(rot), holder.position) * (holder.global_transform.affine_inverse() * m.global_transform)
+		else:
+			if not m.is_visible_in_tree():
+				continue
+			t = inv * m.global_transform
+		for si in m.mesh.get_surface_count():
+			var mat := m.material_override if m.material_override else m.get_active_material(si)
+			var col := Color(0.6, 0.6, 0.6)
+			if mat is BaseMaterial3D:
+				col = (mat as BaseMaterial3D).albedo_color
+			var arr := m.mesh.surface_get_arrays(si)
+			var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+			var n := idx.size() if idx.size() > 0 else vs.size()
+			for i in range(0, n - 2, 3):
+				tris.append([t * vs[idx[i] if idx.size() > 0 else i], t * vs[idx[i + 1] if idx.size() > 0 else i + 1],
+					t * vs[idx[i + 2] if idx.size() > 0 else i + 2], col])
+	return tris
