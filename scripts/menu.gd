@@ -486,6 +486,11 @@ func _build_ui(best: int) -> void:
 	how.pressed.connect(start_lessons)
 	ui.add_child(how)
 
+	# Sağ üstte müzik aç / kapat
+	var music := MusicButton.new()
+	music.place_top_right()
+	ui.add_child(music)
+
 	var ver := Label.new()
 	ver.text = Version.BUILD
 	ver.add_theme_font_size_override("font_size", 24)

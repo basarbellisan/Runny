@@ -49,6 +49,10 @@ const CRYSTAL_STEPS := [1.0, 1.2, 1.335, 1.498, 1.782, 2.0]
 var _music_upper: AudioStreamPlayer
 var _music_lower: AudioStreamPlayer
 var _engine: AudioStreamPlayer
+## Müzik açık mı (oyuncunun seçimi, kaydedilir: garaj ve oyun sonu ekranındaki düğme)
+var music_on := true
+var _music_gain := 1.0
+const SAVE_PATH := "user://save.cfg"
 ## Arabanın motor sesi: her araba kendi motoruyla (CarModel varyantı -> motor). Hibrit ailesi:
 ## GEZGİN, LATTE, GEM; FM ailesi: DRAGSTER, DARK ROSE, FALCON (tools/engine_land_designs.py CARS)
 ## İniş sesi (gerçekçi lastik: yumuşak konuş + hafif kayma), arabaya göre; motorun üstünde duyulsun
@@ -91,6 +95,10 @@ var _last_crystal_ms := 0
 
 
 func _ready() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(SAVE_PATH) == OK:
+		music_on = bool(cfg.get_value("audio", "music", true))
+	_music_gain = 1.0 if music_on else 0.0
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_music_upper = _make_loop(preload("res://audio/music_upper.ogg"))
 	_music_lower = _make_loop(preload("res://audio/music_lower.ogg"))
@@ -131,8 +139,9 @@ func crystal() -> void:
 ## Her kare çağrılır. mood: 0 = üst katman, 1 = alt katman
 func update(delta: float, car: Car, mood: float, playing: bool) -> void:
 	_music_level = move_toward(_music_level, 1.0 if playing else 0.45, delta * 0.5)
-	_music_upper.volume_db = music_volume_db + linear_to_db(maxf((1.0 - mood) * _music_level, 0.001))
-	_music_lower.volume_db = music_volume_db + linear_to_db(maxf(mood * _music_level, 0.001))
+	_music_gain = move_toward(_music_gain, 1.0 if music_on else 0.0, delta * 2.0)
+	_music_upper.volume_db = music_volume_db + linear_to_db(maxf((1.0 - mood) * _music_level * _music_gain, 0.001))
+	_music_lower.volume_db = music_volume_db + linear_to_db(maxf(mood * _music_level * _music_gain, 0.001))
 
 	var speed01 := clampf(inverse_lerp(car.start_speed, car.max_speed, car.speed), 0.0, 1.0)
 	var grounded := car.mode == Car.Mode.DRIVE and car.is_on_floor()
@@ -216,6 +225,15 @@ func _update_plane(delta: float, car: Car, speed01: float, playing: bool) -> voi
 	_climb.pitch_scale = 0.85 + 0.35 * _climb_amount
 
 
+## Müziği aç / kapat (yumuşakça söner / açılır); seçim kaydedilir
+func set_music(on: bool) -> void:
+	music_on = on
+	var cfg := ConfigFile.new()
+	cfg.load(SAVE_PATH)
+	cfg.set_value("audio", "music", on)
+	cfg.save(SAVE_PATH)
+
+
 ## Oyundaki arabanın motor ve iniş sesi (araba modeline göre)
 func set_engine_for_model(variant: int) -> void:
 	_land_key = LANDS.get(variant, "land_latte")
@@ -232,7 +250,8 @@ func set_engine_for_model(variant: int) -> void:
 ## Garaj ekranı: sadece üst katman müziği
 func update_menu(delta: float) -> void:
 	_music_level = move_toward(_music_level, 1.0, delta * 0.5)
-	_music_upper.volume_db = music_volume_db + linear_to_db(maxf(_music_level, 0.001))
+	_music_gain = move_toward(_music_gain, 1.0 if music_on else 0.0, delta * 2.0)
+	_music_upper.volume_db = music_volume_db + linear_to_db(maxf(_music_level * _music_gain, 0.001))
 	_music_lower.volume_db = -60.0
 	_engine_level = move_toward(_engine_level, 0.0, delta * 3.0)
 	_road_level = 0.0

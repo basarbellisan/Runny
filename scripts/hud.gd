@@ -167,6 +167,11 @@ func _layout_game_over() -> void:
 	for ch in _over.get_children():
 		if ch != _over_bg:
 			ch.queue_free()
+	# Sağ üstte müzik aç / kapat (oyun sonu ekranında; beyaz)
+	var music := MusicButton.new()
+	music.color = Palette.SNOW
+	music.place_top_right()
+	_over.add_child(music)
 	var deep := Color("2a1c50")      # paletin koyu moru
 	var ink := Palette.INK_DARK
 	match over_style:
