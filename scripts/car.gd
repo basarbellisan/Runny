@@ -640,6 +640,26 @@ func _prewarm_shaders() -> void:
 	vox.top_level = true
 	holder.add_child(vox)
 	vox.global_transform = Transform3D.IDENTITY
+	# Kanatlar: yolda hiç çizilmezler (kapalı ve gizli); ilk açıldıklarında derlenmesinler. Kanat,
+	# kuyruk, kenar şeridi ve kanat ucu parıltısı (izdeki eklemeli, kameraya bakan leke) aynı
+	# malzemeleriyle bir kez çizilir
+	for wh: Node3D in [_wing_l, _tail]:
+		for wm in wh.find_children("*", "MeshInstance3D", true, false):
+			var src := wm as MeshInstance3D
+			if src.mesh == null:
+				continue
+			var cp := MeshInstance3D.new()
+			cp.mesh = src.mesh
+			cp.material_override = src.material_override
+			holder.add_child(cp)
+	if trail:
+		for g in trail.find_children("*", "MeshInstance3D", true, false):
+			var gm := g as MeshInstance3D
+			if gm.mesh is QuadMesh and gm.material_override:
+				var gq := MeshInstance3D.new()
+				gq.mesh = gm.mesh
+				gq.material_override = gm.material_override
+				holder.add_child(gq)
 	# Uçarken parçalanmanın iri küpleri (renkli çoklu örnek, gölgeli)
 	var smm := MultiMesh.new()
 	smm.transform_format = MultiMesh.TRANSFORM_3D
