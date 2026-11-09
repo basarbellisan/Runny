@@ -2295,6 +2295,7 @@ var _smash_bodies: Array[RigidBody3D] = []
 var _smash_mm: MultiMeshInstance3D
 var _smash_sizes := PackedVector3Array()
 var _smash_shapes: Array[BoxShape3D] = []
+var _smash_floating := false
 var _smash_time := 0.0
 var _smash_tick_ms := 0
 ## Parça sayısı aralığı (araba başına hücre boyu buna göre ayarlanır; ışık bariyerinden iri)
@@ -2330,7 +2331,8 @@ func smash(reason: String) -> void:
 		v0.z = -maxf(forward_speed, 5.0)
 	_shatter_v0 = v0
 	# Uçarken alt katmanın boşluğunda süzülür; yolda tam yerçekimi (yola düşer, seker, yuvarlanır)
-	_spawn_smash(v0, mode == Mode.FLYING or mode == Mode.LAUNCH)
+	_smash_floating = mode == Mode.FLYING or mode == Mode.LAUNCH
+	_spawn_smash(v0, _smash_floating)
 	# Görünmez araba gövdesi küplere engel olmasın (kamera hedefi olarak bulutla gider)
 	collision_layer = 0
 	collision_mask = 0
@@ -2511,6 +2513,17 @@ func _smash_motion(delta: float) -> void:
 	var prev := position
 	position.x = lerpf(position.x, c.x, 1.0 - exp(-6.0 * delta))
 	position.z = lerpf(position.z, c.z, 1.0 - exp(-10.0 * delta))
+	# Uçarken bulut yavaşça düşer: kamera da hafifçe izler (yolda değil: düşen parçaların peşinden
+	# boşluğa inmesin)
+	if _smash_floating:
+		position.y = lerpf(position.y, c.y, 1.0 - exp(-2.0 * delta))
+	if OS.get_cmdline_user_args().has("--trace") and Engine.get_physics_frames() % 20 == 0:
+		var all_c := Vector3.ZERO
+		for q in ps:
+			all_c += q
+		all_c /= ps.size()
+		var cam := get_viewport().get_camera_3d()
+		print("SMASH_CAM t=%.2f car=%v front=%v all=%v cam=%v" % [_smash_time, position.snapped(Vector3.ONE * 0.1), c.snapped(Vector3.ONE * 0.1), all_c.snapped(Vector3.ONE * 0.1), cam.global_position.snapped(Vector3.ONE * 0.1) if cam else Vector3.ZERO])
 	velocity = (position - prev) / maxf(delta, 1e-4)
 	speed = maxf(-velocity.z, 0.0)
 

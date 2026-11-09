@@ -4,6 +4,12 @@ extends Camera3D
 @export var target_path: NodePath
 @export var offset := Vector3(0.0, 6.0, 10.0)
 @export var look_ahead := 22.0
+## Parçalanmada kameranın buluta göre yeri, bakış uzaklığı ve yaklaşma hızı (1/sn)
+@export var smash_offset := Vector3(0.0, 3.5, 6.0)
+@export var smash_look_ahead := 12.0
+@export var smash_approach := 1.2
+var _off := Vector3.ZERO
+var _ahead := 22.0
 @export var follow_x := 7.0
 ## Yükseklik takibi biraz gecikmeli: rampada araba ekranda yükselir, eğim hissedilir
 @export var follow_y := 2.5
@@ -49,6 +55,8 @@ var _fly_speed := 1.0
 func _ready() -> void:
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_target = get_node(target_path)
+	_off = offset
+	_ahead = look_ahead
 	base_fov = fov
 	global_position = _target.global_position + offset
 
@@ -56,23 +64,29 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	var t := _target.get_global_transform_interpolated().origin
 	var p := global_position
-	if _fly < 0.0 and _target.shattering and not _target.is_cutting():
+	# Işık bariyerinde kesilme: kamera akar (düz gider, yavaşlar). Parçalanmada (smashing) değil: bulutu
+	# normal takiple izler (bulut yavaşladıkça kendisi de yavaşlar, geride kalmaz)
+	if _fly < 0.0 and _target.shattering and not _target.is_cutting() and not _target.smashing:
 		_fly = 0.0
 	if _fly >= 0.0:
 		_fly_away(delta)
 	elif _target.alive or _target.shattering:
-		p.z = t.z + offset.z
-		p.x = lerpf(p.x, t.x + offset.x, 1.0 - exp(-follow_x * delta))
+		# Parçalanmada kamera buluta yavaşça yaklaşır (parçalar küçülüp dağılırken ekranda kalsın)
+		var want_off := smash_offset if _target.smashing else offset
+		_off = _off.lerp(want_off, 1.0 - exp(-smash_approach * delta))
+		_ahead = lerpf(_ahead, smash_look_ahead if _target.smashing else look_ahead, 1.0 - exp(-smash_approach * delta))
+		p.z = t.z + _off.z
+		p.x = lerpf(p.x, t.x + _off.x, 1.0 - exp(-follow_x * delta))
 		# Hızlı yükselip alçalırken (dalış, portal) kamera arabayı kaçırmasın
 		var k := follow_y + absf(_target.velocity.y) * 0.15
-		p.y = lerpf(p.y, t.y + offset.y, 1.0 - exp(-k * delta))
+		p.y = lerpf(p.y, t.y + _off.y, 1.0 - exp(-k * delta))
 		global_position = p
 		var want_fov := base_fov + (_target.forward_speed - _target.start_speed) * fov_per_speed
 		_fov_kick_target = lerpf(_fov_kick_target, 0.0, 1.0 - exp(-2.5 * delta))
 		_fov_kick = lerpf(_fov_kick, _fov_kick_target, 1.0 - exp(-12.0 * delta))
 		fov = lerpf(fov, want_fov, 1.0 - exp(-2.0 * delta)) + (_fov_kick - _fov_kick_shown)
 		_fov_kick_shown = _fov_kick
-		_look = Vector3(lerpf(p.x, t.x, 0.6), t.y - 1.0, t.z - look_ahead)
+		_look = Vector3(lerpf(p.x, t.x, 0.6), t.y - 1.0, t.z - _ahead)
 		look_at(_look)
 		_roll = lerpf(_roll, _target.surface_roll * bank_follow, 1.0 - exp(-4.0 * delta))
 		rotate_object_local(Vector3(0, 0, 1), _roll)
