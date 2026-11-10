@@ -190,8 +190,11 @@ func make_solid(skip: Vector3 = Vector3.INF, radius := 0.0) -> void:
 	_solid = true
 	var z := car.global_position.z
 	for d in _debris:
+		# Geride kalıp silinmiş parça (liste bir sonraki adımda temizlenir)
+		if not is_instance_valid(d.node):
+			continue
 		var node: Node3D = d.node
-		if not is_instance_valid(node) or not (node is Area3D) or node.has_node("Solid"):
+		if not (node is Area3D) or node.has_node("Solid"):
 			continue
 		# Yalnız küplerin gidebileceği yerdekiler (dönen katı cisim fizikte pahalı)
 		if node.position.z > z + 20.0 or node.position.z < z - SOLID_AHEAD:

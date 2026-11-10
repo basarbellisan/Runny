@@ -378,7 +378,7 @@ func _fly_steer() -> float:
 			if bottom > car.flight_altitude + (1.5 if r.has("h") else 5.0) and not car.climbing:
 				continue
 			# Kayanın hizasına geldiğimizde nerede olabiliriz
-			var reach := car.steer_speed * maxf(t - 0.15, 0.0)
+			var reach := car.flight_steer_speed * maxf(t - 0.15, 0.0)
 			var x_at := pos.x + clampf(cand - pos.x, -reach, reach)
 			var clear: float = (float(r.rad) + car.wing_half_span + 0.6) if r.has("rad") else r.r + 2.2
 			if absf(x_at - (r.x + v.x * t)) < clear:

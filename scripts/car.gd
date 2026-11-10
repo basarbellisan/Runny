@@ -125,7 +125,10 @@ enum Mode { DRIVE, FALLING, FLYING, LAUNCH, DEAD }
 @export var dive_speed := 24.0
 ## Dalış sırasında ileri hız oranı
 @export_range(0.0, 1.0) var dive_forward_scale := 0.4
-@export var flight_steer_accel := 45.0
+## Uçarken yana gidiş hızı (yolda steer_speed; uçuşta daha çevik)
+@export var flight_steer_speed := 15.0
+## Uçuşta direksiyon tepkisi (yana hızlanma, m/s²)
+@export var flight_steer_accel := 90.0
 ## Uçarken iki parmakla uçuş yüksekliğinin en fazla bu kadar üstüne çıkılır (m)
 @export var climb_height := 8.5
 ## Yükselme hızı (m/s)
@@ -1256,7 +1259,7 @@ func _flying(delta: float) -> void:
 	velocity.y = move_toward(velocity.y, clampf(dy * 2.0, -dive_speed, climb_speed), 40.0 * delta)
 	var forward := speed * dive_forward_scale if diving else speed
 	velocity.z = move_toward(velocity.z, -forward, 20.0 * delta)
-	velocity.x = move_toward(velocity.x, _steer * steer_speed, flight_steer_accel * delta)
+	velocity.x = move_toward(velocity.x, _steer * flight_steer_speed, flight_steer_accel * delta)
 	var vy_before := velocity.y
 	move_and_slide()
 	_keep_out_of_walls()
