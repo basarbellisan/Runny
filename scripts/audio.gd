@@ -142,6 +142,7 @@ func update(delta: float, car: Car, mood: float, playing: bool) -> void:
 	_music_gain = move_toward(_music_gain, 1.0 if music_on else 0.0, delta * 2.0)
 	_music_upper.volume_db = music_volume_db + linear_to_db(maxf((1.0 - mood) * _music_level * _music_gain, 0.001))
 	_music_lower.volume_db = music_volume_db + linear_to_db(maxf(mood * _music_level * _music_gain, 0.001))
+	_pause_music_if_off()
 
 	var speed01 := clampf(inverse_lerp(car.start_speed, car.max_speed, car.speed), 0.0, 1.0)
 	var grounded := car.mode == Car.Mode.DRIVE and car.is_on_floor()
@@ -176,20 +177,20 @@ func update(delta: float, car: Car, mood: float, playing: bool) -> void:
 	_engine_pitch = move_toward(_engine_pitch, pitch_target, delta * rate)
 	_road_level = move_toward(_road_level, (0.4 + 0.6 * speed01) if grounded and playing else 0.0, delta * 12.0)
 	_wind_level = move_toward(_wind_level, wind_target, delta * 1.5)
-	_engine.volume_db = engine_volume_db + linear_to_db(maxf(_engine_level, 0.001))
+	_loop_volume(_engine, engine_volume_db, _engine_level)
 	# Gazda devir yükselir; sınırı aşmasın
 	_engine_pitch = minf(_engine_pitch, 1.9)
 	_engine.pitch_scale = _engine_pitch
 	if _aud_trace:
 		print("AUD f=%d pitch=%.3f level=%.3f mode=%d" % [Engine.get_process_frames(), _engine_pitch, _engine_level, car.mode])
-	_road.volume_db = road_volume_db + linear_to_db(maxf(_road_level, 0.001))
+	_loop_volume(_road, road_volume_db, _road_level)
 	_road.pitch_scale = 0.8 + 0.5 * speed01
-	_wind.volume_db = wind_volume_db + linear_to_db(maxf(_wind_level, 0.001))
+	_loop_volume(_wind, wind_volume_db, _wind_level)
 	_wind.pitch_scale = 0.85 + 0.35 * speed01 + 0.15 * _climb_amount
 	_update_plane(delta, car, speed01, playing)
 	_update_tire(delta, car, speed01, grounded and playing)
 	_gravel_level = move_toward(_gravel_level, (0.6 + 0.4 * speed01) if car.on_gravel and grounded and playing else 0.0, delta * 10.0)
-	_gravel.volume_db = gravel_volume_db + linear_to_db(maxf(_gravel_level, 0.001))
+	_loop_volume(_gravel, gravel_volume_db, _gravel_level)
 	_gravel.pitch_scale = 0.85 + 0.3 * speed01
 
 
@@ -201,7 +202,7 @@ func _update_tire(delta: float, car: Car, speed01: float, grounded: bool) -> voi
 	if grounded:
 		target = clampf(lateral_accel / car.steer_accel, 0.0, 1.0) * (0.5 + 0.5 * speed01)
 	_tire_level = move_toward(_tire_level, target, delta * (14.0 if target > _tire_level else 4.0))
-	_tire.volume_db = tire_volume_db + linear_to_db(maxf(_tire_level, 0.001))
+	_loop_volume(_tire, tire_volume_db, _tire_level)
 	_tire.pitch_scale = 0.9 + 0.25 * speed01 + 0.1 * _tire_level
 
 
@@ -218,10 +219,10 @@ func _update_plane(delta: float, car: Car, speed01: float, playing: bool) -> voi
 	_plane_level = move_toward(_plane_level, (0.75 + 0.25 * _climb_amount) if flying else 0.0, delta * 1.5)
 	var pitch_target := 0.9 + 0.15 * speed01 + 0.3 * _climb_amount
 	_plane_pitch = move_toward(_plane_pitch, pitch_target, delta * 0.6)
-	_plane.volume_db = plane_volume_db + linear_to_db(maxf(_plane_level, 0.001))
+	_loop_volume(_plane, plane_volume_db, _plane_level)
 	_plane.pitch_scale = _plane_pitch
 	var climb_level := _climb_amount if flying else 0.0
-	_climb.volume_db = climb_volume_db + linear_to_db(maxf(climb_level, 0.001))
+	_loop_volume(_climb, climb_volume_db, climb_level)
 	_climb.pitch_scale = 0.85 + 0.35 * _climb_amount
 
 
@@ -243,6 +244,7 @@ func set_engine_for_model(variant: int) -> void:
 	(stream as AudioStreamOggVorbis).loop = true
 	_engine.stream = stream
 	_engine.play()
+	_engine.stream_paused = false
 	if _aud_trace:
 		print("ENGINE model=%d %s" % [variant, stream.resource_path.get_file()])
 
@@ -253,20 +255,21 @@ func update_menu(delta: float) -> void:
 	_music_gain = move_toward(_music_gain, 1.0 if music_on else 0.0, delta * 2.0)
 	_music_upper.volume_db = music_volume_db + linear_to_db(maxf(_music_level * _music_gain, 0.001))
 	_music_lower.volume_db = -60.0
+	_pause_music_if_off()
 	_engine_level = move_toward(_engine_level, 0.0, delta * 3.0)
 	_road_level = 0.0
 	_wind_level = move_toward(_wind_level, 0.0, delta * 1.5)
-	_engine.volume_db = engine_volume_db + linear_to_db(maxf(_engine_level, 0.001))
-	_road.volume_db = -60.0
-	_wind.volume_db = wind_volume_db + linear_to_db(maxf(_wind_level, 0.001))
+	_loop_volume(_engine, engine_volume_db, _engine_level)
+	_loop_volume(_road, 0.0, 0.0)
+	_loop_volume(_wind, wind_volume_db, _wind_level)
 	_plane_level = 0.0
 	_climb_amount = 0.0
-	_plane.volume_db = -60.0
-	_climb.volume_db = -60.0
+	_loop_volume(_plane, 0.0, 0.0)
+	_loop_volume(_climb, 0.0, 0.0)
 	_tire_level = 0.0
-	_tire.volume_db = -60.0
+	_loop_volume(_tire, 0.0, 0.0)
 	_gravel_level = 0.0
-	_gravel.volume_db = -60.0
+	_loop_volume(_gravel, 0.0, 0.0)
 
 
 ## Tekerlekler yere değdi: devir bir an düşer (yük bindi)
@@ -275,6 +278,25 @@ func touchdown(strength := 1.0) -> void:
 		print("LAND f=%d strength=%.2f" % [Engine.get_process_frames(), strength])
 	_engine_pitch -= 0.12 * strength
 	play(_land_key, LAND_BOOST_DB + 1.0 + 3.0 * (strength - 1.0), randf_range(0.95, 1.05))
+
+
+## Döngü sesinin seviyesi; sessizken durur (çok kısık çalan döngüler sessiz ortamda vızıltı gibi duyuluyordu)
+func _loop_volume(p: AudioStreamPlayer, base_db: float, level: float) -> void:
+	var silent := level <= 0.001
+	p.volume_db = -80.0 if silent else base_db + linear_to_db(level)
+	if p.stream_paused != silent:
+		p.stream_paused = silent
+
+
+## Müzik kapalı ve tamamen söndüyse iki müzik katmanı da durur (birlikte, senkron kalsınlar)
+func _pause_music_if_off() -> void:
+	var off := not music_on and _music_gain <= 0.0
+	if off:
+		_music_upper.volume_db = -80.0
+		_music_lower.volume_db = -80.0
+	if _music_upper.stream_paused != off:
+		_music_upper.stream_paused = off
+		_music_lower.stream_paused = off
 
 
 func _make_loop(stream: AudioStreamOggVorbis) -> AudioStreamPlayer:
