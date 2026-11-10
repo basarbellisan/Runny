@@ -158,6 +158,20 @@ func _ready() -> void:
 	lower.ghost_aim = _args.has("ghost_aim")
 	lower.use_debris = not _args.has("rocks")  # test: eski kayalar
 	lower.debug_log = _args.has("lowerperf")
+	# Renk dünyası denemesi: hangi tema açık (ekranın altında küçük etiket)
+	if Palette.theme != 0:
+		var cl := CanvasLayer.new()
+		cl.layer = 50
+		var lb := Label.new()
+		lb.text = "RENK %d: %s" % [Palette.theme, Palette.THEMES[Palette.theme][0]]
+		lb.add_theme_font_size_override("font_size", 22)
+		lb.add_theme_color_override("font_color", Color(1, 1, 1, 0.9))
+		lb.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.6))
+		lb.add_theme_constant_override("outline_size", 6)
+		lb.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+		lb.position.y = 70
+		cl.add_child(lb)
+		add_child(cl)
 	lower.portal_entered.connect(_on_portal)
 	Tuning.register({"game": self, "car": car, "roads": roads, "lower": lower,
 		"camera": $Camera, "audio": Audio, "trail": car.trail, "speedo": hud.speedometer})
