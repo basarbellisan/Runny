@@ -1,8 +1,8 @@
 """Dev (boşlukta duran uzun dekor blokların yerine): Blender'da Python ile kurulur, .glb olarak çıkar.
 
-Tasarım (kullanıcının önden çizimi): kale dişli baş ve iki yatay göz yarığı; uzun gövde ve altında
-ortada açık gri oluk; omuzdan dışa açılan uzun kollar, kolla gövde arasında açık gri üçgen; gövdenin
-dibinde iki yanda ikişer kanatçık. Çizim koordinatları (piksel) doğrudan kullanılır: 1225 px = 10 m.
+Tasarım (kullanıcının önden çizimi): düz üstlü, öne-arkaya gövdeden kalın baş ve iki yatay göz
+yarığı; uzun gövde ve altında ortada açık gri oluk; omuzdan dışa açılan uzun kollar, kolla gövde
+arasında açık gri üçgen. Çizim koordinatları (piksel) doğrudan kullanılır: 1128 px = 10 m.
 
 Kullanım (bpy modülü kurulu Python ile):
     python3.11 tools/blender/giant.py --out models/giants [--render DIR]
@@ -20,9 +20,9 @@ import bpy
 import bmesh
 from mathutils import Vector
 
-PX = 10.0 / 1225.0      # çizimin pikseli (m)
+PX = 10.0 / 1128.0      # çizimin pikseli (m): başın tepesinden gövdenin dibine 10 m
 CX = 406.5              # gövde ortası (px)
-BOTTOM = 1277.0         # en alt nokta (px)
+BOTTOM = 1236.0         # en alt nokta: gövdenin dibi (px)
 
 # Kalınlıklar (m, ön-arka): gövde, baş (gövdeden belirgin kalın), kollar, üçgenler, kanatçıklar;
 # oyuk derinliği
@@ -30,7 +30,6 @@ D_BODY = 1.3
 D_HEAD = 2.2
 D_ARM = 0.8
 D_GUSSET = 0.5
-D_FIN = 0.3
 D_CUT = 0.12
 
 COLORS = {
@@ -103,9 +102,8 @@ def cut(target, pts_px, depth, mat, thick=D_BODY):
 def build():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     parts = []
-    # Baş: kale dişli üst kenar
-    head = [(258, 375), (555, 375), (555, 55), (517, 55), (517, 108), (469, 108), (469, 55), (431, 55),
-            (431, 108), (383, 108), (383, 55), (345, 55), (345, 108), (297, 108), (297, 55), (258, 55)]
+    # Baş: düz üst kenarlı blok (çizimdeki dişlerin dibine kadar)
+    head = [(258, 375), (555, 375), (555, 108), (258, 108)]
     h = prism("head", head, D_HEAD, "Main")
     cut(h, [(331, 181), (482, 181), (482, 211), (331, 211)], D_CUT, "Slot", D_HEAD)
     cut(h, [(331, 248), (482, 248), (482, 278), (331, 278)], D_CUT, "Slot", D_HEAD)
@@ -119,10 +117,6 @@ def build():
     parts.append(prism("arm_r", [(516, 375), (607, 375), (756, 897), (674, 920)], D_ARM, "Main"))
     parts.append(prism("gus_l", [(297, 375), (237, 578), (297, 668)], D_GUSSET, "Accent"))
     parts.append(prism("gus_r", [(516, 375), (576, 578), (516, 668)], D_GUSSET, "Accent"))
-    # Alttaki kanatçıklar: iki yanda ikişer
-    for y0 in (1025, 1155):
-        parts.append(prism("fin_l", [(297, y0), (226, y0 + 40), (226, y0 + 122), (297, y0 + 82)], D_FIN, "Main"))
-        parts.append(prism("fin_r", [(516, y0), (587, y0 + 40), (587, y0 + 122), (516, y0 + 82)], D_FIN, "Main"))
     # Tek obje
     bpy.ops.object.select_all(action="DESELECT")
     for o in parts:
