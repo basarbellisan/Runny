@@ -3862,38 +3862,6 @@ func _add_box(parent: Node3D, pos: Vector3, size: Vector3, mat: Material) -> Mes
 
 
 ## Uzakta süzülen ince, uzun monolitler (dekor), bölge renginde
-## Dev modelinin boyu (m; tools/blender/giant.py)
-const GIANT_HEIGHT := 10.0
-const GIANT_SCENE := preload("res://models/giants/giant.glb")
-## Devin renkleri dekor renginden: gövde (Main) o renk, oluk ve üçgenler (Accent) bir ton açık,
-## göz yarıkları (Slot) koyu; düz renk (ışık, gölge yok)
-var _giant_mats := {}
-
-
-func _make_giant(col: Color, no_fog := false) -> Node3D:
-	var key := col.to_html(false) + ("/nf" if no_fog else "")
-	if not _giant_mats.has(key):
-		var mats := {}
-		for pair in [["Main", col], ["Accent", col.lightened(0.22)], ["Slot", col.darkened(0.55)]]:
-			var m := StandardMaterial3D.new()
-			m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-			m.albedo_color = pair[1]
-			# Uzaktaki büyük devler sise erimez: arka plan katmanları gibi net siluet
-			m.disable_fog = no_fog
-			mats[pair[0]] = m
-		_giant_mats[key] = mats
-	var g: Node3D = GIANT_SCENE.instantiate()
-	var mats: Dictionary = _giant_mats[key]
-	for mi in g.find_children("*", "MeshInstance3D", true, false):
-		var mesh := (mi as MeshInstance3D).mesh
-		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		for i in mesh.get_surface_count():
-			var src := mesh.surface_get_material(i)
-			var nm := src.resource_name if src else "Main"
-			(mi as MeshInstance3D).set_surface_override_material(i, mats.get(nm, mats.Main))
-	return g
-
-
 func _add_decor(seg: Segment) -> void:
 	for i in _rng.randi_range(0, 2):
 		var side := -1.0 if _rng.randf() < 0.5 else 1.0
@@ -3904,36 +3872,7 @@ func _add_decor(seg: Segment) -> void:
 			_rng.randf_range(seg.z_end, seg.z_start))
 		var col := (_pal(-pos.z).decor as Color).darkened(_rng.randf_range(0.0, 0.08))
 		if FlatStyle.on():
-			# Düz dünya denemesi: blok yerine dev (models/giants/giant.glb), bloğun boyunda; bize
-			# dönük, yola doğru hafifçe çevrik. Orijini tabanında: bloğun ortası kadar aşağıda başlar
-			var g := _make_giant(col, FlatStyle.giant_mode == 2)
-			var h := size.y
-			var gx := pos.x
-			var base := pos.y - size.y * 0.5
-			# Rastgele değerler aynı (yol üretimi değişmesin), yalnız yerleşim farklı yorumlanır
-			var u := inverse_lerp(35.0, 120.0, absf(pos.x - seg.x))   # yana uzaklık payı 0..1
-			var v := inverse_lerp(-30.0, 10.0, pos.y - seg.top)       # yükseklik payı 0..1
-			match FlatStyle.giant_mode:
-				1:
-					# Yakın: yolun 22-50 m yanında, belden yukarısı yolun üstünde
-					h = size.y * 0.8
-					gx = seg.x + side * lerpf(22.0, 50.0, u)
-					base = seg.top + lerpf(4.0, 14.0, v) - h
-				2:
-					# Uzak ve büyük: 110-180 m yanda, iki kat boyda, sisin içinden yükselir
-					h = size.y * 2.2
-					gx = seg.x + side * lerpf(110.0, 180.0, u)
-					base = seg.top - h * lerpf(0.45, 0.65, v)
-				3:
-					# Sıra: yolun iki yanında aynı uzaklık ve boyda, heykel dizisi gibi
-					h = 34.0
-					gx = seg.x + side * 30.0
-					base = seg.top + 10.0 - h
-			g.scale = Vector3.ONE * h / GIANT_HEIGHT
-			g.position = Vector3(gx, base, pos.z)
-			g.rotation.y = -side * deg_to_rad(18.0 if FlatStyle.giant_mode != 3 else 0.0)
-			add_child(g)
-			_decor.append(g)
+			# Düz dünya denemesi: bloklar yok; yerlerine uzaktaki devler (GiantField) geçer
 			continue
 		var m := StandardMaterial3D.new()
 		m.albedo_color = col
