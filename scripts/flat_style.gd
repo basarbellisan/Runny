@@ -220,6 +220,10 @@ func _convert_new(m: Material) -> Variant:
 				(m as ShaderMaterial).set_shader_parameter("color", _col("line"))
 				return m
 			return _flat(_col("line"))
+		"runway":
+			# Yol sonundaki kırmızı ışıklar: hale yok, sönükken de daha parlak kırmızı
+			(m as ShaderMaterial).set_shader_parameter("dim", 0.85)
+			return m
 		"unshade":
 			(m as StandardMaterial3D).shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			return m

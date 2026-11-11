@@ -329,6 +329,7 @@ func _ready() -> void:
 	for m: Material in [_ramp_line_mat, _chevron_mat, _ramp_arrow_mat, _kerb_red]:
 		m.set_meta("flat_role", "mark")
 	_ramp_top_mat.set_meta("flat_role", "asphalt")
+	_runway_mat.set_meta("flat_role", "runway")
 	_block_mat.albedo_color = Palette.GRAPHITE
 	_block_mat.roughness = 0.9
 	_block_top_mat.albedo_color = Palette.ACCENT
