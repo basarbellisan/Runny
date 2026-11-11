@@ -15,19 +15,12 @@ const ATMOS := {
 	"lower_top": "dedcd0", "lower_horizon": "adac9a", "lower_ground": "9e9c8a",
 	"rocks": ["161714", "1c1d1a", "242421"],
 }
-## Yolun üç rengi: siyah, beyaz ve atmosferin ara tonu
 const BLACK := "121214"
 const WHITE := "f7f6f2"
-const MID := "838270"
-## [ad, yol üstü, yan duvarlar, çizgi]; alt yüz ve uçlar hep siyah
+## [ad, yol üstü, yan duvarlar, çizgi ve yol işaretleri]; alt yüz ve uçlar siyah
 const COMBOS := [
 	["şimdiki", "", "", ""],
 	["siyah yol, beyaz yan", BLACK, WHITE, WHITE],
-	["siyah yol, ara ton yan", BLACK, MID, WHITE],
-	["beyaz yol, siyah yan", WHITE, BLACK, BLACK],
-	["beyaz yol, ara ton yan", WHITE, MID, BLACK],
-	["ara ton yol, siyah yan", MID, BLACK, WHITE],
-	["ara ton yol, beyaz yan", MID, WHITE, WHITE],
 ]
 static var STYLES: Array = COMBOS.map(func(c: Array) -> Dictionary:
 	var d := ATMOS.duplicate()
@@ -221,6 +214,12 @@ func _convert_new(m: Material) -> Variant:
 			return _flat(_col("decor"))
 		"rock":
 			return _flat((m as StandardMaterial3D).albedo_color)
+		"mark":
+			# Yol üstündeki işaretler (rampa çizgileri ve okları, bordür, pist ışıkları): çizgi renginde
+			if m is ShaderMaterial:
+				(m as ShaderMaterial).set_shader_parameter("color", _col("line"))
+				return m
+			return _flat(_col("line"))
 		"unshade":
 			(m as StandardMaterial3D).shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			return m
