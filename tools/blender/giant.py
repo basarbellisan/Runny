@@ -24,8 +24,10 @@ PX = 10.0 / 1225.0      # çizimin pikseli (m)
 CX = 406.5              # gövde ortası (px)
 BOTTOM = 1277.0         # en alt nokta (px)
 
-# Kalınlıklar (m, ön-arka): gövde ve baş, kollar, üçgenler, kanatçıklar; oyuk derinliği
+# Kalınlıklar (m, ön-arka): gövde, baş (gövdeden belirgin kalın), kollar, üçgenler, kanatçıklar;
+# oyuk derinliği
 D_BODY = 1.3
+D_HEAD = 2.2
 D_ARM = 0.8
 D_GUSSET = 0.5
 D_FIN = 0.3
@@ -84,9 +86,9 @@ def prism(name, pts_px, depth, mat, y0=0.0):
     return ob
 
 
-def cut(target, pts_px, depth, mat):
-    """Hedefin ön yüzüne depth derinliğinde oyuk açar; oyuğun içi mat malzemesinde."""
-    c = prism("cut", pts_px, depth * 2.0, mat, y0=-D_BODY / 2)
+def cut(target, pts_px, depth, mat, thick=D_BODY):
+    """Hedefin (ön-arka kalınlığı thick) ön yüzüne depth derinliğinde oyuk açar; oyuğun içi mat malzemesinde."""
+    c = prism("cut", pts_px, depth * 2.0, mat, y0=-thick / 2)
     target.data.materials.append(material(mat))
     mod = target.modifiers.new("cut", "BOOLEAN")
     mod.operation = "DIFFERENCE"
@@ -104,9 +106,9 @@ def build():
     # Baş: kale dişli üst kenar
     head = [(258, 375), (555, 375), (555, 55), (517, 55), (517, 108), (469, 108), (469, 55), (431, 55),
             (431, 108), (383, 108), (383, 55), (345, 55), (345, 108), (297, 108), (297, 55), (258, 55)]
-    h = prism("head", head, D_BODY, "Main")
-    cut(h, [(331, 181), (482, 181), (482, 211), (331, 211)], D_CUT, "Slot")
-    cut(h, [(331, 248), (482, 248), (482, 278), (331, 278)], D_CUT, "Slot")
+    h = prism("head", head, D_HEAD, "Main")
+    cut(h, [(331, 181), (482, 181), (482, 211), (331, 211)], D_CUT, "Slot", D_HEAD)
+    cut(h, [(331, 248), (482, 248), (482, 278), (331, 278)], D_CUT, "Slot", D_HEAD)
     parts.append(h)
     # Gövde ve ortadaki oluk
     b = prism("body", [(297, 375), (516, 375), (516, 1236), (297, 1236)], D_BODY, "Main")
