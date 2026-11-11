@@ -21,13 +21,24 @@ const WHITE := "f7f6f2"
 ## Dağlar, sis, ufkun altı ve uçuş katmanı açık atmosferde kalır ("fog": ufkun altı ve sis rengi)
 const DARK_SKY := {"sky_top": "1f1f1b", "horizon": "6a695d", "fog": "bcbaa7"}
 const DARKER_SKY := {"sky_top": "121210", "horizon": "4a493f", "fog": "bcbaa7"}
+## Dağ katmanları denemesi: gökyüzünün altında üç sıra degradesiz dağ, arkadan öne birer ton açılır;
+## en öndeki sıranın rengi aşağı kadar (ufkun altı, sis) ve uçuş katmanında da devam eder
+static func _layered(sky: Dictionary, far: String, mid: String, near: String) -> Dictionary:
+	var d := sky.duplicate()
+	d.merge({"mountains": [far, mid, near], "flat_mountains": true, "fog": near, "ground": near,
+		"lower_top": near, "lower_horizon": near, "lower_ground": near}, true)
+	return d
+static var LAYERED_LIGHT: Dictionary = _layered({}, "cac8b6", "d8d6c5", "e5e3d4")
+static var LAYERED_DARK: Dictionary = _layered(DARK_SKY, "807f71", "979686", "adac9b")
 ## [ad, yol üstü, yan duvarlar (ön ve arka uçlar da), çizgi ve yol işaretleri, atmosfer farkı];
 ## alt yüz siyah
-const COMBOS := [
+static var COMBOS: Array = [
 	["şimdiki", "", "", "", {}],
 	["siyah yol, beyaz yan", BLACK, WHITE, WHITE, {}],
 	["koyu gökyüzü", BLACK, WHITE, WHITE, DARK_SKY],
 	["daha koyu gökyüzü", BLACK, WHITE, WHITE, DARKER_SKY],
+	["dağ katmanları, açık gök", BLACK, WHITE, WHITE, LAYERED_LIGHT],
+	["dağ katmanları, koyu gök", BLACK, WHITE, WHITE, LAYERED_DARK],
 ]
 static var STYLES: Array = COMBOS.map(func(c: Array) -> Dictionary:
 	var d := ATMOS.duplicate()
@@ -64,6 +75,11 @@ static func _read() -> int:
 
 static func _col(key: String) -> Color:
 	return Color(cfg()[key])
+
+
+## Dağlar degradesiz (dibe doğru sise erimez, her sıra tek renk)
+static func flat_mountains() -> bool:
+	return on() and cfg().get("flat_mountains", false)
 
 
 static func line_color() -> Color:

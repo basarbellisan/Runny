@@ -271,7 +271,7 @@ func update(pal: Dictionary, mood: float) -> void:
 		_layers[i].global_position = Vector3(c.x * 0.6, BASE_Y + lift, c.z - float(LAYERS[i][0]))
 		# Alt katmana inerken dağlar sis rengine karışıp kaybolur
 		_layer_mats[i].set_shader_parameter("color", mtn[i])
-		_layer_mats[i].set_shader_parameter("fog", pal.fog)
+		_layer_mats[i].set_shader_parameter("fog", mtn[i] if FlatStyle.flat_mountains() else pal.fog)
 		_layer_mats[i].set_shader_parameter("alpha", seen)
 	_sun_t = fmod(_sun_t + get_process_delta_time() / SUN_PERIOD, 1.0)
 	# Hafif yay: önce yana, sonra daha dik yükselir
