@@ -1,10 +1,10 @@
 class_name GiantField
 extends Node3D
 ## Düz dünya denemesi: boşlukta duran devler (models/giants/giant.glb, tools/blender/giant.py).
-## Yol üretiminden bağımsız: uzakta (yolun 150-210 m yanında), seyrek (aynı anda en çok iki) ve hafif
-## bize dönük dururlar. Arabanın hızından bağımsız, sabit ve yavaş bir hızla yanımızdan geçerler
-## (uzaktaki dağ gibi). Yükseklikleri arabaya değil son yolun yüksekliğine bağlı ve yumuşatılmış:
-## zıplamada oynamazlar. Aşağı (uçuşa) inerken arka plan gibi solarak kaybolurlar.
+## Yoldan ve arabadan tamamen bağımsız: doğduğu anda yeri (yan ve yükseklik) sabitlenir; yol kayınca,
+## inip çıkınca, araba zıplayınca ya da sağa sola gidince oynamaz. Uzakta, seyrek (aynı anda en çok
+## iki) ve hafif bize dönük; arabanın hızından bağımsız, ağır ağır yaklaşıp yanımızdan geçer.
+## Aşağı (uçuşa) inerken arka plan gibi solarak kaybolur.
 
 const GIANT_SCENE := preload("res://models/giants/giant.glb")
 ## Modelin boyu (m)
@@ -16,17 +16,15 @@ const SIDE := Vector2(150.0, 210.0)
 ## Doğduğu yer: arabanın bu kadar önünde (m); bu kadar arkada kalınca kaldırılır
 const AHEAD := 520.0
 const BEHIND := 120.0
-## Arabaya göre yaklaşma hızı (m/sn): arabanın hızından bağımsız
-const PASS_SPEED := 14.0
+## Arabaya göre yaklaşma hızı (m/sn): arabanın hızından bağımsız, ağır
+const PASS_SPEED := 9.0
 ## İki dev arasında geçen süre (sn) aralığı ve aynı anda en çok kaç dev
 const GAP := Vector2(16.0, 30.0)
 const MAX_ALIVE := 2
 ## Yola doğru dönüklük (derece)
 const TURN := 14.0
-## Tabanın, devin boyuna göre yolun ne kadar altında olduğu (sisin içinden yükselir)
+## Tabanın, devin boyuna göre ana yol seviyesinin ne kadar altında olduğu (sisin içinden yükselir)
 const SINK := 0.55
-## Yumuşatma süresi (sn): yol yüksekliği ve yatay yer değişimlerini yavaşça izler
-const SMOOTH := 1.5
 ## İnişte solma: son yolun bu kadar altından uçuş yüksekliğinin tırmanma payının üstüne kadar
 const DROP_START := 2.0
 
@@ -34,8 +32,6 @@ var car: Car
 var _rng := RandomNumberGenerator.new()
 var _giants: Array = []   # [{node, ahead (m), side, lateral, height}]
 var _timer := 3.0
-var _ref_y := NAN
-var _ref_x := NAN
 var _mats: Dictionary = {}
 
 
@@ -70,17 +66,15 @@ func _spawn() -> void:
 	g.scale = Vector3.ONE * h / MODEL_HEIGHT
 	g.rotation.y = -side * deg_to_rad(TURN)
 	add_child(g)
-	_giants.append({"node": g, "ahead": AHEAD, "side": side, "lateral": _rng.randf_range(SIDE.x, SIDE.y), "h": h})
+	# Yan ve yükseklik doğduğu anda sabitlenir (sonra yola ve arabaya bağlı değil)
+	var x := car.global_position.x + side * _rng.randf_range(SIDE.x, SIDE.y)
+	var y := RoadGenerator.MAIN_LEVEL - h * SINK
+	_giants.append({"node": g, "ahead": AHEAD, "x": x, "y": y})
 
 
 func _process(delta: float) -> void:
 	if car == null:
 		return
-	var k := 1.0 - exp(-delta / SMOOTH)
-	var road := car.last_floor_y
-	_ref_y = road if is_nan(_ref_y) else lerpf(_ref_y, road, k)
-	var cx := car.global_position.x
-	_ref_x = cx if is_nan(_ref_x) else lerpf(_ref_x, cx, k)
 	# İnişte solma (arka plan katmanlarıyla aynı ilerleme)
 	var t := clampf(inverse_lerp(car.last_floor_y - DROP_START, car.flight_altitude + car.climb_height,
 		car.global_position.y), 0.0, 1.0)
@@ -102,5 +96,4 @@ func _process(delta: float) -> void:
 			(d.node as Node3D).queue_free()
 			_giants.remove_at(i)
 			continue
-		var h: float = d.h
-		(d.node as Node3D).global_position = Vector3(_ref_x + d.side * d.lateral, _ref_y - h * SINK, cz - d.ahead)
+		(d.node as Node3D).global_position = Vector3(d.x, d.y, cz - d.ahead)
