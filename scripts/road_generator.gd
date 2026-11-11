@@ -3646,10 +3646,10 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 		var outer: float = side * (hw - 0.05)
 		var inner: float = side * (hw - 0.8)
 		if FlatStyle.on():
-			# Düz dünya: alçak kenarda, kenar çizgisinin yerinde yan yana iki kesintisiz kırmızı çizgi
+			# Düz dünya: alçak kenarda, kenar çizgisinin biraz içinde yan yana iki kesintisiz kırmızı çizgi
 			var lw := edge_w * 0.55
 			for off in [-1.0, 1.0]:
-				var lx: float = side * edge_cx + off * edge_w * 1.6
+				var lx: float = side * (edge_cx - 0.4) + off * edge_w * 1.6
 				_quad(kerbs[0], unused, p.call(lx - lw, z0), p.call(lx + lw, z0), p.call(lx + lw, z1), p.call(lx - lw, z1), Vector3.UP)
 			any_kerb[0] = true
 			continue
