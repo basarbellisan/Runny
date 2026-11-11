@@ -64,6 +64,8 @@ const FOG_LOWER := Vector3(40.0, 330.0, 1.0)
 const OBSTACLE_DESAT := 0.0
 
 static var style: int = _read()
+## Devlerin yerleşim denemesi (?dev=N / --dev=N): 0 eski bloklar gibi, 1 yakın, 2 uzak ve büyük, 3 sıra
+static var giant_mode: int = _read_param("dev", 0, 3)
 
 
 static func on() -> bool:
@@ -72,6 +74,17 @@ static func on() -> bool:
 
 static func cfg() -> Dictionary:
 	return STYLES[style]
+
+
+static func _read_param(key: String, lo: int, hi: int) -> int:
+	var v := ""
+	if OS.has_feature("web"):
+		var r: Variant = JavaScriptBridge.eval("new URLSearchParams(location.search).get('%s') || ''" % key)
+		v = "" if r == null else str(r)
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--%s=" % key):
+			v = a.get_slice("=", 1)
+	return clampi(int(v), lo, hi) if v.is_valid_int() else lo
 
 
 static func _read() -> int:

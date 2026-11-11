@@ -3870,14 +3870,16 @@ const GIANT_SCENE := preload("res://models/giants/giant.glb")
 var _giant_mats := {}
 
 
-func _make_giant(col: Color) -> Node3D:
-	var key := col.to_html(false)
+func _make_giant(col: Color, no_fog := false) -> Node3D:
+	var key := col.to_html(false) + ("/nf" if no_fog else "")
 	if not _giant_mats.has(key):
 		var mats := {}
 		for pair in [["Main", col], ["Accent", col.lightened(0.22)], ["Slot", col.darkened(0.55)]]:
 			var m := StandardMaterial3D.new()
 			m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			m.albedo_color = pair[1]
+			# Uzaktaki büyük devler sise erimez: arka plan katmanları gibi net siluet
+			m.disable_fog = no_fog
 			mats[pair[0]] = m
 		_giant_mats[key] = mats
 	var g: Node3D = GIANT_SCENE.instantiate()
@@ -3904,10 +3906,32 @@ func _add_decor(seg: Segment) -> void:
 		if FlatStyle.on():
 			# Düz dünya denemesi: blok yerine dev (models/giants/giant.glb), bloğun boyunda; bize
 			# dönük, yola doğru hafifçe çevrik. Orijini tabanında: bloğun ortası kadar aşağıda başlar
-			var g := _make_giant(col)
-			g.scale = Vector3.ONE * size.y / GIANT_HEIGHT
-			g.position = pos - Vector3(0, size.y * 0.5, 0)
-			g.rotation.y = -side * deg_to_rad(18.0)
+			var g := _make_giant(col, FlatStyle.giant_mode == 2)
+			var h := size.y
+			var gx := pos.x
+			var base := pos.y - size.y * 0.5
+			# Rastgele değerler aynı (yol üretimi değişmesin), yalnız yerleşim farklı yorumlanır
+			var u := inverse_lerp(35.0, 120.0, absf(pos.x - seg.x))   # yana uzaklık payı 0..1
+			var v := inverse_lerp(-30.0, 10.0, pos.y - seg.top)       # yükseklik payı 0..1
+			match FlatStyle.giant_mode:
+				1:
+					# Yakın: yolun 22-50 m yanında, belden yukarısı yolun üstünde
+					h = size.y * 0.8
+					gx = seg.x + side * lerpf(22.0, 50.0, u)
+					base = seg.top + lerpf(4.0, 14.0, v) - h
+				2:
+					# Uzak ve büyük: 110-180 m yanda, iki kat boyda, sisin içinden yükselir
+					h = size.y * 2.2
+					gx = seg.x + side * lerpf(110.0, 180.0, u)
+					base = seg.top - h * lerpf(0.45, 0.65, v)
+				3:
+					# Sıra: yolun iki yanında aynı uzaklık ve boyda, heykel dizisi gibi
+					h = 34.0
+					gx = seg.x + side * 30.0
+					base = seg.top + 10.0 - h
+			g.scale = Vector3.ONE * h / GIANT_HEIGHT
+			g.position = Vector3(gx, base, pos.z)
+			g.rotation.y = -side * deg_to_rad(18.0 if FlatStyle.giant_mode != 3 else 0.0)
 			add_child(g)
 			_decor.append(g)
 			continue
