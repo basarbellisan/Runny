@@ -417,7 +417,7 @@ const FOG_LOWER := Vector3(0.0, 400.0, 0.55)
 
 func _apply_fog(m: float) -> void:
 	var env: Environment = _mood_targets.env
-	var f := FOG_UPPER.lerp(FOG_LOWER, m)
+	var f := FOG_UPPER.lerp(FlatStyle.FOG_LOWER if FlatStyle.on() else FOG_LOWER, m)
 	if _args.has("fog"):
 		var v: PackedStringArray = str(_args.fog).split(",")  # test: --fog=başlangıç,bitiş
 		f = Vector3(float(v[0]), float(v[1]), f.z)

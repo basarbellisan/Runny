@@ -26,8 +26,11 @@ static var STYLES: Array = COMBOS.map(func(c: Array) -> Dictionary:
 	var d := ATMOS.duplicate()
 	d.merge({"name": c[0], "road": c[1], "side": c[2], "line": c[3], "under": BLACK, "ends": c[2]}, true)
 	return d)
+## Alt katmanın derinlik sisi (game.gd FOG_LOWER yerine): yakın yol parçaları net siyah-beyaz okunsun,
+## uzakta yine sise erisin. [başlangıç, bitiş, eğri]
+const FOG_LOWER := Vector3(40.0, 330.0, 1.0)
 ## Engellerin doygunluğu bu kadar düşer (0 aynı, 1 gri)
-const OBSTACLE_DESAT := 0.4
+const OBSTACLE_DESAT := 0.2
 
 static var style: int = _read()
 

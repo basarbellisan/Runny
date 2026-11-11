@@ -37,12 +37,17 @@ static func _mat(key: String) -> StandardMaterial3D:
 			m.albedo_color = sky.road_top
 		"side":
 			m.albedo_color = sky.road_side
-		"broken":
-			# Kırık iç: yan duvarın koyusu, mora çalar (beton içi gibi düz, mat)
+		"broken", "bottom":
+			# Kırık iç ve alt yüz: yan duvarın koyusu, mora çalar (beton içi gibi düz, mat)
 			m.albedo_color = (sky.road_side as Color).lerp(sky.road_top, 0.72).darkened(0.3)
+			# Düz dünya denemesi: kırık yüzler de yan duvar gibi, alt yüz yol rengi (oyundaki yol gibi)
+			if FlatStyle.on():
+				m.albedo_color = sky.road_side if key == "broken" else sky.road_top
 		"line":
 			m.albedo_color = Palette.line_for(sky.road_top)
 			m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	if FlatStyle.on():
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_mats[key] = m
 	return m
 
@@ -120,7 +125,7 @@ static func _ramp_piece(rng: RandomNumberGenerator, L: float, W: float, T: float
 		_tri(bot_st, q, bot_y, flat, -1.0)
 	top_st.set_material(top_m)
 	top_st.commit(mesh)
-	bot_st.set_material(_mat("broken"))
+	bot_st.set_material(_mat("bottom"))
 	bot_st.commit(mesh)
 	# Yan yüzler: uzun yanlar ve yüksek uç pembe yan duvar (oyundaki rampa gibi), kopuk köşe koyu
 	var wall_st := SurfaceTool.new()
@@ -178,6 +183,7 @@ static func _ramp_piece(rng: RandomNumberGenerator, L: float, W: float, T: float
 	deco_m.albedo_color = sky.road_top
 	deco_m.roughness = 0.95
 	deco_m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_flat_ramp(top_m, deco_m)
 	deco.set_material(deco_m)
 	deco.commit(mesh)
 	var mi := MeshInstance3D.new()
@@ -255,7 +261,7 @@ static func _slab(rng: RandomNumberGenerator, L: float, W: float, T: float, size
 			_tri(bot_st, q, bot_y, off, -1.0)
 	top_st.set_material(_mat("top"))
 	top_st.commit(mesh)
-	bot_st.set_material(_mat("broken"))
+	bot_st.set_material(_mat("bottom"))
 	bot_st.commit(mesh)
 	# Yan yüzler: dikdörtgenin uzun kenarında kalan (sağlam) kenar pembe yan duvar, kesikler koyu;
 	# kenarlar biçimi izlesin diye kısa parçalara bölünür
@@ -450,6 +456,7 @@ static func _ramp(mesh: ArrayMesh, rng: RandomNumberGenerator, poly: PackedVecto
 	deco_m.albedo_color = sky.road_top
 	deco_m.roughness = 0.95
 	deco_m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_flat_ramp(top_m, deco_m)
 	for pair in [[top, top_m], [wall, _mat("side")], [deco, deco_m]]:
 		var st3: SurfaceTool = pair[0]
 		st3.set_material(pair[1])
@@ -505,3 +512,13 @@ static func _surface_from(mesh: ArrayMesh, poly: PackedVector2Array, tri: Packed
 			st.add_vertex(Vector3(poly[q].x, y, poly[q].y))
 	st.set_material(mat)
 	st.commit(mesh)
+
+
+## Düz dünya denemesi: rampanın üstü yol renginde, okları ve kenar çizgileri çizgi renginde (oyundaki gibi)
+static func _flat_ramp(top_m: StandardMaterial3D, deco_m: StandardMaterial3D) -> void:
+	if not FlatStyle.on():
+		return
+	var sky: Dictionary = Palette.SKIES[0]
+	top_m.albedo_color = sky.road_top
+	deco_m.albedo_color = Palette.line_for(sky.road_top)
+	deco_m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED

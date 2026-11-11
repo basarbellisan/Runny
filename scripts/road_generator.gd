@@ -1169,7 +1169,8 @@ func _add_segment(x: float, top: float, top_end: float, width: float, z_start: f
 	for ln in _line_layout(width):
 		var line_mat: ShaderMaterial = _ramp_line_mat if rise > 1.0 or bonus else _line_for(s, ln)
 		_add_box(body, Vector3(ln.cx, 0.015, 0), Vector3(ln.w, 0.02, slope_len - 0.6), line_mat)
-	if rise > 1.0:
+	# Düz dünya denemesinde ışık/gölge yok: küçük tümseklerin yokuşu da rampa gibi oklarla belli olsun
+	if rise > (0.3 if FlatStyle.on() else 1.0):
 		_add_chevrons(body, width, slope_len)
 	if is_main and lights:
 		_add_runway_lights(body, s, slope_len)
@@ -2051,7 +2052,8 @@ func _gravel_holes(body: Node3D, center: Vector3, w: float, depth: float) -> voi
 	var ground := MeshInstance3D.new()
 	ground.mesh = _unit_quad
 	ground.material_override = holes
-	ground.position = center + Vector3(0, 0.012, 0)
+	# Şerit çizgilerinin (0.015-0.04 m) üstünde: çakıl çizgilerin altında kalmasın
+	ground.position = center + Vector3(0, 0.06, 0)
 	ground.rotation = Vector3(-PI * 0.5, 0, 0)
 	ground.scale = Vector3(pw, ph, 1.0)
 	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -2131,7 +2133,8 @@ func _gravel_zigzag(body: Node3D, center: Vector3, w: float, depth: float) -> vo
 	var ground := MeshInstance3D.new()
 	ground.mesh = _unit_quad
 	ground.material_override = mat
-	ground.position = center + Vector3(0, 0.012, 0)
+	# Şerit çizgilerinin (0.015-0.04 m) üstünde: çakıl çizgilerin altında kalmasın
+	ground.position = center + Vector3(0, 0.06, 0)
 	ground.rotation = Vector3(-PI * 0.5, 0, 0)
 	ground.scale = Vector3(pw, ph, 1.0)
 	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
