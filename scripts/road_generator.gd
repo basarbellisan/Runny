@@ -3603,6 +3603,13 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 		if absf(float(ln.cx)) > edge_cx:
 			edge_cx = absf(float(ln.cx))
 			edge_w = float(ln.w)
+	# Kenar çizgi grubunun (bir yandaki kenar çizgileri) yerleri: kırmızı çizgiler bunlarla hizalanır
+	var edge_group: Array[float] = []
+	for ln in layout:
+		var ax := absf(float(ln.cx))
+		if float(ln.cx) > 0.0 and ax >= edge_cx - 1.0:
+			edge_group.append(ax)
+	edge_group.sort()
 	var line_tools: Array[SurfaceTool] = []
 	for ln in layout:
 		var st := SurfaceTool.new()
@@ -3646,10 +3653,16 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 		var outer: float = side * (hw - 0.05)
 		var inner: float = side * (hw - 0.8)
 		if FlatStyle.on():
-			# Düz dünya: alçak kenarda, kenar çizgisinin biraz içinde yan yana iki kesintisiz kırmızı çizgi
+			# Düz dünya: alçak kenarda, beyaz kenar çizgileriyle hizalı iki kesintisiz kırmızı çizgi
+			# (kenarda iki beyaz çizgi varsa tam onların yerinde, tek çizgi varsa onun iki yanında)
 			var lw := edge_w * 0.55
-			for off in [-1.0, 1.0]:
-				var lx: float = side * (edge_cx - 0.4) + off * edge_w * 1.6
+			var xs: Array[float] = []
+			if edge_group.size() >= 2:
+				xs = [edge_group[0], edge_group[-1]]
+			else:
+				xs = [edge_cx - edge_w * 1.6, edge_cx + edge_w * 1.6]
+			for ax in xs:
+				var lx: float = side * ax
 				_quad(kerbs[0], unused, p.call(lx - lw, z0), p.call(lx + lw, z0), p.call(lx + lw, z1), p.call(lx - lw, z1), Vector3.UP)
 			any_kerb[0] = true
 			continue
