@@ -3880,6 +3880,7 @@ func _make_giant(col: Color) -> Node3D:
 			var m := ShaderMaterial.new()
 			m.shader = preload("res://shaders/giant_fade.gdshader")
 			m.set_shader_parameter("color", pair[1])
+			m.set_shader_parameter("shade", preload("res://models/giants/giant_shade.png"))
 			m.set_shader_parameter("fade_from", 0.0)
 			m.set_shader_parameter("fade_to", GIANT_LEG + 1.0)
 			mats[pair[0]] = m

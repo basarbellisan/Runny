@@ -5,6 +5,8 @@ render_mode depth_prepass_alpha;
 // (modelin kendi yüksekliğinde fade_from'da görünmez, fade_to'da tam). Bloklar gibi sise de erir.
 
 uniform vec4 color : source_color = vec4(1.0);
+// Blender'da oyundaki güneş yönüne göre işlenmiş gölge ve köşe kararması (tools/blender/giant.py)
+uniform sampler2D shade : hint_default_white, filter_linear_mipmap;
 uniform float fade_from = 0.0;
 uniform float fade_to = 6.0;
 
@@ -15,7 +17,7 @@ void vertex() {
 }
 
 void fragment() {
-	ALBEDO = color.rgb;
+	ALBEDO = color.rgb * texture(shade, UV).r;
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.0;
 	ALPHA = smoothstep(fade_from, fade_to, ly);
