@@ -324,8 +324,9 @@ func _ready() -> void:
 	_kerb_white.roughness = 0.8
 	_runway_mat.shader = preload("res://shaders/runway_dots.gdshader")
 	_runway_halo_mat.shader = preload("res://shaders/runway_halo.gdshader")
-	# Düz dünya denemesi (FlatStyle): yol üstündeki işaretler çizgi renginde, rampanın üstü yol renginde
-	for m: Material in [_ramp_line_mat, _chevron_mat, _ramp_arrow_mat, _kerb_red, _runway_mat]:
+	# Düz dünya denemesi (FlatStyle): yol üstündeki işaretler çizgi renginde (yol sonundaki kırmızı
+	# ışıklar hariç), rampanın üstü yol renginde
+	for m: Material in [_ramp_line_mat, _chevron_mat, _ramp_arrow_mat, _kerb_red]:
 		m.set_meta("flat_role", "mark")
 	_ramp_top_mat.set_meta("flat_role", "asphalt")
 	_block_mat.albedo_color = Palette.GRAPHITE

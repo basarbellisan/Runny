@@ -215,7 +215,7 @@ func _convert_new(m: Material) -> Variant:
 		"rock":
 			return _flat((m as StandardMaterial3D).albedo_color)
 		"mark":
-			# Yol üstündeki işaretler (rampa çizgileri ve okları, bordür, pist ışıkları): çizgi renginde
+			# Yol üstündeki işaretler (rampa çizgileri ve okları, bordür): çizgi renginde
 			if m is ShaderMaterial:
 				(m as ShaderMaterial).set_shader_parameter("color", _col("line"))
 				return m
