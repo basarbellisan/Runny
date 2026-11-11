@@ -3664,6 +3664,7 @@ func _wall_material(s: Segment) -> StandardMaterial3D:
 	elif rise < -1.0:
 		m.albedo_color = m.albedo_color.darkened(0.18)
 	m.roughness = 1.0
+	m.set_meta("flat_role", "wall")
 	return m
 
 
@@ -3672,6 +3673,7 @@ func _asphalt_material(s: Segment) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_color = _pal(-(s.z_start + s.z_end) * 0.5).road_top
 	m.roughness = 1.0
+	m.set_meta("flat_role", "asphalt")
 	return m
 
 
@@ -3755,6 +3757,7 @@ func _add_decor(seg: Segment) -> void:
 		var m := StandardMaterial3D.new()
 		m.albedo_color = (_pal(-pos.z).decor as Color).darkened(_rng.randf_range(0.0, 0.08))
 		m.roughness = 1.0
+		m.set_meta("flat_role", "decor")
 		var block := _add_box(self, pos, size, m)
 		block.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_decor.append(block)

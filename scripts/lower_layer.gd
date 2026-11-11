@@ -115,6 +115,7 @@ func _ready() -> void:
 		var m := StandardMaterial3D.new()
 		m.albedo_color = c
 		m.roughness = 1.0
+		m.set_meta("flat_role", "rock")
 		_rock_mats.append(m)
 	_crystal_mat.albedo_color = Palette.ENERGY
 	_crystal_mat.emission_enabled = true

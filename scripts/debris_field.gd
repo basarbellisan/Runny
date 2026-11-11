@@ -275,6 +275,7 @@ static func _plan_pool() -> void:
 		m.distance_fade_min_distance = FADE.y
 		m.distance_fade_max_distance = FADE.x
 	_debris_flat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_debris_lit.set_meta("flat_role", "unshade")
 	# Kalıplar: biçimler orta ve büyük parçalara dağılır (tek rampa, eğimli, yokuş); şerit düzenleri
 	# sırayla, eşit dağılır. Boyutlar dönüşümlü sıraya girer (erken lazım olursa her boyuttan biri hazır)
 	var F := RoadDebris.Feature
