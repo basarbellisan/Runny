@@ -3596,7 +3596,7 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 	var asphalt := SurfaceTool.new()
 	asphalt.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var layout := _line_layout(hw * 2.0)
-	# Düz dünya denemesi: yatık bölümde alçak kenarın çizgileri yerine kesintisiz kırmızı çizgi
+	# Düz dünya denemesi: yatık bölümde alçak kenarın çizgileri yerine iki kesintisiz kırmızı çizgi
 	var edge_cx := 0.0
 	var edge_w := 0.12
 	for ln in layout:
@@ -3646,10 +3646,11 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 		var outer: float = side * (hw - 0.05)
 		var inner: float = side * (hw - 0.8)
 		if FlatStyle.on():
-			# Düz dünya: alçak kenarda, kenar çizgisinin yerinde kesintisiz ince kırmızı çizgi
-			var lx: float = side * edge_cx
-			var lw := edge_w * 0.5
-			_quad(kerbs[0], unused, p.call(lx - lw, z0), p.call(lx + lw, z0), p.call(lx + lw, z1), p.call(lx - lw, z1), Vector3.UP)
+			# Düz dünya: alçak kenarda, kenar çizgisinin yerinde yan yana iki kesintisiz kırmızı çizgi
+			var lw := edge_w * 0.55
+			for off in [-1.0, 1.0]:
+				var lx: float = side * edge_cx + off * edge_w * 1.6
+				_quad(kerbs[0], unused, p.call(lx - lw, z0), p.call(lx + lw, z0), p.call(lx + lw, z1), p.call(lx - lw, z1), Vector3.UP)
 			any_kerb[0] = true
 			continue
 		_quad(kerbs[c], unused, p.call(outer, z0), p.call(inner, z0), p.call(inner, z1), p.call(outer, z1), Vector3.UP)
