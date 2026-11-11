@@ -3863,10 +3863,12 @@ func _add_box(parent: Node3D, pos: Vector3, size: Vector3, mat: Material) -> Mes
 
 ## Uzakta süzülen ince, uzun monolitler (dekor), bölge renginde
 ## Düz dünya denemesi: uzun kaya bloklarının yerine dev (models/giants/giant.glb, tools/blender/giant.py)
-const GIANT_HEIGHT := 10.0   # modelin boyu (m)
+const GIANT_HEIGHT := 10.0   # modelin baş tepesinden çizimdeki gövde dibine boyu (m)
+const GIANT_LEG := 5.0       # gövdenin bunun altına uzayan, aşağı doğru eriyen kısmı (m)
 const GIANT_SCENE := preload("res://models/giants/giant.glb")
 ## Devin renkleri bloğun renginden: gövde (Main) o renk, oluk ve üçgenler (Accent) bir ton açık,
-## göz yarıkları (Slot) koyu; düz renk (ışık, gölge yok), bloklar gibi sise erir
+## göz yarıkları (Slot) koyu; düz renk (ışık, gölge yok), bloklar gibi sise erir; bacaklar aşağıya
+## doğru erir (giant_fade.gdshader)
 var _giant_mats := {}
 
 
@@ -3875,9 +3877,11 @@ func _make_giant(col: Color) -> Node3D:
 	if not _giant_mats.has(key):
 		var mats := {}
 		for pair in [["Main", col], ["Accent", col.lightened(0.22)], ["Slot", col.darkened(0.55)]]:
-			var m := StandardMaterial3D.new()
-			m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-			m.albedo_color = pair[1]
+			var m := ShaderMaterial.new()
+			m.shader = preload("res://shaders/giant_fade.gdshader")
+			m.set_shader_parameter("color", pair[1])
+			m.set_shader_parameter("fade_from", 0.0)
+			m.set_shader_parameter("fade_to", GIANT_LEG + 1.0)
 			mats[pair[0]] = m
 		_giant_mats[key] = mats
 	var g: Node3D = GIANT_SCENE.instantiate()
@@ -3902,11 +3906,12 @@ func _add_decor(seg: Segment) -> void:
 			_rng.randf_range(seg.z_end, seg.z_start))
 		var col := (_pal(-pos.z).decor as Color).darkened(_rng.randf_range(0.0, 0.08))
 		if FlatStyle.on():
-			# Bloğun yerinde ve boyunda dev: dünyada sabit (bloklar gibi), hafif yola dönük.
-			# Orijini tabanında: bloğun ortası kadar aşağıda başlar
+			# Bloğun yerinde ve boyunda dev: dünyada sabit (bloklar gibi), hafif yola dönük. Gövdesi
+			# bloğun dibinden (orijin uzatılmış bacakların ucunda) aşağı uzar ve erir
 			var g := _make_giant(col)
-			g.scale = Vector3.ONE * size.y / GIANT_HEIGHT
-			g.position = pos - Vector3(0, size.y * 0.5, 0)
+			var k := size.y / GIANT_HEIGHT
+			g.scale = Vector3.ONE * k
+			g.position = pos - Vector3(0, size.y * 0.5 + GIANT_LEG * k, 0)
 			g.rotation.y = -side * deg_to_rad(14.0)
 			add_child(g)
 			_decor.append(g)

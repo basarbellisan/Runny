@@ -2,13 +2,14 @@
 
 Tasarım (kullanıcının önden çizimi): düz üstlü, öne-arkaya gövdeden kalın baş ve iki yatay göz
 yarığı; uzun gövde ve altında ortada açık gri oluk; omuzdan dışa açılan uzun kollar, kolla gövde
-arasında açık gri üçgen. Çizim koordinatları (piksel) doğrudan kullanılır: 1128 px = 10 m.
+arasında açık gri üçgen. Çizim koordinatları (piksel) doğrudan kullanılır: 1128 px = 10 m (baş tepesinden
+çizimdeki gövde dibine). Gövde çizimdeki dipten 5 m daha aşağı uzar: oyunda bu kısım aşağıya doğru erir.
 
 Kullanım (bpy modülü kurulu Python ile):
     python3.11 tools/blender/giant.py --out models/giants [--render DIR]
 
 Kurallar: 1 birim = 1 m, +Z yukarı, ön yüz -Y (oyunda +Z: bize bakar), orijin tabanın ortasında
-(en alt nokta z = 0). Tek obje "Giant"; malzemeler Main (gövde rengi), Accent (açık ton: oluk,
+(uzatılmış gövdenin dibi z = 0; çizimdeki gövde dibi z = 5, baş tepesi z = 15). Tek obje "Giant"; malzemeler Main (gövde rengi), Accent (açık ton: oluk,
 üçgenler), Slot (göz yarıklarının içi). Oyun renkleri malzeme adına göre verir.
 """
 import argparse
@@ -20,9 +21,10 @@ import bpy
 import bmesh
 from mathutils import Vector
 
-PX = 10.0 / 1128.0      # çizimin pikseli (m): başın tepesinden gövdenin dibine 10 m
+PX = 10.0 / 1128.0      # çizimin pikseli (m): başın tepesinden çizimdeki gövde dibine 10 m
 CX = 406.5              # gövde ortası (px)
-BOTTOM = 1236.0         # en alt nokta: gövdenin dibi (px)
+LEG = 564.0             # gövde (bacaklar) çizimdeki dipten bu kadar aşağı uzar (px, 5 m): oyunda erir
+BOTTOM = 1236.0 + LEG   # en alt nokta: uzatılmış gövdenin dibi (px)
 
 # Kalınlıklar (m, ön-arka): gövde, baş (gövdeden belirgin kalın), kollar, üçgenler, kanatçıklar;
 # oyuk derinliği
@@ -109,8 +111,8 @@ def build():
     cut(h, [(331, 248), (482, 248), (482, 278), (331, 278)], D_CUT, "Slot", D_HEAD)
     parts.append(h)
     # Gövde ve ortadaki oluk
-    b = prism("body", [(297, 375), (516, 375), (516, 1236), (297, 1236)], D_BODY, "Main")
-    cut(b, [(382, 753), (431, 753), (431, 1240), (382, 1240)], D_CUT, "Accent")
+    b = prism("body", [(297, 375), (516, 375), (516, BOTTOM), (297, BOTTOM)], D_BODY, "Main")
+    cut(b, [(382, 753), (431, 753), (431, BOTTOM + 4), (382, BOTTOM + 4)], D_CUT, "Accent")
     parts.append(b)
     # Kollar (omuzdan dışa açılır) ve kolla gövde arasındaki üçgenler
     parts.append(prism("arm_l", [(206, 375), (297, 375), (138, 920), (57, 897)], D_ARM, "Main"))
@@ -172,10 +174,10 @@ def render(dirpath, ob):
         scene.render.filepath = os.path.join(dirpath, "giant_%s.png" % name)
         bpy.ops.render.render(write_still=True)
 
-    shot("onden", (0, -30, 5.2), (0, 0, 5.2), ortho=11.5)
-    shot("capraz", (11, -22, 7), (0, 0, 5))
-    shot("yandan", (30, 0, 5.2), (0, 0, 5.2), ortho=11.5)
-    shot("alttan", (8, -20, -6), (0, 0, 5))
+    shot("onden", (0, -30, 7.5), (0, 0, 7.5), ortho=16)
+    shot("capraz", (14, -28, 9), (0, 0, 7.5))
+    shot("yandan", (30, 0, 7.5), (0, 0, 7.5), ortho=16)
+    shot("alttan", (10, -26, -6), (0, 0, 7.5))
 
 
 def main():
