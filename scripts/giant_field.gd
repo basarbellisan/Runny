@@ -1,37 +1,36 @@
 class_name GiantField
 extends Node3D
-## Düz dünya denemesi: boşlukta duran devler (models/giants/giant.glb, tools/blender/giant.py).
-## Yoldan ve arabadan tamamen bağımsız: doğduğu anda yeri (yan ve yükseklik) sabitlenir; yol kayınca,
-## inip çıkınca, araba zıplayınca ya da sağa sola gidince oynamaz. Uzakta, seyrek (aynı anda en çok
-## iki) ve hafif bize dönük; arabanın hızından bağımsız, ağır ağır yaklaşıp yanımızdan geçer.
-## Aşağı (uçuşa) inerken arka plan gibi solarak kaybolur.
+## Düz dünya denemesi: uzakta duran devasa devler (models/giants/giant.glb, tools/blender/giant.py),
+## eski dev blokların yerine. Bloklar gibi dünyada sabit dururlar: doğdukları yerde kalırlar, yola,
+## arabanın yüksekliğine ya da zıplamaya bağlı değiller; ekrandaki hareketleri yalnız bakış açısından
+## (uzaktaki dağ gibi, çok uzakta oldukları için ağır ağır). Seyrek (yol boyunca 450-750 m'de bir) ve
+## hafif bize dönük. Çok uzaktan sisin yerine yavaşça belirirler; aşağı (uçuşa) inerken solarlar.
 
 const GIANT_SCENE := preload("res://models/giants/giant.glb")
 ## Modelin boyu (m)
 const MODEL_HEIGHT := 10.0
-## Devin boyu (m) aralığı
-const HEIGHT := Vector2(80.0, 120.0)
-## Yana uzaklık (m) aralığı
-const SIDE := Vector2(150.0, 210.0)
-## Doğduğu yer: arabanın bu kadar önünde (m); bu kadar arkada kalınca kaldırılır
-const AHEAD := 520.0
-const BEHIND := 120.0
-## Arabaya göre yaklaşma hızı (m/sn): arabanın hızından bağımsız, ağır
-const PASS_SPEED := 9.0
-## İki dev arasında geçen süre (sn) aralığı ve aynı anda en çok kaç dev
-const GAP := Vector2(16.0, 30.0)
-const MAX_ALIVE := 2
+## Devin boyu (m): devasa
+const HEIGHT := Vector2(170.0, 260.0)
+## Yolun ortasından (doğduğu andaki araba hizasından) yana uzaklık (m)
+const SIDE := Vector2(220.0, 340.0)
+## Arabanın bu kadar önünde doğar (m); bu kadar arkada kalınca kaldırılır
+const AHEAD := 620.0
+const BEHIND := 300.0
+## İki dev arası yol boyu (m)
+const GAP := Vector2(450.0, 750.0)
 ## Yola doğru dönüklük (derece)
 const TURN := 14.0
 ## Tabanın, devin boyuna göre ana yol seviyesinin ne kadar altında olduğu (sisin içinden yükselir)
-const SINK := 0.55
+const SINK := 0.5
+## Uzaktan beliriş: bu uzaklıkta görünmez, şu uzaklıkta tam (m; kamera 900 m'ye kadar çizer)
+const FADE := Vector2(880.0, 640.0)
 ## İnişte solma: son yolun bu kadar altından uçuş yüksekliğinin tırmanma payının üstüne kadar
 const DROP_START := 2.0
 
 var car: Car
 var _rng := RandomNumberGenerator.new()
-var _giants: Array = []   # [{node, ahead (m), side, lateral, height}]
-var _timer := 3.0
+var _giants: Array[Node3D] = []
+var _next_z := INF
 var _mats: Dictionary = {}
 
 
@@ -41,18 +40,22 @@ func setup(p_car: Car, color: Color, seed_value := -1) -> void:
 		_rng.seed = seed_value * 31 + 7
 	else:
 		_rng.randomize()
-	# Gövde (Main) renk, oluk ve üçgenler (Accent) bir ton açık, göz yarıkları (Slot) koyu; düz renk,
-	# sise erimez (uzakta net siluet); inişte birlikte solar
+	_next_z = car.global_position.z - 250.0
+	# Gövde (Main) renk, oluk ve üçgenler (Accent) bir ton açık, göz yarıkları (Slot) koyu; düz renk.
+	# Sis yerine uzaklıkla belirir (sise erirse bu uzaklıkta hiç görünmez); inişte birlikte solar
 	for pair in [["Main", color], ["Accent", color.lightened(0.22)], ["Slot", color.darkened(0.55)]]:
 		var m := StandardMaterial3D.new()
 		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		m.albedo_color = pair[1]
 		m.disable_fog = true
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+		m.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_ALPHA
+		m.distance_fade_min_distance = FADE.x
+		m.distance_fade_max_distance = FADE.y
 		_mats[pair[0]] = m
 
 
-func _spawn() -> void:
+func _spawn(z: float) -> void:
 	var g: Node3D = GIANT_SCENE.instantiate()
 	for mi in g.find_children("*", "MeshInstance3D", true, false):
 		var mesh := (mi as MeshInstance3D).mesh
@@ -66,15 +69,24 @@ func _spawn() -> void:
 	g.scale = Vector3.ONE * h / MODEL_HEIGHT
 	g.rotation.y = -side * deg_to_rad(TURN)
 	add_child(g)
-	# Yan ve yükseklik doğduğu anda sabitlenir (sonra yola ve arabaya bağlı değil)
-	var x := car.global_position.x + side * _rng.randf_range(SIDE.x, SIDE.y)
-	var y := RoadGenerator.MAIN_LEVEL - h * SINK
-	_giants.append({"node": g, "ahead": AHEAD, "x": x, "y": y})
+	# Dünyada sabit: bir kez yerleşir, sonra hiç oynamaz
+	g.global_position = Vector3(car.global_position.x + side * _rng.randf_range(SIDE.x, SIDE.y),
+		RoadGenerator.MAIN_LEVEL - h * SINK, z)
+	_giants.append(g)
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if car == null:
 		return
+	var cz := car.global_position.z
+	# Yol boyunca seyrek: sıradaki yer arabanın AHEAD önüne girince doğar
+	while cz - AHEAD < _next_z:
+		_spawn(_next_z)
+		_next_z -= _rng.randf_range(GAP.x, GAP.y)
+	for i in range(_giants.size() - 1, -1, -1):
+		if _giants[i].global_position.z > cz + BEHIND:
+			_giants[i].queue_free()
+			_giants.remove_at(i)
 	# İnişte solma (arka plan katmanlarıyla aynı ilerleme)
 	var t := clampf(inverse_lerp(car.last_floor_y - DROP_START, car.flight_altitude + car.climb_height,
 		car.global_position.y), 0.0, 1.0)
@@ -82,18 +94,3 @@ func _process(delta: float) -> void:
 	for m: StandardMaterial3D in _mats.values():
 		m.albedo_color.a = alpha
 	visible = alpha > 0.01
-	# Yeni dev: seyrek, yalnız yolda giderken
-	_timer -= delta
-	if _timer <= 0.0 and car.mode == Car.Mode.DRIVE:
-		_timer = _rng.randf_range(GAP.x, GAP.y)
-		if _giants.size() < MAX_ALIVE:
-			_spawn()
-	var cz := car.global_position.z
-	for i in range(_giants.size() - 1, -1, -1):
-		var d: Dictionary = _giants[i]
-		d.ahead -= PASS_SPEED * delta
-		if d.ahead < -BEHIND:
-			(d.node as Node3D).queue_free()
-			_giants.remove_at(i)
-			continue
-		(d.node as Node3D).global_position = Vector3(d.x, d.y, cz - d.ahead)
