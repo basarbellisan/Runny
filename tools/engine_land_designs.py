@@ -2,6 +2,7 @@
 dinleyip seçmek için). Dijital / Tron havası ağırlıklı, bir kısmı gerçekçi.
 Kullanım: python3 tools/engine_land_designs.py ÇIKIŞ_KLASÖRÜ [SES_GÜNLÜĞÜ]
           python3 tools/engine_land_designs.py ÇIKIŞ_KLASÖRÜ --cars [MODEL=GÜNLÜK ...]  (her arabanın motoru)
+          python3 tools/engine_land_designs.py ÇIKIŞ_KLASÖRÜ --reserve  (yedek motorlar: RESERVE_ENGINES)
           python3 tools/engine_land_designs.py ÇIKIŞ_KLASÖRÜ --lands2 GÜNLÜK MOTOR.ogg KARE,KARE,..  (iniş, 2. tur; --lands3: 3. tur dijital lastik, +7 dB;
           --lands4: 4. tur gerçekçi lastik, +7 dB; --lands5: 6 ve 7'den türetilenler)
 Ses günlüğü (oyunun --audtrace AUD/LAND satırları) verilirse her motor ve iniş tasarımı o sürüşün
@@ -279,8 +280,47 @@ def c_dark_rose():
 
 
 def c_falcon():
-    """FALCON (FM ailesi): en tiz ve keskin; parlak FM (oran 3), üstünde ince türbin ıslığı"""
+    """FALCON (FM ailesi): yuvarlak hırıltı; FM oran 1.5, kalın ve tok ama hızlı (eskisi çok tizdi, yoruyordu)"""
+    return _fm(90.0, 1.5, 2.0, 0.5, 0.35, 1800)
+
+
+# --- Yedek motorlar: Falcon denemesinden kalan, beğenilen ama kullanılmayanlar (ileride başka arabalara) ---
+
+def y_falcon_eski():
+    """Eski Falcon: en tiz ve keskin; parlak FM (oran 3), üstünde ince türbin ıslığı (uzun sürüşte yorucu)"""
     return _fm(95.0, 3.0, 2.4, 0.5, 0.2, 3200, whine=0.06)
+
+
+def y_yumusatilmis():
+    """Yumuşatılmış FM: eski Falcon'un karakteri, ıslık yok, parlaklık kısık (canlı, hızlı)"""
+    return _fm(95.0, 3.0, 1.7, 0.4, 0.25, 1900)
+
+
+def y_sicak_fm():
+    """Sıcak FM: oran 2 (uyumlu tını), dolgun; alt bas biraz fazla"""
+    return _fm(92.0, 2.0, 1.9, 0.5, 0.32, 2000)
+
+
+def y_koro_fm():
+    """Koro FM: iki hafif akortsuz ses, pürüzsüz ve geniş"""
+    return _fm(95.0, 2.0, 1.6, 0.4, 0.28, 1800, chorus=0.5)
+
+
+def y_yaris():
+    """Yarış (hibrit): sportif yanmalı motor, hafif alçak elektrik uğultusu (canlı, hızlı)"""
+    return _hibrit(100.0, 380, 380.0, 0.18, 1500)
+
+
+def y_jet():
+    """Jet uğultusu: koro FM + çok yumuşak alçak türbin (760 Hz) katmanı"""
+    t = _t()
+    x = _fm(95.0, 2.0, 1.5, 0.4, 0.3, 1700, chorus=0.5)
+    w = np.sin(2 * np.pi * 760 * t) + 0.3 * np.sin(2 * np.pi * 1140 * t)
+    return normalize(0.9 * x + 0.06 * w, 0.8)
+
+
+RESERVE_ENGINES = [("y_falcon_eski", y_falcon_eski), ("y_yumusatilmis", y_yumusatilmis), ("y_sicak_fm", y_sicak_fm),
+                   ("y_koro_fm", y_koro_fm), ("y_yaris", y_yaris), ("y_jet", y_jet)]
 
 
 CARS = [(2, "GEZGIN", c_gezgin), (8, "LATTE", c_latte), (10, "GEM", c_gem),
@@ -319,6 +359,14 @@ def render_lands(sfx, lands, total):
         x = np.interp(idx, np.arange(len(sfx)), sfx)
         place(out, x * 10 ** (db / 20), f / 60.0, 1.0)
     return out
+
+
+def reserve_main(out):
+    """--reserve: yedek motorların döngüleri (dinlemek / başka arabaya koymak için)"""
+    for name, fn in RESERVE_ENGINES:
+        ms.rng = np.random.default_rng(sum(map(ord, name)))
+        sf.write(out / f"{name}.wav", np.clip(np.tile(mono(fn()), 2), -1, 1), SR, subtype="PCM_16")
+        print("yazıldı", name)
 
 
 def cars_main(out, traces):
@@ -792,6 +840,10 @@ def main():
             lands2_main(out, a[0], a[1], [int(v) for v in a[2].split(",")], LANDS3, 7.0)
         else:
             lands2_main(out, a[0], a[1], [int(v) for v in a[2].split(",")])
+        return
+    if "--reserve" in sys.argv:
+        out.mkdir(parents=True, exist_ok=True)
+        reserve_main(out)
         return
     if "--cars" in sys.argv:
         out.mkdir(parents=True, exist_ok=True)
