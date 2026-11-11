@@ -1,10 +1,10 @@
 class_name GiantField
 extends Node3D
 ## Düz dünya denemesi: uzakta duran devasa devler (models/giants/giant.glb, tools/blender/giant.py),
-## eski dev blokların yerine. Bloklar gibi dünyada sabit dururlar: doğdukları yerde kalırlar, yola,
-## arabanın yüksekliğine ya da zıplamaya bağlı değiller; ekrandaki hareketleri yalnız bakış açısından
-## (uzaktaki dağ gibi, çok uzakta oldukları için ağır ağır). Seyrek (yol boyunca 450-750 m'de bir) ve
-## hafif bize dönük. Çok uzaktan sisin yerine yavaşça belirirler; aşağı (uçuşa) inerken solarlar.
+## eski dev blokların yerine. Dünyada kendi başlarına dururlar: yola, arabaya, zıplamaya bağlı
+## değiller; kendi yavaş hızlarıyla baktıkları yöne (bize doğru, yola hafif çevrik) yürürler, yürürken
+## hafifçe iki yana yalpalarlar. Ekrandaki hareketleri bakış açısından (çok uzakta: ağır ağır). Seyrek
+## (yol boyunca 450-750 m'de bir). Çok uzaktan sisin yerine yavaşça belirirler; inişte solarlar.
 
 const GIANT_SCENE := preload("res://models/giants/giant.glb")
 ## Modelin boyu (m)
@@ -20,6 +20,10 @@ const BEHIND := 300.0
 const GAP := Vector2(450.0, 750.0)
 ## Yola doğru dönüklük (derece)
 const TURN := 14.0
+## Yürüyüş hızı (m/sn) aralığı ve adım (yalpalama) süresi (sn), yalpalama açısı (derece)
+const WALK := Vector2(7.0, 12.0)
+const STEP := 3.2
+const SWAY := 1.6
 ## Tabanın, devin boyuna göre ana yol seviyesinin ne kadar altında olduğu (sisin içinden yükselir)
 const SINK := 0.5
 ## Uzaktan beliriş: bu uzaklıkta görünmez, şu uzaklıkta tam (m; kamera 900 m'ye kadar çizer)
@@ -30,6 +34,7 @@ const DROP_START := 2.0
 var car: Car
 var _rng := RandomNumberGenerator.new()
 var _giants: Array[Node3D] = []
+var _clock := 0.0
 var _next_z := INF
 var _mats: Dictionary = {}
 
@@ -68,6 +73,8 @@ func _spawn(z: float) -> void:
 	var h := _rng.randf_range(HEIGHT.x, HEIGHT.y)
 	g.scale = Vector3.ONE * h / MODEL_HEIGHT
 	g.rotation.y = -side * deg_to_rad(TURN)
+	g.set_meta("walk", _rng.randf_range(WALK.x, WALK.y))
+	g.set_meta("phase", _rng.randf() * TAU)
 	add_child(g)
 	# Dünyada sabit: bir kez yerleşir, sonra hiç oynamaz
 	g.global_position = Vector3(car.global_position.x + side * _rng.randf_range(SIDE.x, SIDE.y),
@@ -75,9 +82,16 @@ func _spawn(z: float) -> void:
 	_giants.append(g)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if car == null:
 		return
+	_clock += delta
+	# Yürüyüş: baktığı yöne (modelin önü +Z) kendi hızıyla; adımlarla hafif yalpalama
+	for g in _giants:
+		var fwd := g.global_transform.basis.z.normalized()
+		fwd.y = 0.0
+		g.global_position += fwd.normalized() * float(g.get_meta("walk")) * delta
+		g.rotation.z = deg_to_rad(SWAY) * sin(_clock * TAU / STEP + float(g.get_meta("phase")))
 	var cz := car.global_position.z
 	# Yol boyunca seyrek: sıradaki yer arabanın AHEAD önüne girince doğar
 	while cz - AHEAD < _next_z:
