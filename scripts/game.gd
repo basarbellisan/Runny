@@ -254,11 +254,6 @@ func _ready() -> void:
 		backdrop = Backdrop.new()
 		add_child(backdrop)
 		backdrop.setup(car)
-	if FlatStyle.on():
-		# Düz dünya denemesi: uzakta yavaşça geçen devler (eski dev blokların yerine)
-		var giants := GiantField.new()
-		add_child(giants)
-		giants.setup(car, Palette.SKIES[0].decor, seed_value)
 	_apply_light_preset(int(_args.get("light", "0")))
 	_apply_mood(0.0)
 	var cover_layer := CanvasLayer.new()

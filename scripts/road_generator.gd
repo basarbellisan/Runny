@@ -3862,6 +3862,36 @@ func _add_box(parent: Node3D, pos: Vector3, size: Vector3, mat: Material) -> Mes
 
 
 ## Uzakta süzülen ince, uzun monolitler (dekor), bölge renginde
+## Düz dünya denemesi: uzun kaya bloklarının yerine dev (models/giants/giant.glb, tools/blender/giant.py)
+const GIANT_HEIGHT := 10.0   # modelin boyu (m)
+const GIANT_SCENE := preload("res://models/giants/giant.glb")
+## Devin renkleri bloğun renginden: gövde (Main) o renk, oluk ve üçgenler (Accent) bir ton açık,
+## göz yarıkları (Slot) koyu; düz renk (ışık, gölge yok), bloklar gibi sise erir
+var _giant_mats := {}
+
+
+func _make_giant(col: Color) -> Node3D:
+	var key := col.to_html(false)
+	if not _giant_mats.has(key):
+		var mats := {}
+		for pair in [["Main", col], ["Accent", col.lightened(0.22)], ["Slot", col.darkened(0.55)]]:
+			var m := StandardMaterial3D.new()
+			m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			m.albedo_color = pair[1]
+			mats[pair[0]] = m
+		_giant_mats[key] = mats
+	var g: Node3D = GIANT_SCENE.instantiate()
+	var mats: Dictionary = _giant_mats[key]
+	for mi in g.find_children("*", "MeshInstance3D", true, false):
+		var mesh := (mi as MeshInstance3D).mesh
+		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		for i in mesh.get_surface_count():
+			var src := mesh.surface_get_material(i)
+			var nm := src.resource_name if src else "Main"
+			(mi as MeshInstance3D).set_surface_override_material(i, mats.get(nm, mats.Main))
+	return g
+
+
 func _add_decor(seg: Segment) -> void:
 	for i in _rng.randi_range(0, 2):
 		var side := -1.0 if _rng.randf() < 0.5 else 1.0
@@ -3871,6 +3901,16 @@ func _add_decor(seg: Segment) -> void:
 			seg.top + _rng.randf_range(-30.0, 10.0),
 			_rng.randf_range(seg.z_end, seg.z_start))
 		var col := (_pal(-pos.z).decor as Color).darkened(_rng.randf_range(0.0, 0.08))
+		if FlatStyle.on():
+			# Bloğun yerinde ve boyunda dev: dünyada sabit (bloklar gibi), hafif yola dönük.
+			# Orijini tabanında: bloğun ortası kadar aşağıda başlar
+			var g := _make_giant(col)
+			g.scale = Vector3.ONE * size.y / GIANT_HEIGHT
+			g.position = pos - Vector3(0, size.y * 0.5, 0)
+			g.rotation.y = -side * deg_to_rad(14.0)
+			add_child(g)
+			_decor.append(g)
+			continue
 		var m := StandardMaterial3D.new()
 		m.albedo_color = col
 		m.roughness = 1.0
