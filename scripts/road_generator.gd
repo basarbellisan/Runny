@@ -410,6 +410,8 @@ func update(car_pos: Vector3) -> void:
 func _process(delta: float) -> void:
 	_light_time += delta
 	_runway_mat.set_shader_parameter("t", _light_time)
+	if _jump_mat:
+		_jump_mat.set_shader_parameter("t", _light_time)
 	_runway_halo_mat.set_shader_parameter("t", _light_time)
 	_crystal_mat.set_shader_parameter("t", _light_time)
 	# Blok lambaları sırayla yanıp söner (A ve B ters fazda); şeritler akar
@@ -1190,6 +1192,9 @@ func _add_segment(x: float, top: float, top_end: float, width: float, z_start: f
 ## Bölgenin başında seyrek (~5 m), yolun ucuna doğru düzgünce sıklaşır (~1 m).
 ## Parlak bir bant dizi boyunca ~0.6 sn'de yolun ucuna akar ve döngüyle tekrarlar: "şimdi gaz".
 func _add_runway_lights(body: Node3D, s: Segment, slope_len: float) -> void:
+	if FlatStyle.on():
+		_add_jump_arrows(body, s, slope_len)
+		return
 	var v := estimate_speed(car.global_position.z - s.z_end)
 	var zone := clampf(v * lights_time, 18.0, minf(70.0, slope_len * 0.6))
 	# Yolun ucundan geriye doğru: aralık uçta 1 m, bölgenin başında 5 m
@@ -1241,6 +1246,66 @@ func _add_runway_lights(body: Node3D, s: Segment, slope_len: float) -> void:
 		mi.material_override = pair[1]
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		body.add_child(mi)
+
+
+## Düz dünya denemesi: pist ışıkları yerine yolun ortasında, ucuna doğru dolu kırmızı oklar (rampanın
+## içi boş V'lerinden farklı: ok başı ve kısa sap). Işıklar gibi yanıp söner: parlak bant uca akar
+var _jump_mat: ShaderMaterial
+var _jump_mesh: ArrayMesh
+
+
+func _add_jump_arrows(body: Node3D, s: Segment, slope_len: float) -> void:
+	if _jump_mat == null:
+		_jump_mat = ShaderMaterial.new()
+		_jump_mat.shader = preload("res://shaders/jump_arrows.gdshader")
+		# Ok: ileri (-z) bakan dolu üçgen baş + kısa sap, yüzeye yatık
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var unused := PackedVector3Array()
+		var hw := 0.8   # baş yarı genişliği
+		var hl := 0.9   # baş boyu
+		var sw := 0.26  # sap yarı genişliği
+		var sl := 0.8   # sap boyu
+		var tip := Vector3(0, 0, -hl * 0.6)
+		var bl := Vector3(-hw, 0, hl * 0.4)
+		var br := Vector3(hw, 0, hl * 0.4)
+		st.set_normal(Vector3.UP)
+		for p in [tip, br, bl]:
+			st.add_vertex(p)
+		_quad(st, unused, Vector3(-sw, 0, hl * 0.4), Vector3(sw, 0, hl * 0.4),
+			Vector3(sw, 0, hl * 0.4 + sl), Vector3(-sw, 0, hl * 0.4 + sl), Vector3.UP)
+		_jump_mesh = st.commit()
+	var v := estimate_speed(car.global_position.z - s.z_end)
+	var zone := clampf(v * lights_time, 18.0, minf(70.0, slope_len * 0.6))
+	# Yolun ucundan geriye: aralık uçta 2.6 m, bölgenin başında 6 m
+	var dists: Array[float] = []
+	var d := 1.4
+	while d < zone:
+		dists.append(d)
+		d += lerpf(2.6, 6.0, d / zone)
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_custom_data = true
+	mm.instance_count = dists.size()
+	mm.mesh = _jump_mesh
+	var half := slope_len * 0.5
+	var cos_a := cos(body.rotation.x)
+	for j in dists.size():
+		var lz := -half + dists[j]
+		var along := 1.0 - float(j) / maxf(dists.size() - 1, 1)
+		var bank := 0.0
+		var lift := 0.0
+		if not s.bank_z.is_empty():
+			bank = s.bank_at(body.position.z + lz)
+			lift = s.top_at(body.position.z + lz) - s.top
+		var basis := Basis(Vector3.FORWARD, -bank)
+		mm.set_instance_transform(j, Transform3D(basis, Vector3(0, 0.05 + lift, lz)))
+		mm.set_instance_custom_data(j, Color(body.position.z + lz * cos_a, along, 0, 0))
+	var mi := MultiMeshInstance3D.new()
+	mi.multimesh = mm
+	mi.material_override = _jump_mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.add_child(mi)
 
 
 ## Düz bir yola engeller ve çakıl şeritleri: sırayla sağda solda, aralarından

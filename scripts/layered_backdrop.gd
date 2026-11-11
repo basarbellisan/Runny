@@ -49,6 +49,11 @@ var _ridges: Array = []
 ## Orta sıranın renginde perde (ön sıranın hemen arkasında): inerken belirir, arkadakileri örter
 var _fade: ColorRect
 var _size := Vector2.ZERO
+## Yumuşatılmış ufuk ve yol yüksekliği: zıplama, iniş sarsıntısı ve kamera oynamaları dağları oynatmasın
+var _horizon := NAN
+var _road_y := NAN
+## Yumuşatma süresi (sn): kalıcı değişimleri (uçuşta kamera açısı, yeni yol yüksekliği) yavaşça izler
+const SMOOTH := 0.8
 
 
 func setup(p_car: Car, colors: Array, p_shape := "tri") -> void:
@@ -179,7 +184,10 @@ func _process(_delta: float) -> void:
 		return
 	# Kameranın ufuk çizgisi (göz hizasında çok uzak bir nokta)
 	var far := cam.global_position + Vector3(0.0, 0.0, -100000.0)
-	var horizon := cam.unproject_position(far).y if not cam.is_position_behind(far) else size.y * 0.5
+	var raw_h := cam.unproject_position(far).y if not cam.is_position_behind(far) else size.y * 0.5
+	var ks := 1.0 - exp(-get_process_delta_time() / SMOOTH)
+	_horizon = raw_h if is_nan(_horizon) else lerpf(_horizon, raw_h, ks)
+	var horizon := _horizon
 	# Yol (0) ile uçuş yüksekliği (1) arasında; yumuşak geçiş
 	# Yollardan aşağı düşüş (0) ile uçuş yüksekliği (1) arası: büyük kayma yalnız burada, yumuşak.
 	# Yollarda (iniş-çıkış, rampa) yalnız hafif bir tepki
@@ -189,7 +197,10 @@ func _process(_delta: float) -> void:
 	var cy := car.global_position.y
 	var t := clampf(inverse_lerp(car.last_floor_y - DROP_START, car.flight_altitude + car.climb_height, cy), 0.0, 1.0)
 	var e := smoothstep(0.0, 1.0, t)
-	var ry := clampf(cy, ROAD_RANGE.x, ROAD_RANGE.y) * size.y
+	# Yollarda hafif tepki arabanın değil üzerinde durduğu yolun yüksekliğine (zıplamada oynamaz)
+	var road := clampf(car.last_floor_y, ROAD_RANGE.x, ROAD_RANGE.y)
+	_road_y = road if is_nan(_road_y) else lerpf(_road_y, road, ks)
+	var ry := _road_y * size.y
 	_fade.modulate.a = 1.0 - (1.0 - t) * (1.0 - t)
 	_fade.visible = _fade.modulate.a > 0.001
 	var cx := car.global_position.x
