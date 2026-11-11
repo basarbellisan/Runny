@@ -242,9 +242,18 @@ func _ready() -> void:
 	env.ambient_light_sky_contribution = 0.0
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	roads.start(car, seed_value)
-	backdrop = Backdrop.new()
-	add_child(backdrop)
-	backdrop.setup(car)
+	if FlatStyle.layered_bg():
+		# Düz dünya denemesi: 2D katmanlı arka plan (gökyüzü, gezegen, üç dağ sırası); 3D bulutlar kapalı
+		var layered := LayeredBackdrop.new()
+		add_child(layered)
+		layered.setup(car, FlatStyle.bg_colors())
+		env.background_mode = Environment.BG_CANVAS
+		env.background_canvas_max_layer = -1
+		clouds.visible = false
+	else:
+		backdrop = Backdrop.new()
+		add_child(backdrop)
+		backdrop.setup(car)
 	_apply_light_preset(int(_args.get("light", "0")))
 	_apply_mood(0.0)
 	var cover_layer := CanvasLayer.new()
