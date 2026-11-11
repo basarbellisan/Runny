@@ -1248,46 +1248,42 @@ func _add_runway_lights(body: Node3D, s: Segment, slope_len: float) -> void:
 		body.add_child(mi)
 
 
-## Düz dünya denemesi: pist ışıkları yerine yolun ortasında, ucuna doğru dolu kırmızı oklar (rampanın
-## içi boş V'lerinden farklı: ok başı ve kısa sap). Işıklar gibi yanıp söner: parlak bant uca akar
+## Düz dünya denemesi: pist ışıkları yerine yolun üstünde, ucuna doğru kırmızı şevronlar (rampadaki
+## şevronların aynısı, kırmızı). Işıklar gibi yanıp söner: parlak bant uca akar
 var _jump_mat: ShaderMaterial
-var _jump_mesh: ArrayMesh
 
 
 func _add_jump_arrows(body: Node3D, s: Segment, slope_len: float) -> void:
 	if _jump_mat == null:
 		_jump_mat = ShaderMaterial.new()
 		_jump_mat.shader = preload("res://shaders/jump_arrows.gdshader")
-		# Ok: ileri (-z) bakan dolu üçgen baş + kısa sap, yüzeye yatık
-		var st := SurfaceTool.new()
-		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		var unused := PackedVector3Array()
-		var hw := 0.8   # baş yarı genişliği
-		var hl := 0.9   # baş boyu
-		var sw := 0.26  # sap yarı genişliği
-		var sl := 0.8   # sap boyu
-		var tip := Vector3(0, 0, -hl * 0.6)
-		var bl := Vector3(-hw, 0, hl * 0.4)
-		var br := Vector3(hw, 0, hl * 0.4)
-		st.set_normal(Vector3.UP)
-		for p in [tip, br, bl]:
-			st.add_vertex(p)
-		_quad(st, unused, Vector3(-sw, 0, hl * 0.4), Vector3(sw, 0, hl * 0.4),
-			Vector3(sw, 0, hl * 0.4 + sl), Vector3(-sw, 0, hl * 0.4 + sl), Vector3.UP)
-		_jump_mesh = st.commit()
+	# Tek şevron (rampadakiyle aynı ölçüler): tepesi ileri (-z), kolları geriye açılır
+	var arm := minf(s.width * 0.42, 2.8)
+	var half_a := deg_to_rad(52.0)
+	var w := 0.6
+	var notch := Vector3(0, 0, w / sin(half_a))
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var unused := PackedVector3Array()
+	var p0 := Vector3(0, 0, -notch.z * 0.5)
+	for sx in [-1.0, 1.0]:
+		var dir := Vector3(sx * sin(half_a), 0, cos(half_a))
+		var p1 := p0 + dir * arm
+		_quad(st, unused, p0, p1, p1 + notch, p0 + notch, Vector3.UP)
+	var chevron := st.commit()
 	var v := estimate_speed(car.global_position.z - s.z_end)
 	var zone := clampf(v * lights_time, 18.0, minf(70.0, slope_len * 0.6))
-	# Yolun ucundan geriye: aralık uçta 2.6 m, bölgenin başında 6 m
+	# Yolun ucundan geriye: aralık uçta 4 m, bölgenin başında 8 m
 	var dists: Array[float] = []
-	var d := 1.4
+	var d := 2.5
 	while d < zone:
 		dists.append(d)
-		d += lerpf(2.6, 6.0, d / zone)
+		d += lerpf(4.0, 8.0, d / zone)
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_custom_data = true
 	mm.instance_count = dists.size()
-	mm.mesh = _jump_mesh
+	mm.mesh = chevron
 	var half := slope_len * 0.5
 	var cos_a := cos(body.rotation.x)
 	for j in dists.size():
@@ -1299,7 +1295,7 @@ func _add_jump_arrows(body: Node3D, s: Segment, slope_len: float) -> void:
 			bank = s.bank_at(body.position.z + lz)
 			lift = s.top_at(body.position.z + lz) - s.top
 		var basis := Basis(Vector3.FORWARD, -bank)
-		mm.set_instance_transform(j, Transform3D(basis, Vector3(0, 0.05 + lift, lz)))
+		mm.set_instance_transform(j, Transform3D(basis, Vector3(0, 0.035 + lift, lz)))
 		mm.set_instance_custom_data(j, Color(body.position.z + lz * cos_a, along, 0, 0))
 	var mi := MultiMeshInstance3D.new()
 	mi.multimesh = mm
