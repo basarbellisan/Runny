@@ -8,7 +8,12 @@ extends CanvasLayer
 ## Paralaks: her katmanın iki hedef yeri var (yol yüksekliği ve uçuş yüksekliği; ekran yüksekliğinin
 ## payı olarak, kameranın gerçek ufuk çizgisine göre). Arabanın yüksekliği ikisi arasında nerede ise
 ## katman o oranda kayar. Aşağı inerken arkadaki sıralar (ve gökyüzü, gezegen) çok yükselmeden orta
-## sıranın rengine solar: uçuşta geride onun rengi kalır, önünde yalnız ön sıranın sırtı görünür. Yana: araba sağa sola gittikçe katmanlar derinliklerine göre kayar.
+## sıranın rengine solar: uçuşta geride onun rengi kalır, önünde yalnız ön sıranın sırtı görünür.
+## Kayma ve solma aynı ilerlemeye bağlı: dağlar uçuştaki yerine oturduğu anda solma da biter.
+## Yana: araba sağa sola gittikçe katmanlar derinliklerine göre kayar.
+##
+## Sırt biçimi (shape): "tri" eşit yamaçlı üçgen dağlar; "slant" her ekranda tek eğik çizgi; "kink" birkaç
+## kırık çizgi; "peak" geniş, alçak tepeler; "flat" düz yatay bantlar.
 
 ## Dağ yamaçlarının eğimi (derece; tepe sivri, yamaçlar eşit)
 const SLOPE_DEG := 48.0
@@ -20,8 +25,13 @@ const RIDGES := [
 	[Vector2(0.15, 0.24), -0.08, -0.16, 0.3, 0.001, 7],
 	[Vector2(0.20, 0.31), -0.01, -0.07, 0.55, 0.0015, 11],
 ]
-## Büyük kayma yalnız yollardan aşağı düşünce: bu yükseklikten (yolların en altının biraz altı) uçuşa kadar
-const DROP_FROM := -22.0
+## Bant biçimlerinde (tri dışı) sıraların yeri: [yol yüksekliğinde, uçuşta] (ufka göre, ekran payı)
+const BANDS := [Vector2(-0.19, -0.25), Vector2(-0.085, -0.135), Vector2(0.0, -0.06)]
+## Bant biçimlerinin kırık noktaları: [aralık (ekran genişliğinin payı), yükseklik oynaması (ekran yüksekliği payı)]
+const SHAPES := {"slant": [Vector2(1.0, 1.0), 0.03], "kink": [Vector2(0.5, 0.8), 0.03],
+	"peak": [Vector2(0.4, 0.8), 0.05], "flat": [Vector2(1.0, 1.0), 0.0]}
+## İnişte geçişin başladığı yer: arabanın son durduğu yolun bu kadar altı (yoldan kopunca hemen başlar)
+const DROP_START := 2.0
 ## Yollarda yüksekliğe hafif tepki bu aralıkta (m)
 const ROAD_RANGE := Vector2(-22.0, 15.0)
 ## Gezegen: yarıçap (ekran yüksekliğinin payı), yatay yer (ekran genişliğinin payı), yol ve uçuşta
@@ -31,6 +41,7 @@ const PLANET := {"r": 0.067, "x": 0.28, "y0": -0.27, "y1": -0.37, "slide": 0.08,
 const PERIOD_K := 2.0
 
 var car: Car
+var shape := "tri"
 var _sky: ColorRect
 var _planet: Polygon2D
 ## Her sıra: [kopyalar (Polygon2D x3), desen boyu (px)]
@@ -40,8 +51,9 @@ var _fade: ColorRect
 var _size := Vector2.ZERO
 
 
-func setup(p_car: Car, colors: Array) -> void:
+func setup(p_car: Car, colors: Array, p_shape := "tri") -> void:
 	car = p_car
+	shape = p_shape
 	layer = -10
 	_sky = ColorRect.new()
 	_sky.color = colors[0]
@@ -50,6 +62,8 @@ func setup(p_car: Car, colors: Array) -> void:
 	_planet = Polygon2D.new()
 	_planet.color = colors[1]
 	_planet.antialiased = true
+	# Bant biçimlerinde gökyüzü dar bir şerit: gezegen yok
+	_planet.visible = shape == "tri"
 	add_child(_planet)
 	for i in RIDGES.size():
 		if i == RIDGES.size() - 1:
@@ -84,6 +98,12 @@ func _rebuild(size: Vector2) -> void:
 		var spec: Array = RIDGES[i]
 		var rng := RandomNumberGenerator.new()
 		rng.seed = spec[5]
+		if shape != "tri":
+			var band := _band_line(rng, size, period)
+			for c: Polygon2D in _ridges[i][0]:
+				c.polygon = band
+			_ridges[i][1] = period
+			continue
 		# Tepeler: [merkez x, yarı taban]; desen dikişsiz tekrar etsin diye her tepe bir boy sağda ve solda da sayılır
 		var peaks: Array[Vector2] = []
 		var x := 0.0
@@ -125,6 +145,31 @@ func _rebuild(size: Vector2) -> void:
 		_ridges[i][1] = period
 
 
+## Bant biçimi: desen boyunca birkaç kırık noktalı çizgi (sonu başına bağlanır), altı dolu
+func _band_line(rng: RandomNumberGenerator, size: Vector2, period: float) -> PackedVector2Array:
+	var sp: Array = SHAPES.get(shape, SHAPES.flat)
+	var gap: Vector2 = sp[0]
+	var amp: float = sp[1] * size.y
+	var line := PackedVector2Array()
+	var first := rng.randf_range(-amp, amp)
+	var x := 0.0
+	var up := rng.randf() < 0.5
+	while x < period - 1.0:
+		var v := rng.randf_range(-amp, amp)
+		if shape == "peak":
+			# Geniş tepeler: sırayla yüksek ve alçak noktalar
+			v = rng.randf_range(0.3, 1.0) * amp * (-1.0 if up else 0.4)
+			up = not up
+		line.append(Vector2(x, first if x == 0.0 else v))
+		x += rng.randf_range(gap.x, gap.y) * size.x
+		if period - x < gap.x * size.x * 0.5:
+			x = period
+	line.append(Vector2(period, first))
+	line.append(Vector2(period, size.y * 3.0))
+	line.append(Vector2(0.0, size.y * 3.0))
+	return line
+
+
 func _process(_delta: float) -> void:
 	var size := get_viewport().get_visible_rect().size
 	if size != _size:
@@ -138,10 +183,14 @@ func _process(_delta: float) -> void:
 	# Yol (0) ile uçuş yüksekliği (1) arasında; yumuşak geçiş
 	# Yollardan aşağı düşüş (0) ile uçuş yüksekliği (1) arası: büyük kayma yalnız burada, yumuşak.
 	# Yollarda (iniş-çıkış, rampa) yalnız hafif bir tepki
+	# İlerleme: yoldan kopunca (son yolun DROP_START altı) başlar, uçuş yüksekliğinin tırmanma payı
+	# üstünde biter (uçarken iki parmakla yükselince arka plan yerinden oynamaz). Kayma yumuşak,
+	# solma daha erken başlar; ikisi aynı anda tamamlanır
 	var cy := car.global_position.y
-	var e := smoothstep(DROP_FROM, car.flight_altitude, cy)
+	var t := clampf(inverse_lerp(car.last_floor_y - DROP_START, car.flight_altitude + car.climb_height, cy), 0.0, 1.0)
+	var e := smoothstep(0.0, 1.0, t)
 	var ry := clampf(cy, ROAD_RANGE.x, ROAD_RANGE.y) * size.y
-	_fade.modulate.a = smoothstep(0.15, 0.85, e)
+	_fade.modulate.a = 1.0 - (1.0 - t) * (1.0 - t)
 	_fade.visible = _fade.modulate.a > 0.001
 	var cx := car.global_position.x
 	_planet.position = Vector2(PLANET.x * size.x - cx * PLANET.slide,
@@ -149,7 +198,9 @@ func _process(_delta: float) -> void:
 	for i in RIDGES.size():
 		var spec: Array = RIDGES[i]
 		var period: float = _ridges[i][1]
-		var y := horizon + lerpf(spec[1], spec[2], e) * size.y + ry * float(spec[4])
+		var b0: float = spec[1] if shape == "tri" else BANDS[i].x
+		var b1: float = spec[2] if shape == "tri" else BANDS[i].y
+		var y := horizon + lerpf(b0, b1, e) * size.y + ry * float(spec[4])
 		var ox := fposmod(-cx * float(spec[3]), period)
 		var copies: Array = _ridges[i][0]
 		for k in 3:

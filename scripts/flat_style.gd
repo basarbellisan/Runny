@@ -34,6 +34,9 @@ static var LAYERED_LIGHT: Dictionary = _layered({}, "cac8b6", "d8d6c5", "e5e3d4"
 static var LAYERED_DARK: Dictionary = _layered(DARK_SKY, "807f71", "979686", "adac9b")
 ## Katmanlı 2D arka plan (LayeredBackdrop): aynı renkler, paralakslı katmanlar
 static var LAYERED_BG: Dictionary = LAYERED_DARK.merged({"layered_bg": true}, true)
+## Bant biçimli sırtlar (LayeredBackdrop.SHAPES)
+static func _bands(shape: String) -> Dictionary:
+	return LAYERED_BG.merged({"bg_shape": shape}, true)
 ## [ad, yol üstü, yan duvarlar (ön ve arka uçlar da), çizgi ve yol işaretleri, atmosfer farkı];
 ## alt yüz siyah
 static var COMBOS: Array = [
@@ -44,6 +47,10 @@ static var COMBOS: Array = [
 	["dağ katmanları, açık gök", BLACK, WHITE, WHITE, LAYERED_LIGHT],
 	["dağ katmanları, koyu gök", BLACK, WHITE, WHITE, LAYERED_DARK],
 	["katmanlı arka plan", BLACK, WHITE, WHITE, LAYERED_BG],
+	["bantlar: eğik", BLACK, WHITE, WHITE, _bands("slant")],
+	["bantlar: kırık", BLACK, WHITE, WHITE, _bands("kink")],
+	["bantlar: tepe", BLACK, WHITE, WHITE, _bands("peak")],
+	["bantlar: düz", BLACK, WHITE, WHITE, _bands("flat")],
 ]
 static var STYLES: Array = COMBOS.map(func(c: Array) -> Dictionary:
 	var d := ATMOS.duplicate()
@@ -93,6 +100,10 @@ static func layered_bg() -> bool:
 
 
 ## Katmanlı arka planın renkleri: [gökyüzü, gezegen, en arka sıra, orta sıra, ön sıra ve aşağısı]
+static func bg_shape() -> String:
+	return cfg().get("bg_shape", "tri")
+
+
 static func bg_colors() -> Array:
 	var m: Array = cfg().mountains
 	return [_col("horizon"), _col("sun"), Color(m[0]), Color(m[1]), Color(m[2])]

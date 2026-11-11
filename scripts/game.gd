@@ -246,7 +246,7 @@ func _ready() -> void:
 		# Düz dünya denemesi: 2D katmanlı arka plan (gökyüzü, gezegen, üç dağ sırası); 3D bulutlar kapalı
 		var layered := LayeredBackdrop.new()
 		add_child(layered)
-		layered.setup(car, FlatStyle.bg_colors())
+		layered.setup(car, FlatStyle.bg_colors(), FlatStyle.bg_shape())
 		env.background_mode = Environment.BG_CANVAS
 		env.background_canvas_max_layer = -1
 		clouds.visible = false
