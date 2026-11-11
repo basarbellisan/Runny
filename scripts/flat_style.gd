@@ -17,13 +17,27 @@ const ATMOS := {
 }
 const BLACK := "121214"
 const WHITE := "f7f6f2"
-## [ad, yol üstü, yan duvarlar (ön ve arka uçlar da), çizgi ve yol işaretleri]; alt yüz siyah
+## Koyu gökyüzü denemesi: tepede çok koyu, dağların arkasına doğru açılır ama yine koyu; dağlar
+## gökyüzünden koyu (siluet), dibi sise erir. Uçuş katmanı aynı (açık)
+const DARK_SKY := {
+	"sky_top": "1f1f1b", "horizon": "55544a", "ground": "4d4c43",
+	"mountains": ["47463d", "3b3a33", "302f29"], "decor": "3f3e36", "sun": "e8e6dc",
+}
+const DARKER_SKY := {
+	"sky_top": "121210", "horizon": "3c3b34", "ground": "35342e",
+	"mountains": ["33322c", "2a2925", "22211e"], "decor": "2e2d28", "sun": "dcdad0",
+}
+## [ad, yol üstü, yan duvarlar (ön ve arka uçlar da), çizgi ve yol işaretleri, atmosfer farkı];
+## alt yüz siyah
 const COMBOS := [
-	["şimdiki", "", "", ""],
-	["siyah yol, beyaz yan", BLACK, WHITE, WHITE],
+	["şimdiki", "", "", "", {}],
+	["siyah yol, beyaz yan", BLACK, WHITE, WHITE, {}],
+	["koyu gökyüzü", BLACK, WHITE, WHITE, DARK_SKY],
+	["daha koyu gökyüzü", BLACK, WHITE, WHITE, DARKER_SKY],
 ]
 static var STYLES: Array = COMBOS.map(func(c: Array) -> Dictionary:
 	var d := ATMOS.duplicate()
+	d.merge(c[4], true)
 	d.merge({"name": c[0], "road": c[1], "side": c[2], "line": c[3], "under": BLACK, "ends": c[2]}, true)
 	return d)
 ## Alt katmanın derinlik sisi (game.gd FOG_LOWER yerine): yakın yol parçaları net siyah-beyaz okunsun,
