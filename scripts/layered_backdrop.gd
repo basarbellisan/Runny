@@ -13,15 +13,20 @@ extends CanvasLayer
 ## Dağ yamaçlarının eğimi (derece; tepe sivri, yamaçlar eşit)
 const SLOPE_DEG := 48.0
 ## [taban genişliği aralığı (ekran yüksekliğinin payı), yol yüksekliğinde taban yeri, uçuşta taban yeri,
-##  yana kayma (piksel / metre), tohum]; tabanlar ufka göre (eksi: ufkun üstü)
+##  yana kayma (piksel / metre), yolda yüksekliğe tepki (ekran payı / metre), tohum];
+## tabanlar ufka göre (eksi: ufkun üstü)
 const RIDGES := [
-	[Vector2(0.12, 0.19), -0.15, -0.75, 0.6, 3],
-	[Vector2(0.15, 0.24), -0.08, -0.80, 1.2, 7],
-	[Vector2(0.20, 0.31), -0.01, -0.07, 2.2, 11],
+	[Vector2(0.12, 0.19), -0.15, -0.75, 0.15, 0.0006, 3],
+	[Vector2(0.15, 0.24), -0.08, -0.80, 0.3, 0.001, 7],
+	[Vector2(0.20, 0.31), -0.01, -0.07, 0.55, 0.0015, 11],
 ]
+## Büyük kayma yalnız yollardan aşağı düşünce: bu yükseklikten (yolların en altının biraz altı) uçuşa kadar
+const DROP_FROM := -22.0
+## Yollarda yüksekliğe hafif tepki bu aralıkta (m)
+const ROAD_RANGE := Vector2(-22.0, 15.0)
 ## Gezegen: yarıçap (ekran yüksekliğinin payı), yatay yer (ekran genişliğinin payı), yol ve uçuşta
 ## merkezin yeri (ufka göre), yana kayma
-const PLANET := {"r": 0.067, "x": 0.28, "y0": -0.27, "y1": -0.85, "slide": 0.3}
+const PLANET := {"r": 0.067, "x": 0.28, "y0": -0.27, "y1": -0.85, "slide": 0.08, "road": 0.0004}
 ## Desenin yatay tekrar boyu (ekran genişliğinin katı)
 const PERIOD_K := 2.0
 
@@ -70,7 +75,7 @@ func _rebuild(size: Vector2) -> void:
 	for i in RIDGES.size():
 		var spec: Array = RIDGES[i]
 		var rng := RandomNumberGenerator.new()
-		rng.seed = spec[4]
+		rng.seed = spec[5]
 		# Tepeler: [merkez x, yarı taban]; desen dikişsiz tekrar etsin diye her tepe bir boy sağda ve solda da sayılır
 		var peaks: Array[Vector2] = []
 		var x := 0.0
@@ -123,15 +128,18 @@ func _process(_delta: float) -> void:
 	var far := cam.global_position + Vector3(0.0, 0.0, -100000.0)
 	var horizon := cam.unproject_position(far).y if not cam.is_position_behind(far) else size.y * 0.5
 	# Yol (0) ile uçuş yüksekliği (1) arasında; yumuşak geçiş
-	var t := clampf(inverse_lerp(RoadGenerator.MAIN_LEVEL, car.flight_altitude, car.global_position.y), -0.4, 1.1)
-	var e := smoothstep(0.0, 1.0, clampf(t, 0.0, 1.0)) + minf(t, 0.0) + maxf(t - 1.0, 0.0)
+	# Yollardan aşağı düşüş (0) ile uçuş yüksekliği (1) arası: büyük kayma yalnız burada, yumuşak.
+	# Yollarda (iniş-çıkış, rampa) yalnız hafif bir tepki
+	var cy := car.global_position.y
+	var e := smoothstep(DROP_FROM, car.flight_altitude, cy)
+	var ry := clampf(cy, ROAD_RANGE.x, ROAD_RANGE.y) * size.y
 	var cx := car.global_position.x
 	_planet.position = Vector2(PLANET.x * size.x - cx * PLANET.slide,
-		horizon + lerpf(PLANET.y0, PLANET.y1, e) * size.y)
+		horizon + lerpf(PLANET.y0, PLANET.y1, e) * size.y + ry * PLANET.road)
 	for i in RIDGES.size():
 		var spec: Array = RIDGES[i]
 		var period: float = _ridges[i][1]
-		var y := horizon + lerpf(spec[1], spec[2], e) * size.y
+		var y := horizon + lerpf(spec[1], spec[2], e) * size.y + ry * float(spec[4])
 		var ox := fposmod(-cx * float(spec[3]), period)
 		var copies: Array = _ridges[i][0]
 		for k in 3:
