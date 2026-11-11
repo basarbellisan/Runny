@@ -3625,11 +3625,15 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 	for i in rows:
 		_quad(asphalt, unused, at.call(-hw + 0.15, i, 0.02), at.call(hw - 0.15, i, 0.02),
 			at.call(hw - 0.15, i + 1, 0.02), at.call(-hw + 0.15, i + 1, 0.02), Vector3.UP)
-		var tilted := FlatStyle.on() and absf(s.bank_at(z_start - length * (i + 0.5) / rows)) >= deg_to_rad(1.5)
+		# Yatık bölümde alçak kenarın çizgileri (kenar çizgi grubu) yerine kırmızı oklar gelir; yüksek kenar aynı
+		var row_bank := s.bank_at(z_start - length * (i + 0.5) / rows)
+		var low_side := 0.0
+		if FlatStyle.on() and absf(row_bank) >= deg_to_rad(1.5):
+			low_side = -1.0 if row_bank > 0.0 else 1.0
 		for li in layout.size():
 			var c: float = layout[li].cx
 			var hwl: float = layout[li].w * 0.5
-			if tilted and absf(c) >= edge_cx - 0.01:
+			if low_side != 0.0 and signf(c) == low_side and absf(c) >= edge_cx - 1.0:
 				continue
 			_quad(line_tools[li], unused, at.call(c - hwl, i, 0.04), at.call(c + hwl, i, 0.04),
 				at.call(c + hwl, i + 1, 0.04), at.call(c - hwl, i + 1, 0.04), Vector3.UP)
@@ -3638,7 +3642,7 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 	var kerbs: Array[SurfaceTool] = [SurfaceTool.new(), SurfaceTool.new()]
 	for k in kerbs:
 		k.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var kerb_len := 1.6
+	var kerb_len := 1.3 if FlatStyle.on() else 1.6
 	var kerb_rows := int(length / kerb_len)
 	var any_kerb := [false, false]
 	for j in kerb_rows:
@@ -3656,13 +3660,8 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 		var outer: float = side * (hw - 0.05)
 		var inner: float = side * (hw - 0.8)
 		if FlatStyle.on():
-			# Düz dünya: iki kenarda, kenar çizgilerinin yerinde, yolun yattığı yöne (alçak kenara)
-			# bakan kırmızı oklar (>); her iki sırada bir
-			if j % 2 == 1:
-				continue
-			var zc := (z0 + z1) * 0.5
-			for ex in [-1.0, 1.0]:
-				_side_arrow(kerbs[0], unused, p, ex * edge_cx, zc, side)
+			# Düz dünya: alçak kenarda, kenar çizgisinin yerinde, o yöne bakan sık kırmızı oklar (<, >)
+			_side_arrow(kerbs[0], unused, p, side * edge_cx, (z0 + z1) * 0.5, side)
 			any_kerb[0] = true
 			continue
 		_quad(kerbs[c], unused, p.call(outer, z0), p.call(inner, z0), p.call(inner, z1), p.call(outer, z1), Vector3.UP)
