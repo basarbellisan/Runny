@@ -17,16 +17,10 @@ const ATMOS := {
 }
 const BLACK := "121214"
 const WHITE := "f7f6f2"
-## Koyu gökyüzü denemesi: tepede çok koyu, dağların arkasına doğru açılır ama yine koyu; dağlar
-## gökyüzünden koyu (siluet), dibi sise erir. Uçuş katmanı aynı (açık)
-const DARK_SKY := {
-	"sky_top": "1f1f1b", "horizon": "55544a", "ground": "4d4c43",
-	"mountains": ["47463d", "3b3a33", "302f29"], "decor": "3f3e36", "sun": "e8e6dc",
-}
-const DARKER_SKY := {
-	"sky_top": "121210", "horizon": "3c3b34", "ground": "35342e",
-	"mountains": ["33322c", "2a2925", "22211e"], "decor": "2e2d28", "sun": "dcdad0",
-}
+## Koyu gökyüzü denemesi: tepede çok koyu, dağların arkasına doğru açılır; koyuluk dağlarda biter.
+## Dağlar, sis, ufkun altı ve uçuş katmanı açık atmosferde kalır ("fog": ufkun altı ve sis rengi)
+const DARK_SKY := {"sky_top": "1f1f1b", "horizon": "6a695d", "fog": "bcbaa7"}
+const DARKER_SKY := {"sky_top": "121210", "horizon": "4a493f", "fog": "bcbaa7"}
 ## [ad, yol üstü, yan duvarlar (ön ve arka uçlar da), çizgi ve yol işaretleri, atmosfer farkı];
 ## alt yüz siyah
 const COMBOS := [
@@ -88,16 +82,17 @@ static func skies(default: Array) -> Array:
 	p.name = cfg().name
 	p.sky_top = _col("sky_top")
 	p.sky_horizon = _col("horizon")
-	p.ground_horizon = p.sky_horizon
+	# Sis ve ufkun altı: ayrıca verilmişse o (koyu gökyüzü dağlarda biter), yoksa ufuk rengi
+	p.fog = Color(cfg().get("fog", cfg().horizon))
+	p.ground_horizon = p.fog
 	p.ground_bottom = _col("ground")
-	p.fog = p.sky_horizon
 	# Araba eskisi gibi aydınlansın (nötr ışık; renkli ortam ışığı yok)
 	p.ambient = Color(0.72, 0.72, 0.75)
 	p.sun = Color(1, 0.97, 0.93)
 	p.road_top = _col("road")
 	p.road_side = _col("side")
 	p.decor = _col("decor")
-	p.cloud = Color(_col("horizon"), 0.25)
+	p.cloud = Color(p.fog, 0.25)
 	p.mountains = (cfg().mountains as Array).map(func(h): return Color(h))
 	p.sun_disc = _col("sun")
 	p.sparkle = _col("sun")
