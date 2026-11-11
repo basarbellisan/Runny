@@ -3871,9 +3871,6 @@ func _add_decor(seg: Segment) -> void:
 			seg.top + _rng.randf_range(-30.0, 10.0),
 			_rng.randf_range(seg.z_end, seg.z_start))
 		var col := (_pal(-pos.z).decor as Color).darkened(_rng.randf_range(0.0, 0.08))
-		if FlatStyle.on():
-			# Düz dünya denemesi: bloklar yok; yerlerine uzaktaki devler (GiantField) geçer
-			continue
 		var m := StandardMaterial3D.new()
 		m.albedo_color = col
 		m.roughness = 1.0
