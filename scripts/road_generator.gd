@@ -325,11 +325,12 @@ func _ready() -> void:
 	_runway_mat.shader = preload("res://shaders/runway_dots.gdshader")
 	_runway_halo_mat.shader = preload("res://shaders/runway_halo.gdshader")
 	# Düz dünya denemesi (FlatStyle): yol üstündeki işaretler çizgi renginde (yol sonundaki kırmızı
-	# ışıklar hariç), rampanın üstü yol renginde
-	for m: Material in [_ramp_line_mat, _chevron_mat, _ramp_arrow_mat, _kerb_red]:
+	# oklar ve yatık yolun kırmızı çizgileri hariç), rampanın üstü yol renginde
+	for m: Material in [_ramp_line_mat, _chevron_mat, _ramp_arrow_mat]:
 		m.set_meta("flat_role", "mark")
 	_ramp_top_mat.set_meta("flat_role", "asphalt")
 	_runway_mat.set_meta("flat_role", "runway")
+	_kerb_red.set_meta("flat_role", "kerb")
 	_block_mat.albedo_color = Palette.GRAPHITE
 	_block_mat.roughness = 0.9
 	_block_top_mat.albedo_color = Palette.ACCENT
@@ -1173,7 +1174,9 @@ func _add_segment(x: float, top: float, top_end: float, width: float, z_start: f
 		_add_box(body, Vector3(ln.cx, 0.015, 0), Vector3(ln.w, 0.02, slope_len - 0.6), line_mat)
 	# Düz dünya denemesinde ışık/gölge yok: küçük tümseklerin yokuşu da rampa gibi oklarla belli olsun
 	if rise > (0.3 if FlatStyle.on() else 1.0):
-		_add_chevrons(body, width, slope_len)
+		# Düz dünyada yokuşun beyaz okları yol sonundaki kırmızı zıplama oklarının bölgesine girmez
+		var keep_clear := _jump_zone(s, slope_len) + 3.0 if FlatStyle.on() and is_main and lights else 0.0
+		_add_chevrons(body, width, slope_len, keep_clear)
 	if is_main and lights:
 		_add_runway_lights(body, s, slope_len)
 
@@ -1253,6 +1256,12 @@ func _add_runway_lights(body: Node3D, s: Segment, slope_len: float) -> void:
 var _jump_mat: ShaderMaterial
 
 
+## Zıplama oklarının (pist ışıklarının) yolun ucundan geriye kapladığı boy (m)
+func _jump_zone(s: Segment, slope_len: float) -> float:
+	var v := estimate_speed(car.global_position.z - s.z_end)
+	return clampf(v * lights_time, 18.0, minf(70.0, slope_len * 0.6))
+
+
 func _add_jump_arrows(body: Node3D, s: Segment, slope_len: float) -> void:
 	if _jump_mat == null:
 		_jump_mat = ShaderMaterial.new()
@@ -1271,8 +1280,7 @@ func _add_jump_arrows(body: Node3D, s: Segment, slope_len: float) -> void:
 		var p1 := p0 + dir * arm
 		_quad(st, unused, p0, p1, p1 + notch, p0 + notch, Vector3.UP)
 	var chevron := st.commit()
-	var v := estimate_speed(car.global_position.z - s.z_end)
-	var zone := clampf(v * lights_time, 18.0, minf(70.0, slope_len * 0.6))
+	var zone := _jump_zone(s, slope_len)
 	# Yolun ucundan geriye: aralık uçta 4 m, bölgenin başında 8 m
 	var dists: Array[float] = []
 	var d := 2.5
@@ -3623,6 +3631,11 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 			return Vector3(d * cos(b), d * sin(b) + 0.05 + rise * (z_start - z) / length, z - cz)
 		var outer: float = side * (hw - 0.05)
 		var inner: float = side * (hw - 0.8)
+		if FlatStyle.on():
+			# Düz dünya: tek sıra ince kırmızı çizgiler, eğim yönüne (yolun enine) dönük, araları boşluklu
+			c = 0
+			z1 = z0 - 0.28
+			inner = side * (hw - 0.75)
 		_quad(kerbs[c], unused, p.call(outer, z0), p.call(inner, z0), p.call(inner, z1), p.call(outer, z1), Vector3.UP)
 		any_kerb[c] = true
 	for c in 2:
@@ -3696,7 +3709,7 @@ func _apply_ramp_style() -> void:
 	_ramp_arrow_mat.albedo_color = Color(cs[1])
 
 
-func _add_chevrons(body: Node3D, width: float, slope_len: float) -> void:
+func _add_chevrons(body: Node3D, width: float, slope_len: float, keep_clear := 0.0) -> void:
 	var arm := minf(width * 0.42, 2.8)
 	var half := deg_to_rad(52.0)
 	var count := clampi(int(slope_len / 8.0), 3, 8)
@@ -3708,6 +3721,9 @@ func _add_chevrons(body: Node3D, width: float, slope_len: float) -> void:
 	var notch := Vector3(0, 0, w / sin(half))
 	for i in count:
 		var apex_z := -slope_len * 0.5 + slope_len * (i + 0.6) / (count + 0.4)
+		# Yolun ucundan (-z) keep_clear metre: orası zıplama oklarının
+		if apex_z < -slope_len * 0.5 + keep_clear:
+			continue
 		var p0 := Vector3(0, 0.035, apex_z)
 		for sx in [-1.0, 1.0]:
 			var d := Vector3(sx * sin(half), 0, cos(half))

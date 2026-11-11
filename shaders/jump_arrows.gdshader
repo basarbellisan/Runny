@@ -5,11 +5,11 @@ render_mode unshaded, shadows_disabled;
 // (0 bölgenin başı, 1 yolun ucu).
 
 uniform vec4 color : source_color = vec4(1.0, 0.12, 0.06, 1.0);
-uniform vec4 lit_color : source_color = vec4(1.0, 0.36, 0.2, 1.0);
+uniform vec4 lit_color : source_color = vec4(1.0, 0.42, 0.32, 1.0);
 uniform float rate = 1.4;
 uniform float band = 0.3;
 // Sönük okun parlaklığı (rengin bu kadarı)
-uniform float dim = 0.8;
+uniform float dim = 0.5;
 // Oyunun kendi saati (RoadGenerator her karede yazar)
 uniform float t = 0.0;
 
@@ -22,6 +22,8 @@ float lit(float a) {
 
 void vertex() {
 	along = INSTANCE_CUSTOM.g;
+	// Yanan ok bir an büyür (patlar)
+	VERTEX.xz *= 1.0 + 0.22 * lit(along);
 }
 
 void fragment() {

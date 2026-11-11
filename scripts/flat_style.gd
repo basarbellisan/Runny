@@ -61,7 +61,7 @@ static var STYLES: Array = COMBOS.map(func(c: Array) -> Dictionary:
 ## uzakta yine sise erisin. [başlangıç, bitiş, eğri]
 const FOG_LOWER := Vector3(40.0, 330.0, 1.0)
 ## Engellerin doygunluğu bu kadar düşer (0 aynı, 1 gri)
-const OBSTACLE_DESAT := 0.2
+const OBSTACLE_DESAT := 0.0
 
 static var style: int = _read()
 
@@ -256,7 +256,7 @@ func _flat(c: Color) -> StandardMaterial3D:
 
 
 func _desat(c: Color) -> Color:
-	return Color.from_hsv(c.h, c.s * (1.0 - OBSTACLE_DESAT), c.v * 0.95)
+	return Color.from_hsv(c.h, c.s * (1.0 - OBSTACLE_DESAT), c.v)
 
 
 func _convert_new(m: Material) -> Variant:
@@ -279,6 +279,9 @@ func _convert_new(m: Material) -> Variant:
 			# Yol sonundaki kırmızı ışıklar: hale yok, sönükken de daha parlak kırmızı
 			(m as ShaderMaterial).set_shader_parameter("dim", 0.85)
 			return m
+		"kerb":
+			# Yatık yolun kenarındaki ince çizgiler: zıplama oklarıyla aynı canlı kırmızı, düz renk
+			return _flat(Color("ff2414"))
 		"unshade":
 			(m as StandardMaterial3D).shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			return m
