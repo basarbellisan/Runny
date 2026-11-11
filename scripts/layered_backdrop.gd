@@ -7,8 +7,8 @@ extends CanvasLayer
 ##
 ## Paralaks: her katmanın iki hedef yeri var (yol yüksekliği ve uçuş yüksekliği; ekran yüksekliğinin
 ## payı olarak, kameranın gerçek ufuk çizgisine göre). Arabanın yüksekliği ikisi arasında nerede ise
-## katman o oranda kayar. Uçuşta orta sıra ekranın üstünden taşar: geride onun rengi kalır, önünde
-## yalnız ön sıranın sırtı görünür. Yana: araba sağa sola gittikçe katmanlar derinliklerine göre kayar.
+## katman o oranda kayar. Aşağı inerken arkadaki sıralar (ve gökyüzü, gezegen) çok yükselmeden orta
+## sıranın rengine solar: uçuşta geride onun rengi kalır, önünde yalnız ön sıranın sırtı görünür. Yana: araba sağa sola gittikçe katmanlar derinliklerine göre kayar.
 
 ## Dağ yamaçlarının eğimi (derece; tepe sivri, yamaçlar eşit)
 const SLOPE_DEG := 48.0
@@ -16,8 +16,8 @@ const SLOPE_DEG := 48.0
 ##  yana kayma (piksel / metre), yolda yüksekliğe tepki (ekran payı / metre), tohum];
 ## tabanlar ufka göre (eksi: ufkun üstü)
 const RIDGES := [
-	[Vector2(0.12, 0.19), -0.15, -0.75, 0.15, 0.0006, 3],
-	[Vector2(0.15, 0.24), -0.08, -0.80, 0.3, 0.001, 7],
+	[Vector2(0.12, 0.19), -0.15, -0.25, 0.15, 0.0006, 3],
+	[Vector2(0.15, 0.24), -0.08, -0.16, 0.3, 0.001, 7],
 	[Vector2(0.20, 0.31), -0.01, -0.07, 0.55, 0.0015, 11],
 ]
 ## Büyük kayma yalnız yollardan aşağı düşünce: bu yükseklikten (yolların en altının biraz altı) uçuşa kadar
@@ -26,7 +26,7 @@ const DROP_FROM := -22.0
 const ROAD_RANGE := Vector2(-22.0, 15.0)
 ## Gezegen: yarıçap (ekran yüksekliğinin payı), yatay yer (ekran genişliğinin payı), yol ve uçuşta
 ## merkezin yeri (ufka göre), yana kayma
-const PLANET := {"r": 0.067, "x": 0.28, "y0": -0.27, "y1": -0.85, "slide": 0.08, "road": 0.0004}
+const PLANET := {"r": 0.067, "x": 0.28, "y0": -0.27, "y1": -0.37, "slide": 0.08, "road": 0.0004}
 ## Desenin yatay tekrar boyu (ekran genişliğinin katı)
 const PERIOD_K := 2.0
 
@@ -35,6 +35,8 @@ var _sky: ColorRect
 var _planet: Polygon2D
 ## Her sıra: [kopyalar (Polygon2D x3), desen boyu (px)]
 var _ridges: Array = []
+## Orta sıranın renginde perde (ön sıranın hemen arkasında): inerken belirir, arkadakileri örter
+var _fade: ColorRect
 var _size := Vector2.ZERO
 
 
@@ -50,6 +52,11 @@ func setup(p_car: Car, colors: Array) -> void:
 	_planet.antialiased = true
 	add_child(_planet)
 	for i in RIDGES.size():
+		if i == RIDGES.size() - 1:
+			_fade = ColorRect.new()
+			_fade.color = colors[3]
+			_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			add_child(_fade)
 		var copies: Array[Polygon2D] = []
 		for k in 3:
 			var p := Polygon2D.new()
@@ -64,6 +71,7 @@ func setup(p_car: Car, colors: Array) -> void:
 func _rebuild(size: Vector2) -> void:
 	_size = size
 	_sky.size = size
+	_fade.size = size
 	var r: float = PLANET.r * size.y
 	var pts := PackedVector2Array()
 	for k in 72:
@@ -133,6 +141,8 @@ func _process(_delta: float) -> void:
 	var cy := car.global_position.y
 	var e := smoothstep(DROP_FROM, car.flight_altitude, cy)
 	var ry := clampf(cy, ROAD_RANGE.x, ROAD_RANGE.y) * size.y
+	_fade.modulate.a = smoothstep(0.15, 0.85, e)
+	_fade.visible = _fade.modulate.a > 0.001
 	var cx := car.global_position.x
 	_planet.position = Vector2(PLANET.x * size.x - cx * PLANET.slide,
 		horizon + lerpf(PLANET.y0, PLANET.y1, e) * size.y + ry * PLANET.road)
