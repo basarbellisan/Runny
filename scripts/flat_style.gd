@@ -17,14 +17,14 @@ const ATMOS := {
 }
 const BLACK := "121214"
 const WHITE := "f7f6f2"
-## [ad, yol üstü, yan duvarlar, çizgi ve yol işaretleri]; alt yüz ve uçlar siyah
+## [ad, yol üstü, yan duvarlar (ön ve arka uçlar da), çizgi ve yol işaretleri]; alt yüz siyah
 const COMBOS := [
 	["şimdiki", "", "", ""],
 	["siyah yol, beyaz yan", BLACK, WHITE, WHITE],
 ]
 static var STYLES: Array = COMBOS.map(func(c: Array) -> Dictionary:
 	var d := ATMOS.duplicate()
-	d.merge({"name": c[0], "road": c[1], "side": c[2], "line": c[3], "under": BLACK, "ends": BLACK}, true)
+	d.merge({"name": c[0], "road": c[1], "side": c[2], "line": c[3], "under": BLACK, "ends": c[2]}, true)
 	return d)
 ## Engellerin doygunluğu bu kadar düşer (0 aynı, 1 gri)
 const OBSTACLE_DESAT := 0.4
