@@ -1256,23 +1256,6 @@ func _add_runway_lights(body: Node3D, s: Segment, slope_len: float) -> void:
 var _jump_mat: ShaderMaterial
 
 
-## Yatık yolun yön oku (>): yüzeyde, yanal konum x ve z'de, ucu dir yönüne (-1 sol, 1 sağ) bakar.
-## surf: (yanal konum, z) -> yüzeydeki yerel nokta
-func _side_arrow(st: SurfaceTool, unused: PackedVector3Array, surf: Callable, x: float, z: float, dir: float) -> void:
-	var half_a := deg_to_rad(50.0)
-	var arm := 0.6
-	var w := 0.16
-	var tip := Vector2(x + dir * arm * cos(half_a) * 0.5, z)
-	var notch := Vector2(-dir * w / sin(half_a), 0.0)
-	for sz in [-1.0, 1.0]:
-		var d := Vector2(-dir * cos(half_a), sz * sin(half_a))
-		var q := [tip, tip + d * arm, tip + d * arm + notch, tip + notch]
-		var pts: Array[Vector3] = []
-		for v: Vector2 in q:
-			pts.append(surf.call(v.x, v.y))
-		_quad(st, unused, pts[0], pts[1], pts[2], pts[3], Vector3.UP)
-
-
 ## Zıplama oklarının (pist ışıklarının) yolun ucundan geriye kapladığı boy (m)
 func _jump_zone(s: Segment, slope_len: float) -> float:
 	var v := estimate_speed(car.global_position.z - s.z_end)
@@ -3613,10 +3596,13 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 	var asphalt := SurfaceTool.new()
 	asphalt.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var layout := _line_layout(hw * 2.0)
-	# Düz dünya denemesi: yatık bölümde en dıştaki (kenar) çizgiler yerine kırmızı yön okları
+	# Düz dünya denemesi: yatık bölümde alçak kenarın çizgileri yerine kesintisiz kırmızı çizgi
 	var edge_cx := 0.0
+	var edge_w := 0.12
 	for ln in layout:
-		edge_cx = maxf(edge_cx, absf(float(ln.cx)))
+		if absf(float(ln.cx)) > edge_cx:
+			edge_cx = absf(float(ln.cx))
+			edge_w = float(ln.w)
 	var line_tools: Array[SurfaceTool] = []
 	for ln in layout:
 		var st := SurfaceTool.new()
@@ -3625,7 +3611,7 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 	for i in rows:
 		_quad(asphalt, unused, at.call(-hw + 0.15, i, 0.02), at.call(hw - 0.15, i, 0.02),
 			at.call(hw - 0.15, i + 1, 0.02), at.call(-hw + 0.15, i + 1, 0.02), Vector3.UP)
-		# Yatık bölümde alçak kenarın çizgileri (kenar çizgi grubu) yerine kırmızı oklar gelir; yüksek kenar aynı
+		# Yatık bölümde alçak kenarın çizgileri (kenar çizgi grubu) yerine kırmızı çizgi gelir; yüksek kenar aynı
 		var row_bank := s.bank_at(z_start - length * (i + 0.5) / rows)
 		var low_side := 0.0
 		if FlatStyle.on() and absf(row_bank) >= deg_to_rad(1.5):
@@ -3642,7 +3628,7 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 	var kerbs: Array[SurfaceTool] = [SurfaceTool.new(), SurfaceTool.new()]
 	for k in kerbs:
 		k.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var kerb_len := 1.3 if FlatStyle.on() else 1.6
+	var kerb_len := 1.6
 	var kerb_rows := int(length / kerb_len)
 	var any_kerb := [false, false]
 	for j in kerb_rows:
@@ -3660,8 +3646,10 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 		var outer: float = side * (hw - 0.05)
 		var inner: float = side * (hw - 0.8)
 		if FlatStyle.on():
-			# Düz dünya: alçak kenarda, kenar çizgisinin yerinde, o yöne bakan sık kırmızı oklar (<, >)
-			_side_arrow(kerbs[0], unused, p, side * edge_cx, (z0 + z1) * 0.5, side)
+			# Düz dünya: alçak kenarda, kenar çizgisinin yerinde kesintisiz ince kırmızı çizgi
+			var lx: float = side * edge_cx
+			var lw := edge_w * 0.5
+			_quad(kerbs[0], unused, p.call(lx - lw, z0), p.call(lx + lw, z0), p.call(lx + lw, z1), p.call(lx - lw, z1), Vector3.UP)
 			any_kerb[0] = true
 			continue
 		_quad(kerbs[c], unused, p.call(outer, z0), p.call(inner, z0), p.call(inner, z1), p.call(outer, z1), Vector3.UP)
