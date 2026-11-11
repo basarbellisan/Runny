@@ -23,10 +23,12 @@ const DARK_SKY := {"sky_top": "1f1f1b", "horizon": "6a695d", "fog": "bcbaa7"}
 const DARKER_SKY := {"sky_top": "121210", "horizon": "4a493f", "fog": "bcbaa7"}
 ## Dağ katmanları denemesi: gökyüzünün altında üç sıra degradesiz dağ, arkadan öne birer ton açılır;
 ## en öndeki sıranın rengi aşağı kadar (ufkun altı, sis) ve uçuş katmanında da devam eder
+## Gökyüzü de degradesiz: tek renk (ufuk rengi; en arka dağların bir ton koyusu)
 static func _layered(sky: Dictionary, far: String, mid: String, near: String) -> Dictionary:
 	var d := sky.duplicate()
-	d.merge({"mountains": [far, mid, near], "flat_mountains": true, "fog": near, "ground": near,
-		"lower_top": near, "lower_horizon": near, "lower_ground": near}, true)
+	var horizon: String = sky.get("horizon", ATMOS.horizon)
+	d.merge({"sky_top": horizon, "horizon": horizon, "mountains": [far, mid, near], "flat_mountains": true,
+		"fog": near, "ground": near, "lower_top": near, "lower_horizon": near, "lower_ground": near}, true)
 	return d
 static var LAYERED_LIGHT: Dictionary = _layered({}, "cac8b6", "d8d6c5", "e5e3d4")
 static var LAYERED_DARK: Dictionary = _layered(DARK_SKY, "807f71", "979686", "adac9b")
