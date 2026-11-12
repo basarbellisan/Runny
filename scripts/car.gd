@@ -1534,20 +1534,23 @@ func _sense_wheels() -> void:
 ## yönüne itilir; tekerler farklı yönlere itilince gövde sağa sola savrulur
 const AIR_LIFT := 75.0     # tekerin altındaki tam güçlü havanın o köşeye yukarı ivmesi (m/sn²)
 const AIR_MAX_VY := 7.5    # en çok yükselme hızı (m/sn)
-const AIR_PITCH := 18.0    # ön-arka farkının burun kaldırma ivmesi (rad/sn²)
-const AIR_ROLL := 22.0    # sol-sağ farkının yatırma ivmesi (rad/sn²)
-const AIR_PUSH := 22.0     # yana itme ivmesi (m/sn²)
-const AIR_JOLT := 30.0     # gövdeyi savuran yan sarsıntı (tekerlerin yön farkı ve hücre geçişleri)
+const AIR_PITCH := 15.0    # ön-arka farkının burun kaldırma ivmesi (rad/sn²)
+const AIR_ROLL := 20.0    # sol-sağ farkının yatırma ivmesi (rad/sn²)
+const AIR_PUSH := 20.0     # yana itme ivmesi (m/sn²)
+const AIR_JOLT := 27.5     # gövdeyi savuran yan sarsıntı (tekerlerin yön farkı ve hücre geçişleri)
 const AIR_GRIP := 0.25     # yerdeyken hava üstünde tutuş
 const AIR_TILT_MAX := 0.6  # havanın yatırabileceği en çok açı (rad, ~35°): devirmez
-## Hava alanının üstündeki teker sayısı (0-4)
+## Hava alanının üstündeki teker sayısı (0-4) ve her tekerin altındaki havanın gücü
 var air_wheels := 0
+var _air_wheel_lift: Array[float] = [0.0, 0.0, 0.0, 0.0]
 ## Hava alanından çıktıktan sonra bu kadar süre (sn) gövde yatıklığı güvenli açıda tutulur
 var _air_settle := 0.0
 
 
 func _air_lift(delta: float) -> void:
 	air_wheels = 0
+	for i in 4:
+		_air_wheel_lift[i] = 0.0
 	if roads == null or model == null:
 		return
 	var lift: Array[float] = [0.0, 0.0, 0.0, 0.0]
@@ -1559,6 +1562,7 @@ func _air_lift(delta: float) -> void:
 		if a.x <= 0.0:
 			continue
 		lift[i] = a.x
+		_air_wheel_lift[i] = a.x
 		side += a.y * a.x
 		spread += a.y
 		air_wheels += 1
@@ -1583,7 +1587,7 @@ func _air_lift(delta: float) -> void:
 		roll_rate *= exp(-12.0 * delta)
 	if absf(pitch) > AIR_TILT_MAX * 0.75 and signf(pitch_rate) == signf(pitch):
 		pitch_rate *= exp(-12.0 * delta)
-	_air_settle = 0.8
+	_air_settle = 0.5
 	velocity.x += side * 0.25 * AIR_PUSH * gain * delta
 	# Savrulma: tekerlerin altındaki okların yönü ve güç farkı gövdeyi yana sarsar (kuyruk sallanır)
 	_gravel_push_target = (side * 0.5 + (spread - side) * 0.35) * AIR_JOLT * 0.25 * gain
@@ -1780,6 +1784,11 @@ func _update_attitude(delta: float) -> void:
 		var lean := atan2(-n.x, n.y) - velocity.x / steer_speed * 0.08 + _side_tilt
 		var k := suspension_stiffness
 		var c := suspension_damping
+		# Hava akımı bir köşeyi kaldırırken yay gövdeyi düz tutmaya çalışmasın: bütün gövde yerdeki
+		# tekerlerin üstünde döner (kalkan köşe havada, karşı köşe yerde); çıkınca yay geri oturtur
+		if _air_settle > 0.0:
+			k *= 0.12
+			c *= 0.4
 		# Bir yanın iki tekeri de boştaysa yay tutmaz: araba kenardan devrilir
 		var roll_acc := -_tip * tip_roll_accel
 		if absf(_tip) < 1.0:
@@ -1985,7 +1994,7 @@ func _update_wheels(delta: float) -> void:
 		var wh: Dictionary = model.wheels[i]
 		var r: float = wh.radius
 		var target := r - suspension_travel
-		if grounded and wheel_contact[i]:
+		if grounded and wheel_contact[i] and _air_wheel_lift[i] <= 0.0:
 			# Gövde yatınca/burun kalkınca teker yerde kalır: yay uzar ya da kısalır
 			var c: Vector3 = wh.contact
 			var lift := c.x * sin(roll) - c.z * sin(pitch)
