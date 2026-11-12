@@ -3907,12 +3907,16 @@ func _add_decor(seg: Segment) -> void:
 			_rng.randf_range(seg.z_end, seg.z_start))
 		var col := (_pal(-pos.z).decor as Color).darkened(_rng.randf_range(0.0, 0.08))
 		if FlatStyle.on():
-			# Bloğun yerinde ve boyunda dev: dünyada sabit (bloklar gibi), hafif yola dönük. Gövdesi
-			# bloğun dibinden (orijin uzatılmış bacakların ucunda) aşağı uzar ve erir
+			# Bloğun yerinde dev: dünyada sabit (bloklar gibi), hafif yola dönük; bloktan 1.3 kat büyük.
+			# Yüksekte durur: yolun üstünde boyunun %45-85'i görünür (büyüklüğü anlaşılsın; bloğun
+			# rastgele yüksekliği bu payı seçer, yol üretimi değişmez). Gövdesi aşağı uzar ve erir
 			var g := _make_giant(col)
-			var k := size.y / GIANT_HEIGHT
+			var gh := size.y * 1.3
+			var k := gh / GIANT_HEIGHT
 			g.scale = Vector3.ONE * k
-			g.position = pos - Vector3(0, size.y * 0.5 + GIANT_LEG * k, 0)
+			var above := lerpf(0.45, 0.85, inverse_lerp(-30.0, 10.0, pos.y - seg.top))
+			var head := seg.top + gh * above
+			g.position = Vector3(pos.x, head - gh - GIANT_LEG * k, pos.z)
 			g.rotation.y = -side * deg_to_rad(14.0)
 			add_child(g)
 			_decor.append(g)
