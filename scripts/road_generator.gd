@@ -3532,15 +3532,32 @@ func _remember(s: Segment) -> void:
 		history.append(s)
 
 
-## Bu noktadaki çakılın yanal ortası (dünya x); çakıl yoksa NAN
-func gravel_center_x(pos: Vector3) -> float:
+## Düz dünya denemesi, hava akımı: bu noktada yukarı esen havanın gücü (x, 0..1.4) ve okun yana
+## yönü (y, -1 sol / 1 sağ); hava yoksa ZERO. Her ok hücresinden farklı güçte hava çıkar (hücreye
+## özgü sabit pay) ve görseldeki nabızla (ortadan iki yana açılan dalga) birlikte kabarır
+func air_at(pos: Vector3) -> Vector2:
 	var s := segment_under(pos)
 	if s == null:
-		return NAN
+		return Vector2.ZERO
 	for o in s.obstacles:
-		if o.gravel and pos.z <= o.z0 and pos.z >= o.z1 and pos.x >= o.x0 and pos.x <= o.x1:
-			return (float(o.x0) + float(o.x1)) * 0.5
-	return NAN
+		if not (o.gravel and pos.z <= o.z0 and pos.z >= o.z1 and pos.x >= o.x0 and pos.x <= o.x1):
+			continue
+		var w: float = o.x1 - o.x0
+		var depth: float = o.z0 - o.z1
+		var na := maxi(2, int((w - 0.3) / ARROW_CELL.x / 2.0) * 2)
+		var nr := maxi(1, int((depth - 0.3) / ARROW_CELL.y))
+		var pw := na * ARROW_CELL.x
+		var ph := nr * ARROW_CELL.y
+		var lx := pos.x - (float(o.x0) + float(o.x1)) * 0.5
+		var ly := (float(o.z0) + float(o.z1)) * 0.5 - pos.z
+		var col := clampi(int(floor((lx + pw * 0.5) / ARROW_CELL.x)), 0, na - 1)
+		var row := clampi(int(floor((ly + ph * 0.5) / ARROW_CELL.y)), 0, nr - 1)
+		var dist := absf(col + 0.5 - na * 0.5)
+		var wave := pow(0.5 + 0.5 * sin(_light_time * 3.2 - dist * 1.15), 2.0)
+		var cell := fposmod(sin(float(col) * 12.9898 + float(row) * 78.233 + float(o.z0) * 0.37) * 43758.5453, 1.0)
+		var strength := (0.3 + 0.7 * wave) * (0.4 + 1.0 * cell)
+		return Vector2(strength, -1.0 if col + 0.5 < na * 0.5 else 1.0)
+	return Vector2.ZERO
 
 
 ## Bu noktada çakıl var mı

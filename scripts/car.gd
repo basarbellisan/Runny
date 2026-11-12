@@ -1120,7 +1120,7 @@ func _drive(delta: float) -> void:
 			# Çakıldan çıkınca da bir süre sendeler
 			_stumble = maxf(_stumble if _stumble_time > 0.0 else 0.0, 0.45)
 			_stumble_time = maxf(_stumble_time, gravel_after * _k_after)
-		if not on_gravel or air_flow:
+		if not on_gravel:
 			_gravel_push_target = 0.0
 		_gravel_push = lerpf(_gravel_push, _gravel_push_target, 1.0 - exp(-8.0 * delta))
 		velocity.x += _gravel_push * delta
@@ -1528,17 +1528,17 @@ func _sense_wheels() -> void:
 
 ## Yoldan önden mi (yolun sonu) yoksa yandan mı çıktık
 ## Çakıl etkisinin hıza göre katı (başlangıç hızında 1)
-## --- Hava akımı (düz dünya denemesi; eski çakılın yerinde): alttan esen hava, üstündeki her
-## tekeri ayrı ayrı yukarı iter. Hangi teker önce girdiyse o yan havalanır (önce ön tekerler: burun
-## kalkar; yandan yarım girişte o yan: araba yatar), dördü de içindeyse araba yerden kesilir; alanın
-## ortasına göre oklarının yönüne (sol yarıda sola, sağ yarıda sağa) itilir
-const AIR_LIFT := 40.0     # dört teker içindeyken yukarı ivme (m/sn²; yerçekimi 28)
-const AIR_MAX_VY := 4.5    # en çok yükselme hızı (m/sn)
-const AIR_PITCH := 7.0     # ön-arka teker farkının burun kaldırma ivmesi (rad/sn²)
-const AIR_ROLL := 7.0      # sol-sağ teker farkının yatırma ivmesi (rad/sn²)
-const AIR_PUSH := 14.0     # yana itme ivmesi (m/sn², dört teker içindeyken)
-const AIR_GRIP := 0.2      # yerdeyken hava üstünde tutuş
-var _air_side := 0.0
+## --- Hava akımı (düz dünya denemesi; eski çakılın yerinde): her ok hücresinden ayrı güçte hava
+## çıkar (RoadGenerator.air_at) ve yalnız üstündeki tekeri iter: hangi teker maruz kalıyorsa o kalkar
+## (ön tekerler: burun, bir yan: yatma), güçler farklı olduğu için asimetrik. Tekerin altındaki okun
+## yönüne itilir; tekerler farklı yönlere itilince gövde sağa sola savrulur
+const AIR_LIFT := 36.0     # tekerin altındaki tam güçlü havanın o köşeye yukarı ivmesi (m/sn²)
+const AIR_MAX_VY := 4.0    # en çok yükselme hızı (m/sn)
+const AIR_PITCH := 12.0    # ön-arka farkının burun kaldırma ivmesi (rad/sn²)
+const AIR_ROLL := 16.0    # sol-sağ farkının yatırma ivmesi (rad/sn²)
+const AIR_PUSH := 16.0     # yana itme ivmesi (m/sn²)
+const AIR_JOLT := 22.0     # gövdeyi savuran yan sarsıntı (tekerlerin yön farkı ve hücre geçişleri)
+const AIR_GRIP := 0.25     # yerdeyken hava üstünde tutuş
 ## Hava alanının üstündeki teker sayısı (0-4)
 var air_wheels := 0
 
@@ -1547,32 +1547,32 @@ func _air_lift(delta: float) -> void:
 	air_wheels = 0
 	if roads == null or model == null:
 		return
-	var inside: Array[bool] = [false, false, false, false]
+	var lift: Array[float] = [0.0, 0.0, 0.0, 0.0]
+	var side := 0.0
+	var spread := 0.0
 	for i in mini(model.wheels.size(), 4):
 		var p: Vector3 = global_position + global_transform.basis * (model.wheels[i].contact as Vector3)
-		inside[i] = roads.gravel_at(p)
-		air_wheels += int(inside[i])
+		var a := roads.air_at(p)
+		if a.x <= 0.0:
+			continue
+		lift[i] = a.x
+		side += a.y * a.x
+		spread += a.y
+		air_wheels += 1
 	on_gravel = air_wheels > 0
 	if air_wheels == 0:
-		_air_side = 0.0
+		_gravel_push_target = 0.0
 		return
-	if _air_side == 0.0:
-		var cx := roads.gravel_center_x(global_position + global_transform.basis * (model.wheels[0].contact as Vector3))
-		if is_nan(cx):
-			cx = roads.gravel_center_x(global_position)
-		_air_side = 1.0 if is_nan(cx) or global_position.x >= cx else -1.0
-	var k := float(air_wheels) / 4.0
 	var gain := _gravel_gain()
 	# Teker sırası: 0 ön sol, 1 ön sağ, 2 arka sol, 3 arka sağ
-	var front := int(inside[0]) + int(inside[1])
-	var rear := int(inside[2]) + int(inside[3])
-	var left := int(inside[0]) + int(inside[2])
-	var right := int(inside[1]) + int(inside[3])
+	var total := lift[0] + lift[1] + lift[2] + lift[3]
 	if velocity.y < AIR_MAX_VY:
-		velocity.y = minf(velocity.y + AIR_LIFT * k * delta, AIR_MAX_VY)
-	pitch_rate += AIR_PITCH * (front - rear) * 0.5 * delta
-	roll_rate += AIR_ROLL * (right - left) * 0.5 * delta
-	velocity.x += _air_side * AIR_PUSH * k * gain * delta
+		velocity.y = minf(velocity.y + AIR_LIFT * total * 0.25 * delta, AIR_MAX_VY)
+	pitch_rate += AIR_PITCH * ((lift[0] + lift[1]) - (lift[2] + lift[3])) * 0.5 * delta
+	roll_rate += AIR_ROLL * ((lift[1] + lift[3]) - (lift[0] + lift[2])) * 0.5 * delta
+	velocity.x += side * 0.25 * AIR_PUSH * gain * delta
+	# Savrulma: tekerlerin altındaki okların yönü ve güç farkı gövdeyi yana sarsar (kuyruk sallanır)
+	_gravel_push_target = (side * 0.5 + (spread - side) * 0.35) * AIR_JOLT * 0.25 * gain
 
 
 func _gravel_gain() -> float:
