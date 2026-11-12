@@ -60,6 +60,8 @@ static var STYLES: Array = COMBOS.map(func(c: Array) -> Dictionary:
 ## Alt katmanın derinlik sisi (game.gd FOG_LOWER yerine): yakın yol parçaları net siyah-beyaz okunsun,
 ## uzakta yine sise erisin. [başlangıç, bitiş, eğri]
 const FOG_LOWER := Vector3(40.0, 330.0, 1.0)
+## Yol çizgilerinin kesikleri bu kadar uzun (çizgi ve boşluk birlikte; tasarım aynı)
+const LINE_STRETCH := 1.8
 ## Engellerin doygunluğu bu kadar düşer (0 aynı, 1 gri)
 const OBSTACLE_DESAT := 0.0
 
@@ -293,8 +295,10 @@ func _convert_new(m: Material) -> Variant:
 				return _flat(_desat(sm.get_shader_parameter("c_main")))
 			"gravel_zigzag.gdshader", "gravel_holes.gdshader":
 				var c := _desat(sm.get_shader_parameter("light"))
-				for k in ["light", "core", "lit_color"]:
+				for k in ["light", "core"]:
 					sm.set_shader_parameter(k, c)
+				# Nabız (yanan oklar) görünsün: yanınca açık mavi
+				sm.set_shader_parameter("lit_color", c.lerp(Color.WHITE, 0.45))
 				return sm
 		return m
 	if _is_glow(m):

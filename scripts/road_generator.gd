@@ -2158,6 +2158,9 @@ const ZIG_ROW := 0.75      # sıra aralığı (m)
 @export var zig_nest := true
 const ZIG_NEST_K := 0.9
 const ZIG_RADIUS := 0.085 # yarığın yarı genişliği (m)
+## Düz dünya denemesi, ok düzeni: hücre (genişlik, sıra aralığı) ve okun yarı boyu (m)
+const ARROW_CELL := Vector2(0.75, 0.85)
+const ARROW_HALF_H := 0.3
 const ZIG_T := Vector2(0.2, 0.8)  # yarık kolun bu bölümünde (köşelerde boşluk)
 ## Çaprazlama: tek sıralar bu kadar kol yana kayık (0 hizalı, 0.5 tuğla, 1 ters yönde)
 @export var zig_shift := 0.0
@@ -2177,14 +2180,23 @@ func _gravel_zigzag(body: Node3D, center: Vector3, w: float, depth: float) -> vo
 		_gravel_wave_mats.append(_curtain_mat)
 	if _unit_quad == null:
 		_unit_quad = QuadMesh.new()
+	# Düz dünya denemesi: oklar (sol yarı sola, sağ yarı sağa); sütun sayısı çift
+	var arrows := FlatStyle.on()
 	var na := maxi(2, int((w - 0.3) / ZIG_ARM))
 	var row := ZIG_AMP * 2.0 * ZIG_NEST_K if zig_nest else ZIG_ROW
+	if arrows:
+		na = maxi(2, int((w - 0.3) / ARROW_CELL.x / 2.0) * 2)
+		row = ARROW_CELL.y
 	var nr := maxi(1, int((depth - 0.3) / row))
 	var sh := zig_shift
 	if sh > 0.0:
 		na = maxi(2, int((w - 0.3) / ZIG_ARM - sh))
 	var pw := (na + sh) * ZIG_ARM
 	var ph := nr * row
+	if arrows:
+		nr = maxi(1, int((depth - 0.3) / row))
+		pw = na * ARROW_CELL.x
+		ph = nr * row
 	var mat := _zig_mat.duplicate() as ShaderMaterial
 	mat.set_shader_parameter("shift", sh)
 	mat.set_shader_parameter("arm", ZIG_ARM)
@@ -2198,6 +2210,12 @@ func _gravel_zigzag(body: Node3D, center: Vector3, w: float, depth: float) -> vo
 	var slot_len := (ZIG_T.y - ZIG_T.x) * Vector2(ZIG_ARM, ZIG_AMP * 2.0).length()
 	var slot_area := slot_len * ZIG_RADIUS * 2.0 + PI * ZIG_RADIUS * ZIG_RADIUS
 	mat.set_shader_parameter("coverage", clampf(slot_area / (ZIG_ARM * row), 0.05, 0.8))
+	if arrows:
+		mat.set_shader_parameter("arrows", true)
+		mat.set_shader_parameter("shift", 0.0)
+		mat.set_shader_parameter("arm", ARROW_CELL.x)
+		mat.set_shader_parameter("amp", ARROW_HALF_H)
+		mat.set_shader_parameter("t0", 0.1)
 	_gravel_wave_mats.append(mat)
 	var ground := MeshInstance3D.new()
 	ground.mesh = _unit_quad
@@ -3835,12 +3853,15 @@ func _line_layout(width: float) -> Array:
 	var st := line_style
 	if st < 0:
 		st = 1 if width >= LINE_WIDE else (2 if width >= LINE_NARROW else 3)
+	# Düz dünya denemesi: kesikler oranlı uzun (çizgi ve boşluk aynı oranda; tasarım aynı)
+	var pk := FlatStyle.LINE_STRETCH if FlatStyle.on() else 1.0
 	for ln in LINE_STYLES[clampi(st, 0, LINE_STYLES.size() - 1)].lines:
+		var per: float = float(ln.p) * pk
 		if str(ln.x) == "c":
-			out.append({"cx": 0.0, "w": ln.w, "p": ln.p, "d": ln.d, "o": ln.get("o", 0.0)})
+			out.append({"cx": 0.0, "w": ln.w, "p": per, "d": ln.d, "o": ln.get("o", 0.0)})
 		else:
 			for sx in [-1.0, 1.0]:
-				out.append({"cx": sx * (width * 0.5 - float(ln.x)), "w": ln.w, "p": ln.p, "d": ln.d, "o": ln.get("o", 0.0)})
+				out.append({"cx": sx * (width * 0.5 - float(ln.x)), "w": ln.w, "p": per, "d": ln.d, "o": ln.get("o", 0.0)})
 	return out
 
 

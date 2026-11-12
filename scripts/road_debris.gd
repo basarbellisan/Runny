@@ -313,7 +313,7 @@ static func _lines(mesh: ArrayMesh, poly: PackedVector2Array, W: float, hl: floa
 	for ln: Dictionary in RoadGenerator.LINE_STYLES[style].lines:
 		var xs: Array = [0.0] if str(ln.x) == "c" else [-(W * 0.5 - float(ln.x)), W * 0.5 - float(ln.x)]
 		var w: float = ln.w
-		var p: float = ln.p
+		var p: float = float(ln.p) * (FlatStyle.LINE_STRETCH if FlatStyle.on() else 1.0)
 		var dd: float = ln.d
 		var o: float = ln.get("o", 0.0)
 		for cx: float in xs:

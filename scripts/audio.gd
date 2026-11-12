@@ -62,9 +62,9 @@ var _land_key := "land_latte"
 const ENGINES := {
 	2: preload("res://audio/loop_engine_gezgin.ogg"),
 	8: preload("res://audio/loop_engine_latte.ogg"),
-	10: preload("res://audio/loop_engine_gem.ogg"),
+	10: preload("res://audio/loop_engine_dark_rose.ogg"),
 	6: preload("res://audio/loop_engine_dragster.ogg"),
-	7: preload("res://audio/loop_engine_dark_rose.ogg"),
+	7: preload("res://audio/loop_engine_gem.ogg"),
 	9: preload("res://audio/loop_engine_falcon.ogg"),
 }
 ## Test (--audtrace): motor devri / seviyesi ve iniş anları günlüğü (ses tasarımı denemeleri için)
