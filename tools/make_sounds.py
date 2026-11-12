@@ -758,21 +758,11 @@ def music_lower():
 # --------------------------------------------------------------------------
 
 def loop_plane():
-    """Pervaneli küçük uçak: yumuşak harmonik uğultu + pervane vuruşu.
+    """Uçuş sesi: synth pad (kök ve beşli, hafif akortsuz testereler, 1100 Hz alçak geçiren);
+    havada süzülme, dijital ve yormayan. tools/plane_designs.py p3_pad (diğer adaylar orada saklı).
     2 sn'de tam sayıda periyot: döngü kesintisiz, perde pitch_scale ile değişir."""
-    d = 2.0
-    n = n_of(d)
-    t = np.arange(n) / SR
-    f0 = 75.0
-    # Üst harmonikler ağır basar: telefon hoparlöründe de duyulsun
-    drone = sum(a * np.sin(2 * np.pi * f0 * k * t + k) for k, a in
-                [(1, 0.3), (2, 0.5), (3, 0.5), (4, 0.35), (5, 0.25), (6, 0.2), (8, 0.12)])
-    # Pervane kanatlarının havayı dövmesi: 40 Hz'lik "pırr"
-    chop = filt(rng.uniform(-1, 1, n), lo=180, hi=1300, circular=True)
-    chop *= 0.45 + 0.55 * np.abs(np.sin(np.pi * 40.0 * t)) ** 3
-    s = normalize(drone, 1.0) * 0.8 + normalize(chop, 1.0) * 0.4
-    s = filt(s, lo=40, hi=1800, circular=True)
-    return normalize(s, 0.8)
+    import plane_designs as pd
+    return pd.p3_pad()
 
 
 def loop_climb():

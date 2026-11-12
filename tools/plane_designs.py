@@ -1,5 +1,5 @@
-"""Uçuş modundaki uçak sesi (loop_plane) için dijital, yormayan tasarım denemeleri (oyuna girmez;
-dinleyip seçmek için). Her biri 2 sn dikişsiz döngü (frekanslar 0.5 Hz'in katı); oyunda perde
+"""Uçuş modundaki uçak sesi (loop_plane) için dijital, yormayan tasarım denemeleri. Seçilen: p3_pad
+(tools/make_sounds.py loop_plane bunu kullanır); diğerleri ileride başka sesler için saklı. Her biri 2 sn dikişsiz döngü (frekanslar 0.5 Hz'in katı); oyunda perde
 pitch_scale ile 0.9..1.35 arası değişir.
 Kullanım: python3 tools/plane_designs.py ÇIKIŞ_KLASÖRÜ"""
 import sys
