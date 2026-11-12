@@ -811,11 +811,11 @@ def sfx_boost():
 
 
 def loop_airwave():
-    """Hava akımı (düz dünyada eski çakılın yerinde): tools/airwave_designs.py a1 uğultulu esinti
+    """Hava akımı (düz dünyada eski çakılın yerinde): tools/airwave_designs.py a2 dijital akım
     (diğer adaylar orada saklı)."""
     import airwave_designs as ad
-    ad.ms.rng = np.random.default_rng(sum(map(ord, "a1_ugultulu_esinti")))
-    return ad.a1_ugultulu_esinti()
+    ad.ms.rng = np.random.default_rng(sum(map(ord, "a2_dijital_akim")))
+    return ad.a2_dijital_akim()
 
 
 def loop_gravel():

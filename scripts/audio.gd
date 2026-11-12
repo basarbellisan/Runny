@@ -190,7 +190,7 @@ func update(delta: float, car: Car, mood: float, playing: bool) -> void:
 	_wind.pitch_scale = 0.85 + 0.35 * speed01 + 0.15 * _climb_amount
 	_update_plane(delta, car, speed01, playing)
 	_update_tire(delta, car, speed01, grounded and playing)
-	_gravel_level = move_toward(_gravel_level, (0.6 + 0.4 * speed01) if car.on_gravel and grounded and playing else 0.0, delta * 10.0)
+	_gravel_level = move_toward(_gravel_level, (0.6 + 0.4 * speed01) if car.on_gravel and (grounded or car.air_wheels > 0) and playing else 0.0, delta * 10.0)
 	_loop_volume(_gravel, gravel_volume_db, _gravel_level)
 	_gravel.pitch_scale = 0.85 + 0.3 * speed01
 
