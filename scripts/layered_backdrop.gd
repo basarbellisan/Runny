@@ -49,6 +49,9 @@ var _ridges: Array = []
 ## Orta sıranın renginde perde (ön sıranın hemen arkasında): inerken belirir, arkadakileri örter
 var _fade: ColorRect
 var _size := Vector2.ZERO
+## Devler (GiantLayer): kendi kameralarıyla çizilir, ön sıranın önünde gösterilir
+var _giants: GiantLayer
+var _giants_rect: TextureRect
 ## Yumuşatılmış ufuk ve yol yüksekliği: zıplama, iniş sarsıntısı ve kamera oynamaları dağları oynatmasın
 var _horizon := NAN
 var _road_y := NAN
@@ -84,6 +87,18 @@ func setup(p_car: Car, colors: Array, p_shape := "tri") -> void:
 			add_child(p)
 			copies.append(p)
 		_ridges.append([copies, 0.0])
+
+
+## Devleri ekle (kendi dünyaları ve kameraları; oyun kamerasından bağımsız)
+func add_giants(color: Color, sun: DirectionalLight3D, env: Environment, seed_value := -1) -> void:
+	_giants = GiantLayer.new()
+	add_child(_giants)
+	_giants.setup(color, sun, env, seed_value)
+	_giants_rect = TextureRect.new()
+	_giants_rect.texture = _giants.get_texture()
+	_giants_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_giants_rect.stretch_mode = TextureRect.STRETCH_SCALE
+	add_child(_giants_rect)
 
 
 ## Ekran boyu değişince dağ sırtları ve gezegen yeniden kurulur (boyutlar ekran yüksekliğine göre)
@@ -203,6 +218,13 @@ func _process(_delta: float) -> void:
 	var ry := _road_y * size.y
 	_fade.modulate.a = 1.0 - (1.0 - t) * (1.0 - t)
 	_fade.visible = _fade.modulate.a > 0.001
+	if _giants:
+		# Devlerin görüntüsünün ufku (ortası) arka planın yumuşatılmış ufkunda; hızla açılmayan görüş açısı
+		var bf: float = cam.get("base_fov") if cam.get("base_fov") else cam.fov
+		_giants.sync(Vector2i(size), bf if bf > 1.0 else cam.fov)
+		_giants_rect.size = size
+		_giants_rect.position = Vector2(0.0, horizon - size.y * 0.5)
+		_giants_rect.modulate.a = 1.0 - _fade.modulate.a
 	var cx := car.global_position.x
 	_planet.position = Vector2(PLANET.x * size.x - cx * PLANET.slide,
 		horizon + lerpf(PLANET.y0, PLANET.y1, e) * size.y + ry * PLANET.road)
