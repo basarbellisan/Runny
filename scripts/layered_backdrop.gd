@@ -93,7 +93,7 @@ func setup(p_car: Car, colors: Array, p_shape := "tri") -> void:
 func add_giants(color: Color, sun: DirectionalLight3D, env: Environment, seed_value := -1) -> void:
 	_giants = GiantLayer.new()
 	add_child(_giants)
-	_giants.setup(color, sun, env, seed_value)
+	_giants.setup(car, color, sun, env, seed_value)
 	_giants_rect = TextureRect.new()
 	_giants_rect.texture = _giants.get_texture()
 	_giants_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -223,7 +223,7 @@ func _process(_delta: float) -> void:
 		var bf: float = cam.get("base_fov") if cam.get("base_fov") else cam.fov
 		_giants.sync(Vector2i(size), bf if bf > 1.0 else cam.fov)
 		_giants_rect.size = size
-		_giants_rect.position = Vector2(0.0, horizon - size.y * 0.5)
+		_giants_rect.position = Vector2(0.0, horizon - _giants.horizon_y())
 		_giants_rect.modulate.a = 1.0 - _fade.modulate.a
 	var cx := car.global_position.x
 	_planet.position = Vector2(PLANET.x * size.x - cx * PLANET.slide,
