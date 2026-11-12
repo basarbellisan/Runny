@@ -180,21 +180,16 @@ def render(dirpath, ob):
     shot("alttan", (10, -26, -6), (0, 0, 7.5))
 
 
-# Gölge işlemenin ışık yönü (ışığın gittiği yön, Blender eksenlerinde): oyundaki güneşin yanından
-# (sağdan, scenes/main.tscn Sun) ama daha tepeden; kollar koltuk altına ve gövdeye, baş omuzlara
-# gölge düşürür (oyundaki güneş neredeyse önden vurduğu için gerçek yönüyle gölge oluşmuyordu)
-SUN_DIR = Vector((-0.35, 0.22, -0.91))
 SHADE_SIZE = 512
-## İşlenmiş gölge: gölgede kalan yer bu kadar koyu (1 aydınlık), köşe kararması (AO) payı
-SHADOW_DARK = 0.45
+## Yumuşak köşe kararması (AO) payı ve ulaştığı uzaklık (m): kolla gövde arası, koltuk altı, boyun,
+## oluk ve göz yarıkları yumuşakça kararır (sert güneş gölgesi yok)
 AO_MIX = 0.8
-## Köşe kararmasının ulaştığı uzaklık (m): kolla gövde arası, koltuk altı, boyun belirgin kararır
 AO_DIST = 3.0
 
 
 def bake_shade(ob, path):
-    """Oyundaki güneş yönüne göre gölge ve köşe kararmasını (AO) dokuya işler (UV0). Oyun bu dokuyu
-    rengin üstüne çarpar: kolların altı, kolun gövdeye düşürdüğü gölge koyu (uzakta da doğru, ek yük yok)."""
+    """Yumuşak köşe kararmasını (ambient occlusion) dokuya işler (UV0). Oyun bu dokuyu rengin üstüne
+    çarpar; ışık ve yüzlerin açık-koyusu oyunun kendi güneşinden gelir (uzakta da doğru, ek yük yok)."""
     import numpy as np
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
@@ -206,54 +201,29 @@ def bake_shade(ob, path):
     bpy.ops.mesh.select_all(action="SELECT")
     bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=0.02)
     bpy.ops.object.mode_set(mode="OBJECT")
-    sun = bpy.data.objects.new("bake_sun", bpy.data.lights.new("bake_sun", "SUN"))
-    sun.data.energy = 3.0
-    sun.data.angle = math.radians(1.0)
-    sun.rotation_euler = SUN_DIR.to_track_quat("-Z", "Y").to_euler()
-    scene.collection.objects.link(sun)
     world = bpy.data.worlds.new("bake_w")
     world.use_nodes = True
-    world.node_tree.nodes["Background"].inputs[1].default_value = 0.0
     world.light_settings.distance = AO_DIST
     scene.world = world
-    out = {}
-
-    def bake(kind, key, **kw):
-        img = bpy.data.images.new("bake_" + key, SHADE_SIZE, SHADE_SIZE, float_buffer=True)
-        for slot in ob.material_slots:
-            nt = slot.material.node_tree
-            node = nt.nodes.get("bake_tex") or nt.nodes.new("ShaderNodeTexImage")
-            node.name = "bake_tex"
-            node.image = img
-            nt.nodes.active = node
-        bpy.ops.object.bake(type=kind, margin=8, **kw)
-        out[key] = np.array(img.pixels[:], dtype=np.float32).reshape(SHADE_SIZE, SHADE_SIZE, 4)[:, :, 0]
-
-    # Gölge = güneşin doğrudan ışığı (gölgeli) / aynı ışık gölgesiz: yalnız örtülme (yüzün ışığa
-    # bakıp bakmaması değil; onu oyunun kendi ışığı yapar). Işığa bakmayan yüzlerde 1 (karartma yok)
-    bake("DIFFUSE", "lit", pass_filter={"DIRECT"})
-    sun.data.use_shadow = False
-    bake("DIFFUSE", "open", pass_filter={"DIRECT"})
-    bake("AO", "ao")
-    lit, opn = out["lit"], out["open"]
-    vis = np.where(opn > 1e-3, np.clip(lit / np.maximum(opn, 1e-3), 0.0, 1.0), 1.0)
-    out["SHADOW"] = vis
-    out["AO"] = out["ao"]
-    for k in ("SHADOW", "AO"):
-        print("bake", k, "min", float(out[k].min()), "mean", float(out[k].mean()))
-    shade = (SHADOW_DARK + (1.0 - SHADOW_DARK) * np.clip(out["SHADOW"], 0, 1)) * (1.0 - AO_MIX + AO_MIX * np.clip(out["AO"], 0, 1))
+    img = bpy.data.images.new("bake_ao", SHADE_SIZE, SHADE_SIZE, float_buffer=True)
+    for slot in ob.material_slots:
+        nt = slot.material.node_tree
+        node = nt.nodes.new("ShaderNodeTexImage")
+        node.name = "bake_tex"
+        node.image = img
+        nt.nodes.active = node
+    bpy.ops.object.bake(type="AO", margin=8)
+    ao = np.array(img.pixels[:], dtype=np.float32).reshape(SHADE_SIZE, SHADE_SIZE, 4)[:, :, 0]
+    shade = 1.0 - AO_MIX + AO_MIX * np.clip(ao, 0.0, 1.0)
     res = bpy.data.images.new("giant_shade", SHADE_SIZE, SHADE_SIZE)
-    rgba = np.stack([shade, shade, shade, np.ones_like(shade)], axis=2)
-    res.pixels[:] = rgba.ravel().tolist()
+    res.pixels[:] = np.stack([shade, shade, shade, np.ones_like(shade)], axis=2).ravel().tolist()
     res.filepath_raw = path
     res.file_format = "PNG"
     res.save()
     # Bake düğümlerini kaldır (glTF'ye doku olarak girmesin; oyun dokuyu ayrıca yükler)
     for slot in ob.material_slots:
         nt = slot.material.node_tree
-        if nt.nodes.get("bake_tex"):
-            nt.nodes.remove(nt.nodes["bake_tex"])
-    bpy.data.objects.remove(sun)
+        nt.nodes.remove(nt.nodes["bake_tex"])
     print("yazıldı", path)
 
 
