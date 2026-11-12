@@ -108,7 +108,8 @@ func _ready() -> void:
 	_plane = _make_loop(preload("res://audio/loop_plane.ogg"))
 	_climb = _make_loop(preload("res://audio/loop_climb.ogg"))
 	_tire = _make_loop(preload("res://audio/loop_tire.ogg"))
-	_gravel = _make_loop(preload("res://audio/loop_gravel.ogg"))
+	# Düz dünya denemesi: çakıl yerine hava akımı sesi
+	_gravel = _make_loop(preload("res://audio/loop_airwave.ogg") if FlatStyle.on() else preload("res://audio/loop_gravel.ogg"))
 	for key in SFX:
 		var p := AudioStreamPlayer.new()
 		p.stream = SFX[key]
@@ -244,7 +245,6 @@ func set_engine_for_model(variant: int) -> void:
 	(stream as AudioStreamOggVorbis).loop = true
 	_engine.stream = stream
 	_engine.play()
-	_engine.stream_paused = false
 	if _aud_trace:
 		print("ENGINE model=%d %s" % [variant, stream.resource_path.get_file()])
 
@@ -284,8 +284,12 @@ func touchdown(strength := 1.0) -> void:
 func _loop_volume(p: AudioStreamPlayer, base_db: float, level: float) -> void:
 	var silent := level <= 0.001
 	p.volume_db = -80.0 if silent else base_db + linear_to_db(level)
-	if p.stream_paused != silent:
-		p.stream_paused = silent
+	# Duraklatmak yerine durdur / baştan çal: web'de duraklatılan ses yeniden başlamıyordu
+	# (çakıl sesi kayboluyordu); döngü olduğu için baştan başlaması fark edilmez
+	if silent and p.playing:
+		p.stop()
+	elif not silent and not p.playing:
+		p.play()
 
 
 ## Müzik kapalı ve tamamen söndüyse iki müzik katmanı da durur (birlikte, senkron kalsınlar)
@@ -294,9 +298,14 @@ func _pause_music_if_off() -> void:
 	if off:
 		_music_upper.volume_db = -80.0
 		_music_lower.volume_db = -80.0
-	if _music_upper.stream_paused != off:
-		_music_upper.stream_paused = off
-		_music_lower.stream_paused = off
+	# Duraklatmak yerine durdur / baştan çal (web'de duraklatılan ses yeniden başlamayabiliyor);
+	# iki katman birlikte baştan başlar: senkron kalır
+	if off and _music_upper.playing:
+		_music_upper.stop()
+		_music_lower.stop()
+	elif not off and not _music_upper.playing:
+		_music_upper.play()
+		_music_lower.play()
 
 
 func _make_loop(stream: AudioStreamOggVorbis) -> AudioStreamPlayer:

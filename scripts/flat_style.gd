@@ -66,6 +66,20 @@ const LINE_STRETCH := 1.8
 const OBSTACLE_DESAT := 0.0
 
 static var style: int = _read()
+## Hava akımı (eski çakıl) arabaya etkisi denemesi (?hava=N / --hava=N): 1 kuyruk kalkışı, 2 havaya
+## savrulma, 3 dönerek kayma (düz dünyada; 0 eski çakıl davranışı)
+static var air_mode: int = _read_air()
+
+
+static func _read_air() -> int:
+	var v := ""
+	if OS.has_feature("web"):
+		var r: Variant = JavaScriptBridge.eval("new URLSearchParams(location.search).get('hava') || ''")
+		v = "" if r == null else str(r)
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--hava="):
+			v = a.get_slice("=", 1)
+	return clampi(int(v), 0, 3) if v.is_valid_int() else 1
 
 
 static func on() -> bool:

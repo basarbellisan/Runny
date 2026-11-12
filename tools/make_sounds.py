@@ -810,6 +810,14 @@ def sfx_boost():
     return fade(room(s, 0.12, 0.7), 0.0005, 0.2)
 
 
+def loop_airwave():
+    """Hava akımı (düz dünyada eski çakılın yerinde): tools/airwave_designs.py a1 uğultulu esinti
+    (diğer adaylar orada saklı)."""
+    import airwave_designs as ad
+    ad.ms.rng = np.random.default_rng(sum(map(ord, "a1_ugultulu_esinti")))
+    return ad.a1_ugultulu_esinti()
+
+
 def loop_gravel():
     """Çakılda giderken: taşların lastik altında çıtırtısı ve kumlu uğultu."""
     d = 2.0
@@ -843,7 +851,7 @@ def main():
         ("loop_engine_gem.ogg", loop_engine_gem), ("loop_engine_dragster.ogg", loop_engine_dragster),
         ("loop_engine_dark_rose.ogg", loop_engine_dark_rose), ("loop_engine_falcon.ogg", loop_engine_falcon), ("loop_road.ogg", loop_road), ("loop_wind.ogg", loop_wind),
         ("loop_plane.ogg", loop_plane), ("loop_climb.ogg", loop_climb), ("loop_tire.ogg", loop_tire),
-        ("loop_gravel.ogg", loop_gravel),
+        ("loop_gravel.ogg", loop_gravel), ("loop_airwave.ogg", loop_airwave),
         ("music_upper.ogg", music_upper), ("music_lower.ogg", music_lower),
     ]
     # İsim verilirse yalnız onlar üretilir: python3 tools/make_sounds.py sfx_boost loop_gravel

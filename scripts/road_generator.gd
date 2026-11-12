@@ -3532,6 +3532,17 @@ func _remember(s: Segment) -> void:
 		history.append(s)
 
 
+## Bu noktadaki çakılın yanal ortası (dünya x); çakıl yoksa NAN
+func gravel_center_x(pos: Vector3) -> float:
+	var s := segment_under(pos)
+	if s == null:
+		return NAN
+	for o in s.obstacles:
+		if o.gravel and pos.z <= o.z0 and pos.z >= o.z1 and pos.x >= o.x0 and pos.x <= o.x1:
+			return (float(o.x0) + float(o.x1)) * 0.5
+	return NAN
+
+
 ## Bu noktada çakıl var mı
 func gravel_at(pos: Vector3) -> bool:
 	var s := segment_under(pos)

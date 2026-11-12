@@ -1097,7 +1097,11 @@ func _drive(delta: float) -> void:
 		_nose = (int(not wheel_contact[0]) + int(not wheel_contact[1])) * 0.5
 		control *= 1.0 - grip_loss * _k_grip * (left_off + right_off)
 		on_gravel = roads != null and roads.gravel_at(global_position)
-		if on_gravel:
+		var air := FlatStyle.air_mode if FlatStyle.on() else 0
+		if on_gravel and air > 0:
+			_air_wave(delta, air, control)
+			control *= AIR_GRIP[air - 1]
+		elif on_gravel:
 			control *= gravel_grip
 			# Taşlar arabayı sağa sola savurur (her ~0.25 sn yön değişir), gövdeyi sarsar
 			_gravel_timer -= delta
@@ -1111,6 +1115,8 @@ func _drive(delta: float) -> void:
 			_stumble_time = maxf(_stumble_time, gravel_after * _k_after)
 		else:
 			_gravel_push_target = 0.0
+			_air_side = 0.0
+		_was_on_gravel = on_gravel
 		_gravel_push = lerpf(_gravel_push, _gravel_push_target, 1.0 - exp(-8.0 * delta))
 		velocity.x += _gravel_push * delta
 		# Sert inişten sonra araba sendeler: tutuş azalır, gövde yana savrulur
@@ -1517,6 +1523,48 @@ func _sense_wheels() -> void:
 
 ## Yoldan önden mi (yolun sonu) yoksa yandan mı çıktık
 ## Çakıl etkisinin hıza göre katı (başlangıç hızında 1)
+## --- Hava akımı (düz dünya denemesi; eski çakılın yerinde): alttan esen hava dalgası arabanın
+## arkasını kaldırır ve oklarının gösterdiği yana (sol yarıda sola, sağ yarıda sağa) atar.
+## Üç etki denemesi (FlatStyle.air_mode): 1 kuyruk kalkışı, 2 havaya savrulma, 3 dönerek kayma
+const AIR_GRIP := [0.2, 0.1, 0.08]
+var _air_side := 0.0
+var _was_on_gravel := false
+
+
+func _air_wave(delta: float, air: int, _control: float) -> void:
+	var gain := _gravel_gain()
+	if not _was_on_gravel or _air_side == 0.0:
+		# Hangi yana: arabanın, hava alanının ortasına göre olduğu yan (oklar o yöne bakar)
+		var cx := roads.gravel_center_x(global_position)
+		_air_side = 1.0 if is_nan(cx) or global_position.x >= cx else -1.0
+		match air:
+			2:
+				# Girişte tek seferlik savrulma: arka havaya kalkar, araba sıçrar ve yana fırlar,
+				# biraz hız kaybeder
+				velocity.y = maxf(velocity.y, 5.5)
+				pitch_rate -= 3.2
+				velocity.x = _air_side * 8.0 * gain
+				speed *= 0.88
+			3:
+				pitch_rate -= 1.6
+	match air:
+		1:
+			# Kuyruk kalkışı: arka sürekli itilir (burun aşağı), araba yana doğru akar
+			pitch_rate -= 9.0 * delta
+			velocity.x += _air_side * 11.0 * gain * delta
+			_gravel_push_target = _air_side * 4.0
+		2:
+			velocity.x += _air_side * 10.0 * gain * delta
+		3:
+			# Dönerek kayma: arka kalkar, gövde savrulur (kuyruk sallanır), güçlü yan akış
+			pitch_rate -= 6.0 * delta
+			velocity.x += _air_side * 9.0 * gain * delta
+			_gravel_push_target = _air_side * 6.0
+	# Hava alanından çıkınca bir süre sendeler (eskisi gibi)
+	_stumble = maxf(_stumble if _stumble_time > 0.0 else 0.0, 0.45 if air != 3 else 0.55)
+	_stumble_time = maxf(_stumble_time, gravel_after * _k_after * (1.0 if air != 3 else 1.4))
+
+
 func _gravel_gain() -> float:
 	return lerpf(1.0, gravel_speed_gain, clampf(inverse_lerp(start_speed, max_speed, ref_speed), 0.0, 1.0))
 
