@@ -11,18 +11,19 @@ const GIANT_SCENE := preload("res://models/giants/giant.glb")
 const MODEL_HEIGHT := 10.0   # modelin baş tepesinden çizimdeki gövde dibine boyu (m)
 const MODEL_LEG := 5.0       # gövdenin aşağı uzayan, eriyen kısmı (m)
 ## Dev boyu (m), yana uzaklık (m, yolun ortasından), yolun üstünde görünen pay
-const HEIGHT := Vector2(30.0, 80.0)
-const SIDE := Vector2(35.0, 110.0)
+const HEIGHT := Vector2(50.0, 90.0)
+const SIDE := Vector2(35.0, 65.0)
 const ABOVE := Vector2(0.5, 0.85)
 ## Kameranın bu kadar önünde doğar; bu kadar arkada kalınca silinir (m)
-const SPAWN_AHEAD := 430.0
+const SPAWN_AHEAD := 1150.0
 const BEHIND := 40.0
 ## İki dev arası yol boyu (m)
-const GAP := Vector2(140.0, 260.0)
+const GAP := Vector2(380.0, 650.0)
 ## Yola doğru dönüklük (derece)
 const TURN := 14.0
-## Uzaktan beliriş (sisin yerine): bu uzaklıkta görünmez, şu uzaklıkta tam (m)
-const FAR_FADE := Vector2(260.0, 420.0)
+## Ufukta, çok uzakta doğar (nokta kadar küçük): yalnız doğduğu yerde kısa bir beliriş (bu uzaklıkta tam,
+## şunda görünmez; m)
+const FAR_FADE := Vector2(1100.0, 1180.0)
 ## Kameranın yolun üstündeki yüksekliği ve sabit bakış açısı (oyun kamerasının olağan duruşu)
 const EYE := 6.0
 const PITCH := -10.0
@@ -54,7 +55,7 @@ func setup(p_car: Car, color: Color, sun: DirectionalLight3D, env: Environment, 
 	else:
 		_rng.randomize()
 	_cam = Camera3D.new()
-	_cam.far = 900.0
+	_cam.far = 1200.0
 	_cam.rotation_degrees = Vector3(PITCH, 0, 0)
 	add_child(_cam)
 	_cam.current = true
