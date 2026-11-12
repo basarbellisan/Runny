@@ -1532,15 +1532,18 @@ func _sense_wheels() -> void:
 ## çıkar (RoadGenerator.air_at) ve yalnız üstündeki tekeri iter: hangi teker maruz kalıyorsa o kalkar
 ## (ön tekerler: burun, bir yan: yatma), güçler farklı olduğu için asimetrik. Tekerin altındaki okun
 ## yönüne itilir; tekerler farklı yönlere itilince gövde sağa sola savrulur
-const AIR_LIFT := 36.0     # tekerin altındaki tam güçlü havanın o köşeye yukarı ivmesi (m/sn²)
-const AIR_MAX_VY := 4.0    # en çok yükselme hızı (m/sn)
-const AIR_PITCH := 12.0    # ön-arka farkının burun kaldırma ivmesi (rad/sn²)
-const AIR_ROLL := 16.0    # sol-sağ farkının yatırma ivmesi (rad/sn²)
-const AIR_PUSH := 16.0     # yana itme ivmesi (m/sn²)
-const AIR_JOLT := 22.0     # gövdeyi savuran yan sarsıntı (tekerlerin yön farkı ve hücre geçişleri)
+const AIR_LIFT := 75.0     # tekerin altındaki tam güçlü havanın o köşeye yukarı ivmesi (m/sn²)
+const AIR_MAX_VY := 7.5    # en çok yükselme hızı (m/sn)
+const AIR_PITCH := 18.0    # ön-arka farkının burun kaldırma ivmesi (rad/sn²)
+const AIR_ROLL := 22.0    # sol-sağ farkının yatırma ivmesi (rad/sn²)
+const AIR_PUSH := 22.0     # yana itme ivmesi (m/sn²)
+const AIR_JOLT := 30.0     # gövdeyi savuran yan sarsıntı (tekerlerin yön farkı ve hücre geçişleri)
 const AIR_GRIP := 0.25     # yerdeyken hava üstünde tutuş
+const AIR_TILT_MAX := 0.6  # havanın yatırabileceği en çok açı (rad, ~35°): devirmez
 ## Hava alanının üstündeki teker sayısı (0-4)
 var air_wheels := 0
+## Hava alanından çıktıktan sonra bu kadar süre (sn) gövde yatıklığı güvenli açıda tutulur
+var _air_settle := 0.0
 
 
 func _air_lift(delta: float) -> void:
@@ -1568,8 +1571,19 @@ func _air_lift(delta: float) -> void:
 	var total := lift[0] + lift[1] + lift[2] + lift[3]
 	if velocity.y < AIR_MAX_VY:
 		velocity.y = minf(velocity.y + AIR_LIFT * total * 0.25 * delta, AIR_MAX_VY)
-	pitch_rate += AIR_PITCH * ((lift[0] + lift[1]) - (lift[2] + lift[3])) * 0.5 * delta
-	roll_rate += AIR_ROLL * ((lift[1] + lift[3]) - (lift[0] + lift[2])) * 0.5 * delta
+	# Hava gövdeyi sert yatırır ama devirmez: yatma / burun kalkması AIR_TILT_MAX'ı geçince o yöne itmez
+	var dp := AIR_PITCH * ((lift[0] + lift[1]) - (lift[2] + lift[3])) * 0.5 * delta
+	var dr := AIR_ROLL * ((lift[1] + lift[3]) - (lift[0] + lift[2])) * 0.5 * delta
+	if absf(pitch + signf(dp) * 0.01) < AIR_TILT_MAX or signf(dp) != signf(pitch):
+		pitch_rate += dp
+	if absf(roll + signf(dr) * 0.01) < AIR_TILT_MAX or signf(dr) != signf(roll):
+		roll_rate += dr
+	# Sınırda dönme hızı da söner (savrulma momentumu araba ters inecek kadar taşımasın)
+	if absf(roll) > AIR_TILT_MAX * 0.75 and signf(roll_rate) == signf(roll):
+		roll_rate *= exp(-12.0 * delta)
+	if absf(pitch) > AIR_TILT_MAX * 0.75 and signf(pitch_rate) == signf(pitch):
+		pitch_rate *= exp(-12.0 * delta)
+	_air_settle = 0.8
 	velocity.x += side * 0.25 * AIR_PUSH * gain * delta
 	# Savrulma: tekerlerin altındaki okların yönü ve güç farkı gövdeyi yana sarsar (kuyruk sallanır)
 	_gravel_push_target = (side * 0.5 + (spread - side) * 0.35) * AIR_JOLT * 0.25 * gain
@@ -1798,6 +1812,10 @@ func _update_attitude(delta: float) -> void:
 	pitch_rate = clampf(pitch_rate, -9.0, 9.0)
 	roll += roll_rate * delta
 	pitch += pitch_rate * delta
+	if _air_settle > 0.0:
+		_air_settle -= get_physics_process_delta_time()
+		roll = clampf(roll, -AIR_TILT_MAX, AIR_TILT_MAX)
+		pitch = clampf(pitch, -AIR_TILT_MAX, AIR_TILT_MAX)
 
 
 ## Arabanın özellikleri (CarModel.STATS): hız, tutuş, çakıl, denge katları
