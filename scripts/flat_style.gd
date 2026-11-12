@@ -291,7 +291,11 @@ func _convert_new(m: Material) -> Variant:
 		match path:
 			"block_glow.gdshader", "runway_halo.gdshader", "gravel_curtain.gdshader":
 				return HIDE
-			"block_fx.gdshader", "block_neon.gdshader":
+			"block_fx.gdshader":
+				# Işık bariyeri: animasyon (yukarıdan aşağı akan yanma) kalır, parıltısız düz renk
+				sm.set_shader_parameter("flat_mode", true)
+				return sm
+			"block_neon.gdshader":
 				return _flat(_desat(sm.get_shader_parameter("c_main")))
 			"gravel_zigzag.gdshader", "gravel_holes.gdshader":
 				var c := _desat(sm.get_shader_parameter("light"))
