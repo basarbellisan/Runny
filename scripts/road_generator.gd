@@ -3866,9 +3866,9 @@ func _add_box(parent: Node3D, pos: Vector3, size: Vector3, mat: Material) -> Mes
 const GIANT_HEIGHT := 10.0   # modelin baş tepesinden çizimdeki gövde dibine boyu (m)
 const GIANT_LEG := 5.0       # gövdenin bunun altına uzayan, aşağı doğru eriyen kısmı (m)
 const GIANT_SCENE := preload("res://models/giants/giant.glb")
-## Devin renkleri bloğun renginden: gövde (Main) o renk, oluk ve kol altı üçgenler (Accent) bir ton koyu (gölgede),
-## göz yarıkları (Slot) koyu; düz renk (ışık, gölge yok), bloklar gibi sise erir; bacaklar aşağıya
-## doğru erir (giant_fade.gdshader)
+## Devin rengi bloğun renginden, bütün parçalar aynı renk: koltuk altı, oluk ve göz yarıklarının
+## kararması Blender'da işlenmiş yumuşak köşe kararmasından (giant_shade.png) gelir; oyunun ışığını
+## alır, bloklar gibi sise erir; bacaklar aşağıya doğru erir (giant_fade.gdshader)
 var _giant_mats := {}
 
 
@@ -3876,7 +3876,7 @@ func _make_giant(col: Color) -> Node3D:
 	var key := col.to_html(false)
 	if not _giant_mats.has(key):
 		var mats := {}
-		for pair in [["Main", col], ["Accent", col.darkened(0.3)], ["Slot", col.darkened(0.55)]]:
+		for pair in [["Main", col], ["Accent", col], ["Slot", col]]:
 			var m := ShaderMaterial.new()
 			m.shader = preload("res://shaders/giant_fade.gdshader")
 			m.set_shader_parameter("color", pair[1])
