@@ -1541,6 +1541,11 @@ const AIR_JOLT := 27.5     # gövdeyi savuran yan sarsıntı (tekerlerin yön fa
 const AIR_GRIP := 0.25     # yerdeyken hava üstünde tutuş
 const AIR_REACH := 1.5     # hava yolun bu kadar üstünde (m) biter: teker yükseldikçe zayıflar
 const AIR_TILT_MAX := 0.6  # havanın yatırabileceği en çok açı (rad, ~35°): devirmez
+## Dalgadan çıktıktan sonra yalpalama: süre (sn), sıklık (Hz), yanal salınım ivmesi (m/sn²)
+const AIR_WOBBLE_TIME := 1.3
+const AIR_WOBBLE_HZ := 1.6
+const AIR_SWAY := 9.0
+var _air_exit := 0.0
 ## Hava alanının üstündeki teker sayısı (0-4) ve her tekerin altındaki havanın gücü
 var air_wheels := 0
 var _air_wheel_lift: Array[float] = [0.0, 0.0, 0.0, 0.0]
@@ -1579,12 +1584,24 @@ func _air_lift(delta: float) -> void:
 	on_gravel = air_wheels > 0
 	if air_wheels == 0:
 		_gravel_push_target = 0.0
+		# Dalgadan çıkış: gövde birkaç kez sağa sola yalpalar (yay az sönümlü, yanal salınım), söner
+		if _air_exit > 0.0:
+			_air_exit -= delta
+			var k := clampf(_air_exit / AIR_WOBBLE_TIME, 0.0, 1.0)
+			velocity.x += sin(_air_exit * AIR_WOBBLE_HZ * TAU) * AIR_SWAY * k * delta
 		return
+	_air_exit = AIR_WOBBLE_TIME
 	var gain := _gravel_gain()
 	# Teker sırası: 0 ön sol, 1 ön sağ, 2 arka sol, 3 arka sağ
 	var total := lift[0] + lift[1] + lift[2] + lift[3]
+	# Gövdeyi kaldıran kuvvet: bir yanın havası da arabayı yerden koparır (hızla giderken kalkan yan
+	# gövdeyi çeker, öbür yan belli ölçüde takip eder); iki yan da içindeyse daha çok
+	var strong := maxf(lift[0] + lift[2], lift[1] + lift[3]) * 0.5
+	var body := 0.6 * strong + 0.4 * total * 0.25
 	if velocity.y < AIR_MAX_VY:
-		velocity.y = minf(velocity.y + AIR_LIFT * total * 0.25 * delta, AIR_MAX_VY)
+		velocity.y = minf(velocity.y + AIR_LIFT * body * delta, AIR_MAX_VY)
+	# Zemine yapışma kalksın (yoksa yukarı itiş tutunmaya yenilir)
+	_snap_off = maxf(_snap_off, 0.12)
 	# Hava gövdeyi sert yatırır ama devirmez: yatma / burun kalkması AIR_TILT_MAX'ı geçince o yöne itmez
 	var dp := AIR_PITCH * ((lift[0] + lift[1]) - (lift[2] + lift[3])) * 0.5 * delta
 	var dr := AIR_ROLL * ((lift[1] + lift[3]) - (lift[0] + lift[2])) * 0.5 * delta
@@ -1796,9 +1813,12 @@ func _update_attitude(delta: float) -> void:
 		var c := suspension_damping
 		# Hava akımı bir köşeyi kaldırırken yay gövdeyi düz tutmaya çalışmasın: bütün gövde yerdeki
 		# tekerlerin üstünde döner (kalkan köşe havada, karşı köşe yerde); çıkınca yay geri oturtur
-		if _air_settle > 0.0:
+		if air_wheels > 0:
 			k *= 0.12
 			c *= 0.4
+		elif _air_exit > 0.0:
+			# Çıkışta az sönümlü yay: gövde birkaç kez yalpalayıp oturur
+			c *= 0.18
 		# Bir yanın iki tekeri de boştaysa yay tutmaz: araba kenardan devrilir
 		var roll_acc := -_tip * tip_roll_accel
 		if absf(_tip) < 1.0:
