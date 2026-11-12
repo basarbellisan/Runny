@@ -1539,6 +1539,7 @@ const AIR_ROLL := 20.0    # sol-sağ farkının yatırma ivmesi (rad/sn²)
 const AIR_PUSH := 20.0     # yana itme ivmesi (m/sn²)
 const AIR_JOLT := 27.5     # gövdeyi savuran yan sarsıntı (tekerlerin yön farkı ve hücre geçişleri)
 const AIR_GRIP := 0.25     # yerdeyken hava üstünde tutuş
+const AIR_REACH := 1.5     # hava yolun bu kadar üstünde (m) biter: teker yükseldikçe zayıflar
 const AIR_TILT_MAX := 0.6  # havanın yatırabileceği en çok açı (rad, ~35°): devirmez
 ## Hava alanının üstündeki teker sayısı (0-4) ve her tekerin altındaki havanın gücü
 var air_wheels := 0
@@ -1559,6 +1560,15 @@ func _air_lift(delta: float) -> void:
 	for i in mini(model.wheels.size(), 4):
 		var p: Vector3 = global_position + global_transform.basis * (model.wheels[i].contact as Vector3)
 		var a := roads.air_at(p)
+		if a.x <= 0.0:
+			continue
+		# Hava yerde tam, tekerin yoldan yüksekliği arttıkça zayıflar (AIR_REACH'te biter): araba
+		# fırlamaz, hava yastığında sallanır
+		var road_y := last_floor_y
+		var under := roads.segment_under(p)
+		if under:
+			road_y = under.top_at(p.z)
+		a.x *= clampf(1.0 - (p.y - road_y) / AIR_REACH, 0.0, 1.0)
 		if a.x <= 0.0:
 			continue
 		lift[i] = a.x

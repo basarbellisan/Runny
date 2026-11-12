@@ -3555,7 +3555,7 @@ func air_at(pos: Vector3) -> Vector2:
 		var dist := absf(col + 0.5 - na * 0.5)
 		var wave := pow(0.5 + 0.5 * sin(_light_time * 3.2 - dist * 1.15), 2.0)
 		var cell := fposmod(sin(float(col) * 12.9898 + float(row) * 78.233 + float(o.z0) * 0.37) * 43758.5453, 1.0)
-		var strength := (0.3 + 0.7 * wave) * (0.4 + 1.0 * cell)
+		var strength := (0.6 + 0.4 * wave) * (0.8 + 0.4 * cell)
 		return Vector2(strength, -1.0 if col + 0.5 < na * 0.5 else 1.0)
 	return Vector2.ZERO
 
