@@ -3862,41 +3862,6 @@ func _add_box(parent: Node3D, pos: Vector3, size: Vector3, mat: Material) -> Mes
 
 
 ## Uzakta süzülen ince, uzun monolitler (dekor), bölge renginde
-## Düz dünya denemesi: uzun kaya bloklarının yerine dev (models/giants/giant.glb, tools/blender/giant.py)
-const GIANT_HEIGHT := 10.0   # modelin baş tepesinden çizimdeki gövde dibine boyu (m)
-const GIANT_LEG := 5.0       # gövdenin bunun altına uzayan, aşağı doğru eriyen kısmı (m)
-const GIANT_SCENE := preload("res://models/giants/giant.glb")
-## Devin rengi bloğun renginden, bütün parçalar aynı renk: koltuk altı, oluk ve göz yarıklarının
-## kararması Blender'da işlenmiş yumuşak köşe kararmasından (giant_shade.png) gelir; oyunun ışığını
-## alır, bloklar gibi sise erir; bacaklar aşağıya doğru erir (giant_fade.gdshader)
-var _giant_mats := {}
-
-
-func _make_giant(col: Color) -> Node3D:
-	var key := col.to_html(false)
-	if not _giant_mats.has(key):
-		var mats := {}
-		for pair in [["Main", col], ["Accent", col], ["Slot", col]]:
-			var m := ShaderMaterial.new()
-			m.shader = preload("res://shaders/giant_fade.gdshader")
-			m.set_shader_parameter("color", pair[1])
-			m.set_shader_parameter("shade", preload("res://models/giants/giant_shade.png"))
-			m.set_shader_parameter("fade_from", 0.0)
-			m.set_shader_parameter("fade_to", GIANT_LEG + 1.0)
-			mats[pair[0]] = m
-		_giant_mats[key] = mats
-	var g: Node3D = GIANT_SCENE.instantiate()
-	var mats: Dictionary = _giant_mats[key]
-	for mi in g.find_children("*", "MeshInstance3D", true, false):
-		var mesh := (mi as MeshInstance3D).mesh
-		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		for i in mesh.get_surface_count():
-			var src := mesh.surface_get_material(i)
-			var nm := src.resource_name if src else "Main"
-			(mi as MeshInstance3D).set_surface_override_material(i, mats.get(nm, mats.Main))
-	return g
-
-
 func _add_decor(seg: Segment) -> void:
 	for i in _rng.randi_range(0, 2):
 		var side := -1.0 if _rng.randf() < 0.5 else 1.0
@@ -3906,24 +3871,6 @@ func _add_decor(seg: Segment) -> void:
 			seg.top + _rng.randf_range(-30.0, 10.0),
 			_rng.randf_range(seg.z_end, seg.z_start))
 		var col := (_pal(-pos.z).decor as Color).darkened(_rng.randf_range(0.0, 0.08))
-		if FlatStyle.layered_bg():
-			# Katmanlı arka planda bloklar yok: devler arka plan katmanında (GiantLayer)
-			continue
-		if FlatStyle.on():
-			# Bloğun yerinde dev: dünyada sabit (bloklar gibi), hafif yola dönük; bloktan 1.3 kat büyük.
-			# Yüksekte durur: yolun üstünde boyunun %45-85'i görünür (büyüklüğü anlaşılsın; bloğun
-			# rastgele yüksekliği bu payı seçer, yol üretimi değişmez). Gövdesi aşağı uzar ve erir
-			var g := _make_giant(col)
-			var gh := size.y * 1.3
-			var k := gh / GIANT_HEIGHT
-			g.scale = Vector3.ONE * k
-			var above := lerpf(0.45, 0.85, inverse_lerp(-30.0, 10.0, pos.y - seg.top))
-			var head := seg.top + gh * above
-			g.position = Vector3(pos.x, head - gh - GIANT_LEG * k, pos.z)
-			g.rotation.y = -side * deg_to_rad(14.0)
-			add_child(g)
-			_decor.append(g)
-			continue
 		var m := StandardMaterial3D.new()
 		m.albedo_color = col
 		m.roughness = 1.0

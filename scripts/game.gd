@@ -247,7 +247,6 @@ func _ready() -> void:
 		var layered := LayeredBackdrop.new()
 		add_child(layered)
 		layered.setup(car, FlatStyle.bg_colors(), FlatStyle.bg_shape())
-		layered.add_giants(Palette.SKIES[0].decor, $Sun, env, seed_value)
 		env.background_mode = Environment.BG_CANVAS
 		env.background_canvas_max_layer = -1
 		clouds.visible = false
