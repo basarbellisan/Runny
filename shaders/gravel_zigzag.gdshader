@@ -81,7 +81,9 @@ void fragment() {
 		vec3 lit = mix(light.rgb, lit_color.rgb, b);
 		float far = smoothstep(radius * 0.35, radius * 1.2, fw);
 		ALBEDO = lit;
-		ALPHA = mix(inside, coverage, far);
+		// Desen pikselden küçükken (uzakta; yere yatık bakışta 30 m'de bile) ortalama kapsama değil, dolu
+		// ve nabızlı parlak mavi alan (yoksa siyah yolla karışıp koyu laciverde dönüyordu)
+		ALPHA = mix(inside, 0.8 + 0.2 * b, far);
 	} else {
 	float W = (counts.x + shift) * arm;
 	float H = counts.y * row_gap;
