@@ -32,10 +32,6 @@ uniform bool arrows = false;
 // Uzaktan görünürlük (ok düzeni): sis yerine kendi uzaklık solması (beyond fade_far.x yavaşça,
 // fade_far.y'de görünmez); uzaktaki ok deseni yerine dolu, nabızla yanıp sönen mavi alan
 uniform vec2 fade_far = vec2(330.0, 430.0);
-// Uzakta büyüme (erken fark edilsin): okların kalınlığı grow.x m'den sonra artar, grow.y m'de grow_k
-// kat; yaklaştıkça gerçek kalınlığına döner (yalnız görüntü: hava alanı aynı)
-uniform vec2 grow = vec2(40.0, 200.0);
-uniform float grow_k = 2.6;
 
 varying vec3 lp;
 
@@ -81,15 +77,14 @@ vec2 arrow_dist(vec2 p) {
 
 void fragment() {
 	if (arrows) {
-		float rad = radius * (1.0 + smoothstep(grow.x, grow.y, -VERTEX.z) * (grow_k - 1.0));
 		vec2 ad = arrow_dist(lp.xy);
-		float r = ad.x / rad;
+		float r = ad.x / radius;
 		float fw = max(length(dFdx(lp.xy)), length(dFdy(lp.xy)));
-		float aa = clamp(fw / rad, 0.02, 1.0);
+		float aa = clamp(fw / radius, 0.02, 1.0);
 		float inside = 1.0 - smoothstep(1.0 - aa, 1.0 + aa, r);
 		float b = breath_side(abs(ad.y + 0.5 - counts.x * 0.5));
 		vec3 lit = mix(light.rgb, lit_color.rgb, b);
-		float far = smoothstep(rad * 0.35, rad * 1.2, fw);
+		float far = smoothstep(radius * 0.35, radius * 1.2, fw);
 		ALBEDO = lit;
 		// Uzakta: desen pikselden küçükken alan dolu ve parlak görünsün (ortalama kapsama değil)
 		ALPHA = mix(inside, 0.55 + 0.35 * b, far);
