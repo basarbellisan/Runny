@@ -298,7 +298,7 @@ func _convert_new(m: Material) -> Variant:
 				return sm
 			"block_neon.gdshader":
 				return _flat(_desat(sm.get_shader_parameter("c_main")))
-			"gravel_zigzag.gdshader", "gravel_holes.gdshader":
+			"gravel_zigzag.gdshader", "gravel_arrows.gdshader", "gravel_holes.gdshader":
 				var c := _desat(sm.get_shader_parameter("light"))
 				for k in ["light", "core"]:
 					sm.set_shader_parameter(k, c)

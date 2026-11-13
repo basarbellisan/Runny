@@ -2211,6 +2211,7 @@ func _gravel_zigzag(body: Node3D, center: Vector3, w: float, depth: float) -> vo
 	var slot_area := slot_len * ZIG_RADIUS * 2.0 + PI * ZIG_RADIUS * ZIG_RADIUS
 	mat.set_shader_parameter("coverage", clampf(slot_area / (ZIG_ARM * row), 0.05, 0.8))
 	if arrows:
+		mat.shader = preload("res://shaders/gravel_arrows.gdshader")
 		mat.set_shader_parameter("arrows", true)
 		mat.set_shader_parameter("shift", 0.0)
 		mat.set_shader_parameter("arm", ARROW_CELL.x)
