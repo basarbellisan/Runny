@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode unshaded, shadows_disabled, fog_disabled, depth_prepass_alpha;
+render_mode unshaded, shadows_disabled;
 // Düz dünya denemesi: yol sonundaki zıplama okları (MultiMesh). Pist ışıkları gibi yanıp söner:
 // parlak bir bant oklar boyunca yolun ucuna akar. INSTANCE_CUSTOM.g: okun dizideki yeri
 // (0 bölgenin başı, 1 yolun ucu).
@@ -12,8 +12,6 @@ uniform float band = 0.3;
 uniform float dim = 0.5;
 // Oyunun kendi saati (RoadGenerator her karede yazar)
 uniform float t = 0.0;
-// Sis yerine kendi uzaklık solması (uzaktan da yanıp sönmesi görünsün): fade_far.y'de görünmez
-uniform vec2 fade_far = vec2(330.0, 430.0);
 
 varying float along;
 
@@ -30,5 +28,4 @@ void vertex() {
 
 void fragment() {
 	ALBEDO = mix(color.rgb * dim, lit_color.rgb, lit(along));
-	ALPHA = 1.0 - smoothstep(fade_far.x, fade_far.y, -VERTEX.z);
 }

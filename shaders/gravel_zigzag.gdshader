@@ -27,9 +27,6 @@ uniform float t = 0.0;
 // yarı sağa (>) bakar. Sütun genişliği arm, sıra aralığı row_gap; okun yarı boyu amp. Nabız aynı
 // (ortadan iki yana açılan dalga, sütun sütun)
 uniform bool arrows = false;
-// Uzaktan görünürlük (ok düzeni): sis yerine kendi uzaklık solması (beyond fade_far.x yavaşça,
-// fade_far.y'de görünmez); uzaktaki ok deseni yerine dolu, nabızla yanıp sönen mavi alan
-uniform vec2 fade_far = vec2(330.0, 430.0);
 
 varying vec3 lp;
 
@@ -84,9 +81,7 @@ void fragment() {
 		vec3 lit = mix(light.rgb, lit_color.rgb, b);
 		float far = smoothstep(radius * 0.35, radius * 1.2, fw);
 		ALBEDO = lit;
-		// Uzakta: desen pikselden küçükken alan dolu ve parlak görünsün (ortalama kapsama değil)
-		ALPHA = mix(inside, 0.55 + 0.35 * b, far);
-		ALPHA *= 1.0 - smoothstep(fade_far.x, fade_far.y, -VERTEX.z);
+		ALPHA = mix(inside, coverage, far);
 	} else {
 	float W = (counts.x + shift) * arm;
 	float H = counts.y * row_gap;
