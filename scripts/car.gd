@@ -2166,6 +2166,18 @@ func _update_wheels(delta: float) -> void:
 		mount.position.y = lerpf(mount.position.y, target, 1.0 - exp(-25.0 * delta))
 		if wh.front:
 			(wh.steer as Node3D).rotation.y = lerpf((wh.steer as Node3D).rotation.y, -_steer * 0.35, 1.0 - exp(-12.0 * delta))
+	# Aks çubukları tekerleri izler: tek yanlı çubuk iç ucunda döner, dış ucu tekerle iner kalkar;
+	# boydan boya aks iki tekerin ortalaması kadar iner, farkları kadar yatar
+	for rod in model.rods:
+		var node: Node3D = rod.node
+		var ws: Array = rod.wheels
+		var d0: float = model.wheels[ws[0]].mount.position.y - model.wheels[ws[0]].radius
+		if ws.size() == 1:
+			node.rotation.z = float(rod.side) * atan2(d0, float(rod.len))
+		else:
+			var d1: float = model.wheels[ws[1]].mount.position.y - model.wheels[ws[1]].radius
+			node.position.y = (rod.rest as Vector3).y + (d0 + d1) * 0.5
+			node.rotation.z = atan2(d1 - d0, float(rod.len))
 	if grounded:
 		_wheel_spin += -velocity.z / model.wheels[0].radius * delta
 	for wh in model.wheels:
