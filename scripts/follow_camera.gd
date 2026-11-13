@@ -8,10 +8,10 @@ extends Camera3D
 @export var smash_offset := Vector3(0.0, 3.5, 6.0)
 @export var smash_look_ahead := 12.0
 @export var smash_approach := 1.2
-## Kanatlar kapanıp araba dalınca kamera bu kadar sn izler, sonra durup aşağı bakar
+## Kanatlar kapanıp araba dalınca kamera aşağı yukarı bu kadar sn izler, sonra yavaşlayıp durur ve aşağı bakar
 @export var dive_follow := 1.0
-## Aşağı dönen bakışın hızı
-@export var dive_look := 2.5
+## Takibin sönmesi ve bakışın aşağı dönmesi bu kadar sn sürer
+@export var dive_ease := 1.0
 var _off := Vector3.ZERO
 var _ahead := 22.0
 @export var follow_x := 7.0
@@ -74,11 +74,8 @@ func _process(delta: float) -> void:
 		_fly = 0.0
 	if _fly >= 0.0:
 		_fly_away(delta)
-	elif _target.nosedive and _target.nosedive_time >= dive_follow:
-		# Enerji bitti, araba baş aşağı dalıyor: kamera dive_follow sn izledi, şimdi yerinde durur ve
-		# arabanın ardından aşağı, sonsuz boşluğa bakar (araba sisin içinde küçülüp kaybolur)
-		_look = _look.lerp(t, 1.0 - exp(-dive_look * delta))
-		look_at(_look)
+	elif _target.nosedive:
+		_dive(t, delta)
 	elif _target.alive or _target.shattering:
 		# Parçalanmada kamera buluta yavaşça yaklaşır (parçalar küçülüp dağılırken ekranda kalsın)
 		var want_off := smash_offset if _target.smashing else offset
@@ -141,6 +138,22 @@ func _fly_away(delta: float) -> void:
 	p.x = lerpf(p.x, t.x + offset.x, 1.0 - exp(-follow_x * delta))
 	global_position = p
 	_look = Vector3(lerpf(p.x, t.x, 0.6), _look.y, p.z - offset.z - look_ahead)
+	look_at(_look)
+
+
+## Enerji bitti, araba baş aşağı dalıyor: kamera önce normal izler; takip dive_follow sn civarında
+## yumuşakça söner (kamera yavaşlayarak durur), bakış da ileriden arabaya, aşağı boşluğa döner.
+## Araba sisin içinde küçülüp kaybolur. Ani geçiş yok: hepsi smoothstep ile
+func _dive(t: Vector3, delta: float) -> void:
+	var td: float = _target.nosedive_time
+	var follow := 1.0 - smoothstep(dive_follow * 0.5, dive_follow + dive_ease, td)
+	var down := smoothstep(dive_follow * 0.4, dive_follow + dive_ease, td)
+	var p := global_position
+	var want := Vector3(t.x + _off.x, t.y + _off.y, t.z + _off.z)
+	p = p.lerp(want, (1.0 - exp(-8.0 * delta)) * follow)
+	global_position = p
+	var ahead := Vector3(lerpf(p.x, t.x, 0.6), t.y - 1.0, t.z - _ahead)
+	_look = _look.lerp(ahead.lerp(t, down), 1.0 - exp(-6.0 * delta))
 	look_at(_look)
 
 
