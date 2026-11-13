@@ -201,6 +201,14 @@ var _bounce := 0.0
 var _bounce_v := 0.0
 ## Gövdenin gerçek duruşu (rad): pitch artı = burun yukarı, roll eksi = sağ yan aşağı
 var pitch := 0.0
+## Enerji bitti, kanatlar kapandı: burun hemen aşağı düşer, araba baş aşağı uçuruma dalar
+var nosedive := false
+## Dalış başlayalı geçen süre (sn; kamera ilk NOSEDIVE_FOLLOW sn izler)
+var nosedive_time := 0.0
+## Dalışta burnun açısı (derece, aşağı), oturma hızı ve yerçekimi katı
+const NOSEDIVE_PITCH := 80.0
+const NOSEDIVE_TURN := 5.0
+const NOSEDIVE_GRAVITY := 1.6
 var roll := 0.0
 var pitch_rate := 0.0
 var roll_rate := 0.0
@@ -390,6 +398,10 @@ func _ballistic_to(target: Vector3, clear_y: float) -> void:
 ## Kanat enerjisi bitti: kanatlar kapanır, uçuruma düşeriz
 func lose_wings() -> void:
 	_has_wings = false
+	nosedive = true
+	nosedive_time = 0.0
+	pitch_rate = 0.0
+	roll_rate = 0.0
 	_set_mode(Mode.FALLING)
 
 
@@ -1265,6 +1277,16 @@ func _drive(delta: float) -> void:
 
 
 func _falling(delta: float) -> void:
+	if nosedive:
+		# Baş aşağı dalış: direksiyon yok, yana kayma söner, ileri hız azalır, hızla aşağı
+		nosedive_time += delta
+		velocity.y -= gravity * NOSEDIVE_GRAVITY * delta
+		velocity.x = move_toward(velocity.x, 0.0, 20.0 * delta)
+		velocity.z = move_toward(velocity.z, -speed * 0.35, 30.0 * delta)
+		move_and_slide()
+		if global_position.y < flight_altitude - abyss_depth:
+			_die("FELL OFF!")
+		return
 	velocity.y -= gravity * delta
 	velocity.x = move_toward(velocity.x, _steer * steer_speed, steer_accel * _k_steer * air_control * delta)
 	velocity.z = move_toward(velocity.z, -speed, 25.0 * delta)
@@ -1459,8 +1481,10 @@ func _dead_motion(delta: float) -> void:
 	# yüksekliğe göre alt katmanın mercan tonlarına kayıyordu
 	if _shattered:
 		return
-	# Uçuruma düşüş
-	velocity.y -= gravity * delta
+	# Uçuruma düşüş (baş aşağı dalışta aynı hızla sürer)
+	if nosedive:
+		nosedive_time += delta
+	velocity.y -= gravity * (NOSEDIVE_GRAVITY if nosedive else 1.0) * delta
 	position += velocity * delta
 
 
@@ -1795,6 +1819,8 @@ func _update_visual(delta: float) -> void:
 		# Uçarken burun hep ileri bakar, dönüşü yatma gösterir: dalışta ileri hız düşük
 		# olsa da burun yana dönmesin (düşerken kalan açı da hemen düzelir)
 		yaw_target = clampf(-atan2(velocity.x, maxf(forward, speed)) * 0.45, -0.26, 0.26)
+	if nosedive:
+		yaw_target = 0.0
 	_yaw = lerpf(_yaw, yaw_target, 1.0 - exp(-10.0 * delta))
 	_body.rotation = Vector3(pitch, _yaw, roll)
 	# Süspansiyon yaylanması (inişte gövde çöker ve toparlanır)
@@ -1864,6 +1890,14 @@ func _update_attitude(delta: float) -> void:
 		if absf(_tip) >= 1.0 and absf(roll) > deg_to_rad(_tip_deg):
 			velocity.x = signf(_tip) * maxf(absf(velocity.x), 7.0)
 			roll = clampf(roll, -1.3, 1.3)
+	elif nosedive:
+		# Kanatlar kapandı: burun hemen aşağı, yatma düzelir
+		pitch = lerp_angle(pitch, -deg_to_rad(NOSEDIVE_PITCH), 1.0 - exp(-NOSEDIVE_TURN * delta))
+		roll = lerp_angle(roll, 0.0, 1.0 - exp(-NOSEDIVE_TURN * delta))
+		pitch_rate = 0.0
+		roll_rate = 0.0
+		_air_lean = 0.0
+		return
 	else:
 		# Havada: önceki dönme sürer; direksiyon yatırır, bırakınca yatma söner
 		var lean_target := -_steer * deg_to_rad(air_lean_deg)

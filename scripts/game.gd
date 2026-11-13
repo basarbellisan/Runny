@@ -470,6 +470,8 @@ func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 			lower.activate()
 			if _args.has("fly_energy"):
 				car.energy = minf(car.energy, float(_args.fly_energy))  # test: az enerjiyle düş
+			if _args.has("fly_reserve"):
+				wing_reserve = float(_args.fly_reserve)  # test: kanat yedeği az (enerji bitince düşüş)
 			Audio.play("wings")
 			_flight_hint()
 		Car.Mode.LAUNCH:

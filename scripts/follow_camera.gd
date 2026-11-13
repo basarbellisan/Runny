@@ -8,6 +8,10 @@ extends Camera3D
 @export var smash_offset := Vector3(0.0, 3.5, 6.0)
 @export var smash_look_ahead := 12.0
 @export var smash_approach := 1.2
+## Kanatlar kapanıp araba dalınca kamera bu kadar sn izler, sonra durup aşağı bakar
+@export var dive_follow := 1.0
+## Aşağı dönen bakışın hızı
+@export var dive_look := 2.5
 var _off := Vector3.ZERO
 var _ahead := 22.0
 @export var follow_x := 7.0
@@ -70,6 +74,11 @@ func _process(delta: float) -> void:
 		_fly = 0.0
 	if _fly >= 0.0:
 		_fly_away(delta)
+	elif _target.nosedive and _target.nosedive_time >= dive_follow:
+		# Enerji bitti, araba baş aşağı dalıyor: kamera dive_follow sn izledi, şimdi yerinde durur ve
+		# arabanın ardından aşağı, sonsuz boşluğa bakar (araba sisin içinde küçülüp kaybolur)
+		_look = _look.lerp(t, 1.0 - exp(-dive_look * delta))
+		look_at(_look)
 	elif _target.alive or _target.shattering:
 		# Parçalanmada kamera buluta yavaşça yaklaşır (parçalar küçülüp dağılırken ekranda kalsın)
 		var want_off := smash_offset if _target.smashing else offset
