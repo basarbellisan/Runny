@@ -6,6 +6,9 @@ extends RefCounted
 ## dive_interval > 0 ise, yolda bu kadar saniye gittikten sonra bilerek
 ## yoldan düşer; uçarken kayalardan kaçıp portala yönelir.
 
+## Test: portala ortadan değil bu kadar metre yandan gir (--portal_off=N; şeride çekilmeyi görmek için)
+var _portal_off := 0.0
+
 var car: Car
 var roads: RoadGenerator
 var lower: LowerLayer
@@ -35,6 +38,9 @@ func _init(p_car: Car, p_roads: RoadGenerator, p_lower: LowerLayer, p_dive_inter
 	lower = p_lower
 	dive_interval = p_dive_interval
 	use_boost = p_use_boost
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--portal_off="):
+			_portal_off = float(a.get_slice("=", 1))
 
 
 ## x: direksiyon, y: gaz (Car._read_input ile aynı biçim)
@@ -352,7 +358,7 @@ func _fly_steer() -> float:
 	var goal := pos.x
 	var portal := lower.next_portal(pos.z)
 	if portal != null:
-		goal = portal.x
+		goal = portal.x + _portal_off
 	var forward := maxf(-car.velocity.z, 1.0)
 	var best := pos.x
 	var best_cost := INF

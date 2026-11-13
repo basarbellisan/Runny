@@ -242,6 +242,14 @@ var _launch_clear_y := 0.0
 ## Portal tüneli: araba önce bu çizgi boyunca kayar, sonra fırlatılır
 var _tube: PackedVector3Array = []
 var _tube_i := 0
+## Şeride çekilme (düz dünya): araba ağza girdiği yerden şeridin ortasına ilk TUBE_PULL metrede yumuşak
+## bir yayla çekilir; burun TUBE_AIM metre ilerideki noktaya bakar (önce burun döner, gövde arkasından)
+const TUBE_PULL := 16.0
+const TUBE_AIM := 6.0
+var _tube_len := PackedFloat32Array()
+var _tube_s := 0.0
+var _tube_off := Vector3.ZERO
+var _tube_aim := Vector3.ZERO
 ## Kanat yedeği: depo bitince açılır (kanat uçlarından iz), yanınca kanatlar kapanır
 var reserve := 0.0
 var reserve_max := 15.0
@@ -370,6 +378,16 @@ func launch_to(target: Vector3, clear_y: float, tube := PackedVector3Array()) ->
 	collision_mask = 0
 	_tube = tube
 	_tube_i = 0
+	_tube_s = 0.0
+	_tube_aim = Vector3.ZERO
+	if FlatStyle.on() and not tube.is_empty():
+		_tube_len = PackedFloat32Array([0.0])
+		for i in tube.size() - 1:
+			_tube_len.append(_tube_len[i] + tube[i].distance_to(tube[i + 1]))
+		_tube_off = global_position - tube[0]
+		_tube_off.z = 0.0
+		# Araba ağzın biraz önünde yakalanır: çizgiye o noktadan başlar (ileri sıçramasın)
+		_tube_s = -maxf(global_position.z - tube[0].z, 0.0)
 	if _tube.is_empty():
 		_ballistic_to(target, clear_y)
 	_set_mode(Mode.LAUNCH)
@@ -1327,6 +1345,9 @@ func _flying(delta: float) -> void:
 
 
 func _launch(delta: float) -> void:
+	if not _tube.is_empty() and FlatStyle.on():
+		_follow_strip(delta)
+		return
 	if not _tube.is_empty():
 		# Tünelin içinde: çizgi boyunca kay (direksiyon yok), ucunda fırla
 		var step := maxf(speed, 40.0) * delta
@@ -1364,6 +1385,37 @@ func _launch(delta: float) -> void:
 		_was_on_floor = false
 		air_time = 0.0
 		_set_mode(Mode.DRIVE)
+
+
+## Şeridin üstünde: ağza girilen yerden ortaya yumuşakça çekilerek çizgi boyunca gider, ucunda fırlar
+func _follow_strip(delta: float) -> void:
+	var total := _tube_len[_tube_len.size() - 1]
+	_tube_s = minf(_tube_s + maxf(speed, 40.0) * delta, total)
+	var p := _strip_point(_tube_s)
+	velocity = (p - global_position) / maxf(delta, 0.0001)
+	global_position = p
+	_tube_aim = (_strip_point(_tube_s + TUBE_AIM) - p).normalized()
+	if _tube_s >= total:
+		_tube = PackedVector3Array()
+		_tube_aim = Vector3.ZERO
+		_ballistic_to(_launch_target, _launch_clear_y)
+
+
+## Şeridin s metresindeki nokta; girişteki sapma ilk TUBE_PULL metrede yumuşakça söner
+## (başta yana / yukarı hız sıfır: önce burun döner, gövde arkasından gelir)
+func _strip_point(s: float) -> Vector3:
+	var total := _tube_len[_tube_len.size() - 1]
+	var off := _tube_off * (1.0 - smoothstep(0.0, TUBE_PULL, s))
+	if s < 0.0:
+		return _tube[0] + (_tube[1] - _tube[0]).normalized() * s + off
+	if s >= total:
+		var n := _tube.size()
+		return _tube[n - 1] + (_tube[n - 1] - _tube[n - 2]).normalized() * (s - total) + off
+	var i := _tube_len.bsearch(s, true) - 1
+	i = clampi(i, 0, _tube.size() - 2)
+	var seg := _tube_len[i + 1] - _tube_len[i]
+	var f := (s - _tube_len[i]) / maxf(seg, 0.0001)
+	return _tube[i].lerp(_tube[i + 1], f) + off
 
 
 func _back_on_road(vy_before: float) -> void:
@@ -1830,6 +1882,9 @@ func _update_visual(delta: float) -> void:
 		# Uçarken burun hep ileri bakar, dönüşü yatma gösterir: dalışta ileri hız düşük
 		# olsa da burun yana dönmesin (düşerken kalan açı da hemen düzelir)
 		yaw_target = clampf(-atan2(velocity.x, maxf(forward, speed)) * 0.45, -0.26, 0.26)
+	if mode == Mode.LAUNCH and _tube_aim != Vector3.ZERO:
+		# Şeride çekilirken burun şeridin ilerisine döner (gövde arkasından gelir)
+		yaw_target = clampf(-atan2(_tube_aim.x, maxf(-_tube_aim.z, 0.01)), -0.6, 0.6)
 	if nosedive:
 		yaw_target = 0.0
 	_yaw = lerpf(_yaw, yaw_target, 1.0 - exp(-10.0 * delta))
@@ -1860,7 +1915,8 @@ func _update_attitude(delta: float) -> void:
 			# uçtan çıkınca gidiş yönünün yarısı kadar kalkık kalır, tepe noktasında düzelir
 			var slope := atan2(velocity.y, maxf(-velocity.z, 1.0))
 			if not _tube.is_empty():
-				want_pitch = slope
+				# Burun ilerideki noktaya bakar (çekilirken önce burun kalkar / iner)
+				want_pitch = atan2(_tube_aim.y, maxf(-_tube_aim.z, 0.01)) if _tube_aim != Vector3.ZERO else slope
 				w = 1.0 - exp(-14.0 * delta)
 			else:
 				want_pitch = maxf(slope, 0.0) * 0.5

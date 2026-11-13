@@ -740,9 +740,11 @@ func _spawn_portal(p: Portal) -> void:
 
 	p.path = _tube_path(root.position)
 	if FlatStyle.on():
-		# Düz dünya: halka ve boru yok; arabanın altında yolu izleyen saydam beyaz şerit
+		# Düz dünya: halka ve boru yok; arabanın altında yolu izleyen saydam beyaz şerit. Araba da
+		# şeridin sık örnekli çizgisini izler (kıvrımda burnu kesik kesik dönmesin)
+		p.path = _tube_path(root.position, true)
 		var strip := MeshInstance3D.new()
-		strip.mesh = _launch_strip(_tube_path(root.position, true), root.position)
+		strip.mesh = _launch_strip(p.path, root.position)
 		strip.material_override = _strip_mat
 		strip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(strip)
