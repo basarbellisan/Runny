@@ -67,6 +67,11 @@ const LINE_STRETCH := 1.8
 ## Engellerin doygunluğu bu kadar düşer (0 aynı, 1 gri)
 const OBSTACLE_DESAT := 0.0
 
+## Oyunun görünüşü: varsayılan düz siyah-beyaz dünya (8, kırık bantlar). Eski mor zeminli oyun ?stil=0,
+## öbür denemeler ?stil=N ile açılır
+const DEFAULT := 8
+## Stil adresle / komut satırıyla seçildi mi (seçildiyse adı ekranın üstünde yazar)
+static var explicit := false
 static var style: int = _read()
 
 static func on() -> bool:
@@ -85,7 +90,8 @@ static func _read() -> int:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--stil="):
 			v = a.get_slice("=", 1)
-	return clampi(int(v), 0, STYLES.size() - 1) if v.is_valid_int() else 0
+	explicit = v.is_valid_int()
+	return clampi(int(v), 0, STYLES.size() - 1) if explicit else DEFAULT
 
 
 static func _col(key: String) -> Color:

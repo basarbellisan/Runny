@@ -158,9 +158,11 @@ func _ready() -> void:
 	lower.ghost_aim = _args.has("ghost_aim")
 	lower.use_debris = not _args.has("rocks")  # test: eski kayalar
 	lower.debug_log = _args.has("lowerperf")
-	# Düz dünya denemesi (?stil=N): malzemeleri düzleştirir; hangi stil açık, ekranın üstünde yazar
+	# Düz dünya (varsayılan; ?stil=0 eski mor oyun): malzemeleri düzleştirir. Stil adresle seçildiyse
+	# hangisinin açık olduğu ekranın üstünde yazar
 	if FlatStyle.on():
 		add_child(FlatStyle.new())
+	if FlatStyle.on() and FlatStyle.explicit:
 		var cl := CanvasLayer.new()
 		cl.layer = 50
 		var lb := Label.new()
