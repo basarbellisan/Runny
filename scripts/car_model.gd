@@ -75,8 +75,8 @@ static func fastest_mul() -> float:
 var wheels: Array[Dictionary] = []
 ## Gövde ve tekerlerin yandan en dış noktası (duvar kontrolü için)
 var half_width := 1.0
-## Tekerleri gövdeye bağlayan çubuklar (aks / dingil): gövde modelinden ayrılır, teker inip kalkınca
-## iç ucu gövdede sabit, dış ucu tekerle birlikte döner. Her biri: {node, wheels: [i] ya da [sol, sağ],
+## Tekerleri gövdeye bağlayan çubuklar (aks / dingil; Blender modellerinde ayrı objeler): teker inip
+## kalkınca iç ucu gövdede sabit, dış ucu tekerle birlikte döner. Her biri: {node, wheels: [i] ya da [sol, sağ],
 ## len: iç uçtan dış uca (m), side: dış ucun yanı (+1 sağ, -1 sol; boydan boya aksta 0), rest: dönme
 ## noktasının yeri (tek yanlıda iç uç, boydan boya aksta orta)}
 var rods: Array[Dictionary] = []
@@ -425,169 +425,34 @@ func _build_glb(path: String) -> void:
 		wheels.append({"contact": Vector3(p.x, 0, p.z), "radius": radius, "front": p.z < 0,
 			"mount": mount, "steer": steer, "spin": spin})
 		half_width = maxf(half_width, absf(p.x) + box.size.x * 0.5)
-	var body := scene.find_child("body", true, false) as MeshInstance3D
-	if body:
-		_split_rods(body)
+	_attach_axles(scene)
 
 
-## Gövde modelindeki koyu, ince, uzun kutulardan teker hizasında olanları (aks çubukları) ayrı parça
-## yapar. Blender'da gövdeyle birleştirildikleri için tekerler aşağı sarkınca yerinde kalıyorlardı.
-func _split_rods(body: MeshInstance3D) -> void:
-	# Gövdenin modele göre yeri (genelde birim)
-	var xf := Transform3D.IDENTITY
-	var n: Node = body
-	while n != null and n != self:
-		xf = (n as Node3D).transform * xf
-		n = n.get_parent()
-	var src := body.mesh as ArrayMesh
-	if src == null:
-		return
-	var out := ArrayMesh.new()
-	var found: Array[Dictionary] = []
-	for si in src.get_surface_count():
-		var arrays := src.surface_get_arrays(si)
-		var mat := src.surface_get_material(si)
-		var is_dark := mat != null and mat.resource_name == "Dark"
-		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-		var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
-		if idx.is_empty():
-			idx.resize(verts.size())
-			for k in verts.size():
-				idx[k] = k
-		var drop := {}
-		if is_dark:
-			for comp in _components(verts, idx):
-				var rod := _rod_info(comp, verts, idx, xf)
-				if not rod.is_empty():
-					rod.tris = comp
-					rod.arrays = arrays
-					rod.idx = idx
-					found.append(rod)
-					for t in comp:
-						drop[t] = true
-		var keep := PackedInt32Array()
-		for t in idx.size() / 3:
-			if not drop.has(t):
-				keep.append_array([idx[t * 3], idx[t * 3 + 1], idx[t * 3 + 2]])
-		if keep.is_empty():
-			keep = PackedInt32Array([0, 0, 0])  # yüzey sırası korunsun (malzemeler sırayla atanıyor)
-		var a2 := arrays.duplicate()
-		a2[Mesh.ARRAY_INDEX] = keep
-		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, a2)
-		out.surface_set_material(si, mat)
-		out.surface_set_name(si, src.surface_get_name(si))
-	if found.is_empty():
-		return
-	var overrides := []
-	for si in src.get_surface_count():
-		overrides.append(body.get_surface_override_material(si))
-	body.mesh = out
-	for si in overrides.size():
-		body.set_surface_override_material(si, overrides[si])
-	for rod in found:
-		_add_rod(rod, xf)
-
-
-## Üçgenleri ortak köşe konumlarıyla bağlı parçalara ayırır (her kutu bir parça)
-func _components(verts: PackedVector3Array, idx: PackedInt32Array) -> Array:
-	var key_of := func(v: Vector3) -> Vector3i:
-		return Vector3i(roundi(v.x * 2000.0), roundi(v.y * 2000.0), roundi(v.z * 2000.0))
-	var tri_count := idx.size() / 3
-	# Köşe anahtarı -> parça kimliği; bir üçgen iki parçayı birleştirirse parçalar kaynaşır
-	var comp_of_key := {}
-	var comps: Array = []
-	for t in tri_count:
-		var keys := [key_of.call(verts[idx[t * 3]]), key_of.call(verts[idx[t * 3 + 1]]), key_of.call(verts[idx[t * 3 + 2]])]
-		var ids := {}
-		for k in keys:
-			if comp_of_key.has(k):
-				ids[comp_of_key[k]] = true
-		var cid: int
-		if ids.is_empty():
-			cid = comps.size()
-			comps.append({"tris": [t], "keys": keys.duplicate()})
+## Aks çubukları (Blender'da ayrı objeler: axle_FL/FR/RL/RR iç ucunda, axle_F/R ortada) modelin altına
+## taşınır ve tekerlere bağlanır (car.gd tekerler inip kalkınca döndürür)
+func _attach_axles(scene: Node3D) -> void:
+	var names := ["wheel_FL", "wheel_FR", "wheel_RL", "wheel_RR"]
+	for n in scene.find_children("axle_*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		var key := String(mi.name).trim_prefix("axle_")
+		var xf := Transform3D.IDENTITY
+		var p: Node = mi
+		while p != null and p != self:
+			xf = (p as Node3D).transform * xf
+			p = p.get_parent()
+		mi.get_parent().remove_child(mi)
+		add_child(mi)
+		mi.transform = xf
+		var ws: Array = []
+		var side := 0.0
+		if key.length() == 1:
+			ws = [names.find("wheel_%sL" % key), names.find("wheel_%sR" % key)]
 		else:
-			var list := ids.keys()
-			list.sort()
-			cid = list[0]
-			comps[cid].tris.append(t)
-			comps[cid].keys.append_array(keys)
-			for other in list.slice(1):
-				if comps[other] == null:
-					continue
-				comps[cid].tris.append_array(comps[other].tris)
-				comps[cid].keys.append_array(comps[other].keys)
-				for k in comps[other].keys:
-					comp_of_key[k] = cid
-				comps[other] = null
-		for k in keys:
-			comp_of_key[k] = cid
-	var res: Array = []
-	for c in comps:
-		if c != null:
-			res.append(c.tris)
-	return res
-
-
-## Parça bir aks çubuğu mu: x boyunca uzun, ince; bir tekerin (ya da aynı aksın iki tekerinin) merkez
-## hizasında. Değilse boş döner
-func _rod_info(tris: Array, verts: PackedVector3Array, idx: PackedInt32Array, xf: Transform3D) -> Dictionary:
-	var lo := Vector3.INF
-	var hi := -Vector3.INF
-	for t in tris:
-		for k in 3:
-			var v := xf * verts[idx[t * 3 + k]]
-			lo = lo.min(v)
-			hi = hi.max(v)
-	var size := hi - lo
-	var c := (lo + hi) * 0.5
-	if size.x < maxf(size.y, size.z) * 1.8 or maxf(size.y, size.z) > 0.2:
-		return {}
-	var near: Array[int] = []
-	for i in wheels.size():
-		var w: Dictionary = wheels[i]
-		var wc := Vector3(w.contact.x, w.radius, w.contact.z)
-		if absf(c.y - wc.y) < 0.12 and absf(c.z - wc.z) < 0.15:
-			near.append(i)
-	if near.is_empty():
-		return {}
-	# Boydan boya aks: iki tekere de uzanır
-	if lo.x < -0.05 and hi.x > 0.05 and near.size() >= 2:
-		var l := near[0] if wheels[near[0]].contact.x < 0.0 else near[1]
-		var r := near[1] if l == near[0] else near[0]
-		return {"wheels": [l, r], "pivot": c, "len": size.x, "side": 0}
-	# Bir yandaki çubuk: dış ucu tekere, iç ucu gövdeye
-	var side := 1.0 if c.x > 0.0 else -1.0
-	var wi := -1
-	for i in near:
-		if signf(wheels[i].contact.x) == side:
-			wi = i
-	if wi < 0:
-		return {}
-	var inner_x := lo.x if side > 0.0 else hi.x
-	return {"wheels": [wi], "pivot": Vector3(inner_x, c.y, c.z), "len": size.x, "side": side}
-
-
-func _add_rod(rod: Dictionary, xf: Transform3D) -> void:
-	var arrays: Array = rod.arrays
-	var idx: PackedInt32Array = rod.idx
-	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
-	var pivot: Vector3 = rod.pivot
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for t in rod.tris:
-		for k in 3:
-			var vi := idx[t * 3 + k]
-			if normals.size() > vi:
-				st.set_normal(xf.basis * normals[vi])
-			st.add_vertex(xf * verts[vi] - pivot)
-	var mi := MeshInstance3D.new()
-	mi.mesh = st.commit()
-	mi.material_override = dark_material
-	mi.position = pivot
-	add_child(mi)
-	rods.append({"node": mi, "wheels": rod.wheels, "len": rod.len, "side": rod.side, "rest": pivot})
+			ws = [names.find("wheel_" + key)]
+			side = -1.0 if key.ends_with("L") else 1.0
+		if ws.has(-1) or ws.size() == 0 or ws.max() >= wheels.size():
+			continue
+		rods.append({"node": mi, "wheels": ws, "len": mi.get_aabb().size.x, "side": side, "rest": mi.position})
 
 
 func _lights(pos: Vector3, size: Vector3) -> void:

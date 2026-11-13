@@ -7,6 +7,9 @@ Kurallar (oyun bunlara göre okur):
 - 1 birim = 1 m. Burun +Y, yer Z = 0, araba X = 0'da ortalı.
 - Tekerler ayrı objeler: wheel_FL, wheel_FR, wheel_RL, wheel_RR; orijin teker
   merkezinde, aks X boyunca. Oyun bunları süspansiyon/direksiyon düğümlerine taşır.
+- Aks çubukları ayrı objeler (gövdeyle birleşmez): tek yandaki çubuklar axle_FL / axle_FR /
+  axle_RL / axle_RR (orijin gövdedeki iç ucunda), boydan boya akslar axle_F / axle_R (orijin
+  ortada). Oyun bunları tekerlere bağlar: teker inip kalkınca çubuk da döner.
 - Malzeme adları: Paint (gövde rengi, oyun değiştirebilir), Dark, Tire, Glass,
   Light, Tail, Hub.
 """
@@ -1329,8 +1332,9 @@ def join_body():
             for m in list(ob.modifiers):
                 bpy.ops.object.modifier_apply(modifier=m.name)
             ob.select_set(False)
+    group_axles()
     parts = [o for o in bpy.context.scene.objects
-             if o.type == "MESH" and not o.name.startswith("wheel_") and o.parent is None]
+             if o.type == "MESH" and not o.name.startswith(("wheel_", "axle_")) and o.parent is None]
     bpy.ops.object.select_all(action="DESELECT")
     for o in parts:
         o.select_set(True)
@@ -1349,6 +1353,50 @@ def join_body():
         w.select_set(True)
         bpy.context.view_layer.objects.active = w
         bpy.ops.object.join()
+
+
+## Gövdeyi tekerlere bağlayan çubukların obje adları (Blender .001 gibi ek koyabilir)
+AXLE_PARTS = ("rod", "stub", "axle", "axle_r", "axle_f")
+
+
+def group_axles():
+    """Aks çubuklarını tekere göre gruplayıp ayrı objeler yapar (axle_FL ... ya da axle_F / axle_R)."""
+    scene = bpy.context.scene
+    wheels = {o.name: o.matrix_world.translation.copy() for o in scene.objects
+              if o.name.startswith("wheel_") and o.parent is None}
+    if "wheel_FL" not in wheels or "wheel_RL" not in wheels:
+        return
+    groups = {}
+    for o in [o for o in scene.objects if o.type == "MESH" and o.parent is None
+              and o.name.split(".")[0] in AXLE_PARTS]:
+        pts = [o.matrix_world @ Vector(c) for c in o.bound_box]
+        lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
+        hi = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
+        c = (lo + hi) / 2
+        fr = "F" if abs(c.y - wheels["wheel_FL"].y) < abs(c.y - wheels["wheel_RL"].y) else "R"
+        key = "axle_" + fr if (lo.x < -0.05 and hi.x > 0.05) else "axle_" + fr + ("L" if c.x < 0 else "R")
+        groups.setdefault(key, []).append(o)
+    for key, obs in groups.items():
+        bpy.ops.object.select_all(action="DESELECT")
+        for o in obs:
+            o.select_set(True)
+        bpy.context.view_layer.objects.active = obs[0]
+        if len(obs) > 1:
+            bpy.ops.object.join()
+        ob = bpy.context.view_layer.objects.active
+        ob.name = key
+        ob.data.name = key
+        pts = [ob.matrix_world @ v.co for v in ob.data.vertices]
+        lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
+        hi = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
+        c = (lo + hi) / 2
+        if len(key) > 6:
+            # Tek yanlı: orijin gövdedeki iç uçta (oyun çubuğu bu noktanın çevresinde döndürür)
+            c.x = hi.x if key.endswith("L") else lo.x
+        scene.cursor.location = c
+        bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
+    scene.cursor.location = (0, 0, 0)
+    bpy.ops.object.select_all(action="DESELECT")
 
 
 def triangles():
