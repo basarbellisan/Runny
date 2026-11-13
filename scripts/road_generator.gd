@@ -3619,6 +3619,8 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 		var rb1 := Vector3(r1.x, -depth, r1.z)
 		_quad(wall, faces, l0, l1, lb1, lb0, Vector3.LEFT)
 		_quad(wall, faces, r0, r1, rb1, rb0, Vector3.RIGHT)
+		# Alt yüz (yoktu: aşağıdan bakınca yatık yolun altı görünmüyor, arkası boş görünüyordu)
+		_quad(wall, faces, lb0, rb0, rb1, lb1, Vector3.DOWN)
 	# Ön (yakın) ve arka (uzak) yüzler
 	var f_l: Vector3 = at.call(-hw, 0, 0.0)
 	var f_r: Vector3 = at.call(hw, 0, 0.0)
