@@ -148,13 +148,20 @@ func _dive(t: Vector3, delta: float) -> void:
 	var td: float = _target.nosedive_time
 	var follow := 1.0 - smoothstep(dive_follow * 0.5, dive_follow + dive_ease, td)
 	var down := smoothstep(dive_follow * 0.4, dive_follow + dive_ease, td)
+	# Takip başta uçuştaki gibi (ileri tam, yana ve yukarı aşağı yumuşak); follow söndükçe kamera yavaşlar
 	var p := global_position
-	var want := Vector3(t.x + _off.x, t.y + _off.y, t.z + _off.z)
-	p = p.lerp(want, (1.0 - exp(-8.0 * delta)) * follow)
+	p.z = lerpf(p.z, t.z + _off.z, follow)
+	p.x = lerpf(p.x, t.x + _off.x, (1.0 - exp(-follow_x * delta)) * follow)
+	var k := follow_y + absf(_target.velocity.y) * 0.15
+	p.y = lerpf(p.y, t.y + _off.y, (1.0 - exp(-k * delta)) * follow)
 	global_position = p
 	var ahead := Vector3(lerpf(p.x, t.x, 0.6), t.y - 1.0, t.z - _ahead)
-	_look = _look.lerp(ahead.lerp(t, down), 1.0 - exp(-6.0 * delta))
+	# Bakış: uçuştaki ileri noktadan arabaya (down yumuşakça 0'dan 1'e çıkar, geçiş kesintisiz)
+	_look = ahead.lerp(t, down)
 	look_at(_look)
+	# Uçuştaki yan yatma birden sıfırlanmaz, yavaşça söner
+	_roll = lerpf(_roll, 0.0, 1.0 - exp(-2.0 * delta))
+	rotate_object_local(Vector3(0, 0, 1), _roll)
 
 
 ## Oyun sonu akışında mı (kamera arabadan ayrılıp ileri gidiyor): arka plan buna göre yerleşir

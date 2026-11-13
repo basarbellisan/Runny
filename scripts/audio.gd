@@ -122,6 +122,8 @@ func _ready() -> void:
 
 
 func play(sfx: String, volume_db := 0.0, pitch := 1.0) -> void:
+	if _aud_trace:
+		print("SFX f=%d %s" % [Engine.get_process_frames(), sfx])
 	var p: AudioStreamPlayer = _players[sfx]
 	p.volume_db = sfx_volume_db + volume_db
 	p.pitch_scale = pitch
