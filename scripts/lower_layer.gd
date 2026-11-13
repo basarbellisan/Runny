@@ -103,7 +103,8 @@ var _portal_fill_mat := StandardMaterial3D.new()
 ## Düz dünyada tünel yerine şerit
 var _strip_mat := ShaderMaterial.new()
 const STRIP_WIDTH := 9.0
-const STRIP_DROP := 1.0
+## Şerit tekerlerin hemen altında (araba orta çizgide, tekerleri orada değer)
+const STRIP_DROP := 0.05
 
 
 func _ready() -> void:
