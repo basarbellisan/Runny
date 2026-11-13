@@ -335,25 +335,19 @@ func _physics_process(delta: float) -> void:
 		_update_visual(delta)
 
 
-## Deneme (?inis=N / --inis=N): tünelden fırlayınca yola konmaya ne kadar yardım edilir.
-## 0 şimdiki (yükselirken hedef yolun hizasına tam kayar), 1 az (yolun 3 m yanında bırakır), 2 çok az
-## (6 m yanında bırakır): kalanı oyuncu düşerken direksiyonla kapatır. Tünel çoğu zaman yolun 8 m,
-## bazen 11-14 m yanında; düşerken yana gidilebilecek yol ~9-10 m (tepe noktası bu yüzden yükseltildi)
-static var launch_assist_mode: int = _read_launch_assist()
-const LAUNCH_LEFT := [0.0, 3.0, 6.0]
-const LAUNCH_EXTRA_APEX := [0.0, 4.0, 9.0]
+## Tünelden fırlayınca yola konma: araba yükselirken hedef yola doğru kayar ama yolun LAUNCH_LEFT
+## metre yanında bırakılır; kalanı oyuncu düşerken direksiyonla kapatır (tünel çoğu zaman yolun 8 m,
+## bazen 11-14 m yanında). Tepe noktası LAUNCH_EXTRA_APEX kadar yüksek: düşerken yana gidecek vakit
+## olsun (~1 sn, ~9-10 m)
+const LAUNCH_LEFT := 6.0
+const LAUNCH_EXTRA_APEX := 9.0
 var _launch_x0 := 0.0
-
-
-static func _read_launch_assist() -> int:
-	var v := ""
-	if OS.has_feature("web"):
-		var r: Variant = JavaScriptBridge.eval("new URLSearchParams(location.search).get('inis') || ''")
-		v = "" if r == null else str(r)
-	for a in OS.get_cmdline_user_args():
-		if a.begins_with("--inis="):
-			v = a.get_slice("=", 1)
-	return clampi(int(v), 0, 2) if v.is_valid_int() else 0
+## Tünelden fırlatılıp yola düşüyoruz (tepe noktasından yere değene kadar)
+var landing_from_launch := false
+## Fırlatmanın hedef yolu (düşerken otomatik sürücü buna yönelir)
+var launch_target: Vector3:
+	get:
+		return _launch_target
 
 
 ## Portala girince çağrılır: araba, target noktasındaki yola inecek şekilde fırlatılır.
@@ -384,7 +378,7 @@ func _ballistic_to(target: Vector3, clear_y: float) -> void:
 	var vy := (target.y - y + 0.5 * gravity * t * t) / t
 	# Tepe noktası yolların hizasının epey üstünde olsun ki yana kayacak vakit kalsın
 	# (hedef alçak bir yolsa fırlatma daha dik olur, ileri hız biraz düşer)
-	var apex_min: float = clear_y + 4.0 + float(LAUNCH_EXTRA_APEX[launch_assist_mode])
+	var apex_min: float = clear_y + 4.0 + LAUNCH_EXTRA_APEX
 	_launch_x0 = global_position.x
 	if y + vy * vy / (2.0 * gravity) < apex_min:
 		vy = sqrt(2.0 * gravity * (apex_min - y))
@@ -1109,6 +1103,8 @@ func crash(reason: String) -> void:
 
 func _drive(delta: float) -> void:
 	var on_floor := is_on_floor()
+	if on_floor:
+		landing_from_launch = false
 	_sense_wheels()
 	var air_flow := FlatStyle.on()
 	if air_flow:
@@ -1327,12 +1323,13 @@ func _launch(delta: float) -> void:
 		# Yolların üstüne çıktık: tepe noktasına kadar hedef yolun hizasına kay
 		var t_apex := maxf(velocity.y / gravity, 0.05)
 		var off := _launch_target.x - _launch_x0
-		var aim := _launch_target.x - signf(off) * minf(absf(off), float(LAUNCH_LEFT[launch_assist_mode]))
+		var aim := _launch_target.x - signf(off) * minf(absf(off), LAUNCH_LEFT)
 		velocity.x = clampf((aim - global_position.x) / t_apex, -25.0, 25.0)
 	move_and_slide()
 	if velocity.y <= 0.0:
 		velocity.x = 0.0
 		collision_mask = _default_mask
+		landing_from_launch = true
 		last_floor_y = _launch_target.y
 		_was_on_floor = false
 		air_time = 0.0

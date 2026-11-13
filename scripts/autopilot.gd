@@ -64,6 +64,9 @@ func _drive_input() -> Vector2:
 		return Vector2(0.0, r.y)
 	var pos := car.global_position
 	var current: RoadGenerator.Segment = roads.segment_under(pos) if car.is_on_floor() else null
+	if car.landing_from_launch and not car.is_on_floor():
+		# Tünelden fırlatıldık: düşerken hedef yolun hizasına yönel (oyuncunun yapacağı gibi)
+		return Vector2(clampf((car.launch_target.x - pos.x) * 0.8 - car.velocity.x * 0.08, -1.0, 1.0), 0.0)
 
 	if dive_interval > 0.0 and car.mode == Car.Mode.DRIVE:
 		if current != null:
