@@ -335,6 +335,21 @@ func _physics_process(delta: float) -> void:
 		_update_visual(delta)
 
 
+## Tünelden fırlayınca yola konma: araba yükselirken hedef yola doğru kayar ama yolun LAUNCH_LEFT
+## metre yanında bırakılır; kalanı oyuncu düşerken direksiyonla kapatır (tünel çoğu zaman yolun 8 m,
+## bazen 11-14 m yanında). Tepe noktası LAUNCH_EXTRA_APEX kadar yüksek: düşerken yana gidecek vakit
+## olsun (~1 sn, ~9-10 m)
+const LAUNCH_LEFT := 6.0
+const LAUNCH_EXTRA_APEX := 9.0
+var _launch_x0 := 0.0
+## Tünelden fırlatılıp yola düşüyoruz (tepe noktasından yere değene kadar)
+var landing_from_launch := false
+## Fırlatmanın hedef yolu (düşerken otomatik sürücü buna yönelir)
+var launch_target: Vector3:
+	get:
+		return _launch_target
+
+
 ## Portala girince çağrılır: araba, target noktasındaki yola inecek şekilde fırlatılır.
 ## clear_y'nin üstüne çıkana kadar yana kaymaz (yolların içinden geçmemek için).
 ## tube verilirse önce tünelin içinden (yukarı kıvrılarak) geçer, ucundan fırlar.
@@ -363,7 +378,8 @@ func _ballistic_to(target: Vector3, clear_y: float) -> void:
 	var vy := (target.y - y + 0.5 * gravity * t * t) / t
 	# Tepe noktası yolların hizasının epey üstünde olsun ki yana kayacak vakit kalsın
 	# (hedef alçak bir yolsa fırlatma daha dik olur, ileri hız biraz düşer)
-	var apex_min := clear_y + 4.0
+	var apex_min: float = clear_y + 4.0 + LAUNCH_EXTRA_APEX
+	_launch_x0 = global_position.x
 	if y + vy * vy / (2.0 * gravity) < apex_min:
 		vy = sqrt(2.0 * gravity * (apex_min - y))
 		t = (vy + sqrt(maxf(vy * vy - 2.0 * gravity * (target.y - y), 0.0))) / gravity
@@ -1087,7 +1103,16 @@ func crash(reason: String) -> void:
 
 func _drive(delta: float) -> void:
 	var on_floor := is_on_floor()
+	if on_floor:
+		landing_from_launch = false
 	_sense_wheels()
+	var air_flow := FlatStyle.on()
+	if air_flow:
+		_air_lift(delta)
+		# Havanın kaldırdığı tekerler "boşlukta" sayılmasın (yol kenarı devrilmesi / burun düşmesi değil)
+		if air_wheels > 0:
+			for i in 4:
+				wheel_contact[i] = true
 	var control := 1.0 if on_floor else air_control
 	if on_floor:
 		# Boşluktaki tekerler: tutuş azalır, araba boş tarafa doğru yatar ve çekilir
@@ -1096,8 +1121,12 @@ func _drive(delta: float) -> void:
 		_tip = (right_off - left_off) * 0.5
 		_nose = (int(not wheel_contact[0]) + int(not wheel_contact[1])) * 0.5
 		control *= 1.0 - grip_loss * _k_grip * (left_off + right_off)
-		on_gravel = roads != null and roads.gravel_at(global_position)
-		if on_gravel:
+		if not air_flow:
+			on_gravel = roads != null and roads.gravel_at(global_position)
+		if air_flow:
+			if on_gravel:
+				control *= AIR_GRIP
+		elif on_gravel:
 			control *= gravel_grip
 			# Taşlar arabayı sağa sola savurur (her ~0.25 sn yön değişir), gövdeyi sarsar
 			_gravel_timer -= delta
@@ -1109,7 +1138,7 @@ func _drive(delta: float) -> void:
 			# Çakıldan çıkınca da bir süre sendeler
 			_stumble = maxf(_stumble if _stumble_time > 0.0 else 0.0, 0.45)
 			_stumble_time = maxf(_stumble_time, gravel_after * _k_after)
-		else:
+		if not on_gravel:
 			_gravel_push_target = 0.0
 		_gravel_push = lerpf(_gravel_push, _gravel_push_target, 1.0 - exp(-8.0 * delta))
 		velocity.x += _gravel_push * delta
@@ -1293,11 +1322,14 @@ func _launch(delta: float) -> void:
 	if global_position.y > _launch_clear_y:
 		# Yolların üstüne çıktık: tepe noktasına kadar hedef yolun hizasına kay
 		var t_apex := maxf(velocity.y / gravity, 0.05)
-		velocity.x = clampf((_launch_target.x - global_position.x) / t_apex, -25.0, 25.0)
+		var off := _launch_target.x - _launch_x0
+		var aim := _launch_target.x - signf(off) * minf(absf(off), LAUNCH_LEFT)
+		velocity.x = clampf((aim - global_position.x) / t_apex, -25.0, 25.0)
 	move_and_slide()
 	if velocity.y <= 0.0:
 		velocity.x = 0.0
 		collision_mask = _default_mask
+		landing_from_launch = true
 		last_floor_y = _launch_target.y
 		_was_on_floor = false
 		air_time = 0.0
@@ -1517,6 +1549,98 @@ func _sense_wheels() -> void:
 
 ## Yoldan önden mi (yolun sonu) yoksa yandan mı çıktık
 ## Çakıl etkisinin hıza göre katı (başlangıç hızında 1)
+## --- Hava akımı (düz dünya denemesi; eski çakılın yerinde): her ok hücresinden ayrı güçte hava
+## çıkar (RoadGenerator.air_at) ve yalnız üstündeki tekeri iter: hangi teker maruz kalıyorsa o kalkar
+## (ön tekerler: burun, bir yan: yatma), güçler farklı olduğu için asimetrik. Tekerin altındaki okun
+## yönüne itilir; tekerler farklı yönlere itilince gövde sağa sola savrulur
+const AIR_LIFT := 75.0     # tekerin altındaki tam güçlü havanın o köşeye yukarı ivmesi (m/sn²)
+const AIR_MAX_VY := 7.5    # en çok yükselme hızı (m/sn)
+const AIR_PITCH := 15.0    # ön-arka farkının burun kaldırma ivmesi (rad/sn²)
+const AIR_ROLL := 20.0    # sol-sağ farkının yatırma ivmesi (rad/sn²)
+const AIR_PUSH := 20.0     # yana itme ivmesi (m/sn²)
+const AIR_JOLT := 27.5     # gövdeyi savuran yan sarsıntı (tekerlerin yön farkı ve hücre geçişleri)
+const AIR_GRIP := 0.25     # yerdeyken hava üstünde tutuş
+const AIR_REACH := 1.5     # hava yolun bu kadar üstünde (m) biter: teker yükseldikçe zayıflar
+const AIR_TILT_MAX := 0.6  # havanın yatırabileceği en çok açı (rad, ~35°): devirmez
+## Dalgadan çıktıktan sonra yalpalama: süre (sn), sıklık (Hz), yanal salınım ivmesi (m/sn²)
+const AIR_WOBBLE_TIME := 1.3
+const AIR_WOBBLE_HZ := 1.6
+const AIR_SWAY := 9.0
+var _air_exit := 0.0
+## Hava alanının üstündeki teker sayısı (0-4) ve her tekerin altındaki havanın gücü
+var air_wheels := 0
+var _air_wheel_lift: Array[float] = [0.0, 0.0, 0.0, 0.0]
+## Hava alanından çıktıktan sonra bu kadar süre (sn) gövde yatıklığı güvenli açıda tutulur
+var _air_settle := 0.0
+
+
+func _air_lift(delta: float) -> void:
+	air_wheels = 0
+	for i in 4:
+		_air_wheel_lift[i] = 0.0
+	if roads == null or model == null:
+		return
+	var lift: Array[float] = [0.0, 0.0, 0.0, 0.0]
+	var side := 0.0
+	var spread := 0.0
+	for i in mini(model.wheels.size(), 4):
+		var p: Vector3 = global_position + global_transform.basis * (model.wheels[i].contact as Vector3)
+		var a := roads.air_at(p)
+		if a.x <= 0.0:
+			continue
+		# Hava yerde tam, tekerin yoldan yüksekliği arttıkça zayıflar (AIR_REACH'te biter): araba
+		# fırlamaz, hava yastığında sallanır
+		var road_y := last_floor_y
+		var under := roads.segment_under(p)
+		if under:
+			road_y = under.top_at(p.z)
+		a.x *= clampf(1.0 - (p.y - road_y) / AIR_REACH, 0.0, 1.0)
+		if a.x <= 0.0:
+			continue
+		lift[i] = a.x
+		_air_wheel_lift[i] = a.x
+		side += a.y * a.x
+		spread += a.y
+		air_wheels += 1
+	on_gravel = air_wheels > 0
+	if air_wheels == 0:
+		_gravel_push_target = 0.0
+		# Dalgadan çıkış: gövde birkaç kez sağa sola yalpalar (yay az sönümlü, yanal salınım), söner
+		if _air_exit > 0.0:
+			_air_exit -= delta
+			var k := clampf(_air_exit / AIR_WOBBLE_TIME, 0.0, 1.0)
+			velocity.x += sin(_air_exit * AIR_WOBBLE_HZ * TAU) * AIR_SWAY * k * delta
+		return
+	_air_exit = AIR_WOBBLE_TIME
+	var gain := _gravel_gain()
+	# Teker sırası: 0 ön sol, 1 ön sağ, 2 arka sol, 3 arka sağ
+	var total := lift[0] + lift[1] + lift[2] + lift[3]
+	# Gövdeyi kaldıran kuvvet: bir yanın havası da arabayı yerden koparır (hızla giderken kalkan yan
+	# gövdeyi çeker, öbür yan belli ölçüde takip eder); iki yan da içindeyse daha çok
+	var strong := maxf(lift[0] + lift[2], lift[1] + lift[3]) * 0.5
+	var body := 0.6 * strong + 0.4 * total * 0.25
+	if velocity.y < AIR_MAX_VY:
+		velocity.y = minf(velocity.y + AIR_LIFT * body * delta, AIR_MAX_VY)
+	# Zemine yapışma kalksın (yoksa yukarı itiş tutunmaya yenilir)
+	_snap_off = maxf(_snap_off, 0.12)
+	# Hava gövdeyi sert yatırır ama devirmez: yatma / burun kalkması AIR_TILT_MAX'ı geçince o yöne itmez
+	var dp := AIR_PITCH * ((lift[0] + lift[1]) - (lift[2] + lift[3])) * 0.5 * delta
+	var dr := AIR_ROLL * ((lift[1] + lift[3]) - (lift[0] + lift[2])) * 0.5 * delta
+	if absf(pitch + signf(dp) * 0.01) < AIR_TILT_MAX or signf(dp) != signf(pitch):
+		pitch_rate += dp
+	if absf(roll + signf(dr) * 0.01) < AIR_TILT_MAX or signf(dr) != signf(roll):
+		roll_rate += dr
+	# Sınırda dönme hızı da söner (savrulma momentumu araba ters inecek kadar taşımasın)
+	if absf(roll) > AIR_TILT_MAX * 0.75 and signf(roll_rate) == signf(roll):
+		roll_rate *= exp(-12.0 * delta)
+	if absf(pitch) > AIR_TILT_MAX * 0.75 and signf(pitch_rate) == signf(pitch):
+		pitch_rate *= exp(-12.0 * delta)
+	_air_settle = 0.5
+	velocity.x += side * 0.25 * AIR_PUSH * gain * delta
+	# Savrulma: tekerlerin altındaki okların yönü ve güç farkı gövdeyi yana sarsar (kuyruk sallanır)
+	_gravel_push_target = (side * 0.5 + (spread - side) * 0.35) * AIR_JOLT * 0.25 * gain
+
+
 func _gravel_gain() -> float:
 	return lerpf(1.0, gravel_speed_gain, clampf(inverse_lerp(start_speed, max_speed, ref_speed), 0.0, 1.0))
 
@@ -1694,6 +1818,15 @@ func _update_attitude(delta: float) -> void:
 		var w := 1.0 - exp(-5.0 * delta)
 		var want_roll := -velocity.x / steer_speed * 0.45 if mode == Mode.FLYING else 0.0
 		var want_pitch := sin(Time.get_ticks_msec() * 0.003) * 0.04 if mode == Mode.FLYING else 0.0
+		if mode == Mode.LAUNCH and FlatStyle.on():
+			# Düz dünya: fırlatma şeridi yol gibi; araba üstündeyken burnu şeridin eğimini izler,
+			# uçtan çıkınca gidiş yönünün yarısı kadar kalkık kalır, tepe noktasında düzelir
+			var slope := atan2(velocity.y, maxf(-velocity.z, 1.0))
+			if not _tube.is_empty():
+				want_pitch = slope
+				w = 1.0 - exp(-14.0 * delta)
+			else:
+				want_pitch = maxf(slope, 0.0) * 0.5
 		roll = lerp_angle(roll, want_roll, w)
 		pitch = lerp_angle(pitch, want_pitch, w)
 		roll_rate = 0.0
@@ -1708,6 +1841,14 @@ func _update_attitude(delta: float) -> void:
 		var lean := atan2(-n.x, n.y) - velocity.x / steer_speed * 0.08 + _side_tilt
 		var k := suspension_stiffness
 		var c := suspension_damping
+		# Hava akımı bir köşeyi kaldırırken yay gövdeyi düz tutmaya çalışmasın: bütün gövde yerdeki
+		# tekerlerin üstünde döner (kalkan köşe havada, karşı köşe yerde); çıkınca yay geri oturtur
+		if air_wheels > 0:
+			k *= 0.12
+			c *= 0.4
+		elif _air_exit > 0.0:
+			# Çıkışta az sönümlü yay: gövde birkaç kez yalpalayıp oturur
+			c *= 0.18
 		# Bir yanın iki tekeri de boştaysa yay tutmaz: araba kenardan devrilir
 		var roll_acc := -_tip * tip_roll_accel
 		if absf(_tip) < 1.0:
@@ -1740,6 +1881,10 @@ func _update_attitude(delta: float) -> void:
 	pitch_rate = clampf(pitch_rate, -9.0, 9.0)
 	roll += roll_rate * delta
 	pitch += pitch_rate * delta
+	if _air_settle > 0.0:
+		_air_settle -= get_physics_process_delta_time()
+		roll = clampf(roll, -AIR_TILT_MAX, AIR_TILT_MAX)
+		pitch = clampf(pitch, -AIR_TILT_MAX, AIR_TILT_MAX)
 
 
 ## Arabanın özellikleri (CarModel.STATS): hız, tutuş, çakıl, denge katları
@@ -1909,7 +2054,7 @@ func _update_wheels(delta: float) -> void:
 		var wh: Dictionary = model.wheels[i]
 		var r: float = wh.radius
 		var target := r - suspension_travel
-		if grounded and wheel_contact[i]:
+		if grounded and wheel_contact[i] and _air_wheel_lift[i] <= 0.0:
 			# Gövde yatınca/burun kalkınca teker yerde kalır: yay uzar ya da kısalır
 			var c: Vector3 = wh.contact
 			var lift := c.x * sin(roll) - c.z * sin(pitch)

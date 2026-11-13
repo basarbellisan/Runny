@@ -7,6 +7,8 @@ render_mode unshaded, shadows_disabled;
 
 uniform vec4 color : source_color = vec4(1.0, 0.12, 0.06, 1.0);
 uniform float rate = 1.4;
+// Sönük ışığın parlaklığı (rengin bu kadarı)
+uniform float dim = 0.45;
 uniform float band = 0.3;
 // Oyunun kendi saati (RoadGenerator her karede yazar)
 uniform float t = 0.0;
@@ -27,7 +29,7 @@ void vertex() {
 
 void fragment() {
 	float p = lit(along);
-	vec3 off = color.rgb * 0.45;
+	vec3 off = color.rgb * dim;
 	vec3 on = vec3(1.0, 0.32, 0.12);
 	ALBEDO = mix(off, on, p);
 }

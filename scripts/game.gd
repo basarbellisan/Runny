@@ -158,6 +158,21 @@ func _ready() -> void:
 	lower.ghost_aim = _args.has("ghost_aim")
 	lower.use_debris = not _args.has("rocks")  # test: eski kayalar
 	lower.debug_log = _args.has("lowerperf")
+	# Düz dünya denemesi (?stil=N): malzemeleri düzleştirir; hangi stil açık, ekranın üstünde yazar
+	if FlatStyle.on():
+		add_child(FlatStyle.new())
+		var cl := CanvasLayer.new()
+		cl.layer = 50
+		var lb := Label.new()
+		lb.text = "STİL %d: %s" % [FlatStyle.style, FlatStyle.cfg().name]
+		lb.add_theme_font_size_override("font_size", 22)
+		lb.add_theme_color_override("font_color", Color(1, 1, 1, 0.9))
+		lb.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.6))
+		lb.add_theme_constant_override("outline_size", 6)
+		lb.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+		lb.position.y = 70
+		cl.add_child(lb)
+		add_child(cl)
 	lower.portal_entered.connect(_on_portal)
 	Tuning.register({"game": self, "car": car, "roads": roads, "lower": lower,
 		"camera": $Camera, "audio": Audio, "trail": car.trail, "speedo": hud.speedometer})
@@ -227,9 +242,18 @@ func _ready() -> void:
 	env.ambient_light_sky_contribution = 0.0
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	roads.start(car, seed_value)
-	backdrop = Backdrop.new()
-	add_child(backdrop)
-	backdrop.setup(car)
+	if FlatStyle.layered_bg():
+		# Düz dünya denemesi: 2D katmanlı arka plan (gökyüzü, gezegen, üç dağ sırası); 3D bulutlar kapalı
+		var layered := LayeredBackdrop.new()
+		add_child(layered)
+		layered.setup(car, FlatStyle.bg_colors(), FlatStyle.bg_shape())
+		env.background_mode = Environment.BG_CANVAS
+		env.background_canvas_max_layer = -1
+		clouds.visible = false
+	else:
+		backdrop = Backdrop.new()
+		add_child(backdrop)
+		backdrop.setup(car)
 	_apply_light_preset(int(_args.get("light", "0")))
 	_apply_mood(0.0)
 	var cover_layer := CanvasLayer.new()
@@ -402,7 +426,7 @@ const FOG_LOWER := Vector3(0.0, 400.0, 0.55)
 
 func _apply_fog(m: float) -> void:
 	var env: Environment = _mood_targets.env
-	var f := FOG_UPPER.lerp(FOG_LOWER, m)
+	var f := (FlatStyle.FOG_UPPER if FlatStyle.on() else FOG_UPPER).lerp(FlatStyle.FOG_LOWER if FlatStyle.on() else FOG_LOWER, m)
 	if _args.has("fog"):
 		var v: PackedStringArray = str(_args.fog).split(",")  # test: --fog=başlangıç,bitiş
 		f = Vector3(float(v[0]), float(v[1]), f.z)

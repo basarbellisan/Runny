@@ -21,7 +21,7 @@ const ENERGY := Color("9fe02a")
 ## Üst katmanın paletleri: yol boyunca bölge bölge (zone_length metrede bir) yumuşakça geçer.
 ## Gökyüzü degradesi, renkli sis (yolların altı ve dekor aşağıda sise karışır), renkli ışık,
 ## yol üstü / yan yüzü, şerit çizgisi, dekor ve yazı rengi (ink: göstergelerin yazısı)
-const SKIES := [
+const DEFAULT_SKIES := [
 	# Pembe-mor alacakaranlık
 	{"name": "dusk",
 		# Ufukta gök, zemin ve sis aynı renk: ufuk çizgisi erir
@@ -36,7 +36,7 @@ const SKIES := [
 		"sun_disc": Color("ff8f7e"), "sparkle": Color("ffc8f0")},
 ]
 ## Alt katman (uçuş): hep mercan; koyu erik rengi kayalar (3. görseldeki gibi)
-const LOWER := {
+const DEFAULT_LOWER := {
 	# Ufukta gök, zemin ve sis aynı renk: ufuk çizgisi erir
 	"sky_top": Color("f7c7b2"), "sky_horizon": Color("f08976"),
 	"ground_horizon": Color("f08976"), "ground_bottom": Color("e6685c"),
@@ -45,6 +45,10 @@ const LOWER := {
 	"cloud": Color(0.96, 0.62, 0.55, 0.5), "ink": INK_DARK,
 	"rocks": [Color("3f2639"), Color("4b2f45"), Color("5b3a52")],
 }
+
+## Oyunun kullandığı paletler: normalde yukarıdakiler; düz dünya denemesinde (FlatStyle, ?stil=N) onunkiler
+static var SKIES: Array = FlatStyle.skies(DEFAULT_SKIES)
+static var LOWER: Dictionary = FlatStyle.lower(DEFAULT_LOWER)
 
 
 ## Şerit çizgisinin rengi yolun üst yüz renginden: aynı renk ailesi, tonu turuncuya doğru
@@ -55,6 +59,8 @@ const LINE_VAL := 1.0
 
 
 static func line_for(road_top: Color) -> Color:
+	if FlatStyle.on():
+		return FlatStyle.line_color()
 	var h := road_top.h
 	var d := wrapf(ACCENT.h - h, -0.5, 0.5)  # turuncuya en kısa yoldan
 	return Color.from_hsv(wrapf(h + d * LINE_HUE_WARM, 0.0, 1.0), maxf(road_top.s, LINE_SAT), LINE_VAL)

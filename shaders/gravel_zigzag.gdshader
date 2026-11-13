@@ -23,6 +23,10 @@ uniform float t1 = 0.8;
 // Çaprazlama: tek sıralar bu kadar kol yana kayık (0 hizalı, 0.5 tuğla, 1 ters yönde)
 uniform float shift = 0.0;
 uniform float t = 0.0;
+// Ok düzeni (düz dünya denemesi): zikzak yerine yan yana sütunlarda oklar; sol yarı sola (<), sağ
+// yarı sağa (>) bakar. Sütun genişliği arm, sıra aralığı row_gap; okun yarı boyu amp. Nabız aynı
+// (ortadan iki yana açılan dalga, sütun sütun)
+uniform bool arrows = false;
 
 varying vec3 lp;
 
@@ -47,7 +51,40 @@ void vertex() {
 	lp = VERTEX * sc;
 }
 
+// Ok düzeni: en yakın okun kolu uzaklığı ve sütun no'su
+vec2 arrow_dist(vec2 p) {
+	float W = counts.x * arm;
+	float H = counts.y * row_gap;
+	float col = clamp(floor((p.x + W * 0.5) / arm), 0.0, counts.x - 1.0);
+	float row = clamp(floor((p.y + H * 0.5) / row_gap), 0.0, counts.y - 1.0);
+	float cx = (col + 0.5) * arm - W * 0.5;
+	float cy = (row + 0.5) * row_gap - H * 0.5;
+	// Yön: sütun ortanın solundaysa sola
+	float dir = (col + 0.5 < counts.x * 0.5) ? -1.0 : 1.0;
+	float half_w = arm * 0.32;
+	vec2 tip = vec2(cx + dir * half_w, cy);
+	vec2 a = vec2(cx - dir * half_w, cy + amp);
+	vec2 b = vec2(cx - dir * half_w, cy - amp);
+	// Kollar uçta birleşir, dış uçları biraz kısa (t0)
+	float d = min(seg_dist(p, mix(a, tip, t0), tip), seg_dist(p, mix(b, tip, t0), tip));
+	return vec2(d, col);
+}
+
 void fragment() {
+	if (arrows) {
+		vec2 ad = arrow_dist(lp.xy);
+		float r = ad.x / radius;
+		float fw = max(length(dFdx(lp.xy)), length(dFdy(lp.xy)));
+		float aa = clamp(fw / radius, 0.02, 1.0);
+		float inside = 1.0 - smoothstep(1.0 - aa, 1.0 + aa, r);
+		float b = breath_side(abs(ad.y + 0.5 - counts.x * 0.5));
+		vec3 lit = mix(light.rgb, lit_color.rgb, b);
+		float far = smoothstep(radius * 0.35, radius * 1.2, fw);
+		ALBEDO = lit;
+		// Desen pikselden küçükken (uzakta; yere yatık bakışta 30 m'de bile) ortalama kapsama değil, dolu
+		// ve nabızlı parlak mavi alan (yoksa siyah yolla karışıp koyu laciverde dönüyordu)
+		ALPHA = mix(inside, 0.8 + 0.2 * b, far);
+	} else {
 	float W = (counts.x + shift) * arm;
 	float H = counts.y * row_gap;
 	float row = floor((lp.y + H * 0.5) / row_gap);
@@ -89,4 +126,5 @@ void fragment() {
 	vec3 avg = lit;
 	ALBEDO = mix(col, avg, far);
 	ALPHA = mix(inside, coverage, far);
+}
 }

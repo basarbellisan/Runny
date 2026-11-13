@@ -324,6 +324,13 @@ func _ready() -> void:
 	_kerb_white.roughness = 0.8
 	_runway_mat.shader = preload("res://shaders/runway_dots.gdshader")
 	_runway_halo_mat.shader = preload("res://shaders/runway_halo.gdshader")
+	# Düz dünya denemesi (FlatStyle): yol üstündeki işaretler çizgi renginde (yol sonundaki kırmızı
+	# oklar ve yatık yolun kırmızı çizgileri hariç), rampanın üstü yol renginde
+	for m: Material in [_ramp_line_mat, _chevron_mat, _ramp_arrow_mat]:
+		m.set_meta("flat_role", "mark")
+	_ramp_top_mat.set_meta("flat_role", "asphalt")
+	_runway_mat.set_meta("flat_role", "runway")
+	_kerb_red.set_meta("flat_role", "kerb")
 	_block_mat.albedo_color = Palette.GRAPHITE
 	_block_mat.roughness = 0.9
 	_block_top_mat.albedo_color = Palette.ACCENT
@@ -404,6 +411,8 @@ func update(car_pos: Vector3) -> void:
 func _process(delta: float) -> void:
 	_light_time += delta
 	_runway_mat.set_shader_parameter("t", _light_time)
+	if _jump_mat:
+		_jump_mat.set_shader_parameter("t", _light_time)
 	_runway_halo_mat.set_shader_parameter("t", _light_time)
 	_crystal_mat.set_shader_parameter("t", _light_time)
 	# Blok lambaları sırayla yanıp söner (A ve B ters fazda); şeritler akar
@@ -1163,8 +1172,11 @@ func _add_segment(x: float, top: float, top_end: float, width: float, z_start: f
 	for ln in _line_layout(width):
 		var line_mat: ShaderMaterial = _ramp_line_mat if rise > 1.0 or bonus else _line_for(s, ln)
 		_add_box(body, Vector3(ln.cx, 0.015, 0), Vector3(ln.w, 0.02, slope_len - 0.6), line_mat)
-	if rise > 1.0:
-		_add_chevrons(body, width, slope_len)
+	# Düz dünya denemesinde ışık/gölge yok: küçük tümseklerin yokuşu da rampa gibi oklarla belli olsun
+	if rise > (0.3 if FlatStyle.on() else 1.0):
+		# Düz dünyada yokuşun beyaz okları yol sonundaki kırmızı zıplama oklarının bölgesine girmez
+		var keep_clear := _jump_zone(s, slope_len) + 3.0 if FlatStyle.on() and is_main and lights else 0.0
+		_add_chevrons(body, width, slope_len, keep_clear)
 	if is_main and lights:
 		_add_runway_lights(body, s, slope_len)
 
@@ -1183,6 +1195,9 @@ func _add_segment(x: float, top: float, top_end: float, width: float, z_start: f
 ## Bölgenin başında seyrek (~5 m), yolun ucuna doğru düzgünce sıklaşır (~1 m).
 ## Parlak bir bant dizi boyunca ~0.6 sn'de yolun ucuna akar ve döngüyle tekrarlar: "şimdi gaz".
 func _add_runway_lights(body: Node3D, s: Segment, slope_len: float) -> void:
+	if FlatStyle.on():
+		_add_jump_arrows(body, s, slope_len)
+		return
 	var v := estimate_speed(car.global_position.z - s.z_end)
 	var zone := clampf(v * lights_time, 18.0, minf(70.0, slope_len * 0.6))
 	# Yolun ucundan geriye doğru: aralık uçta 1 m, bölgenin başında 5 m
@@ -1234,6 +1249,67 @@ func _add_runway_lights(body: Node3D, s: Segment, slope_len: float) -> void:
 		mi.material_override = pair[1]
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		body.add_child(mi)
+
+
+## Düz dünya denemesi: pist ışıkları yerine yolun üstünde, ucuna doğru kırmızı şevronlar (rampadaki
+## şevronların aynısı, kırmızı). Işıklar gibi yanıp söner: parlak bant uca akar
+var _jump_mat: ShaderMaterial
+
+
+## Zıplama oklarının (pist ışıklarının) yolun ucundan geriye kapladığı boy (m)
+func _jump_zone(s: Segment, slope_len: float) -> float:
+	var v := estimate_speed(car.global_position.z - s.z_end)
+	return clampf(v * lights_time, 18.0, minf(70.0, slope_len * 0.6))
+
+
+func _add_jump_arrows(body: Node3D, s: Segment, slope_len: float) -> void:
+	if _jump_mat == null:
+		_jump_mat = ShaderMaterial.new()
+		_jump_mat.shader = preload("res://shaders/jump_arrows.gdshader")
+	# Tek şevron (rampadakiyle aynı ölçüler): tepesi ileri (-z), kolları geriye açılır
+	var arm := minf(s.width * 0.42, 2.8)
+	var half_a := deg_to_rad(52.0)
+	var w := 0.6
+	var notch := Vector3(0, 0, w / sin(half_a))
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var unused := PackedVector3Array()
+	var p0 := Vector3(0, 0, -notch.z * 0.5)
+	for sx in [-1.0, 1.0]:
+		var dir := Vector3(sx * sin(half_a), 0, cos(half_a))
+		var p1 := p0 + dir * arm
+		_quad(st, unused, p0, p1, p1 + notch, p0 + notch, Vector3.UP)
+	var chevron := st.commit()
+	var zone := _jump_zone(s, slope_len)
+	# Yolun ucundan geriye: aralık uçta 4 m, bölgenin başında 8 m
+	var dists: Array[float] = []
+	var d := 2.5
+	while d < zone:
+		dists.append(d)
+		d += lerpf(4.0, 8.0, d / zone)
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_custom_data = true
+	mm.instance_count = dists.size()
+	mm.mesh = chevron
+	var half := slope_len * 0.5
+	var cos_a := cos(body.rotation.x)
+	for j in dists.size():
+		var lz := -half + dists[j]
+		var along := 1.0 - float(j) / maxf(dists.size() - 1, 1)
+		var bank := 0.0
+		var lift := 0.0
+		if not s.bank_z.is_empty():
+			bank = s.bank_at(body.position.z + lz)
+			lift = s.top_at(body.position.z + lz) - s.top
+		var basis := Basis(Vector3.FORWARD, -bank)
+		mm.set_instance_transform(j, Transform3D(basis, Vector3(0, 0.035 + lift, lz)))
+		mm.set_instance_custom_data(j, Color(body.position.z + lz * cos_a, along, 0, 0))
+	var mi := MultiMeshInstance3D.new()
+	mi.multimesh = mm
+	mi.material_override = _jump_mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.add_child(mi)
 
 
 ## Düz bir yola engeller ve çakıl şeritleri: sırayla sağda solda, aralarından
@@ -2045,7 +2121,8 @@ func _gravel_holes(body: Node3D, center: Vector3, w: float, depth: float) -> voi
 	var ground := MeshInstance3D.new()
 	ground.mesh = _unit_quad
 	ground.material_override = holes
-	ground.position = center + Vector3(0, 0.012, 0)
+	# Şerit çizgilerinin (0.015-0.04 m) üstünde: çakıl çizgilerin altında kalmasın
+	ground.position = center + Vector3(0, 0.06, 0)
 	ground.rotation = Vector3(-PI * 0.5, 0, 0)
 	ground.scale = Vector3(pw, ph, 1.0)
 	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -2081,6 +2158,9 @@ const ZIG_ROW := 0.75      # sıra aralığı (m)
 @export var zig_nest := true
 const ZIG_NEST_K := 0.9
 const ZIG_RADIUS := 0.085 # yarığın yarı genişliği (m)
+## Düz dünya denemesi, ok düzeni: hücre (genişlik, sıra aralığı) ve okun yarı boyu (m)
+const ARROW_CELL := Vector2(0.75, 0.85)
+const ARROW_HALF_H := 0.3
 const ZIG_T := Vector2(0.2, 0.8)  # yarık kolun bu bölümünde (köşelerde boşluk)
 ## Çaprazlama: tek sıralar bu kadar kol yana kayık (0 hizalı, 0.5 tuğla, 1 ters yönde)
 @export var zig_shift := 0.0
@@ -2100,14 +2180,23 @@ func _gravel_zigzag(body: Node3D, center: Vector3, w: float, depth: float) -> vo
 		_gravel_wave_mats.append(_curtain_mat)
 	if _unit_quad == null:
 		_unit_quad = QuadMesh.new()
+	# Düz dünya denemesi: oklar (sol yarı sola, sağ yarı sağa); sütun sayısı çift
+	var arrows := FlatStyle.on()
 	var na := maxi(2, int((w - 0.3) / ZIG_ARM))
 	var row := ZIG_AMP * 2.0 * ZIG_NEST_K if zig_nest else ZIG_ROW
+	if arrows:
+		na = maxi(2, int((w - 0.3) / ARROW_CELL.x / 2.0) * 2)
+		row = ARROW_CELL.y
 	var nr := maxi(1, int((depth - 0.3) / row))
 	var sh := zig_shift
 	if sh > 0.0:
 		na = maxi(2, int((w - 0.3) / ZIG_ARM - sh))
 	var pw := (na + sh) * ZIG_ARM
 	var ph := nr * row
+	if arrows:
+		nr = maxi(1, int((depth - 0.3) / row))
+		pw = na * ARROW_CELL.x
+		ph = nr * row
 	var mat := _zig_mat.duplicate() as ShaderMaterial
 	mat.set_shader_parameter("shift", sh)
 	mat.set_shader_parameter("arm", ZIG_ARM)
@@ -2121,11 +2210,18 @@ func _gravel_zigzag(body: Node3D, center: Vector3, w: float, depth: float) -> vo
 	var slot_len := (ZIG_T.y - ZIG_T.x) * Vector2(ZIG_ARM, ZIG_AMP * 2.0).length()
 	var slot_area := slot_len * ZIG_RADIUS * 2.0 + PI * ZIG_RADIUS * ZIG_RADIUS
 	mat.set_shader_parameter("coverage", clampf(slot_area / (ZIG_ARM * row), 0.05, 0.8))
+	if arrows:
+		mat.set_shader_parameter("arrows", true)
+		mat.set_shader_parameter("shift", 0.0)
+		mat.set_shader_parameter("arm", ARROW_CELL.x)
+		mat.set_shader_parameter("amp", ARROW_HALF_H)
+		mat.set_shader_parameter("t0", 0.1)
 	_gravel_wave_mats.append(mat)
 	var ground := MeshInstance3D.new()
 	ground.mesh = _unit_quad
 	ground.material_override = mat
-	ground.position = center + Vector3(0, 0.012, 0)
+	# Şerit çizgilerinin (0.015-0.04 m) üstünde: çakıl çizgilerin altında kalmasın
+	ground.position = center + Vector3(0, 0.06, 0)
 	ground.rotation = Vector3(-PI * 0.5, 0, 0)
 	ground.scale = Vector3(pw, ph, 1.0)
 	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -3436,6 +3532,34 @@ func _remember(s: Segment) -> void:
 		history.append(s)
 
 
+## Düz dünya denemesi, hava akımı: bu noktada yukarı esen havanın gücü (x, 0..1.4) ve okun yana
+## yönü (y, -1 sol / 1 sağ); hava yoksa ZERO. Her ok hücresinden farklı güçte hava çıkar (hücreye
+## özgü sabit pay) ve görseldeki nabızla (ortadan iki yana açılan dalga) birlikte kabarır
+func air_at(pos: Vector3) -> Vector2:
+	var s := segment_under(pos)
+	if s == null:
+		return Vector2.ZERO
+	for o in s.obstacles:
+		if not (o.gravel and pos.z <= o.z0 and pos.z >= o.z1 and pos.x >= o.x0 and pos.x <= o.x1):
+			continue
+		var w: float = o.x1 - o.x0
+		var depth: float = o.z0 - o.z1
+		var na := maxi(2, int((w - 0.3) / ARROW_CELL.x / 2.0) * 2)
+		var nr := maxi(1, int((depth - 0.3) / ARROW_CELL.y))
+		var pw := na * ARROW_CELL.x
+		var ph := nr * ARROW_CELL.y
+		var lx := pos.x - (float(o.x0) + float(o.x1)) * 0.5
+		var ly := (float(o.z0) + float(o.z1)) * 0.5 - pos.z
+		var col := clampi(int(floor((lx + pw * 0.5) / ARROW_CELL.x)), 0, na - 1)
+		var row := clampi(int(floor((ly + ph * 0.5) / ARROW_CELL.y)), 0, nr - 1)
+		var dist := absf(col + 0.5 - na * 0.5)
+		var wave := pow(0.5 + 0.5 * sin(_light_time * 3.2 - dist * 1.15), 2.0)
+		var cell := fposmod(sin(float(col) * 12.9898 + float(row) * 78.233 + float(o.z0) * 0.37) * 43758.5453, 1.0)
+		var strength := (0.6 + 0.4 * wave) * (0.8 + 0.4 * cell)
+		return Vector2(strength, -1.0 if col + 0.5 < na * 0.5 else 1.0)
+	return Vector2.ZERO
+
+
 ## Bu noktada çakıl var mı
 func gravel_at(pos: Vector3) -> bool:
 	var s := segment_under(pos)
@@ -3495,6 +3619,8 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 		var rb1 := Vector3(r1.x, -depth, r1.z)
 		_quad(wall, faces, l0, l1, lb1, lb0, Vector3.LEFT)
 		_quad(wall, faces, r0, r1, rb1, rb0, Vector3.RIGHT)
+		# Alt yüz (yoktu: aşağıdan bakınca yatık yolun altı görünmüyor, arkası boş görünüyordu)
+		_quad(wall, faces, lb0, rb0, rb1, lb1, Vector3.DOWN)
 	# Ön (yakın) ve arka (uzak) yüzler
 	var f_l: Vector3 = at.call(-hw, 0, 0.0)
 	var f_r: Vector3 = at.call(hw, 0, 0.0)
@@ -3518,6 +3644,20 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 	var asphalt := SurfaceTool.new()
 	asphalt.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var layout := _line_layout(hw * 2.0)
+	# Düz dünya denemesi: yatık bölümde alçak kenarın çizgileri yerine iki kesintisiz kırmızı çizgi
+	var edge_cx := 0.0
+	var edge_w := 0.12
+	for ln in layout:
+		if absf(float(ln.cx)) > edge_cx:
+			edge_cx = absf(float(ln.cx))
+			edge_w = float(ln.w)
+	# Kenar çizgi grubunun (bir yandaki kenar çizgileri) yerleri: kırmızı çizgiler bunlarla hizalanır
+	var edge_group: Array[float] = []
+	for ln in layout:
+		var ax := absf(float(ln.cx))
+		if float(ln.cx) > 0.0 and ax >= edge_cx - 1.0:
+			edge_group.append(ax)
+	edge_group.sort()
 	var line_tools: Array[SurfaceTool] = []
 	for ln in layout:
 		var st := SurfaceTool.new()
@@ -3526,9 +3666,16 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 	for i in rows:
 		_quad(asphalt, unused, at.call(-hw + 0.15, i, 0.02), at.call(hw - 0.15, i, 0.02),
 			at.call(hw - 0.15, i + 1, 0.02), at.call(-hw + 0.15, i + 1, 0.02), Vector3.UP)
+		# Yatık bölümde alçak kenarın çizgileri (kenar çizgi grubu) yerine kırmızı çizgi gelir; yüksek kenar aynı
+		var row_bank := s.bank_at(z_start - length * (i + 0.5) / rows)
+		var low_side := 0.0
+		if FlatStyle.on() and absf(row_bank) >= deg_to_rad(1.5):
+			low_side = -1.0 if row_bank > 0.0 else 1.0
 		for li in layout.size():
 			var c: float = layout[li].cx
 			var hwl: float = layout[li].w * 0.5
+			if low_side != 0.0 and signf(c) == low_side and absf(c) >= edge_cx - 1.0:
+				continue
 			_quad(line_tools[li], unused, at.call(c - hwl, i, 0.04), at.call(c + hwl, i, 0.04),
 				at.call(c + hwl, i + 1, 0.04), at.call(c - hwl, i + 1, 0.04), Vector3.UP)
 	# Alçak kenarda kırmızı-beyaz bordür: yol nereye yatıyorsa o kenarda, yatık
@@ -3553,6 +3700,20 @@ func _add_banked_segment(x: float, top: float, width: float, z_start: float, z_e
 			return Vector3(d * cos(b), d * sin(b) + 0.05 + rise * (z_start - z) / length, z - cz)
 		var outer: float = side * (hw - 0.05)
 		var inner: float = side * (hw - 0.8)
+		if FlatStyle.on():
+			# Düz dünya: alçak kenarda, beyaz kenar çizgileriyle hizalı iki kesintisiz kırmızı çizgi
+			# (kenarda iki beyaz çizgi varsa tam onların yerinde, tek çizgi varsa onun iki yanında)
+			var lw := edge_w * 0.55
+			var xs: Array[float] = []
+			if edge_group.size() >= 2:
+				xs = [edge_group[0], edge_group[-1]]
+			else:
+				xs = [edge_cx - edge_w * 1.6, edge_cx + edge_w * 1.6]
+			for ax in xs:
+				var lx: float = side * ax
+				_quad(kerbs[0], unused, p.call(lx - lw, z0), p.call(lx + lw, z0), p.call(lx + lw, z1), p.call(lx - lw, z1), Vector3.UP)
+			any_kerb[0] = true
+			continue
 		_quad(kerbs[c], unused, p.call(outer, z0), p.call(inner, z0), p.call(inner, z1), p.call(outer, z1), Vector3.UP)
 		any_kerb[c] = true
 	for c in 2:
@@ -3626,7 +3787,7 @@ func _apply_ramp_style() -> void:
 	_ramp_arrow_mat.albedo_color = Color(cs[1])
 
 
-func _add_chevrons(body: Node3D, width: float, slope_len: float) -> void:
+func _add_chevrons(body: Node3D, width: float, slope_len: float, keep_clear := 0.0) -> void:
 	var arm := minf(width * 0.42, 2.8)
 	var half := deg_to_rad(52.0)
 	var count := clampi(int(slope_len / 8.0), 3, 8)
@@ -3638,6 +3799,9 @@ func _add_chevrons(body: Node3D, width: float, slope_len: float) -> void:
 	var notch := Vector3(0, 0, w / sin(half))
 	for i in count:
 		var apex_z := -slope_len * 0.5 + slope_len * (i + 0.6) / (count + 0.4)
+		# Yolun ucundan (-z) keep_clear metre: orası zıplama oklarının
+		if apex_z < -slope_len * 0.5 + keep_clear:
+			continue
 		var p0 := Vector3(0, 0.035, apex_z)
 		for sx in [-1.0, 1.0]:
 			var d := Vector3(sx * sin(half), 0, cos(half))
@@ -3664,6 +3828,7 @@ func _wall_material(s: Segment) -> StandardMaterial3D:
 	elif rise < -1.0:
 		m.albedo_color = m.albedo_color.darkened(0.18)
 	m.roughness = 1.0
+	m.set_meta("flat_role", "wall")
 	return m
 
 
@@ -3672,6 +3837,7 @@ func _asphalt_material(s: Segment) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_color = _pal(-(s.z_start + s.z_end) * 0.5).road_top
 	m.roughness = 1.0
+	m.set_meta("flat_role", "asphalt")
 	return m
 
 
@@ -3717,12 +3883,15 @@ func _line_layout(width: float) -> Array:
 	var st := line_style
 	if st < 0:
 		st = 1 if width >= LINE_WIDE else (2 if width >= LINE_NARROW else 3)
+	# Düz dünya denemesi: kesikler oranlı uzun (çizgi ve boşluk aynı oranda; tasarım aynı)
+	var pk := FlatStyle.LINE_STRETCH if FlatStyle.on() else 1.0
 	for ln in LINE_STYLES[clampi(st, 0, LINE_STYLES.size() - 1)].lines:
+		var per: float = float(ln.p) * pk
 		if str(ln.x) == "c":
-			out.append({"cx": 0.0, "w": ln.w, "p": ln.p, "d": ln.d, "o": ln.get("o", 0.0)})
+			out.append({"cx": 0.0, "w": ln.w, "p": per, "d": ln.d, "o": ln.get("o", 0.0)})
 		else:
 			for sx in [-1.0, 1.0]:
-				out.append({"cx": sx * (width * 0.5 - float(ln.x)), "w": ln.w, "p": ln.p, "d": ln.d, "o": ln.get("o", 0.0)})
+				out.append({"cx": sx * (width * 0.5 - float(ln.x)), "w": ln.w, "p": per, "d": ln.d, "o": ln.get("o", 0.0)})
 	return out
 
 
@@ -3752,9 +3921,14 @@ func _add_decor(seg: Segment) -> void:
 			seg.x + side * _rng.randf_range(35.0, 120.0),
 			seg.top + _rng.randf_range(-30.0, 10.0),
 			_rng.randf_range(seg.z_end, seg.z_start))
+		var col := (_pal(-pos.z).decor as Color).darkened(_rng.randf_range(0.0, 0.08))
+		# Düz dünya denemesi: dev bloklar yok (rastgele sayılar yine çekilir: yol üretimi aynı kalsın)
+		if FlatStyle.on():
+			continue
 		var m := StandardMaterial3D.new()
-		m.albedo_color = (_pal(-pos.z).decor as Color).darkened(_rng.randf_range(0.0, 0.08))
+		m.albedo_color = col
 		m.roughness = 1.0
+		m.set_meta("flat_role", "decor")
 		var block := _add_box(self, pos, size, m)
 		block.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_decor.append(block)

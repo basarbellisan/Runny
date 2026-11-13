@@ -100,6 +100,11 @@ var _rock_mats: Array[StandardMaterial3D] = []
 var _crystal_mat := StandardMaterial3D.new()
 var _portal_mat := StandardMaterial3D.new()
 var _portal_fill_mat := StandardMaterial3D.new()
+## Düz dünyada tünel yerine şerit
+var _strip_mat := ShaderMaterial.new()
+const STRIP_WIDTH := 9.0
+## Şerit tekerlerin hemen altında (araba orta çizgide, tekerleri orada değer)
+const STRIP_DROP := 0.05
 
 
 func _ready() -> void:
@@ -115,6 +120,7 @@ func _ready() -> void:
 		var m := StandardMaterial3D.new()
 		m.albedo_color = c
 		m.roughness = 1.0
+		m.set_meta("flat_role", "rock")
 		_rock_mats.append(m)
 	_crystal_mat.albedo_color = Palette.ENERGY
 	_crystal_mat.emission_enabled = true
@@ -134,6 +140,8 @@ func _ready() -> void:
 	for m: StandardMaterial3D in [_portal_mat, _portal_fill_mat]:
 		m.distance_fade_min_distance = DebrisField.FADE.y
 		m.distance_fade_max_distance = DebrisField.FADE.x
+	_strip_mat.shader = preload("res://shaders/launch_strip.gdshader")
+	_strip_mat.set_shader_parameter("appear", Vector2(DebrisField.FADE.x, DebrisField.FADE.y))
 	_comet_mat.albedo_color = Color("ffb067")
 	_comet_mat.emission_enabled = true
 	_comet_mat.emission = Color("ff7a2e")
@@ -331,7 +339,8 @@ func _update_inner(delta: float, spawn := true, ambient_only := false) -> void:
 	var limit := z + 30.0
 	for i in range(_items.size() - 1, -1, -1):
 		var n := _items[i]
-		if not is_instance_valid(n) or n.position.z > limit:
+		# Portal kökü girişte; tüneli / şeridi 40 m ileri uzanır: araba onu da geçene kadar kalır
+		if not is_instance_valid(n) or n.position.z > limit + float(n.get_meta("reach", 0.0)):
 			if is_instance_valid(n):
 				n.queue_free()
 			_items.remove_at(i)
@@ -379,25 +388,34 @@ func next_portal(z: float) -> Portal:
 
 
 ## Tünelin orta çizgisi (dünya konumu): halkadan 8 m düz, sonra 26 m yarıçapla 55°
-## yukarı kıvrılır, 14 m o açıyla devam eder
-func _tube_path(ring: Vector3) -> PackedVector3Array:
+## yukarı kıvrılır, 14 m o açıyla devam eder. fine: sık örnek (düz şeridin pürüzsüz kıvrımı için)
+func _tube_path(ring: Vector3, fine := false) -> PackedVector3Array:
 	var pts := PackedVector3Array()
 	var straight := 8.0
 	var radius := 26.0
 	var turn := deg_to_rad(55.0)
+	var step := 0.5 if fine else 4.0
 	var z := 0.0
 	while z <= straight:
 		pts.append(ring + Vector3(0, 0, -z))
-		z += 4.0
+		z += step
 	var c := ring + Vector3(0, radius, -straight)
-	var a := deg_to_rad(7.0)
+	var da := step / radius if fine else deg_to_rad(7.0)
+	var a := da
 	while a <= turn + 0.001:
 		pts.append(c + Vector3(0, -radius * cos(a), -radius * sin(a)))
-		a += deg_to_rad(7.0)
+		a += da
 	var dir := Vector3(0, sin(turn), -cos(turn))
-	var last := pts[pts.size() - 1]
-	for d in [7.0, 14.0]:
-		pts.append(last + dir * d)
+	var last := c + Vector3(0, -radius * cos(turn), -radius * sin(turn))
+	if fine:
+		var d := step
+		while d <= 14.0 + 0.001:
+			pts.append(last + dir * d)
+			d += step
+	else:
+		last = pts[pts.size() - 1]
+		for d in [7.0, 14.0]:
+			pts.append(last + dir * d)
 	return pts
 
 
@@ -720,6 +738,36 @@ func _spawn_portal(p: Portal) -> void:
 	root.position = Vector3(p.x, car.flight_altitude, p.z)
 	add_child(root)
 
+	p.path = _tube_path(root.position)
+	if FlatStyle.on():
+		# Düz dünya: halka ve boru yok; arabanın altında yolu izleyen saydam beyaz şerit
+		var strip := MeshInstance3D.new()
+		strip.mesh = _launch_strip(_tube_path(root.position, true), root.position)
+		strip.material_override = _strip_mat
+		strip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(strip)
+	else:
+		_portal_tube(root, p)
+
+	var shape := CylinderShape3D.new()
+	shape.radius = 4.8
+	shape.height = 3.0
+	var col := CollisionShape3D.new()
+	col.shape = shape
+	col.rotation.x = PI * 0.5
+	root.add_child(col)
+	root.body_entered.connect(func(body):
+		if body == car and portals.has(p):
+			portal_entered.emit(p))
+
+	root.set_meta("reach", 45.0)
+	p.node = root
+	portals.append(p)
+	_items.append(root)
+
+
+## Halka, ağız diski ve yukarı kıvrılan saydam boru (kaburgalarıyla)
+func _portal_tube(root: Node3D, p: Portal) -> void:
 	var ring := MeshInstance3D.new()
 	var torus := TorusMesh.new()
 	torus.inner_radius = 4.2
@@ -745,7 +793,6 @@ func _spawn_portal(p: Portal) -> void:
 
 	# Tünel: halkadan sonra kısa düz, sonra yukarı kıvrılan saydam boru (araba içinden
 	# geçip yukarı-ileri fırlar). Yukarı kalkan ucu portalın yerini uzaktan belli eder.
-	p.path = _tube_path(root.position)
 	for i in p.path.size() - 1:
 		var a := p.path[i]
 		var b := p.path[i + 1]
@@ -775,20 +822,30 @@ func _spawn_portal(p: Portal) -> void:
 			rib.transform = Transform3D(basis, a - root.position)
 			root.add_child(rib)
 
-	var shape := CylinderShape3D.new()
-	shape.radius = 4.8
-	shape.height = 3.0
-	var col := CollisionShape3D.new()
-	col.shape = shape
-	col.rotation.x = PI * 0.5
-	root.add_child(col)
-	root.body_entered.connect(func(body):
-		if body == car and portals.has(p):
-			portal_entered.emit(p))
 
-	p.node = root
-	portals.append(p)
-	_items.append(root)
+## Düz dünyanın fırlatma şeridi: orta çizginin STRIP_DROP altında, STRIP_WIDTH genişliğinde düz yüzey.
+## UV.x enine, UV.y boyuna (0..1); köşeler kök düğüme göre
+func _launch_strip(path: PackedVector3Array, origin: Vector3) -> ArrayMesh:
+	var lens := PackedFloat32Array([0.0])
+	for i in path.size() - 1:
+		lens.append(lens[i] + path[i].distance_to(path[i + 1]))
+	var total := lens[lens.size() - 1]
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var rows: Array = []
+	for i in path.size():
+		var t := (path[mini(i + 1, path.size() - 1)] - path[maxi(i - 1, 0)]).normalized()
+		var up := Vector3.RIGHT.cross(t).normalized()
+		var c := path[i] - up * STRIP_DROP - origin
+		var f := lens[i] / total
+		rows.append([[c - Vector3.RIGHT * STRIP_WIDTH * 0.5, Vector2(0, f)], [c + Vector3.RIGHT * STRIP_WIDTH * 0.5, Vector2(1, f)]])
+	for i in path.size() - 1:
+		var q := [rows[i][0], rows[i][1], rows[i + 1][1], rows[i + 1][0]]
+		for k in [0, 1, 2, 0, 2, 3]:
+			st.set_uv(q[k][1])
+			st.add_vertex(q[k][0])
+	_strip_mat.set_shader_parameter("length_m", total)
+	return st.commit()
 
 
 ## Pürüzsüz gölgelemeyi kaldırıp her yüzü düz gösterir (low poly görünüm)
