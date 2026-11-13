@@ -59,7 +59,9 @@ static var STYLES: Array = COMBOS.map(func(c: Array) -> Dictionary:
 	return d)
 ## Alt katmanın derinlik sisi (game.gd FOG_LOWER yerine): yakın yol parçaları net siyah-beyaz okunsun,
 ## uzakta yine sise erisin. [başlangıç, bitiş, eğri]
-const FOG_LOWER := Vector3(40.0, 330.0, 1.0)
+const FOG_LOWER := Vector3(80.0, 350.0, 1.0)
+## Üst katmanın derinlik sisi (game.gd FOG_UPPER yerine): 80 m'ye kadar net, 350 m'de tam sis
+const FOG_UPPER := Vector3(80.0, 350.0, 1.0)
 ## Yol çizgilerinin kesikleri bu kadar uzun (çizgi ve boşluk birlikte; tasarım aynı)
 const LINE_STRETCH := 1.8
 ## Engellerin doygunluğu bu kadar düşer (0 aynı, 1 gri)
