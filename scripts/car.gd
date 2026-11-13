@@ -209,6 +209,9 @@ var nosedive_time := 0.0
 const NOSEDIVE_PITCH := 80.0
 const NOSEDIVE_TURN := 5.0
 const NOSEDIVE_GRAVITY := 1.6
+## Kanatlar dalış başladıktan bu kadar sn sonra (burun aşağı inince) kapanır
+const NOSEDIVE_WING_DELAY := 0.4
+var _wings_open_dive := false
 var roll := 0.0
 var pitch_rate := 0.0
 var roll_rate := 0.0
@@ -400,6 +403,7 @@ func lose_wings() -> void:
 	_has_wings = false
 	nosedive = true
 	nosedive_time = 0.0
+	_wings_open_dive = mode == Mode.FLYING
 	pitch_rate = 0.0
 	roll_rate = 0.0
 	_set_mode(Mode.FALLING)
@@ -1280,6 +1284,10 @@ func _falling(delta: float) -> void:
 	if nosedive:
 		# Baş aşağı dalış: direksiyon yok, yana kayma söner, ileri hız azalır, hızla aşağı
 		nosedive_time += delta
+		# Kanatlar burun aşağı düştükten sonra kapanır
+		if _wings_open_dive and nosedive_time >= NOSEDIVE_WING_DELAY:
+			_wings_open_dive = false
+			_set_wings(false)
 		velocity.y -= gravity * NOSEDIVE_GRAVITY * delta
 		velocity.x = move_toward(velocity.x, 0.0, 20.0 * delta)
 		velocity.z = move_toward(velocity.z, -speed * 0.35, 30.0 * delta)
@@ -1423,7 +1431,7 @@ func _set_mode(m: Mode) -> void:
 	_mode_time = 0.0
 	if m == Mode.FLYING:
 		_set_wings(true)
-	elif previous == Mode.FLYING:
+	elif previous == Mode.FLYING and not nosedive:
 		_set_wings(false)
 	if m != Mode.FLYING:
 		reserve_on = false
@@ -1484,6 +1492,9 @@ func _dead_motion(delta: float) -> void:
 	# Uçuruma düşüş (baş aşağı dalışta aynı hızla sürer)
 	if nosedive:
 		nosedive_time += delta
+		if _wings_open_dive:
+			_wings_open_dive = false
+			_set_wings(false)
 	velocity.y -= gravity * (NOSEDIVE_GRAVITY if nosedive else 1.0) * delta
 	position += velocity * delta
 
