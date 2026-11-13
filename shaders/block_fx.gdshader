@@ -93,8 +93,8 @@ void fragment() {
 		float k = cascade(seed);
 		// Kısılan lamba grileşmez, koyu turuncu-kızıla kayar; parlarken özü beyaza yakın
 		vec3 dim = mix(c_main.rgb * vec3(0.55, 0.32, 0.18), c_main.rgb, dim_keep);
-		// Düz stil: yanan çubuk en parlak, hafif sarıya kayık turuncu (#FFCC5C)
-		col = flat_mode ? mix(c_main.rgb * 0.5, vec3(1.0, 0.8, 0.36), k)
+		// Düz stil: sönük çubuk en parlak sarı-turuncu (#FFA200), yanan ondan açılan açık sarı (#FFE08C)
+		col = flat_mode ? mix(vec3(1.0, 0.635, 0.0), vec3(1.0, 0.88, 0.55), k)
 			: mix(dim, c_main.rgb, k) + c_hot.rgb * pow(ndv, 1.2) * k * k * 0.8;
 	} else {
 		col = c_main.rgb * flick(seed);
