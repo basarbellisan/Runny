@@ -1694,6 +1694,15 @@ func _update_attitude(delta: float) -> void:
 		var w := 1.0 - exp(-5.0 * delta)
 		var want_roll := -velocity.x / steer_speed * 0.45 if mode == Mode.FLYING else 0.0
 		var want_pitch := sin(Time.get_ticks_msec() * 0.003) * 0.04 if mode == Mode.FLYING else 0.0
+		if mode == Mode.LAUNCH and LowerLayer.strip_tunnel():
+			# Fırlatma şeridi yol gibi; araba üstündeyken burnu şeridin eğimini izler,
+			# uçtan çıkınca gidiş yönünün yarısı kadar kalkık kalır, tepe noktasında düzelir
+			var slope := atan2(velocity.y, maxf(-velocity.z, 1.0))
+			if not _tube.is_empty():
+				want_pitch = slope
+				w = 1.0 - exp(-14.0 * delta)
+			else:
+				want_pitch = maxf(slope, 0.0) * 0.5
 		roll = lerp_angle(roll, want_roll, w)
 		pitch = lerp_angle(pitch, want_pitch, w)
 		roll_rate = 0.0
