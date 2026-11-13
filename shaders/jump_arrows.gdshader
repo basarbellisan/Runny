@@ -14,8 +14,14 @@ uniform float dim = 0.5;
 uniform float t = 0.0;
 // Sis yerine kendi uzaklık solması (uzaktan da yanıp sönmesi görünsün): fade_far.y'de görünmez
 uniform vec2 fade_far = vec2(330.0, 430.0);
+// Uzakta büyüme (erken fark edilsin): grow.x m'den sonra büyümeye başlar, grow.y m'de en büyük;
+// yol boyunca (yere yatık olduğu için ekranda ezilen yön) grow_k kat, yana az. Yaklaştıkça gerçek boyuta döner
+uniform vec2 grow = vec2(40.0, 200.0);
+uniform float grow_k = 5.0;
 
 varying float along;
+// Uzaklık payı (0 yakın, 1 uzak): uzakta sönük hal de parlak kırmızı (siyah yolda kaybolmasın)
+varying float farness;
 
 float lit(float a) {
 	float head = fract(t * rate) * (1.0 + 2.0 * band) - band;
@@ -26,9 +32,14 @@ void vertex() {
 	along = INSTANCE_CUSTOM.g;
 	// Yanan ok bir an büyür (patlar)
 	VERTEX.xz *= 1.0 + 0.22 * lit(along);
+	float d = -(MODELVIEW_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).z;
+	farness = smoothstep(grow.x, grow.y, d);
+	float g = farness * (grow_k - 1.0);
+	VERTEX.z *= 1.0 + g;
+	VERTEX.x *= 1.0 + g * 0.12;
 }
 
 void fragment() {
-	ALBEDO = mix(color.rgb * dim, lit_color.rgb, lit(along));
+	ALBEDO = mix(color.rgb * mix(dim, 1.0, farness), lit_color.rgb, lit(along));
 	ALPHA = 1.0 - smoothstep(fade_far.x, fade_far.y, -VERTEX.z);
 }
