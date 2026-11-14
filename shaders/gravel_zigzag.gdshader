@@ -97,18 +97,21 @@ void fragment() {
 		float off = (mod(row, 2.0) < 0.5 ? 0.25 : -0.25) * arm;
 		float col = clamp(floor((p.x + W * 0.5 - off) / arm), 0.0, counts.x - 1.0);
 		vec2 c = vec2((col + 0.5) * arm - W * 0.5 + off, (row + 0.5) * row_gap - H * 0.5);
-		float r = length(p - c) / radius;
-		float fw = max(length(dFdx(p)), length(dFdy(p)));
-		float aa = clamp(fw / radius, 0.02, 1.0);
-		float inside = 1.0 - smoothstep(1.0 - aa, 1.0 + aa, r);
+		// Kenar yumuşatma uzaklığın ekrandaki değişimine göre (yere eğik bakışta nokta dikeyde basık;
+		// yöne göre ayrı yumuşar, çevresine bulanık yüzey taşmaz)
+		float dist = length(p - c);
+		float w = max(fwidth(dist), 0.002);
+		float inside = 1.0 - smoothstep(radius - w, radius + w, dist);
+		// Uzak dolgu yalnız noktalar iki yönde de pikselden küçükken (çok uzakta): ara mesafede noktalar kalır
+		float fw = min(length(dFdx(p)), length(dFdy(p)));
 		// Parlaklık = güç: en zayıf nokta koyu mavi, en güçlü açık parlak mavi (aradaki her güç kendi tonunda)
 		float pmin = BASE * (1.0 - SPREAD * 0.5 * uneven);
 		float pmax = 1.0 + SPREAD * 0.5 * uneven;
 		float k = clamp((dot_power(col, row, counts.x) - pmin) / (pmax - pmin), 0.0, 1.0);
 		vec3 lit = mix(light.rgb, lit_color.rgb, k);
-		float far = smoothstep(radius * 0.35, radius * 1.2, fw);
+		float far = smoothstep(radius * 0.6, radius * 1.6, fw);
 		ALBEDO = lit;
-		// Noktalar pikselden küçükken (uzakta) dolu, ışıklı mavi alan (siyah yolla karışıp koyulaşmasın)
+		// Noktalar seçilemeyecek kadar küçükken (çok uzakta) dolu, ışıklı mavi alan (koyulaşmasın)
 		ALPHA = mix(inside, 0.8 + 0.2 * k, far);
 	} else {
 	float W = (counts.x + shift) * arm;
