@@ -1636,10 +1636,10 @@ func _sense_wheels() -> void:
 
 ## Yoldan önden mi (yolun sonu) yoksa yandan mı çıktık
 ## Çakıl etkisinin hıza göre katı (başlangıç hızında 1)
-## --- Hava akımı (düz dünya denemesi; eski çakılın yerinde): her ok hücresinden ayrı güçte hava
-## çıkar (RoadGenerator.air_at) ve yalnız üstündeki tekeri iter: hangi teker maruz kalıyorsa o kalkar
-## (ön tekerler: burun, bir yan: yatma), güçler farklı olduğu için asimetrik. Tekerin altındaki okun
-## yönüne itilir; tekerler farklı yönlere itilince gövde sağa sola savrulur
+## --- Hava akımı (düz dünya; eski çakılın yerinde): her noktadan dümdüz yukarı, parlaklığı kadar güçte
+## hava çıkar (RoadGenerator.air_at) ve yalnız üstündeki tekeri iter: hangi teker maruz kalıyorsa o kalkar
+## (ön tekerler: burun, bir yan: yatma), güçler farklı olduğu için asimetrik. Bir yan daha çok
+## kalkınca gövde alçak yana kayar ve savrulur
 const AIR_LIFT := 75.0     # tekerin altındaki tam güçlü havanın o köşeye yukarı ivmesi (m/sn²)
 const AIR_MAX_VY := 7.5    # en çok yükselme hızı (m/sn)
 const AIR_PITCH := 15.0    # ön-arka farkının burun kaldırma ivmesi (rad/sn²)
@@ -1668,8 +1668,6 @@ func _air_lift(delta: float) -> void:
 	if roads == null or model == null:
 		return
 	var lift: Array[float] = [0.0, 0.0, 0.0, 0.0]
-	var side := 0.0
-	var spread := 0.0
 	for i in mini(model.wheels.size(), 4):
 		var p: Vector3 = global_position + global_transform.basis * (model.wheels[i].contact as Vector3)
 		var a := roads.air_at(p)
@@ -1686,8 +1684,6 @@ func _air_lift(delta: float) -> void:
 			continue
 		lift[i] = a.x
 		_air_wheel_lift[i] = a.x
-		side += a.y * a.x
-		spread += a.y
 		air_wheels += 1
 	on_gravel = air_wheels > 0
 	if air_wheels == 0:
@@ -1725,9 +1721,11 @@ func _air_lift(delta: float) -> void:
 	if absf(pitch) > AIR_TILT_MAX * 0.75 and signf(pitch_rate) == signf(pitch):
 		pitch_rate *= exp(-12.0 * delta)
 	_air_settle = 0.5
+	# Noktalar dümdüz yukarı üfler (yönü yok). Savrulma yatmadan doğar: bir yan daha çok kalkınca
+	# eğilen gövde alçak yana kayar ve kuyruk o yana savrulur (sol güçlüyse sağa, +x)
+	var side := (lift[0] + lift[2]) - (lift[1] + lift[3])
 	velocity.x += side * 0.25 * AIR_PUSH * gain * delta
-	# Savrulma: tekerlerin altındaki okların yönü ve güç farkı gövdeyi yana sarsar (kuyruk sallanır)
-	_gravel_push_target = (side * 0.5 + (spread - side) * 0.35) * AIR_JOLT * 0.25 * gain
+	_gravel_push_target = side * 0.5 * AIR_JOLT * 0.25 * gain
 
 
 func _gravel_gain() -> float:

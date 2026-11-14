@@ -425,8 +425,10 @@ func _process(delta: float) -> void:
 		m.set_shader_parameter("t", _light_time)
 	for m: ShaderMaterial in _rig_mats.values():
 		m.set_shader_parameter("t", _light_time)
+	var uneven := AirDifficulty.k("uneven")
 	for m in _gravel_wave_mats:
 		m.set_shader_parameter("t", _light_time)
+		m.set_shader_parameter("uneven", uneven)
 
 
 ## Arabanın altındaki (üstüne konduğu) yol
@@ -1358,7 +1360,7 @@ func _add_gravel(s: Segment, x0: float, x1: float, z: float, depth: float) -> vo
 		return
 	if gravel_style == 2 or gravel_style == 3:
 		if gravel_style == 3:
-			_gravel_zigzag(body, center, x1 - x0, depth)
+			_gravel_zigzag(body, center, x1 - x0, depth, z, depth * c)
 		else:
 			_gravel_holes(body, center, x1 - x0, depth)
 		# Yol üretimi tasarımdan bağımsız kalsın: eski taşların çektiği rastgele sayılar aynen çekilir
@@ -2158,9 +2160,17 @@ const ZIG_ROW := 0.75      # sıra aralığı (m)
 @export var zig_nest := true
 const ZIG_NEST_K := 0.9
 const ZIG_RADIUS := 0.085 # yarığın yarı genişliği (m)
-## Düz dünya denemesi, ok düzeni: hücre (genişlik, sıra aralığı) ve okun yarı boyu (m)
-const ARROW_CELL := Vector2(0.75, 0.85)
-const ARROW_HALF_H := 0.3
+## Düz dünya, hava alanı (nokta düzeni): hücre (sütun aralığı, sıra aralığı) ve noktanın yarıçapı (m).
+## Sıralar sırayla çeyrek sütun sağa / sola kayık (petek)
+const DOT_CELL := Vector2(0.75, 0.85)
+const DOT_RADIUS := 0.27
+## Noktanın gücü (gravel_zigzag.gdshader'daki dot_power ile birebir aynı; değiştirirsen ikisini birlikte):
+## ışık hattının hızı (sütun/sn), genişliği (sütun), yanıp sönme sıklığı (Hz), taban gücü, nokta farkı
+const DOT_LINE_SPEED := 3.0
+const DOT_LINE_WIDTH := 0.75
+const DOT_BLINK_HZ := 2.2
+const DOT_BASE := 0.6
+const DOT_SPREAD := 0.2
 const ZIG_T := Vector2(0.2, 0.8)  # yarık kolun bu bölümünde (köşelerde boşluk)
 ## Çaprazlama: tek sıralar bu kadar kol yana kayık (0 hizalı, 0.5 tuğla, 1 ters yönde)
 @export var zig_shift := 0.0
@@ -2168,7 +2178,9 @@ var _zig_mat: ShaderMaterial
 var _curtain_mat: ShaderMaterial
 
 
-func _gravel_zigzag(body: Node3D, center: Vector3, w: float, depth: float) -> void:
+## z0, world_depth: alanın dünyadaki başı ve boyu (hava noktaları fizikle aynı sıralara bölünsün;
+## eğimli yolda gövde boyu world_depth / cos)
+func _gravel_zigzag(body: Node3D, center: Vector3, w: float, depth: float, z0 := 0.0, world_depth := 0.0) -> void:
 	if _zig_mat == null:
 		_zig_mat = ShaderMaterial.new()
 		_zig_mat.shader = preload("res://shaders/gravel_zigzag.gdshader")
@@ -2180,22 +2192,23 @@ func _gravel_zigzag(body: Node3D, center: Vector3, w: float, depth: float) -> vo
 		_gravel_wave_mats.append(_curtain_mat)
 	if _unit_quad == null:
 		_unit_quad = QuadMesh.new()
-	# Düz dünya denemesi: oklar (sol yarı sola, sağ yarı sağa); sütun sayısı çift
-	var arrows := FlatStyle.on()
+	# Düz dünya: hava alanı, petek dizilimli noktalar
+	var dots := FlatStyle.on()
 	var na := maxi(2, int((w - 0.3) / ZIG_ARM))
 	var row := ZIG_AMP * 2.0 * ZIG_NEST_K if zig_nest else ZIG_ROW
-	if arrows:
-		na = maxi(2, int((w - 0.3) / ARROW_CELL.x / 2.0) * 2)
-		row = ARROW_CELL.y
+	if dots:
+		na = _dot_cols(w)
+		row = DOT_CELL.y * depth / maxf(world_depth, 0.01)
 	var nr := maxi(1, int((depth - 0.3) / row))
 	var sh := zig_shift
 	if sh > 0.0:
 		na = maxi(2, int((w - 0.3) / ZIG_ARM - sh))
 	var pw := (na + sh) * ZIG_ARM
 	var ph := nr * row
-	if arrows:
-		nr = maxi(1, int((depth - 0.3) / row))
-		pw = na * ARROW_CELL.x
+	if dots:
+		nr = _dot_rows(world_depth)
+		# Kayık sıraların uç noktaları taşmasın: yarım sütun pay
+		pw = (na + 0.5) * DOT_CELL.x
 		ph = nr * row
 	var mat := _zig_mat.duplicate() as ShaderMaterial
 	mat.set_shader_parameter("shift", sh)
@@ -2210,12 +2223,13 @@ func _gravel_zigzag(body: Node3D, center: Vector3, w: float, depth: float) -> vo
 	var slot_len := (ZIG_T.y - ZIG_T.x) * Vector2(ZIG_ARM, ZIG_AMP * 2.0).length()
 	var slot_area := slot_len * ZIG_RADIUS * 2.0 + PI * ZIG_RADIUS * ZIG_RADIUS
 	mat.set_shader_parameter("coverage", clampf(slot_area / (ZIG_ARM * row), 0.05, 0.8))
-	if arrows:
-		mat.set_shader_parameter("arrows", true)
+	if dots:
+		mat.set_shader_parameter("dots", true)
 		mat.set_shader_parameter("shift", 0.0)
-		mat.set_shader_parameter("arm", ARROW_CELL.x)
-		mat.set_shader_parameter("amp", ARROW_HALF_H)
-		mat.set_shader_parameter("t0", 0.1)
+		mat.set_shader_parameter("arm", DOT_CELL.x)
+		mat.set_shader_parameter("radius", DOT_RADIUS)
+		mat.set_shader_parameter("dir", _dot_dir(z0))
+		mat.set_shader_parameter("seed", _dot_seed(z0))
 	_gravel_wave_mats.append(mat)
 	var ground := MeshInstance3D.new()
 	ground.mesh = _unit_quad
@@ -3542,23 +3556,58 @@ func air_at(pos: Vector3) -> Vector2:
 	for o in s.obstacles:
 		if not (o.gravel and pos.z <= o.z0 and pos.z >= o.z1 and pos.x >= o.x0 and pos.x <= o.x1):
 			continue
-		var w: float = o.x1 - o.x0
-		var depth: float = o.z0 - o.z1
-		var na := maxi(2, int((w - 0.3) / ARROW_CELL.x / 2.0) * 2)
-		var nr := maxi(1, int((depth - 0.3) / ARROW_CELL.y))
-		var pw := na * ARROW_CELL.x
-		var ph := nr * ARROW_CELL.y
+		var nx := _dot_cols(float(o.x1) - float(o.x0))
+		var ny := _dot_rows(float(o.z0) - float(o.z1))
+		var W := nx * DOT_CELL.x
+		var H := ny * DOT_CELL.y
 		var lx := pos.x - (float(o.x0) + float(o.x1)) * 0.5
 		var ly := (float(o.z0) + float(o.z1)) * 0.5 - pos.z
-		var col := clampi(int(floor((lx + pw * 0.5) / ARROW_CELL.x)), 0, na - 1)
-		var row := clampi(int(floor((ly + ph * 0.5) / ARROW_CELL.y)), 0, nr - 1)
-		var dist := absf(col + 0.5 - na * 0.5)
-		var wave := pow(0.5 + 0.5 * sin(_light_time * 3.2 - dist * 1.15), 2.0)
-		var cell := fposmod(sin(float(col) * 12.9898 + float(row) * 78.233 + float(o.z0) * 0.37) * 43758.5453, 1.0)
-		# Hücreler arası güç farkı oyun ilerledikçe artar (AirDifficulty "uneven"; başta ±%20)
-		var strength := (0.6 + 0.4 * wave) * maxf(1.0 + (cell - 0.5) * 0.4 * AirDifficulty.k("uneven"), 0.3)
-		return Vector2(strength, -1.0 if col + 0.5 < na * 0.5 else 1.0)
+		var row := clampi(int(floor((ly + H * 0.5) / DOT_CELL.y)), 0, ny - 1)
+		var off := (0.25 if row % 2 == 0 else -0.25) * DOT_CELL.x
+		var col := clampi(int(floor((lx + W * 0.5 - off) / DOT_CELL.x)), 0, nx - 1)
+		return Vector2(dot_power(col, row, nx, _dot_dir(float(o.z0)), _dot_seed(float(o.z0))), 0.0)
 	return Vector2.ZERO
+
+
+## Hava alanının sütun ve sıra sayısı (genişlik / boy, m)
+static func _dot_cols(w: float) -> int:
+	return maxi(2, int((w - 0.3 - DOT_CELL.x * 0.5) / DOT_CELL.x))
+
+
+static func _dot_rows(depth: float) -> int:
+	return maxi(1, int((depth - 0.3) / DOT_CELL.y))
+
+
+## Alanın ışık hattı yönü (+1 soldan sağa, -1 sağdan sola) ve tohumu: alanın başından (z0)
+static func _dot_dir(z0: float) -> float:
+	return 1.0 if posmod(roundi(z0 * 10.0), 2) == 0 else -1.0
+
+
+static func _dot_seed(z0: float) -> int:
+	return posmod(roundi(z0 * 10.0) * 2654435761, 1 << 30)
+
+
+## Noktanın gücü: taban + yanıp sönerek yana geçen ışık hattı + noktanın kendi farkı (shader ile aynı)
+func dot_power(col: int, row: int, nx: int, dir: float, seed: int) -> float:
+	var t := _light_time
+	var xc := col + 0.5 + (0.25 if row % 2 == 0 else -0.25)
+	var L := nx + 2.0
+	var u := fposmod(t * DOT_LINE_SPEED / L, 1.0) * L - 1.0
+	if dir < 0.0:
+		u = nx - u
+	var g := exp(-pow((xc - u) / DOT_LINE_WIDTH, 2.0))
+	var blink := 0.75 + 0.25 * sin(t * DOT_BLINK_HZ * TAU)
+	var v := 1.0 + (_dot_hash(col, row, seed) - 0.5) * DOT_SPREAD * AirDifficulty.k("uneven")
+	return (DOT_BASE + (1.0 - DOT_BASE) * g * blink) * v
+
+
+## Tamsayı karması (shader'daki dot_hash ile aynı; 32 bit)
+static func _dot_hash(col: int, row: int, seed: int) -> float:
+	var m := 0xFFFFFFFF
+	var h := ((col * 73856093) & m) ^ ((row * 19349663) & m) ^ ((seed * 83492791) & m)
+	h = (((h ^ (h >> 13)) & m) * 1274126177) & m
+	h = h ^ (h >> 16)
+	return float(h & 65535) / 65535.0
 
 
 ## Bu noktada çakıl var mı

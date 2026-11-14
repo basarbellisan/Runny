@@ -23,10 +23,17 @@ uniform float t1 = 0.8;
 // Çaprazlama: tek sıralar bu kadar kol yana kayık (0 hizalı, 0.5 tuğla, 1 ters yönde)
 uniform float shift = 0.0;
 uniform float t = 0.0;
-// Ok düzeni (düz dünya denemesi): zikzak yerine yan yana sütunlarda oklar; sol yarı sola (<), sağ
-// yarı sağa (>) bakar. Sütun genişliği arm, sıra aralığı row_gap; okun yarı boyu amp. Nabız aynı
-// (ortadan iki yana açılan dalga, sütun sütun)
-uniform bool arrows = false;
+// Nokta düzeni (düz dünya, hava alanı): petek dizilimli yuvarlak noktalar (sütun aralığı arm, sıra
+// aralığı row_gap, yarıçap radius; sıralar sırayla çeyrek sütun sağa / sola kayık). Her nokta yukarı
+// hava üfler; parlaklığı tam gücünü gösterir. Güç: taban (sönük nokta az iter) + alan boyunca uzanan,
+// yanıp sönerek yana geçen ışık hattı + noktanın kendi farkı. Aynı formül RoadGenerator.air_at'te
+// (fizik): parlaklık ve itiş hiç ayrışmaz
+uniform bool dots = false;
+// Hattın geçiş yönü (+1 soldan sağa, -1 sağdan sola) ve alanın tohumu (noktaların farkı için)
+uniform float dir = 1.0;
+uniform int seed = 0;
+// Noktalar arası farkın katı (AirDifficulty "uneven")
+uniform float uneven = 1.0;
 
 varying vec3 lp;
 
@@ -51,39 +58,58 @@ void vertex() {
 	lp = VERTEX * sc;
 }
 
-// Ok düzeni: en yakın okun kolu uzaklığı ve sütun no'su
-vec2 arrow_dist(vec2 p) {
-	float W = counts.x * arm;
-	float H = counts.y * row_gap;
-	float col = clamp(floor((p.x + W * 0.5) / arm), 0.0, counts.x - 1.0);
-	float row = clamp(floor((p.y + H * 0.5) / row_gap), 0.0, counts.y - 1.0);
-	float cx = (col + 0.5) * arm - W * 0.5;
-	float cy = (row + 0.5) * row_gap - H * 0.5;
-	// Yön: sütun ortanın solundaysa sola
-	float dir = (col + 0.5 < counts.x * 0.5) ? -1.0 : 1.0;
-	float half_w = arm * 0.32;
-	vec2 tip = vec2(cx + dir * half_w, cy);
-	vec2 a = vec2(cx - dir * half_w, cy + amp);
-	vec2 b = vec2(cx - dir * half_w, cy - amp);
-	// Kollar uçta birleşir, dış uçları biraz kısa (t0)
-	float d = min(seg_dist(p, mix(a, tip, t0), tip), seg_dist(p, mix(b, tip, t0), tip));
-	return vec2(d, col);
+// --- Nokta düzeni: RoadGenerator.air_at ile birebir aynı hesap (değiştirirsen ikisini birlikte) ---
+// Hattın hızı (sütun / sn), genişliği (sütun), yanıp sönmesi, taban gücü, nokta farkı
+const float LINE_SPEED = 3.0;
+const float LINE_WIDTH = 0.75;
+const float BLINK_HZ = 2.2;
+const float BASE = 0.6;
+const float SPREAD = 0.2;
+
+// Tamsayı karması (GPU ve CPU'da aynı sonucu verir)
+float dot_hash(int col, int row) {
+	uint h = uint(col) * 73856093u ^ uint(row) * 19349663u ^ uint(seed) * 83492791u;
+	h = (h ^ (h >> 13u)) * 1274126177u;
+	h = h ^ (h >> 16u);
+	return float(h & 65535u) / 65535.0;
+}
+
+// Noktanın gücü (0.48-1.2 civarı): parlaklık da buna göre
+float dot_power(float col, float row, float nx) {
+	float xc = col + 0.5 + (mod(row, 2.0) < 0.5 ? 0.25 : -0.25);
+	float L = nx + 2.0;
+	float u = fract(t * LINE_SPEED / L) * L - 1.0;
+	if (dir < 0.0) {
+		u = nx - u;
+	}
+	float g = exp(-pow((xc - u) / LINE_WIDTH, 2.0));
+	float blink = 0.75 + 0.25 * sin(t * BLINK_HZ * 6.2831853);
+	float v = 1.0 + (dot_hash(int(col), int(row)) - 0.5) * SPREAD * uneven;
+	return (BASE + (1.0 - BASE) * g * blink) * v;
 }
 
 void fragment() {
-	if (arrows) {
-		vec2 ad = arrow_dist(lp.xy);
-		float r = ad.x / radius;
-		float fw = max(length(dFdx(lp.xy)), length(dFdy(lp.xy)));
+	if (dots) {
+		vec2 p = lp.xy;
+		float W = counts.x * arm;
+		float H = counts.y * row_gap;
+		float row = clamp(floor((p.y + H * 0.5) / row_gap), 0.0, counts.y - 1.0);
+		float off = (mod(row, 2.0) < 0.5 ? 0.25 : -0.25) * arm;
+		float col = clamp(floor((p.x + W * 0.5 - off) / arm), 0.0, counts.x - 1.0);
+		vec2 c = vec2((col + 0.5) * arm - W * 0.5 + off, (row + 0.5) * row_gap - H * 0.5);
+		float r = length(p - c) / radius;
+		float fw = max(length(dFdx(p)), length(dFdy(p)));
 		float aa = clamp(fw / radius, 0.02, 1.0);
 		float inside = 1.0 - smoothstep(1.0 - aa, 1.0 + aa, r);
-		float b = breath_side(abs(ad.y + 0.5 - counts.x * 0.5));
-		vec3 lit = mix(light.rgb, lit_color.rgb, b);
+		// Parlaklık = güç: en zayıf nokta koyu mavi, en güçlü açık parlak mavi (aradaki her güç kendi tonunda)
+		float pmin = BASE * (1.0 - SPREAD * 0.5 * uneven);
+		float pmax = 1.0 + SPREAD * 0.5 * uneven;
+		float k = clamp((dot_power(col, row, counts.x) - pmin) / (pmax - pmin), 0.0, 1.0);
+		vec3 lit = mix(light.rgb, lit_color.rgb, k);
 		float far = smoothstep(radius * 0.35, radius * 1.2, fw);
 		ALBEDO = lit;
-		// Desen pikselden küçükken (uzakta; yere yatık bakışta 30 m'de bile) ortalama kapsama değil, dolu
-		// ve nabızlı parlak mavi alan (yoksa siyah yolla karışıp koyu laciverde dönüyordu)
-		ALPHA = mix(inside, 0.8 + 0.2 * b, far);
+		// Noktalar pikselden küçükken (uzakta) dolu, ışıklı mavi alan (siyah yolla karışıp koyulaşmasın)
+		ALPHA = mix(inside, 0.8 + 0.2 * k, far);
 	} else {
 	float W = (counts.x + shift) * arm;
 	float H = counts.y * row_gap;
