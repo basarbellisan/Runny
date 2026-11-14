@@ -62,7 +62,7 @@ void vertex() {
 // --- Nokta düzeni: RoadGenerator.air_at ile birebir aynı hesap (değiştirirsen ikisini birlikte) ---
 // Işık adım adım yürür (yumuşak değil): her STEP_TIME saniyede baş bir sütun ilerler. Her sırada üç
 // nokta yanar: baş (1, en parlak), arkasında 2 ve 3 (daha sönük); kalanlar taban. Dört net seviye.
-const float STEP_TIME = 0.3;
+const float STEP_TIME = 0.22;
 const float BASE = 0.6;
 
 // Noktanın ışığı (0 taban, 1/3, 2/3, 1 baş)
