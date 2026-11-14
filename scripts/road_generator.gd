@@ -2166,7 +2166,7 @@ const DOT_CELL := Vector2(0.75, 0.85)
 const DOT_RADIUS := 0.27
 ## Noktanın gücü (gravel_zigzag.gdshader'daki dot_light / dot_power ile birebir aynı; değiştirirsen ikisini
 ## birlikte): ışık her DOT_STEP_TIME saniyede bir sütun ilerler; baş ve arkasındaki iki nokta yanar
-const DOT_STEP_TIME := 0.22
+const DOT_STEP_TIME := 0.17
 const DOT_BASE := 0.6
 const ZIG_T := Vector2(0.2, 0.8)  # yarık kolun bu bölümünde (köşelerde boşluk)
 ## Çaprazlama: tek sıralar bu kadar kol yana kayık (0 hizalı, 0.5 tuğla, 1 ters yönde)
