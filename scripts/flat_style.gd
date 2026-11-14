@@ -305,11 +305,11 @@ func _convert_new(m: Material) -> Variant:
 			"block_neon.gdshader":
 				return _flat(_desat(sm.get_shader_parameter("c_main")))
 			"gravel_zigzag.gdshader", "gravel_holes.gdshader":
-				# Açık, parlak mavi; yanınca ondan daha da açık parlak mavi (nabız)
-				var c := Color("3d8eff")
+				# Hava noktaları: en zayıf nokta koyu mavi, en güçlü beyaza yakın açık mavi (parlaklık = güç)
+				var c := Color("1d4cc4")
 				for k in ["light", "core"]:
 					sm.set_shader_parameter(k, c)
-				sm.set_shader_parameter("lit_color", Color("a8d0ff"))
+				sm.set_shader_parameter("lit_color", Color("e6f1ff"))
 				return sm
 		return m
 	if _is_glow(m):
