@@ -2164,13 +2164,10 @@ const ZIG_RADIUS := 0.085 # yarığın yarı genişliği (m)
 ## Sıralar sırayla çeyrek sütun sağa / sola kayık (petek)
 const DOT_CELL := Vector2(0.75, 0.85)
 const DOT_RADIUS := 0.27
-## Noktanın gücü (gravel_zigzag.gdshader'daki dot_power ile birebir aynı; değiştirirsen ikisini birlikte):
-## ışık hattının hızı (sütun/sn), genişliği (sütun), yanıp sönme sıklığı (Hz), taban gücü, nokta farkı
-const DOT_LINE_SPEED := 3.0
-const DOT_LINE_WIDTH := 0.75
-const DOT_BLINK_HZ := 2.2
+## Noktanın gücü (gravel_zigzag.gdshader'daki dot_light / dot_power ile birebir aynı; değiştirirsen ikisini
+## birlikte): ışık her DOT_STEP_TIME saniyede bir sütun ilerler; baş ve arkasındaki iki nokta yanar
+const DOT_STEP_TIME := 0.3
 const DOT_BASE := 0.6
-const DOT_SPREAD := 0.2
 const ZIG_T := Vector2(0.2, 0.8)  # yarık kolun bu bölümünde (köşelerde boşluk)
 ## Çaprazlama: tek sıralar bu kadar kol yana kayık (0 hizalı, 0.5 tuğla, 1 ters yönde)
 @export var zig_shift := 0.0
@@ -3587,27 +3584,19 @@ static func _dot_seed(z0: float) -> int:
 	return posmod(roundi(z0 * 10.0) * 2654435761, 1 << 30)
 
 
-## Noktanın gücü: taban + yanıp sönerek yana geçen ışık hattı + noktanın kendi farkı (shader ile aynı)
-func dot_power(col: int, row: int, nx: int, dir: float, seed: int) -> float:
-	var t := _light_time
+## Noktanın ışığı: 0 taban, 1/3, 2/3, 1 baş (shader'daki dot_light ile aynı)
+func dot_light(col: int, row: int, nx: int, dir: float) -> float:
 	var xc := col + 0.5 + (0.25 if row % 2 == 0 else -0.25)
-	var L := nx + 2.0
-	var u := fposmod(t * DOT_LINE_SPEED / L, 1.0) * L - 1.0
-	if dir < 0.0:
-		u = nx - u
-	var g := exp(-pow((xc - u) / DOT_LINE_WIDTH, 2.0))
-	var blink := 0.75 + 0.25 * sin(t * DOT_BLINK_HZ * TAU)
-	var v := 1.0 + (_dot_hash(col, row, seed) - 0.5) * DOT_SPREAD * AirDifficulty.k("uneven")
-	return (DOT_BASE + (1.0 - DOT_BASE) * g * blink) * v
+	var L := nx + 4.0
+	var u := fposmod(floor(_light_time / DOT_STEP_TIME), L) - 1.0
+	var rank := floorf(u - xc + 0.5) if dir > 0.0 else floorf(xc - (nx - u) + 0.5)
+	return 1.0 - rank / 3.0 if rank >= 0.0 and rank <= 2.0 else 0.0
 
 
-## Tamsayı karması (shader'daki dot_hash ile aynı; 32 bit)
-static func _dot_hash(col: int, row: int, seed: int) -> float:
-	var m := 0xFFFFFFFF
-	var h := ((col * 73856093) & m) ^ ((row * 19349663) & m) ^ ((seed * 83492791) & m)
-	h = (((h ^ (h >> 13)) & m) * 1274126177) & m
-	h = h ^ (h >> 16)
-	return float(h & 65535) / 65535.0
+## Noktanın gücü: taban + ışığı kadar; zorlaştıkça ("uneven") taban düşer, seviyeler arası fark artar
+func dot_power(col: int, row: int, nx: int, dir: float, _seed: int) -> float:
+	var base := 1.0 - (1.0 - DOT_BASE) * AirDifficulty.k("uneven")
+	return base + (1.0 - base) * dot_light(col, row, nx, dir)
 
 
 ## Bu noktada çakıl var mı

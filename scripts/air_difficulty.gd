@@ -19,7 +19,7 @@ const FULL_M := 18000.0
 const KNOBS := {
 	# Güç: kaldırma, burun kaldırma, yatırma, yana itme ve savurma kuvvetleri
 	"power": [1.0, 1.15],
-	# Düzensizlik: hücreler arası güç farkı (asimetri; araba daha çok yatar ve savrulur)
+	# Fark: yanan ve sönük noktaların güç farkı (sönükler daha az iter; araba daha çok yatar ve savrulur)
 	"uneven": [1.0, 1.25],
 	# Tutuş: hava üstünde direksiyonun ne kadar dinlediği (küçüldükçe kaygan)
 	"grip": [1.0, 0.9],
