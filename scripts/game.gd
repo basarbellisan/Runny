@@ -283,6 +283,11 @@ func _physics_process(delta: float) -> void:
 	if _args.has("trace") and Time.get_ticks_usec() - _t0 > 3000:
 		print("SLOW roads.update %.1f ms at z=%.1f" % [(Time.get_ticks_usec() - _t0) / 1000.0, roads.to_design(car.global_position).y])
 	car.extra_top = maxf(_start_z - car.global_position.z - roads.hard_from, 0.0) / 1000.0 * late_speed_per_km / 3.6
+	AirDifficulty.update(_start_z - car.global_position.z)
+	if _args.has("trace") and Engine.get_physics_frames() % 300 == 0:
+		print("AIR level=%.3f power=%.3f uneven=%.3f grip=%.3f wobble=%.3f dist=%.0f" % [AirDifficulty.level,
+			AirDifficulty.k("power"), AirDifficulty.k("uneven"), AirDifficulty.k("grip"), AirDifficulty.k("wobble"),
+			_start_z - car.global_position.z])
 	lower.update(delta)
 	if _args.has("lowerperf") and Engine.get_physics_frames() % 120 == 0:
 		var shapes := 0

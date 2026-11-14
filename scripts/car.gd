@@ -1159,7 +1159,7 @@ func _drive(delta: float) -> void:
 			on_gravel = roads != null and roads.gravel_at(global_position)
 		if air_flow:
 			if on_gravel:
-				control *= AIR_GRIP
+				control *= AIR_GRIP * AirDifficulty.k("grip")
 		elif on_gravel:
 			control *= gravel_grip
 			# Taşlar arabayı sağa sola savurur (her ~0.25 sn yön değişir), gövdeyi sarsar
@@ -1696,10 +1696,12 @@ func _air_lift(delta: float) -> void:
 		if _air_exit > 0.0:
 			_air_exit -= delta
 			var k := clampf(_air_exit / AIR_WOBBLE_TIME, 0.0, 1.0)
-			velocity.x += sin(_air_exit * AIR_WOBBLE_HZ * TAU) * AIR_SWAY * k * delta
+			velocity.x += sin(_air_exit * AIR_WOBBLE_HZ * TAU) * AIR_SWAY * AirDifficulty.k("wobble") * k * delta
 		return
 	_air_exit = AIR_WOBBLE_TIME
-	var gain := _gravel_gain()
+	# Oyun ilerledikçe hava güçlenir (AirDifficulty)
+	var gain := _gravel_gain() * AirDifficulty.k("power")
+	var power := AirDifficulty.k("power")
 	# Teker sırası: 0 ön sol, 1 ön sağ, 2 arka sol, 3 arka sağ
 	var total := lift[0] + lift[1] + lift[2] + lift[3]
 	# Gövdeyi kaldıran kuvvet: bir yanın havası da arabayı yerden koparır (hızla giderken kalkan yan
@@ -1707,12 +1709,12 @@ func _air_lift(delta: float) -> void:
 	var strong := maxf(lift[0] + lift[2], lift[1] + lift[3]) * 0.5
 	var body := 0.6 * strong + 0.4 * total * 0.25
 	if velocity.y < AIR_MAX_VY:
-		velocity.y = minf(velocity.y + AIR_LIFT * body * delta, AIR_MAX_VY)
+		velocity.y = minf(velocity.y + AIR_LIFT * power * body * delta, AIR_MAX_VY)
 	# Zemine yapışma kalksın (yoksa yukarı itiş tutunmaya yenilir)
 	_snap_off = maxf(_snap_off, 0.12)
 	# Hava gövdeyi sert yatırır ama devirmez: yatma / burun kalkması AIR_TILT_MAX'ı geçince o yöne itmez
-	var dp := AIR_PITCH * ((lift[0] + lift[1]) - (lift[2] + lift[3])) * 0.5 * delta
-	var dr := AIR_ROLL * ((lift[1] + lift[3]) - (lift[0] + lift[2])) * 0.5 * delta
+	var dp := AIR_PITCH * power * ((lift[0] + lift[1]) - (lift[2] + lift[3])) * 0.5 * delta
+	var dr := AIR_ROLL * power * ((lift[1] + lift[3]) - (lift[0] + lift[2])) * 0.5 * delta
 	if absf(pitch + signf(dp) * 0.01) < AIR_TILT_MAX or signf(dp) != signf(pitch):
 		pitch_rate += dp
 	if absf(roll + signf(dr) * 0.01) < AIR_TILT_MAX or signf(dr) != signf(roll):
