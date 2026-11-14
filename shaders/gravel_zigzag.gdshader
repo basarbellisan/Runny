@@ -60,18 +60,26 @@ void vertex() {
 }
 
 // --- Nokta düzeni: RoadGenerator.air_at ile birebir aynı hesap (değiştirirsen ikisini birlikte) ---
-// Işık adım adım yürür (yumuşak değil): her STEP_TIME saniyede baş bir sütun ilerler. Her sırada üç
-// nokta yanar: baş (1, en parlak), arkasında 2 ve 3 (daha sönük); kalanlar taban. Dört net seviye.
+// Işık adım adım yürür: her STEP_TIME saniyede baş bir sütun ilerler. Her sırada üç nokta yanar: baş
+// (1, en parlak), arkasında 2 ve 3 (daha sönük); kalanlar taban. Her nokta yeni tonuna yumuşak geçer.
 const float STEP_TIME = 0.17;
 const float BASE = 0.6;
 
-// Noktanın ışığı (0 taban, 1/3, 2/3, 1 baş)
-float dot_light(float col, float row, float nx) {
+// Bir adımdaki ışık (0 taban, 1/3, 2/3, 1 baş)
+float step_light(float col, float row, float nx, float st) {
 	float xc = col + 0.5 + (mod(row, 2.0) < 0.5 ? 0.25 : -0.25);
 	float L = nx + 4.0;
-	float u = mod(floor(t / STEP_TIME), L) - 1.0;
+	float u = mod(st, L) - 1.0;
 	float rank = dir > 0.0 ? floor(u - xc + 0.5) : floor(xc - (nx - u) + 0.5);
 	return (rank >= 0.0 && rank <= 2.0) ? 1.0 - rank / 3.0 : 0.0;
+}
+
+// Noktanın ışığı: önceki adımın tonundan yenisine adımın ilk FADE payında yumuşak geçer
+const float FADE = 0.7;
+float dot_light(float col, float row, float nx) {
+	float st = floor(t / STEP_TIME);
+	float f = smoothstep(0.0, FADE, fract(t / STEP_TIME));
+	return mix(step_light(col, row, nx, st - 1.0), step_light(col, row, nx, st), f);
 }
 
 // Noktanın gücü: taban + ışığı kadar ("uneven" büyüdükçe taban düşer, seviyeler arası fark artar)

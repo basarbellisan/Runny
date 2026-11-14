@@ -2165,7 +2165,8 @@ const ZIG_RADIUS := 0.085 # yarığın yarı genişliği (m)
 const DOT_CELL := Vector2(0.75, 0.85)
 const DOT_RADIUS := 0.27
 ## Noktanın gücü (gravel_zigzag.gdshader'daki dot_light / dot_power ile birebir aynı; değiştirirsen ikisini
-## birlikte): ışık her DOT_STEP_TIME saniyede bir sütun ilerler; baş ve arkasındaki iki nokta yanar
+## birlikte): ışık her DOT_STEP_TIME saniyede bir sütun ilerler; baş ve arkasındaki iki nokta yanar, her
+## nokta yeni tonuna yumuşak geçer
 const DOT_STEP_TIME := 0.17
 const DOT_BASE := 0.6
 const ZIG_T := Vector2(0.2, 0.8)  # yarık kolun bu bölümünde (köşelerde boşluk)
@@ -3584,13 +3585,22 @@ static func _dot_seed(z0: float) -> int:
 	return posmod(roundi(z0 * 10.0) * 2654435761, 1 << 30)
 
 
-## Noktanın ışığı: 0 taban, 1/3, 2/3, 1 baş (shader'daki dot_light ile aynı)
-func dot_light(col: int, row: int, nx: int, dir: float) -> float:
+## Bir adımdaki ışık: 0 taban, 1/3, 2/3, 1 baş (shader'daki step_light ile aynı)
+func _step_light(col: int, row: int, nx: int, dir: float, st: float) -> float:
 	var xc := col + 0.5 + (0.25 if row % 2 == 0 else -0.25)
 	var L := nx + 4.0
-	var u := fposmod(floor(_light_time / DOT_STEP_TIME), L) - 1.0
+	var u := fposmod(st, L) - 1.0
 	var rank := floorf(u - xc + 0.5) if dir > 0.0 else floorf(xc - (nx - u) + 0.5)
 	return 1.0 - rank / 3.0 if rank >= 0.0 and rank <= 2.0 else 0.0
+
+
+## Noktanın ışığı: önceki adımın tonundan yenisine adımın ilk DOT_FADE payında yumuşak geçer
+## (shader'daki dot_light ile aynı)
+const DOT_FADE := 0.7
+func dot_light(col: int, row: int, nx: int, dir: float) -> float:
+	var st := floorf(_light_time / DOT_STEP_TIME)
+	var f := smoothstep(0.0, DOT_FADE, fposmod(_light_time / DOT_STEP_TIME, 1.0))
+	return lerpf(_step_light(col, row, nx, dir, st - 1.0), _step_light(col, row, nx, dir, st), f)
 
 
 ## Noktanın gücü: taban + ışığı kadar; zorlaştıkça ("uneven") taban düşer, seviyeler arası fark artar
