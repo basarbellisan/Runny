@@ -35,6 +35,8 @@ COLORS = {
     "Green": ((0.624, 0.878, 0.165), 0.5, 0.0),
     # Antrasit jant (oyun "Hub" malzemesini beyazla değiştirir; bu ad modeldeki renkte kalır)
     "Rim": ((0.15, 0.16, 0.18), 0.55, 0.0),
+    # İkinci gövde rengi (üst yüzeyler: kaput, tavan, kanat); oyun bu malzemeyi değiştirmez
+    "Peach": ((0.988, 0.765, 0.47), 0.55, 0.0),
 }
 
 
@@ -1308,18 +1310,80 @@ def stretch_y(k):
 A3_MID = 277.0       # Latte (Araba 3): yan görünüşte arabanın ortası (burun 140.5, arka 414)
 A5_MID = 301.2       # GEM (Araba 5): yan görünüşte arabanın ortası (burun 142.5, arka 460)
 A4_MID = 291.0       # Falcon (Araba 4): yan görünüşte arabanın ortası (burun 128, arka 454)
+def build_buggy():
+    """Kum arabası (görselden): kısa, alçak gövde; önü pahlı sekizgen kat planı (aks arası geniş);
+    açık renkli kaput, tavan ve kanat üstleri; koyu camlı kabin; iki eğik dikmeli arka kanat;
+    iri sekizgen tekerler; önde ve arkada ikişer beyaz far."""
+    def post(name, a, b, size, mat):
+        a, b = Vector(a), Vector(b)
+        d = b - a
+        ob = box(name, (size, size, d.length), (a + b) / 2, mat)
+        ob.rotation_euler = Vector((0, 0, 1)).rotation_difference(d.normalized()).to_euler()
+        return ob
+
+    # Alt gövde: önü dar ve pahlı, aks arasında geniş (sekizgen kat planı), yanlar hafif içe yatık
+    body = loft("body", [(1.64, 0.50, 0.46, 0.50, 0.93), (1.40, 0.60, 0.56, 0.45, 1.02),
+                         (0.50, 0.60, 0.56, 0.45, 1.03), (0.25, 0.78, 0.74, 0.45, 1.03),
+                         (-0.25, 0.78, 0.74, 0.45, 1.03), (-0.50, 0.60, 0.56, 0.45, 1.03),
+                         (-1.30, 0.60, 0.56, 0.48, 1.03), (-1.48, 0.56, 0.52, 0.52, 1.00)])
+    bevel(body, 0.06, 1)
+    # Arka gövde: kabinin arkasından kuyruğa yükselen blok (kanadın dikmeleri buna oturur)
+    rear = loft("rear", [(-0.35, 0.66, 0.58, 1.00, 1.40), (-1.30, 0.60, 0.54, 1.00, 1.44),
+                         (-1.48, 0.56, 0.50, 1.00, 1.40)])
+    bevel(rear, 0.06, 1)
+    # Bel: ön tekerin arkasında gövdenin yanı kaput hizasından kabinin altına yükselir; yan camlar
+    # yalnız bunun üstünde kalır
+    waist = loft("waist", [(0.56, 0.66, 0.60, 1.00, 1.03), (0.30, 0.74, 0.62, 1.00, 1.32),
+                           (-0.40, 0.70, 0.60, 1.00, 1.36)])
+    bevel(waist, 0.05, 1)
+    # Kaput: önden kabine açık renkli plaka
+    hood = loft("hood", [(1.60, 0.44, 0.40, 1.00, 1.06), (0.50, 0.60, 0.55, 1.00, 1.08)], mat="Peach")
+    bevel(hood, 0.02, 1)
+    # Kabin: koyu cam; ön cam eğik, arkada turuncu direk arka gövdeye iner
+    loft("cabin", [(0.52, 0.56, 0.46, 1.04, 1.08), (0.27, 0.56, 0.46, 1.04, 1.70),
+                   (-0.48, 0.58, 0.48, 1.04, 1.70)], mat="Glass")
+    loft("pillar", [(-0.46, 0.60, 0.50, 1.04, 1.71), (-0.72, 0.62, 0.52, 1.04, 1.44)])
+    for sx in (-1, 1):
+        post("a_pillar", (sx * 0.53, 0.52, 1.06), (sx * 0.47, 0.27, 1.70), 0.07, "Paint")
+    # Tavan: kabinin üstünde, önden ve arkadan biraz taşan açık renkli plaka
+    roof = box("roof", (1.0, 1.10, 0.14), (0, -0.12, 1.77), "Peach")
+    bevel(roof, 0.03, 1)
+    # Arka kanat: iki eğik dikme ve geniş açık renkli plaka
+    for sx in (-1, 1):
+        post("wing_post", (sx * 0.42, -0.95, 1.40), (sx * 0.42, -1.22, 2.00), 0.12, "Paint")
+    wing = box("wing", (1.70, 0.72, 0.13), (0, -1.28, 2.06), "Peach")
+    bevel(wing, 0.03, 1)
+    wing_base = box("wing_base", (1.70, 0.72, 0.08), (0, -1.28, 1.96), "Paint")
+    # Farlar (önde), stop lambaları (arkada) ve arka orta panel
+    for sx in (-1, 1):
+        box("headlight", (0.23, 0.03, 0.15), (sx * 0.27, 1.648, 0.76), "Light")
+        box("taillight", (0.26, 0.03, 0.11), (sx * 0.38, -1.488, 1.20), "Light")
+    rp = box("rear_panel", (0.44, 0.06, 0.28), (0, -1.47, 0.80), "Paint")
+    bevel(rp, 0.03, 1)
+    # Aks çubukları (tekerin iç yüzünden gövdeye)
+    for sx in (-1, 1):
+        for y in (0.89, -0.89):
+            box("rod", (0.16, 0.08, 0.08), (sx * 0.58, y, 0.61), "Dark")
+    # Tekerler: iri sekizgen, kenarları pahlı, dışta düz göbek diski
+    for name, x, y in (("wheel_FL", -0.86, 0.89), ("wheel_FR", 0.86, 0.89),
+                       ("wheel_RL", -0.86, -0.89), ("wheel_RR", 0.86, -0.89)):
+        poly_wheel(name, (x, y, 0.61), 0.61, 0.45, hub_ratio=0.5)
+
+
 BUILDERS = {"kutu": build_kutu, "dragster": build_dragster, "yarisci": build_yarisci, "latte": build_latte,
-            "falcon": build_falcon, "gem": build_gem}
+            "falcon": build_falcon, "gem": build_gem, "buggy": build_buggy}
 ## Figma çizimli arabalar: yan görünüşte arabanın ortası ve yer çizgisi (piksel)
 ## (isteğe bağlı 3. değer: yan görünüşte kameranın baktığı x; yoksa 296.5)
 ORTHO = {"dragster": (D_MID, 334.0), "yarisci": (300.0, 326.0), "latte": (A3_MID, 326.0, 284.5),
          "falcon": (A4_MID, 320.0, 291.0), "gem": (A5_MID, 325.4, 301.2)}
 ## Modelin gövde rengi (oyun bu rengi alır)
 PAINTS = {"dragster": ((1.0, 0.549, 0.255), 0.6, 0.0), "yarisci": ((0.11, 0.11, 0.12), 0.45, 0.0),
-          "latte": ((0.886, 0.776, 0.596), 0.55, 0.0), "gem": ((0.15, 0.16, 0.18), 0.55, 0.0)}
+          "latte": ((0.886, 0.776, 0.596), 0.55, 0.0), "gem": ((0.15, 0.16, 0.18), 0.55, 0.0),
+          "buggy": ((0.957, 0.502, 0.149), 0.55, 0.0)}
 ## Lastik rengi (oyun bu rengi alır); yoksa koyu gri
 TIRES = {"yarisci": ((0.82, 0.16, 0.13), 0.8, 0.0), "latte": ((1.0, 0.353, 0.122), 0.8, 0.0),
-         "falcon": ((0.95, 0.945, 0.93), 0.9, 0.0), "gem": ((0.624, 0.878, 0.165), 0.8, 0.0)}
+         "falcon": ((0.95, 0.945, 0.93), 0.9, 0.0), "gem": ((0.624, 0.878, 0.165), 0.8, 0.0),
+         "buggy": ((0.30, 0.30, 0.31), 0.9, 0.0)}
 
 
 # ---------------------------------------------------------------- çıktı
