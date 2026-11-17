@@ -1331,7 +1331,7 @@ def flat_poly(name, pts, x0, x1, mat):
     return ob
 
 
-def ngon(r, n=8, rot=None, c=(0.0, 0.0)):
+def ngon(r, n=16, rot=None, c=(0.0, 0.0)):
     rot = math.pi / n if rot is None else rot
     return [(c[0] + r * math.cos(rot + 2 * math.pi * k / n), c[1] + r * math.sin(rot + 2 * math.pi * k / n))
             for k in range(n)]
@@ -1350,14 +1350,14 @@ def modern_rim(tire, w, R, style):
             lay("rim_disc", ngon(R), 0.012, "Yellow")
             for k in range(5):
                 a = math.pi / 2 + 2 * math.pi * k / 5
-                lay("rim_hole", ngon(R * 0.2, 6, 0.0, (R * 0.56 * math.cos(a), R * 0.56 * math.sin(a))), 0.016, "Dark")
+                lay("rim_hole", ngon(R * 0.2, 16, None, (R * 0.56 * math.cos(a), R * 0.56 * math.sin(a))), 0.016, "Dark")
             lay("rim_cap", ngon(R * 0.16), 0.016, "Dark")
             continue
         # Koyu zemin, sarı dış halka ve göbek
         lay("rim_back", ngon(R), 0.006, "Dark")
         outer, inner = ngon(R), ngon(R * 0.8)
-        for k in range(8):
-            j = (k + 1) % 8
+        for k in range(16):
+            j = (k + 1) % 16
             lay("rim_ring", [outer[k], outer[j], inner[j], inner[k]], 0.018, "Yellow")
         lay("rim_hub", ngon(R * 0.26), 0.022, "Yellow")
         if style == "a":
@@ -1385,11 +1385,12 @@ def modern_rim(tire, w, R, style):
 
 
 def buggy_wheel(name, pos, r, w, rim_r, style):
-    """Kenarları pahlı sekizgen lastik (göbeksiz) ve üstüne modern jant."""
+    """Kenarları pahlı 16 kenarlı lastik (göbeksiz; diğer arabalar gibi neredeyse yuvarlak) ve üstüne
+    modern jant (parçaları da 16 kenarlı)."""
     bm = bmesh.new()
-    bmesh.ops.create_cone(bm, cap_ends=True, segments=8, radius1=r, radius2=r, depth=w)
+    bmesh.ops.create_cone(bm, cap_ends=True, segments=16, radius1=r, radius2=r, depth=w)
     bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
-    bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 8, 3, "X"), cent=(0, 0, 0))
+    bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 16, 3, "X"), cent=(0, 0, 0))
     tire = new_object(name, bm, ["Tire"])
     bevel(tire, r * 0.13, 1)
     flat(tire)
@@ -1402,7 +1403,7 @@ def build_buggy():
     """Kum arabası (görselden): yan görünüşten boy ve yükseklikler, ön görünüşten genişlikler.
     Alçak, önü dar burun; burnun üstü öne doğru alçalır; kabinin iki yanında tekerlerin üstüne uzanan geniş
     çamurluk çıkıntıları; koyu camlı kabin ve onu örten, arkada güverteye inen tek parça tavan; arkada
-    kalın yüzgeç dikmeler üstünde tek parça geniş kanat; iri, kenarları pahlı sekizgen tekerler ve
+    kalın yüzgeç dikmeler üstünde tek parça geniş kanat; iri, kenarları pahlı 16 kenarlı tekerler ve
     sade modern jantlar. Renkler: gövde açık soğuk yeşil, lastik / tavan / kanat aynı mavi ("Tire"),
     jant sarı, cam siyah."""
     # Görselin yan görünüşü (3 kat büyütülmüş kırpıntı, piksel): ön aks x 315, arka aks x 905, yer y 760;
@@ -1467,12 +1468,12 @@ def build_buggy():
     for sx in (-1, 1):
         for y in (Y(315), Y(905)):
             box("rod", (0.14, 0.08, 0.08), (sx * 0.62, y, 0.60), "Dark")
-    # Tekerler: iri, geniş, kenarları pahlı sekizgen; dışta düz göbek diski
+    # Tekerler: iri, kenarları pahlı, 16 kenarlı; iki yanda modern jant
     # İç yüzü gövdenin dışında (gövde aks hizasında en çok 0.62); toplam yarı genişlik ~1.15 m
     for name, x, y in (("wheel_FL", -0.90, Y(315)), ("wheel_FR", 0.90, Y(315)),
                        ("wheel_RL", -0.90, Y(905)), ("wheel_RR", 0.90, Y(905))):
-        # Görseldeki çap kenardan kenara (1.2 m): sekizgenin köşe yarıçapı 0.6 / cos(22.5°)
-        buggy_wheel(name, (x, y, 0.60), 0.60 / math.cos(math.pi / 8), 0.50, 0.36, BUGGY_RIM)
+        # Kenardan kenara çap 1.2 m: 16 kenarlının köşe yarıçapı 0.6 / cos(11.25°)
+        buggy_wheel(name, (x, y, 0.60), 0.60 / math.cos(math.pi / 16), 0.50, 0.36, BUGGY_RIM)
 
 
 BUILDERS = {"kutu": build_kutu, "dragster": build_dragster, "yarisci": build_yarisci, "latte": build_latte,
