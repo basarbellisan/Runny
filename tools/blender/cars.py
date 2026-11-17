@@ -1404,7 +1404,7 @@ def build_buggy():
     Alçak, önü dar burun; burnun üstü öne doğru alçalır; kabinin iki yanında tekerlerin üstüne uzanan geniş
     çamurluk çıkıntıları; koyu camlı kabin ve onu örten, arkada güverteye inen tek parça tavan; arkada
     kalın yüzgeç dikmeler üstünde tek parça geniş kanat; iri, kenarları pahlı 16 kenarlı tekerler ve
-    sade modern jantlar. Renkler: gövde açık soğuk yeşil, lastik / tavan / kanat aynı mavi ("Tire"),
+    sade modern jantlar. Renkler: gövde ve tavan doygun turkuaz, lastik ve kanat aynı mavi ("Tire"),
     jant sarı, cam siyah."""
     # Görselin yan görünüşü (3 kat büyütülmüş kırpıntı, piksel): ön aks x 315, arka aks x 905, yer y 760;
     # teker yarıçapı 0.6 m'ye göre 1 piksel S m
@@ -1456,7 +1456,7 @@ def build_buggy():
                    (Y(780), 0.43, 0.39, Z(290), Z(188)), (Y(840), 0.43, 0.41, Z(290), Z(262))], mat="Glass")
     # Tavan: tek parça; önü pahlı, arkada aşağı dönüp güverteye iner (ayrı direk ya da tepe plakası yok)
     side_prism("roof", [(490, 185), (515, 150), (795, 150), (880, 255), (880, 290), (835, 290), (770, 185)],
-               0.44, "Tire")
+               0.44, "Paint")
     # Kanat dikmeleri: kalın, geriye yatık yüzgeçler
     for sx in (-1, 1):
         side_prism("wing_fin", [(860, 288), (935, 108), (1025, 108), (990, 288)], (sx * 0.49, 0.12), "Tire")
