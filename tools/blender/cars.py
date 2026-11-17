@@ -1488,7 +1488,7 @@ def build_delta():
     69.25 (alt), alt duvar (69.25, 234)'ten gövde köşesine (49.75, 270), gövde 270-305. Üstten (orta
     1138.5): burun ±10.3, uçlar ±122, arka kenar uçlardan çentiğe (409.5) V. Kokpit: yandan 16.65°
     yatık elips (merkez 306.5, 272.2). Tekerler: ön merkez (191, 297.2) r 28.2, enine
-    44.8-68.9; arka (363.75, 290.7) r 34.7, enine 57-93."""
+    44.8-68.9; arka (363.75, 290.7) r 34.7, enine 61-93."""
     MID, GROUND = 305.5, 325.4
     def Y(x):
         return (MID - x) * DS
@@ -1500,7 +1500,7 @@ def build_delta():
         return 10.3 + 111.7 * (x - NOSE) / (TIP - NOSE)
     # Kanat ucunun yüksekliği: çizimde 222; arka tekerler kanadın altındaki duvara girmesin diye arka
     # yukarı kaldırıldı (üst kenar yine burundan uca düz)
-    TIPZ = 182.0
+    TIPZ = 205.0
     def lift(x):   # kaldırma: burunda 0, uca doğru artar; sırt, kokpit ve çatı da aynı kalkar (V derinliği aynı)
         return (222.0 - TIPZ) * (x - NOSE) / (TIP - NOSE)
     def zle(x):    # ön kenarın (dış panelin) üstü: yandan üst kenar
@@ -1611,7 +1611,7 @@ def build_delta():
     # Aks çubukları
     for sx in (-1, 1):
         box("rod", (w(25), w(4), w(4)), (sx * w(32.3), Y(191), Z(297.2)), "Dark")
-        box("rod", (w(9), w(5), w(5)), (sx * w(53.0), Y(363.75), Z(290.7)), "Dark")
+        box("rod", (w(12), w(5), w(5)), (sx * w(55.25), Y(363.75), Z(290.7)), "Dark")
     # Tekerler: köşeleri yuvarlatılmış silindir, beyaz jant ve siyah göbek
     def wheel6(name, pos, r, tw, rim, dot):
         bm = bmesh.new()
@@ -1632,7 +1632,7 @@ def build_delta():
         tire.location = pos
     for name, x, X, zc, r, tw, rim, dot in (
             ("wheel_FL", 191.0, -56.85, 297.2, 28.2, 24.1, 16.4, 4.6), ("wheel_FR", 191.0, 56.85, 297.2, 28.2, 24.1, 16.4, 4.6),
-            ("wheel_RL", 363.75, -75.0, 290.7, 34.7, 36.0, 20.15, 5.65), ("wheel_RR", 363.75, 75.0, 290.7, 34.7, 36.0, 20.15, 5.65)):
+            ("wheel_RL", 363.75, -77.0, 290.7, 34.7, 32.0, 20.15, 5.65), ("wheel_RR", 363.75, 77.0, 290.7, 34.7, 32.0, 20.15, 5.65)):
         wheel6(name, (w(X), Y(x), Z(zc)), w(r), w(tw), w(rim), w(dot))
 
 
