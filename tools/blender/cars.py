@@ -1311,63 +1311,82 @@ A3_MID = 277.0       # Latte (Araba 3): yan görünüşte arabanın ortası (bur
 A5_MID = 301.2       # GEM (Araba 5): yan görünüşte arabanın ortası (burun 142.5, arka 460)
 A4_MID = 291.0       # Falcon (Araba 4): yan görünüşte arabanın ortası (burun 128, arka 454)
 def build_buggy():
-    """Kum arabası (görselden): kısa, alçak gövde; önü pahlı sekizgen kat planı (aks arası geniş);
-    açık renkli kaput, tavan ve kanat üstleri; koyu camlı kabin; iki eğik dikmeli arka kanat;
-    iri sekizgen tekerler; önde ve arkada ikişer beyaz far."""
-    def post(name, a, b, size, mat):
-        a, b = Vector(a), Vector(b)
-        d = b - a
-        ob = box(name, (size, size, d.length), (a + b) / 2, mat)
-        ob.rotation_euler = Vector((0, 0, 1)).rotation_difference(d.normalized()).to_euler()
+    """Kum arabası (görselden): yan görünüşten boy ve yükseklikler, ön görünüşten genişlikler.
+    Alçak, önü dar burun; kaput öne doğru alçalır; kabinin iki yanında tekerlerin üstüne uzanan geniş
+    çamurluk çıkıntıları; koyu camlı kabin ve üstünde açık renkli tavan; arkada kalın yüzgeç
+    dikmeler üstünde geniş kanat; iri, geniş, kenarları pahlı sekizgen tekerler."""
+    # Görselin yan görünüşü (3 kat büyütülmüş kırpıntı, piksel): ön aks x 315, arka aks x 905, yer y 760;
+    # teker yarıçapı 0.6 m'ye göre 1 piksel S m
+    S = 0.00296
+    def Y(x):
+        return (610.0 - x) * S
+    def Z(y):
+        return (760.0 - y) * S
+
+    def side_prism(name, pts, hw, mat="Paint", bev=0.0):
+        """Yan görünüş çokgeni (x, y piksel) X boyunca ±hw kalınlıkta (merkez cx)."""
+        bm = bmesh.new()
+        cx, h = hw if isinstance(hw, tuple) else (0.0, hw)
+        left = [bm.verts.new((cx - h, Y(x), Z(y))) for x, y in pts]
+        right = [bm.verts.new((cx + h, Y(x), Z(y))) for x, y in pts]
+        n = len(pts)
+        bm.faces.new(left)
+        bm.faces.new(list(reversed(right)))
+        for i in range(n):
+            j = (i + 1) % n
+            bm.faces.new((left[i], left[j], right[j], right[i]))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        ob = new_object(name, bm, [mat])
+        if bev > 0:
+            bevel(ob, bev, 1)
+        flat(ob)
         return ob
 
-    # Alt gövde: önü dar ve pahlı, aks arasında geniş (sekizgen kat planı), yanlar hafif içe yatık
-    body = loft("body", [(1.64, 0.50, 0.46, 0.50, 0.93), (1.40, 0.60, 0.56, 0.45, 1.02),
-                         (0.50, 0.60, 0.56, 0.45, 1.03), (0.25, 0.78, 0.74, 0.45, 1.03),
-                         (-0.25, 0.78, 0.74, 0.45, 1.03), (-0.50, 0.60, 0.56, 0.45, 1.03),
-                         (-1.30, 0.60, 0.56, 0.48, 1.03), (-1.48, 0.56, 0.52, 0.52, 1.00)])
+    # Alt gövde: burun alçak ve dar, kaput cama doğru yükselir; tekerlerin arasında yan panel
+    # (kesitler: Y, alt yarı genişlik, üst yarı genişlik, alt Z, üst Z)
+    body = loft("body", [(Y(60), 0.52, 0.47, Z(550), Z(450)), (Y(110), 0.55, 0.50, Z(600), Z(428)),
+                         (Y(225), 0.57, 0.52, Z(640), Z(342)), (Y(410), 0.60, 0.55, Z(640), Z(330)),
+                         (Y(700), 0.62, 0.56, Z(640), Z(330)), (Y(1060), 0.62, 0.56, Z(640), Z(300)),
+                         (Y(1085), 0.58, 0.52, Z(620), Z(330))])
     bevel(body, 0.06, 1)
-    # Arka gövde: kabinin arkasından kuyruğa yükselen blok (kanadın dikmeleri buna oturur)
-    rear = loft("rear", [(-0.35, 0.66, 0.58, 1.00, 1.40), (-1.30, 0.60, 0.54, 1.00, 1.44),
-                         (-1.48, 0.56, 0.50, 1.00, 1.40)])
-    bevel(rear, 0.06, 1)
-    # Bel: ön tekerin arkasında gövdenin yanı kaput hizasından kabinin altına yükselir; yan camlar
-    # yalnız bunun üstünde kalır
-    waist = loft("waist", [(0.56, 0.66, 0.60, 1.00, 1.03), (0.30, 0.74, 0.62, 1.00, 1.32),
-                           (-0.40, 0.70, 0.60, 1.00, 1.36)])
-    bevel(waist, 0.05, 1)
-    # Kaput: önden kabine açık renkli plaka
-    hood = loft("hood", [(1.60, 0.44, 0.40, 1.00, 1.06), (0.50, 0.60, 0.55, 1.00, 1.08)], mat="Peach")
+    # Kaput: burnun üstünde açık renkli plaka (öne doğru alçalır)
+    hood = loft("hood", [(Y(66), 0.51, 0.49, Z(447), Z(435)), (Y(225), 0.57, 0.55, Z(340), Z(326)),
+                         (Y(410), 0.59, 0.57, Z(335), Z(322))], mat="Peach")
     bevel(hood, 0.02, 1)
-    # Kabin: koyu cam; ön cam eğik, arkada turuncu direk arka gövdeye iner
-    loft("cabin", [(0.52, 0.56, 0.46, 1.04, 1.08), (0.27, 0.56, 0.46, 1.04, 1.70),
-                   (-0.48, 0.58, 0.48, 1.04, 1.70)], mat="Glass")
-    loft("pillar", [(-0.46, 0.60, 0.50, 1.04, 1.71), (-0.72, 0.62, 0.52, 1.04, 1.44)])
+    # Çamurluk çıkıntıları: kabinin iki yanında, tekerlerin üstüne uzanır (üstten sekizgen)
+    # Önde alçak (cam hizasında), arkaya doğru çapraz bir çizgiyle güverteye yükselir
+    pods = loft("pods", [(Y(410), 0.58, 0.54, Z(470), Z(350)), (Y(470), 0.74, 0.68, Z(470), Z(350)),
+                         (Y(640), 0.74, 0.68, Z(470), Z(350)), (Y(705), 0.74, 0.68, Z(470), Z(290)),
+                         (Y(830), 0.70, 0.64, Z(470), Z(285)), (Y(1060), 0.64, 0.58, Z(470), Z(285))])
+    bevel(pods, 0.05, 1)
+    # Kabin (koyu cam): ön cam eğik, arka cam kuyruğa iner
+    loft("cabin", [(Y(418), 0.43, 0.42, Z(350), Z(340)), (Y(510), 0.43, 0.39, Z(350), Z(188)),
+                   (Y(640), 0.43, 0.39, Z(350), Z(188)), (Y(705), 0.43, 0.39, Z(290), Z(188)),
+                   (Y(780), 0.43, 0.39, Z(290), Z(188)), (Y(840), 0.43, 0.41, Z(290), Z(262))], mat="Glass")
+    # Tavan: kabinin üstünde açık renkli kalın plaka, uçları pahlı
+    side_prism("roof", [(490, 185), (515, 150), (795, 150), (805, 185)], 0.44, "Peach", 0.02)
+    # Arka direk: tavanın arkasından güverteye inen turuncu kama
+    side_prism("pillar", [(780, 186), (805, 186), (875, 250), (875, 290), (840, 290)], 0.41, "Paint", 0.02)
+    # Kanat dikmeleri: kalın, geriye yatık yüzgeçler
     for sx in (-1, 1):
-        post("a_pillar", (sx * 0.53, 0.52, 1.06), (sx * 0.47, 0.27, 1.70), 0.07, "Paint")
-    # Tavan: kabinin üstünde, önden ve arkadan biraz taşan açık renkli plaka
-    roof = box("roof", (1.0, 1.10, 0.14), (0, -0.12, 1.77), "Peach")
-    bevel(roof, 0.03, 1)
-    # Arka kanat: iki eğik dikme ve geniş açık renkli plaka
+        side_prism("wing_fin", [(860, 288), (935, 108), (1025, 108), (990, 288)], (sx * 0.49, 0.12), "Paint", 0.02)
+    # Kanat: altı turuncu, üstü açık renkli
+    side_prism("wing_base", [(895, 112), (1150, 112), (1152, 92), (892, 92)], 0.69, "Paint", 0.015)
+    side_prism("wing", [(892, 93), (1152, 93), (1162, 40), (888, 45)], 0.71, "Peach", 0.03)
+    # Farlar (önde), stop lambaları ve girintili orta panel (arkada)
     for sx in (-1, 1):
-        post("wing_post", (sx * 0.42, -0.95, 1.40), (sx * 0.42, -1.22, 2.00), 0.12, "Paint")
-    wing = box("wing", (1.70, 0.72, 0.13), (0, -1.28, 2.06), "Peach")
-    bevel(wing, 0.03, 1)
-    wing_base = box("wing_base", (1.70, 0.72, 0.08), (0, -1.28, 1.96), "Paint")
-    # Farlar (önde), stop lambaları (arkada) ve arka orta panel
-    for sx in (-1, 1):
-        box("headlight", (0.23, 0.03, 0.15), (sx * 0.27, 1.648, 0.76), "Light")
-        box("taillight", (0.26, 0.03, 0.11), (sx * 0.38, -1.488, 1.20), "Light")
-    rp = box("rear_panel", (0.44, 0.06, 0.28), (0, -1.47, 0.80), "Paint")
-    bevel(rp, 0.03, 1)
+        box("headlight", (0.28, 0.03, 0.16), (sx * 0.30, Y(60) + 0.004, 0.76), "Light")
+        box("taillight", (0.26, 0.03, 0.15), (sx * 0.42, Y(1085) - 0.004, 1.10), "Light")
+    side_prism("rear_panel", [(1080, 360), (1090, 360), (1090, 530), (1080, 530)], 0.21, "Paint", 0.015)
     # Aks çubukları (tekerin iç yüzünden gövdeye)
     for sx in (-1, 1):
-        for y in (0.89, -0.89):
-            box("rod", (0.16, 0.08, 0.08), (sx * 0.58, y, 0.61), "Dark")
-    # Tekerler: iri sekizgen, kenarları pahlı, dışta düz göbek diski
-    for name, x, y in (("wheel_FL", -0.86, 0.89), ("wheel_FR", 0.86, 0.89),
-                       ("wheel_RL", -0.86, -0.89), ("wheel_RR", 0.86, -0.89)):
-        poly_wheel(name, (x, y, 0.61), 0.61, 0.45, hub_ratio=0.5)
+        for y in (Y(315), Y(905)):
+            box("rod", (0.12, 0.08, 0.08), (sx * 0.56, y, 0.60), "Dark")
+    # Tekerler: iri, geniş, kenarları pahlı sekizgen; dışta düz göbek diski
+    for name, x, y in (("wheel_FL", -0.84, Y(315)), ("wheel_FR", 0.84, Y(315)),
+                       ("wheel_RL", -0.84, Y(905)), ("wheel_RR", 0.84, Y(905))):
+        # Görseldeki çap kenardan kenara (1.2 m): sekizgenin köşe yarıçapı 0.6 / cos(22.5°)
+        poly_wheel(name, (x, y, 0.60), 0.60 / math.cos(math.pi / 8), 0.58, hub_ratio=0.46)
 
 
 BUILDERS = {"kutu": build_kutu, "dragster": build_dragster, "yarisci": build_yarisci, "latte": build_latte,
