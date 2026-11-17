@@ -1622,10 +1622,20 @@ def build_delta():
     # (yükseklikler sırta göre: sırt burunda 295, çentikte 266 iken 239.5 / 256 idi)
     def spine_shift(x):
         return zsp(x) - (295.0 - 29.0 * (x - NOSE) / (NOTCH - NOSE))
-    ROOF_APEX = (313.5, 228.0)   # tepe: kokpitin üstünde (x px, yükseklik y px; sırta göre kaydırılır)
+    ROOF_APEX = (308.0, 238.0)   # tepe: kokpitin üstünde (x px, yükseklik y px; sırta göre kaydırılır)
+    ROOF_CORNER = (26.0, 343.5)  # taban köşeleri (± yarı açıklık, x px)
     pts = [(0.0, ROOF_APEX[0], ROOF_APEX[1] + spine_shift(ROOF_APEX[0])), (0.0, 404.0, zsp(404.0) - 1.0),
-           (26.0, 343.5, panel_z(343.5, 26.0) + 0.5), (-26.0, 343.5, panel_z(343.5, 26.0) + 0.5),
+           (ROOF_CORNER[0], ROOF_CORNER[1], panel_z(ROOF_CORNER[1], ROOF_CORNER[0]) + 0.5),
+           (-ROOF_CORNER[0], ROOF_CORNER[1], panel_z(ROOF_CORNER[1], ROOF_CORNER[0]) + 0.5),
            (0.0, 330.0, 260.0 + spine_shift(330.0)), (0.0, 404.0, zsp(404.0) + 3.0), (0.0, 350.0, zsp(350.0) + 3.0)]
+    # Tepe alçak: çatının altında kalan kokpit parçası çatının içine alınır (azıcık şişirilmiş noktaları
+    # gövdeye katılır); çatının üstten üçgen izi değişmez, cam çatının içinden dışarı taşmaz
+    bpy.context.view_layer.update()
+    for v in canopy.data.vertices:
+        p = canopy.matrix_world @ (v.co * 1.02)
+        X, x, z = p.x / DS, MID - p.y / DS, GROUND - p.z / DS
+        if x > ROOF_APEX[0] and abs(X) < ROOF_CORNER[0] * min(1.0, (x - ROOF_APEX[0]) / (ROOF_CORNER[1] - ROOF_APEX[0])):
+            pts.append((X, x, z))
     bm = bmesh.new()
     vs = [bm.verts.new((w(X), Y(x), Z(z))) for X, x, z in pts]
     bmesh.ops.convex_hull(bm, input=vs)
@@ -1633,10 +1643,12 @@ def build_delta():
     fin = new_object("fairing", bm, ["Paint"])
     flat(fin)
 
+    # Arka teker: çizimde 363.75; araba dengeli dursun diye arkaya itildi (dingil mesafesi uzadı)
+    REAR_X = 383.75
     # Aks çubukları
     for sx in (-1, 1):
         box("rod", (w(25), w(4), w(4)), (sx * w(32.3), Y(191), Z(297.2)), "Dark")
-        box("rod", (w(12), w(5), w(5)), (sx * w(55.25), Y(363.75), Z(290.7)), "Dark")
+        box("rod", (w(12), w(5), w(5)), (sx * w(55.25), Y(REAR_X), Z(290.7)), "Dark")
     # Tekerler: köşeleri yuvarlatılmış silindir, beyaz jant ve siyah göbek
     def wheel6(name, pos, r, tw, rim, dot):
         bm = bmesh.new()
@@ -1657,7 +1669,7 @@ def build_delta():
         tire.location = pos
     for name, x, X, zc, r, tw, rim, dot in (
             ("wheel_FL", 191.0, -56.85, 297.2, 28.2, 24.1, 16.4, 4.6), ("wheel_FR", 191.0, 56.85, 297.2, 28.2, 24.1, 16.4, 4.6),
-            ("wheel_RL", 363.75, -77.0, 290.7, 34.7, 32.0, 20.15, 5.65), ("wheel_RR", 363.75, 77.0, 290.7, 34.7, 32.0, 20.15, 5.65)):
+            ("wheel_RL", REAR_X, -77.0, 290.7, 34.7, 32.0, 20.15, 5.65), ("wheel_RR", REAR_X, 77.0, 290.7, 34.7, 32.0, 20.15, 5.65)):
         wheel6(name, (w(X), Y(x), Z(zc)), w(r), w(tw), w(rim), w(dot))
 
 
