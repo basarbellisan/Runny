@@ -1384,6 +1384,39 @@ def modern_rim(tire, w, R, style):
         ob.matrix_parent_inverse = tire.matrix_world.inverted()
 
 
+def paint_side(objs, pts, mat):
+    """Yan görünüşteki (Y, Z) çokgenin içine düşen yan yüzeyleri boyar: çokgen X boyunca uzanan bir
+    kalıpla parçalar ikiye bölünür (dışı eski renkte, içi mat renginde); iki yan birden."""
+    bm = bmesh.new()
+    a = [bm.verts.new((-3.0, y, z)) for y, z in pts]
+    b = [bm.verts.new((3.0, y, z)) for y, z in pts]
+    n = len(pts)
+    bm.faces.new(a)
+    bm.faces.new(list(reversed(b)))
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((a[i], a[j], b[j], b[i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    cutter = new_object("_paint_cut", bm, [])
+    for ob in objs:
+        part = ob.copy()
+        part.data = ob.data.copy()
+        part.name = ob.name + "_paint"
+        bpy.context.scene.collection.objects.link(part)
+        part.data.materials.clear()
+        part.data.materials.append(material(mat))
+        for target, op in ((part, "INTERSECT"), (ob, "DIFFERENCE")):
+            mod = target.modifiers.new("paint", "BOOLEAN")
+            mod.operation = op
+            mod.object = cutter
+            mod.solver = "EXACT"
+            bpy.context.view_layer.objects.active = target
+            bpy.ops.object.modifier_apply(modifier=mod.name)
+        flat(part)
+        flat(ob)
+    bpy.data.objects.remove(cutter, do_unlink=True)
+
+
 def buggy_wheel(name, pos, r, w, rim_r, style):
     """Kenarları pahlı 16 kenarlı lastik (göbeksiz; diğer arabalar gibi neredeyse yuvarlak) ve üstüne
     modern jant (parçaları da 16 kenarlı)."""
@@ -1442,12 +1475,10 @@ def build_buggy():
     # Çamurluk çıkıntıları: kabinin iki yanında, tekerlerin üstüne uzanır (üstten sekizgen)
     # Önde alçak (cam hizasında), arkaya doğru çapraz bir çizgiyle güverteye yükselir
     # Teker hizasında gövdeden geniş değil (tekerler içine girmesin); yalnız iki teker arasında geniş
-    # Yan çıkıntılar mavi (lastik, tavan, kanatla aynı); arkasındaki güverte gövde renginde
-    loft("pods", mat="Tire", stations=[(Y(410), 0.58, 0.54, Z(470), Z(350)), (Y(525), 0.60, 0.56, Z(470), Z(350)),
-                                       (Y(545), 0.74, 0.68, Z(470), Z(350)), (Y(640), 0.74, 0.68, Z(470), Z(350)),
-                                       (Y(675), 0.74, 0.68, Z(470), Z(320)), (Y(695), 0.60, 0.56, Z(470), Z(298)),
-                                       (Y(705), 0.60, 0.56, Z(470), Z(290))])
-    loft("deck", [(Y(705), 0.595, 0.555, Z(470), Z(290)), (Y(1060), 0.60, 0.56, Z(470), Z(285))])
+    pods = loft("pods", [(Y(410), 0.58, 0.54, Z(470), Z(350)), (Y(525), 0.60, 0.56, Z(470), Z(350)),
+                         (Y(545), 0.74, 0.68, Z(470), Z(350)), (Y(640), 0.74, 0.68, Z(470), Z(350)),
+                         (Y(675), 0.74, 0.68, Z(470), Z(320)), (Y(695), 0.60, 0.56, Z(470), Z(298)),
+                         (Y(705), 0.60, 0.56, Z(470), Z(290)), (Y(1060), 0.60, 0.56, Z(470), Z(285))])
     # Kabin (koyu cam): ön cam eğik, arka cam kuyruğa iner
     loft("cabin", [(Y(418), 0.43, 0.42, Z(350), Z(340)), (Y(510), 0.43, 0.39, Z(350), Z(188)),
                    (Y(640), 0.43, 0.39, Z(350), Z(188)), (Y(705), 0.43, 0.39, Z(290), Z(188)),
@@ -1460,6 +1491,11 @@ def build_buggy():
         side_prism("wing_fin", [(860, 288), (935, 108), (1025, 108), (990, 288)], (sx * 0.49, 0.12), "Tire")
     # Kanat: tek parça kalın plaka
     side_prism("wing", [(895, 112), (1150, 112), (1162, 40), (888, 45)], 0.71, "Tire")
+    # Yan boyama (mavi, lastik / tavan / kanatla aynı): yandan bakınca iki teker arasında ön alt köşesi
+    # pahlı bir blok ve üstünden kanat dikmesinin dibine basamakla yükselen bir kol (çizime göre).
+    # Gövdenin yan yüzlerine kesilir; üst yüzler gövde renginde kalır
+    paint_side([body, pods], [(0.30, 1.21), (-0.02, 1.21), (-0.10, 1.37), (-0.72, 1.385), (-0.76, 1.26),
+                              (-0.24, 1.14), (-0.22, 0.80), (0.18, 0.76), (0.30, 0.88)], "Tire")
     # Farlar (önde), stop lambaları ve girintili orta panel (arkada)
     for sx in (-1, 1):
         box("headlight", (0.23, 0.03, 0.145), (sx * 0.22, 2.054, 0.63), "Light")
