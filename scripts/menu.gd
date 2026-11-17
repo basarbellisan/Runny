@@ -13,6 +13,7 @@ const MODELS := [
 	["LATTE", "Balanced: solid off-road and on the edges, needs just enough energy on jumps.", 8],
 	["FALCON", "The fastest: jumps on little energy, saving the rest for the wings. But slides like on ice off-road.", 9],
 	["GEM", "Fast and agile, its low body rarely tips over. But it gets shaken up off-road.", 10],
+	["DELTA", "A wing on wheels: quick and evenly balanced.", 12],
 ]
 ## Platformlar arası mesafe (m)
 const SPACING := 7.0

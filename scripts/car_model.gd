@@ -22,10 +22,13 @@ extends Node3D
 ##             yanında çıkıntılar, yüzgeç dikmeli geniş kanat; gövde açık soğuk yeşil, lastik / tavan /
 ##             kanat mavi, delikli disk jantlar sarı
 ##
+## variant 12 – DELTA: Blender modeli (models/cars/delta.glb, Figma "Araba 6"): ok biçimli delta kanat,
+##             martı kesitli gövde, yatık siyah kokpit; ön tekerler küçük ve dışarıda, arkadakiler kanadın altında
+##
 ## Tekerler (wheels) fizik için de kullanılır: her birinin yerdeki
 ## temas noktası (contact), yarıçapı ve süspansiyon/dönüş düğümleri var.
 
-@export_range(1, 11) var variant := 1:
+@export_range(1, 12) var variant := 1:
 	set(v):
 		variant = v
 		if is_node_ready():
@@ -35,10 +38,10 @@ extends Node3D
 ## Onaylanmamış modeller yalnız önizlemede (vitrin aracı --glb) eklenir.
 static var glb_models := {6: "res://models/cars/dragster.glb", 7: "res://models/cars/yarisci.glb",
 	8: "res://models/cars/latte.glb", 9: "res://models/cars/falcon.glb",
-	10: "res://models/cars/gem.glb", 11: "res://models/cars/buggy.glb"}
+	10: "res://models/cars/gem.glb", 11: "res://models/cars/buggy.glb", 12: "res://models/cars/delta.glb"}
 
 ## Garajdaki arabalar (sırayla). Kutu, Konsept, Roadster ve Buggy garajdan çıktı (kodları duruyor).
-const GARAGE := [2, 6, 7, 8, 9, 10]
+const GARAGE := [2, 6, 7, 8, 9, 10, 12]
 ## Arabaların özellikleri, 1-5 (3 = standart): [hız, tutuş, çakıl, denge]
 ## (garajda SPEED, STEERING, OFF-ROAD, STABILITY).
 ## Hız: başlangıç/en yüksek/tavan hız -%8..+%8. Tutuş: direksiyon tepkisi -%20..+%20,
@@ -54,6 +57,7 @@ const STATS := {
 	9: [5, 3, 1, 5],  # Falcon: en hızlı, en zor devrilen, çakılda buz pateni
 	10: [4, 4, 2, 4],  # GEM: hızlı, virajda iyi, zor devrilir; çakılda zorlanır
 	11: [3, 4, 4, 2],  # Buggy: standart hız, iyi direksiyon ve çakıl; yüksek kanadıyla kenarda kolay devrilir
+	12: [4, 3, 3, 3],  # Delta: hızlı, geri kalanı standart (şimdilik)
 }
 
 
