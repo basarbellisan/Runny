@@ -1506,7 +1506,8 @@ def build_delta():
     def section(x):
         l = L(x)
         top, bot = zle(x), min(zle(x) + 11.0, 305.0)
-        f = min(64.25, l * 0.93)
+        # Katlanma (dış panelin iç kenarı): burundan arka kenardaki katlanma noktasına (64.25; 444) düz hat
+        f = min(7.0 + 57.25 * (x - NOSE) / (444.0 - NOSE), l * 0.93)
         xw = min(69.25, l)
         wb = min(10.5 + 39.5 * min(1.0, (x - NOSE) / 116.0), xw)
         zb = max(295.0 - 25.0 * min(1.0, (x - NOSE) / 116.0), bot)
