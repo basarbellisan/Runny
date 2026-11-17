@@ -1480,131 +1480,138 @@ def build_buggy():
 
 
 def build_delta():
-    """Araba 6 (Figma "RUNNY / Araba 6": yandan, arkadan, önden ve üstten görünüş; çizgi çizimi): ok
-    biçimli delta kanatlı araba. Üstten: burun sivri, kanat arkaya doğru açılır, arka kenarı uçlardan
-    ortadaki çentiğe öne doğru girer (V); kanat uçlarında katlanma çizgisi. Arkadan: martı kanadı,
-    dış paneller yatay ve yüksek, iç paneller ortadaki sırta iner; kanadın altı eğik duvarlarla alttaki
-    gövdeye bağlanır. Gövde alçak ve düz, arkada egzozlu blok; sırtta damla biçimli siyah kokpit.
-    Ön tekerler küçük ve gövdenin dışında (akslarla bağlı), arka tekerler büyük ve kanadın altında.
-    Ölçüler çizimin pikselleri (DS m/px): yan görünüşte x boy (burun solda x=136, kanat ucu x=475),
-    y aşağı (yer y=325); enine ölçüler üstten / arkadan görünüşte orta çizgiden."""
-    MID, GROUND, T = 305.5, 325.0, 10.0
+    """Araba 6 (Figma "RUNNY / Araba 6"): ok biçimli delta kanatlı araba. Ölçüler Figma'daki şekillerin
+    tam koordinatlarından (çerçeve pikseli; DS m/px). Yandan (burun solda): silüet tek dörtgen: burun
+    ön yüzü x=136 (y 295-305), üst kenar burundan kanat ucuna (475, 222) düz, alt kenar y=305, arka
+    kenar uçtan (409.5, 305)'e eğik bir düzlem; y=270'te yan kırım (alttaki gövdenin üstü). Arkadan /
+    önden (orta x 625.5 / 877.5): kesit martı kanadı: uç panel 223-234 (11 px), katlanma 64.25 (üst) /
+    69.25 (alt), alt duvar (69.25, 234)'ten gövde köşesine (49.75, 270), gövde 270-305. Üstten (orta
+    1138.5): burun ±10.3, uçlar ±122, arka kenar uçlardan çentiğe (409.5) V. Kokpit: yandan 16.65°
+    yatık elips (merkez 306.5, 272.2). Tekerler: ön merkez (191, 297.2) r 28.2, enine
+    44.8-68.9; arka (363.75, 290.7) r 34.7, enine 57-93."""
+    MID, GROUND = 305.5, 325.4
     def Y(x):
         return (MID - x) * DS
     def Z(y):
         return (GROUND - y) * DS
     w = lambda px: px * DS
-    NOSE, TIP, NOTCH = 136.0, 475.0, 410.0
-    def L(x):      # kanadın ön kenarının yarı açıklığı (px)
-        return 7.5 + 114.0 * (x - NOSE) / (TIP - NOSE)
-    def zle(x):    # ön kenarın (ve dış panelin) üst yüksekliği (y px)
-        return 294.0 - 72.0 * (x - NOSE) / (TIP - NOSE)
-    def zsp(x):    # sırtın üst yüksekliği
-        return 294.0 - 32.0 * (x - NOSE) / (NOTCH - NOSE)
-    def fold(x):   # katlanma çizgisi (dış panel bundan dışarı yatay)
-        return min(68.0, L(x) * 0.6)
-    def ztop(x, X):
-        f = fold(x)
-        if X >= f:
-            return zle(x)
-        return zsp(x) + (zle(x) - zsp(x)) * X / f
-    def wf(x):     # alttaki gövdenin yarı genişliği
-        return min(7.5 + 40.5 * min(1.0, (x - NOSE) / 150.0), L(x))
+    NOSE, TIP, NOTCH = 136.0, 475.0, 409.5
+    def L(x):      # kanadın ön kenarının yarı açıklığı
+        return 10.3 + 111.7 * (x - NOSE) / (TIP - NOSE)
+    def zle(x):    # ön kenarın (dış panelin) üstü: yandan üst kenar
+        return 295.0 - 73.0 * (x - NOSE) / (TIP - NOSE)
+    def zsp(x):    # sırtın üstü: burunda 295, çentikte 261.3
+        return 295.0 - 33.7 * (x - NOSE) / (NOTCH - NOSE)
+    def section(x):
+        l = L(x)
+        top, bot = zle(x), min(zle(x) + 11.0, 305.0)
+        f = min(64.25, l * 0.93)
+        xw = min(69.25, l)
+        wb = min(10.5 + 39.5 * min(1.0, (x - NOSE) / 116.0), xw)
+        zb = max(295.0 - 25.0 * min(1.0, (x - NOSE) / 116.0), bot)
+        right = [(f, top), (l, top), (l, bot), (xw, bot), (wb, zb), (wb, 305.0)]
+        return [(0.0, zsp(x))] + right + [(-px, pz) for px, pz in reversed(right)]
 
-    def half_loft(name, sections, side):
-        """Yarım kesitleri (X px, y px listeleri) boy boyunca bağlar; side -1 sol, +1 sağ."""
+    def prism(name, pts, axis, lo, hi, mat="Paint"):
+        """Düzlem çokgeni (px) ekseni boyunca lo..hi kalınlıkta katı. axis "x": pts (Y px, Z px) yandan;
+        axis "z": pts (X px, x px) üstten."""
         bm = bmesh.new()
-        rings = []
-        for x, pts in sections:
-            rings.append([bm.verts.new((side * w(X), Y(x), Z(z))) for X, z in pts])
-        n = len(rings[0])
-        for a, b in zip(rings, rings[1:]):
-            for i in range(n):
-                j = (i + 1) % n
-                bm.faces.new((a[i], a[j], b[j], b[i]))
-        bm.faces.new(rings[0])
-        bm.faces.new(list(reversed(rings[-1])))
-        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+        def v(p, t):
+            if axis == "x":
+                return bm.verts.new((w(t), Y(p[0]), Z(p[1])))
+            return bm.verts.new((w(p[0]), Y(p[1]), Z(t)))
+        a = [v(p, lo) for p in pts]
+        b = [v(p, hi) for p in pts]
+        n = len(pts)
+        bm.faces.new(a)
+        bm.faces.new(list(reversed(b)))
+        for i in range(n):
+            j = (i + 1) % n
+            bm.faces.new((a[i], a[j], b[j], b[i]))
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-        ob = new_object(name, bm, ["Paint"])
-        flat(ob)
-        return ob
+        return new_object(name, bm, [mat])
 
-    # Ana gövde: burundan çentiğe kesitler (sırt, katlanma, ön kenar üst / alt, alttaki gövde)
-    for side in (-1, 1):
-        secs = []
-        for x in (NOSE, 160, 190, 220, 250, 280, 316, 350, 380, NOTCH):
-            l, f, g = L(x), fold(x), wf(x)
-            zb = max(zle(x) + T, 270.0)
-            secs.append((x, [(0.0, zsp(x)), (f, zle(x)), (l, zle(x)), (l, zle(x) + T), (g, zb), (g, 304.0), (0.0, 304.0)]))
-        half_loft("body", secs, side)
-        # Kanat uçları: çentiğin arkasında ince levha; iç kenarı arka kenar çizgisi (uçtan çentiğe)
-        secs = []
-        for x in (NOTCH, 425, 440, 455, 466, TIP - 1.0):
-            a = 121.5 * (x - NOTCH) / (TIP - NOTCH)
-            l = L(x)
-            f = max(a, min(fold(x), l))
-            secs.append((x, [(a, ztop(x, a)), (f, ztop(x, f)), (l, zle(x)), (l, zle(x) + T), (a, ztop(x, a) + T)]))
-        half_loft("wing", secs, side)
-    # Arka blok (egzoz yuvası): gövdenin arkası, çentiğin arkasına uzanır
-    box("rear_block", (w(100), w(44), w(34)), (0, Y(422), Z(287)), "Paint")
-    # Egzoz: arka yüzde beyaz halka ve siyah ağız
-    for r, mat, d in ((12.0, "Hub", 0.02), (8.0, "Dark", 0.03)):
-        bm = bmesh.new()
-        bmesh.ops.create_cone(bm, cap_ends=True, segments=16, radius1=w(r), radius2=w(r), depth=d)
-        bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "X"), cent=(0, 0, 0))
-        ob = new_object("exhaust", bm, [mat])
-        ob.location = (0, Y(444) - d * 0.5, Z(287))
-        flat(ob)
-
-    # Kokpit: sırtın üstünde siyah damla (önü sivri, arkası yuvarlak)
+    # Gövde ve kanat tek parça: burundan kanat ucuna kesitler, sonra arka düzlem ve V çentik kesilir
     bm = bmesh.new()
     rings = []
-    # Yandan kanadın ön kenarının üstüne taşar (çizimde ön kenar çizgisinin üstünde siyah kavis)
-    prof = [(256, 0.0, 0.0), (275, 9.0, 12.0), (300, 15.0, 22.0), (320, 18.0, 24.0), (340, 16.0, 20.0),
-            (355, 11.0, 12.0), (362, 0.0, 0.0)]
-    for x, hw, h in prof:
-        base = zsp(x) + 1.0
-        ring = []
-        for k in range(9):
-            a = math.pi * k / 8
-            ring.append(bm.verts.new((w(hw * math.cos(a)), Y(x), Z(base - h * math.sin(a)))))
-        rings.append(ring)
-    for a, b in zip(rings, rings[1:]):
-        for i in range(8):
-            bm.faces.new((a[i], a[i + 1], b[i + 1], b[i]))
-    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+    xs = [NOSE + (TIP - NOSE) * k / 34.0 for k in range(35)]
+    for x in sorted(set(xs + [252.0, 302.0, NOTCH])):
+        rings.append([bm.verts.new((w(px), Y(x), Z(pz))) for px, pz in section(x)])
+    n = len(rings[0])
+    for a, b2 in zip(rings, rings[1:]):
+        for i in range(n):
+            j = (i + 1) % n
+            bm.faces.new((a[i], a[j], b2[j], b2[i]))
+    bm.faces.new(rings[0])
+    bm.faces.new(list(reversed(rings[-1])))
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    body = new_object("body", bm, ["Paint"])
+    # Arka düzlem (yandan uçtan (409.5, 305)'e) ve üstten V çentik (uçlardan çentiğe)
+    def back(z):
+        return NOTCH + (TIP - NOTCH) * (305.0 - z) / 83.0
+    rear_cut = prism("_cut_rear", [(back(400.0), 400.0), (back(120.0), 120.0), (800.0, 120.0), (800.0, 400.0)],
+                     "x", -400.0, 400.0)
+    notch_cut = prism("_cut_notch", [(0.0, NOTCH), (122.0 * 2.0, NOTCH + 65.5 * 2.0), (244.0, 800.0),
+                                     (-244.0, 800.0), (-244.0, NOTCH + 65.5 * 2.0)], "z", 100.0, 420.0)
+    for cutter in (rear_cut, notch_cut):
+        mod = body.modifiers.new("cut", "BOOLEAN")
+        mod.operation = "DIFFERENCE"
+        mod.object = cutter
+        mod.solver = "EXACT"
+        bpy.context.view_layer.objects.active = body
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+        bpy.data.objects.remove(cutter, do_unlink=True)
+    flat(body)
+
+    # Egzoz yuvası (yandan 400-444 x 275-300) ve arka yüzünde beyaz halka, siyah ağız
+    box("exhaust_box", (w(99.5), w(44), w(25)), (0, Y(422), Z(287.5)), "Paint")
+    for r, mat, d in ((12.5, "Hub", 0.02), (8.5, "Dark", 0.03)):
+        bm = bmesh.new()
+        bmesh.ops.create_cone(bm, cap_ends=True, segments=20, radius1=w(r), radius2=w(r), depth=d)
+        bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "X"), cent=(0, 0, 0))
+        ob = new_object("exhaust", bm, [mat])
+        ob.location = (0, Y(444) - d * 0.5, Z(287.5))
+        flat(ob)
+
+    # Kokpit: yatık elipsoit (yandan 55.5 boy, 16.65° arkaya doğru yükselir), alt yarısı gövdede. Çizimde
+    # yükseklik ve genişlik görünüşler arasında farklı (yandan 28.1, önden / arkadan tepe 252; üstten
+    # ±18.3, önden ±26.5): ortası alındı
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=20, v_segments=10, radius=1.0)
+    for v in bm.verts:
+        v.co = Vector((v.co.x * w(22.0), v.co.y * w(55.5), v.co.z * w(24.0)))
     canopy = new_object("canopy", bm, ["Glass"])
+    canopy.rotation_euler = (math.radians(-16.65), 0, 0)
+    canopy.location = (0, Y(306.55), Z(272.15))
     flat(canopy)
 
-    # Aks çubukları: ön tekerden gövdeye, arka tekerden arka bloğa
+    # Aks çubukları
     for sx in (-1, 1):
-        box("rod", (w(21), w(4), w(4)), (sx * w(37.5), Y(190), Z(297)), "Dark")
-        box("rod", (w(10), w(5), w(5)), (sx * w(55), Y(364), Z(290)), "Dark")
-    # Tekerler: ön küçük ve dar, arka büyük ve geniş; beyaz jant ve siyah göbek
+        box("rod", (w(25), w(4), w(4)), (sx * w(32.3), Y(191), Z(297.2)), "Dark")
+        box("rod", (w(9), w(5), w(5)), (sx * w(53.0), Y(363.75), Z(290.7)), "Dark")
+    # Tekerler: köşeleri yuvarlatılmış silindir, beyaz jant ve siyah göbek
     def wheel6(name, pos, r, tw, rim, dot):
         bm = bmesh.new()
-        bmesh.ops.create_cone(bm, cap_ends=True, segments=16, radius1=r, radius2=r, depth=tw)
+        bmesh.ops.create_cone(bm, cap_ends=True, segments=20, radius1=r, radius2=r, depth=tw)
         bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
         tire = new_object(name, bm, ["Tire"])
-        bevel(tire, r * 0.1, 1)
+        bevel(tire, w(4.0), 2)
         flat(tire)
         for side in (-1, 1):
             for rr, mat, d in ((rim, "Hub", 0.012), (dot, "Dark", 0.02)):
                 bm = bmesh.new()
-                bmesh.ops.create_cone(bm, cap_ends=True, segments=16, radius1=rr, radius2=rr, depth=d)
+                bmesh.ops.create_cone(bm, cap_ends=True, segments=20, radius1=rr, radius2=rr, depth=d)
                 bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
                 bmesh.ops.translate(bm, verts=bm.verts, vec=(side * (tw * 0.5 + d * 0.5), 0, 0))
                 ob = new_object(name + "_hub", bm, [mat])
                 ob.parent = tire
                 flat(ob)
         tire.location = pos
-    for name, x, X, r, tw, rim, dot in (("wheel_FL", 190, -59.0, 28.0, 22.0, 16.0, 4.5),
-                                        ("wheel_FR", 190, 59.0, 28.0, 22.0, 16.0, 4.5),
-                                        ("wheel_RL", 364, -80.0, 34.7, 36.0, 20.0, 5.5),
-                                        ("wheel_RR", 364, 80.0, 34.7, 36.0, 20.0, 5.5)):
-        wheel6(name, (w(X), Y(x), w(r)), w(r), w(tw), w(rim), w(dot))
+    for name, x, X, zc, r, tw, rim, dot in (
+            ("wheel_FL", 191.0, -56.85, 297.2, 28.2, 24.1, 16.4, 4.6), ("wheel_FR", 191.0, 56.85, 297.2, 28.2, 24.1, 16.4, 4.6),
+            ("wheel_RL", 363.75, -75.0, 290.7, 34.7, 36.0, 20.15, 5.65), ("wheel_RR", 363.75, 75.0, 290.7, 34.7, 36.0, 20.15, 5.65)):
+        wheel6(name, (w(X), Y(x), Z(zc)), w(r), w(tw), w(rim), w(dot))
 
 
 BUILDERS = {"kutu": build_kutu, "dragster": build_dragster, "yarisci": build_yarisci, "latte": build_latte,
