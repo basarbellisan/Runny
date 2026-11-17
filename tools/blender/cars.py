@@ -1622,9 +1622,10 @@ def build_delta():
     # (yükseklikler sırta göre: sırt burunda 295, çentikte 266 iken 239.5 / 256 idi)
     def spine_shift(x):
         return zsp(x) - (295.0 - 29.0 * (x - NOSE) / (NOTCH - NOSE))
-    pts = [(0.0, 337.0, 236.0 + spine_shift(337.0)), (0.0, 404.0, zsp(404.0) - 1.0),
-           (22.0, 352.0, panel_z(352.0, 22.0) + 0.5), (-22.0, 352.0, panel_z(352.0, 22.0) + 0.5),
-           (0.0, 342.0, 256.0 + spine_shift(342.0)), (0.0, 404.0, zsp(404.0) + 3.0), (0.0, 352.0, zsp(352.0) + 3.0)]
+    ROOF_APEX = (313.5, 228.0)   # tepe: kokpitin üstünde (x px, yükseklik y px; sırta göre kaydırılır)
+    pts = [(0.0, ROOF_APEX[0], ROOF_APEX[1] + spine_shift(ROOF_APEX[0])), (0.0, 404.0, zsp(404.0) - 1.0),
+           (26.0, 343.5, panel_z(343.5, 26.0) + 0.5), (-26.0, 343.5, panel_z(343.5, 26.0) + 0.5),
+           (0.0, 330.0, 260.0 + spine_shift(330.0)), (0.0, 404.0, zsp(404.0) + 3.0), (0.0, 350.0, zsp(350.0) + 3.0)]
     bm = bmesh.new()
     vs = [bm.verts.new((w(X), Y(x), Z(z))) for X, x, z in pts]
     bmesh.ops.convex_hull(bm, input=vs)
