@@ -1588,14 +1588,14 @@ def build_delta():
     canopy.location = (0, Y(306.55), Z(272.15))
     flat(canopy)
 
-    # Kokpitin arkasında uçurtma biçimli sırt (gövde renginde): ucu kokpitin içinde, en geniş yeri kokpitin
-    # arkası (±22), sonra çentiğe doğru daralır; ortada sırt çizgisi, yanlar kanadın iç panellerine iner
+    # Kokpitin arkasında sivri çatı: tepesi kokpitin arka üstünde (kokpite gömülmez, üstüne oturur), iki taban
+    # köşesi kokpitin arkasının iki yanında kanat üstünde, ucu arkadaki V çentiğinde; ortada mahya
     def panel_z(x, X):
         f = min(7.0 + 57.25 * (x - NOSE) / (444.0 - NOSE), L(x) * 0.93)
         return zsp(x) + (zle(x) - zsp(x)) * min(X, f) / f
-    pts = [(0.0, 324.0, 245.0), (0.0, 346.0, 246.0), (0.0, 404.0, zsp(404.0) - 1.0),
-           (22.0, 346.0, panel_z(346.0, 22.0) + 0.5), (-22.0, 346.0, panel_z(346.0, 22.0) + 0.5),
-           (0.0, 324.0, zsp(324.0) + 3.0), (0.0, 404.0, zsp(404.0) + 3.0), (0.0, 346.0, zsp(346.0) + 3.0)]
+    pts = [(0.0, 338.0, 239.5), (0.0, 404.0, zsp(404.0) - 1.0),
+           (22.0, 352.0, panel_z(352.0, 22.0) + 0.5), (-22.0, 352.0, panel_z(352.0, 22.0) + 0.5),
+           (0.0, 342.0, 256.0), (0.0, 404.0, zsp(404.0) + 3.0), (0.0, 352.0, zsp(352.0) + 3.0)]
     bm = bmesh.new()
     vs = [bm.verts.new((w(X), Y(x), Z(z))) for X, x, z in pts]
     bmesh.ops.convex_hull(bm, input=vs)
