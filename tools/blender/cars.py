@@ -1344,8 +1344,9 @@ def build_buggy():
 
     # Alt gövde: burun alçak ve dar, kaput cama doğru yükselir; tekerlerin arasında yan panel
     # (kesitler: Y, alt yarı genişlik, üst yarı genişlik, alt Z, üst Z)
-    body = loft("body", [(Y(60), 0.52, 0.47, Z(550), Z(440)), (Y(110), 0.55, 0.50, Z(600), Z(400)),
-                         (Y(225), 0.57, 0.52, Z(640), Z(330)), (Y(410), 0.60, 0.55, Z(640), Z(330)),
+    # Burun uzun ve sivri: uçta dar ve alçak, üstü kabine doğru tek eğimle yükselir
+    body = loft("body", [(Y(-18), 0.38, 0.32, Z(585), Z(478)), (Y(60), 0.49, 0.44, Z(600), Z(432)),
+                         (Y(140), 0.55, 0.50, Z(620), Z(390)), (Y(225), 0.57, 0.52, Z(640), Z(330)), (Y(410), 0.60, 0.55, Z(640), Z(330)),
                          (Y(700), 0.62, 0.56, Z(640), Z(330)), (Y(1060), 0.62, 0.56, Z(640), Z(300)),
                          (Y(1085), 0.58, 0.52, Z(620), Z(330))])
     bevel(body, 0.06, 1)
@@ -1369,7 +1370,7 @@ def build_buggy():
     side_prism("wing", [(895, 112), (1150, 112), (1162, 40), (888, 45)], 0.71, "Peach", 0.03)
     # Farlar (önde), stop lambaları ve girintili orta panel (arkada)
     for sx in (-1, 1):
-        box("headlight", (0.28, 0.03, 0.16), (sx * 0.30, Y(60) + 0.004, 0.76), "Light")
+        box("headlight", (0.19, 0.03, 0.12), (sx * 0.19, Y(-18) + 0.004, Z(530)), "Light")
         box("taillight", (0.26, 0.03, 0.15), (sx * 0.42, Y(1085) - 0.004, 1.10), "Light")
     side_prism("rear_panel", [(1080, 360), (1090, 360), (1090, 530), (1080, 530)], 0.21, "Paint", 0.015)
     # Aks çubukları (tekerin iç yüzünden gövdeye)
