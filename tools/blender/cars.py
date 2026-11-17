@@ -1311,7 +1311,7 @@ A3_MID = 277.0       # Latte (Araba 3): yan görünüşte arabanın ortası (bur
 A5_MID = 301.2       # GEM (Araba 5): yan görünüşte arabanın ortası (burun 142.5, arka 460)
 A4_MID = 291.0       # Falcon (Araba 4): yan görünüşte arabanın ortası (burun 128, arka 454)
 ## Kum arabasının jant tasarımı: "a" dört kol, "b" üç kollu türbin, "c" delikli disk
-BUGGY_RIM = "a"
+BUGGY_RIM = "c"
 
 
 def flat_poly(name, pts, x0, x1, mat):
@@ -1435,18 +1435,19 @@ def build_buggy():
 
     # Alt gövde: burun alçak ve dar, kaput cama doğru yükselir; tekerlerin arasında yan panel
     # (kesitler: Y, alt yarı genişlik, üst yarı genişlik, alt Z, üst Z)
-    # Burun uzun ve sivri: uçta dar ve alçak, üstü kabine doğru tek eğimle yükselir
-    body = loft("body", [(Y(-18), 0.46, 0.40, Z(585), Z(478)), (Y(60), 0.49, 0.44, Z(600), Z(432)),
-                         (Y(140), 0.55, 0.50, Z(620), Z(390)), (Y(225), 0.57, 0.52, Z(640), Z(330)), (Y(410), 0.60, 0.55, Z(640), Z(330)),
+    # Burun uzun: kaputun kenarları kabinin önünden dümdüz uca iner, uçta dik ön yüz, alt kenar yatay
+    body = loft("body", [(2.05, 0.46, 0.40, 0.50, 0.76), (Y(140), 0.55, 0.50, Z(620), Z(390)), (Y(225), 0.57, 0.52, Z(640), Z(330)), (Y(410), 0.60, 0.55, Z(640), Z(330)),
                          (Y(700), 0.62, 0.56, Z(640), Z(330)), (Y(1060), 0.62, 0.56, Z(640), Z(300)),
                          (Y(1085), 0.58, 0.52, Z(620), Z(330))])
     # Çamurluk çıkıntıları: kabinin iki yanında, tekerlerin üstüne uzanır (üstten sekizgen)
     # Önde alçak (cam hizasında), arkaya doğru çapraz bir çizgiyle güverteye yükselir
     # Teker hizasında gövdeden geniş değil (tekerler içine girmesin); yalnız iki teker arasında geniş
-    pods = loft("pods", [(Y(410), 0.58, 0.54, Z(470), Z(350)), (Y(525), 0.60, 0.56, Z(470), Z(350)),
-                         (Y(545), 0.74, 0.68, Z(470), Z(350)), (Y(640), 0.74, 0.68, Z(470), Z(350)),
-                         (Y(675), 0.74, 0.68, Z(470), Z(320)), (Y(695), 0.60, 0.56, Z(470), Z(298)),
-                         (Y(705), 0.60, 0.56, Z(470), Z(290)), (Y(1060), 0.60, 0.56, Z(470), Z(285))])
+    # Yan çıkıntılar mavi (lastik, tavan, kanatla aynı); arkasındaki güverte gövde renginde
+    loft("pods", mat="Tire", stations=[(Y(410), 0.58, 0.54, Z(470), Z(350)), (Y(525), 0.60, 0.56, Z(470), Z(350)),
+                                       (Y(545), 0.74, 0.68, Z(470), Z(350)), (Y(640), 0.74, 0.68, Z(470), Z(350)),
+                                       (Y(675), 0.74, 0.68, Z(470), Z(320)), (Y(695), 0.60, 0.56, Z(470), Z(298)),
+                                       (Y(705), 0.60, 0.56, Z(470), Z(290))])
+    loft("deck", [(Y(705), 0.595, 0.555, Z(470), Z(290)), (Y(1060), 0.60, 0.56, Z(470), Z(285))])
     # Kabin (koyu cam): ön cam eğik, arka cam kuyruğa iner
     loft("cabin", [(Y(418), 0.43, 0.42, Z(350), Z(340)), (Y(510), 0.43, 0.39, Z(350), Z(188)),
                    (Y(640), 0.43, 0.39, Z(350), Z(188)), (Y(705), 0.43, 0.39, Z(290), Z(188)),
@@ -1461,7 +1462,7 @@ def build_buggy():
     side_prism("wing", [(895, 112), (1150, 112), (1162, 40), (888, 45)], 0.71, "Tire")
     # Farlar (önde), stop lambaları ve girintili orta panel (arkada)
     for sx in (-1, 1):
-        box("headlight", (0.23, 0.03, 0.145), (sx * 0.22, Y(-18) + 0.004, Z(530)), "Light")
+        box("headlight", (0.23, 0.03, 0.145), (sx * 0.22, 2.054, 0.63), "Light")
         box("taillight", (0.26, 0.03, 0.15), (sx * 0.42, Y(1085) - 0.004, 1.10), "Light")
     side_prism("rear_panel", [(1080, 360), (1090, 360), (1090, 530), (1080, 530)], 0.21, "Paint")
     # Aks çubukları (tekerin iç yüzünden gövdeye)
