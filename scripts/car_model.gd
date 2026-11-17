@@ -37,8 +37,8 @@ static var glb_models := {6: "res://models/cars/dragster.glb", 7: "res://models/
 	8: "res://models/cars/latte.glb", 9: "res://models/cars/falcon.glb",
 	10: "res://models/cars/gem.glb", 11: "res://models/cars/buggy.glb"}
 
-## Garajdaki arabalar (sırayla). Kutu, Konsept ve Roadster garajdan çıktı (kodları duruyor).
-const GARAGE := [2, 6, 7, 8, 9, 10, 11]
+## Garajdaki arabalar (sırayla). Kutu, Konsept, Roadster ve Buggy garajdan çıktı (kodları duruyor).
+const GARAGE := [2, 6, 7, 8, 9, 10]
 ## Arabaların özellikleri, 1-5 (3 = standart): [hız, tutuş, çakıl, denge]
 ## (garajda SPEED, STEERING, OFF-ROAD, STABILITY).
 ## Hız: başlangıç/en yüksek/tavan hız -%8..+%8. Tutuş: direksiyon tepkisi -%20..+%20,
