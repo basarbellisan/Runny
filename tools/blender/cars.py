@@ -1500,9 +1500,9 @@ def build_delta():
         return 10.3 + 111.7 * (x - NOSE) / (TIP - NOSE)
     def zle(x):    # ön kenarın (dış panelin) üstü: yandan üst kenar
         return 295.0 - 73.0 * (x - NOSE) / (TIP - NOSE)
-    def zsp(x):    # sırtın üstü: burunda 295, çentikte 285 (çizimde 261.3; iç paneller sırta dik insin, arkadan
-        # V derin okunsun diye indirildi)
-        return 295.0 - 10.0 * (x - NOSE) / (NOTCH - NOSE)
+    def zsp(x):    # sırtın üstü: burunda 295, çentikte 266 (çizimde 261.3; arkadan V biraz derin okunsun diye
+        # indirildi, alttaki gövdenin üstüne (270) değmez)
+        return 295.0 - 29.0 * (x - NOSE) / (NOTCH - NOSE)
     def section(x):
         l = L(x)
         top, bot = zle(x), min(zle(x) + 11.0, 305.0)
