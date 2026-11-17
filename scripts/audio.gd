@@ -56,7 +56,8 @@ const SAVE_PATH := "user://save.cfg"
 ## Arabanın motor sesi: her araba kendi motoruyla (CarModel varyantı -> motor). Hibrit ailesi:
 ## GEZGİN, LATTE, GEM; FM ailesi: DRAGSTER, DARK ROSE, FALCON (tools/engine_land_designs.py CARS)
 ## İniş sesi (gerçekçi lastik: yumuşak konuş + hafif kayma), arabaya göre; motorun üstünde duyulsun
-const LANDS := {2: "land_gezgin", 8: "land_latte", 10: "land_gem", 6: "land_dragster", 7: "land_dark_rose", 9: "land_falcon"}
+const LANDS := {2: "land_gezgin", 8: "land_latte", 10: "land_gem", 6: "land_dragster", 7: "land_dark_rose", 9: "land_falcon",
+	11: "land_gezgin"}
 const LAND_BOOST_DB := 7.0
 var _land_key := "land_latte"
 const ENGINES := {
@@ -66,6 +67,8 @@ const ENGINES := {
 	6: preload("res://audio/loop_engine_dragster.ogg"),
 	7: preload("res://audio/loop_engine_gem.ogg"),
 	9: preload("res://audio/loop_engine_falcon.ogg"),
+	# Buggy: şimdilik GEZGİN'in motoru (arazi arabası)
+	11: preload("res://audio/loop_engine_gezgin.ogg"),
 }
 ## Test (--audtrace): motor devri / seviyesi ve iniş anları günlüğü (ses tasarımı denemeleri için)
 var _aud_trace := OS.get_cmdline_user_args().has("--audtrace")
