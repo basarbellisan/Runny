@@ -1312,9 +1312,9 @@ A5_MID = 301.2       # GEM (Araba 5): yan görünüşte arabanın ortası (burun
 A4_MID = 291.0       # Falcon (Araba 4): yan görünüşte arabanın ortası (burun 128, arka 454)
 def build_buggy():
     """Kum arabası (görselden): yan görünüşten boy ve yükseklikler, ön görünüşten genişlikler.
-    Alçak, önü dar burun; kaput öne doğru alçalır; kabinin iki yanında tekerlerin üstüne uzanan geniş
-    çamurluk çıkıntıları; koyu camlı kabin ve üstünde açık renkli tavan; arkada kalın yüzgeç
-    dikmeler üstünde geniş kanat; iri, geniş, kenarları pahlı sekizgen tekerler."""
+    Alçak, önü dar burun; burnun üstü öne doğru alçalır; kabinin iki yanında tekerlerin üstüne uzanan geniş
+    çamurluk çıkıntıları; koyu camlı kabin ve onu örten, arkada güverteye inen tek parça tavan; arkada
+    kalın yüzgeç dikmeler üstünde tek parça geniş kanat; iri, geniş, kenarları pahlı sekizgen tekerler."""
     # Görselin yan görünüşü (3 kat büyütülmüş kırpıntı, piksel): ön aks x 315, arka aks x 905, yer y 760;
     # teker yarıçapı 0.6 m'ye göre 1 piksel S m
     S = 0.00296
@@ -1344,15 +1344,11 @@ def build_buggy():
 
     # Alt gövde: burun alçak ve dar, kaput cama doğru yükselir; tekerlerin arasında yan panel
     # (kesitler: Y, alt yarı genişlik, üst yarı genişlik, alt Z, üst Z)
-    body = loft("body", [(Y(60), 0.52, 0.47, Z(550), Z(450)), (Y(110), 0.55, 0.50, Z(600), Z(428)),
-                         (Y(225), 0.57, 0.52, Z(640), Z(342)), (Y(410), 0.60, 0.55, Z(640), Z(330)),
+    body = loft("body", [(Y(60), 0.52, 0.47, Z(550), Z(440)), (Y(110), 0.55, 0.50, Z(600), Z(400)),
+                         (Y(225), 0.57, 0.52, Z(640), Z(330)), (Y(410), 0.60, 0.55, Z(640), Z(330)),
                          (Y(700), 0.62, 0.56, Z(640), Z(330)), (Y(1060), 0.62, 0.56, Z(640), Z(300)),
                          (Y(1085), 0.58, 0.52, Z(620), Z(330))])
     bevel(body, 0.06, 1)
-    # Kaput: burnun üstünde açık renkli plaka (öne doğru alçalır)
-    hood = loft("hood", [(Y(66), 0.51, 0.49, Z(447), Z(435)), (Y(225), 0.57, 0.55, Z(340), Z(326)),
-                         (Y(410), 0.59, 0.57, Z(335), Z(322))], mat="Peach")
-    bevel(hood, 0.02, 1)
     # Çamurluk çıkıntıları: kabinin iki yanında, tekerlerin üstüne uzanır (üstten sekizgen)
     # Önde alçak (cam hizasında), arkaya doğru çapraz bir çizgiyle güverteye yükselir
     pods = loft("pods", [(Y(410), 0.58, 0.54, Z(470), Z(350)), (Y(470), 0.74, 0.68, Z(470), Z(350)),
@@ -1363,16 +1359,14 @@ def build_buggy():
     loft("cabin", [(Y(418), 0.43, 0.42, Z(350), Z(340)), (Y(510), 0.43, 0.39, Z(350), Z(188)),
                    (Y(640), 0.43, 0.39, Z(350), Z(188)), (Y(705), 0.43, 0.39, Z(290), Z(188)),
                    (Y(780), 0.43, 0.39, Z(290), Z(188)), (Y(840), 0.43, 0.41, Z(290), Z(262))], mat="Glass")
-    # Tavan: kabinin üstünde açık renkli kalın plaka, uçları pahlı
-    side_prism("roof", [(490, 185), (515, 150), (795, 150), (805, 185)], 0.44, "Peach", 0.02)
-    # Arka direk: tavanın arkasından güverteye inen turuncu kama
-    side_prism("pillar", [(780, 186), (805, 186), (875, 250), (875, 290), (840, 290)], 0.41, "Paint", 0.02)
+    # Tavan: tek parça; önü pahlı, arkada aşağı dönüp güverteye iner (ayrı direk ya da tepe plakası yok)
+    side_prism("roof", [(490, 185), (515, 150), (795, 150), (880, 255), (880, 290), (835, 290), (770, 185)],
+               0.44, "Peach", 0.02)
     # Kanat dikmeleri: kalın, geriye yatık yüzgeçler
     for sx in (-1, 1):
         side_prism("wing_fin", [(860, 288), (935, 108), (1025, 108), (990, 288)], (sx * 0.49, 0.12), "Paint", 0.02)
-    # Kanat: altı turuncu, üstü açık renkli
-    side_prism("wing_base", [(895, 112), (1150, 112), (1152, 92), (892, 92)], 0.69, "Paint", 0.015)
-    side_prism("wing", [(892, 93), (1152, 93), (1162, 40), (888, 45)], 0.71, "Peach", 0.03)
+    # Kanat: tek parça kalın plaka
+    side_prism("wing", [(895, 112), (1150, 112), (1162, 40), (888, 45)], 0.71, "Peach", 0.03)
     # Farlar (önde), stop lambaları ve girintili orta panel (arkada)
     for sx in (-1, 1):
         box("headlight", (0.28, 0.03, 0.16), (sx * 0.30, Y(60) + 0.004, 0.76), "Light")
