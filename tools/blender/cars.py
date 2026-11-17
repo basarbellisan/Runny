@@ -1501,21 +1501,23 @@ def build_delta():
     # Kanat ucunun yüksekliği: çizimde 222; arka tekerler kanadın altındaki duvara girmesin diye arka
     # yukarı kaldırıldı (üst kenar yine burundan uca düz)
     TIPZ = 205.0
-    def lift(x):   # kaldırma: burunda 0, uca doğru artar; sırt, kokpit ve çatı da aynı kalkar (V derinliği aynı)
+    def lift(x):   # kaldırma: burunda 0, uca doğru artar (ön kenar ve dış paneller)
         return (222.0 - TIPZ) * (x - NOSE) / (TIP - NOSE)
     def zle(x):    # ön kenarın (dış panelin) üstü: yandan üst kenar
         return 295.0 - (295.0 - TIPZ) * (x - NOSE) / (TIP - NOSE)
     def zsp(x):    # sırtın üstü: burunda 295, çentikte 266 (çizimde 261.3; arkadan V biraz derin okunsun diye
         # indirildi, alttaki gövdenin üstüne (270) değmez)
-        return 295.0 - 29.0 * (x - NOSE) / (NOTCH - NOSE) - lift(x)
+        # arkada çentikte 273: V'nin dibi alttaki gövdenin çatısının tepesine değer (arka görünüş çizimi)
+        return 295.0 - (295.0 - 273.0) * (x - NOSE) / (NOTCH - NOSE)
     def section(x):
         l = L(x)
         top, bot = zle(x), min(zle(x) + 11.0, 305.0)
         # Katlanma (dış panelin iç kenarı): burundan arka kenardaki katlanma noktasına (64.25; 444) düz hat
         f = min(7.0 + 57.25 * (x - NOSE) / (444.0 - NOSE), l * 0.93)
         xw = min(69.25, l)
-        wb = min(10.5 + 39.5 * min(1.0, (x - NOSE) / 116.0), xw)
-        zb = max(295.0 - 25.0 * min(1.0, (x - NOSE) / 116.0), bot)
+        wb = min(10.5 + 37.7 * min(1.0, (x - NOSE) / 116.0), xw)
+        # Duvarın gövdeye indiği köşe: önde 270, arkaya doğru 278'e iner (arkadan duvar (±47.5, 278)'e iner)
+        zb = max(295.0 - 25.0 * min(1.0, (x - NOSE) / 116.0) + 8.0 * min(1.0, max(0.0, x - 300.0) / (NOTCH - 300.0)), bot)
         right = [(f, top), (l, top), (l, bot), (xw, bot), (wb, zb), (wb, 305.0)]
         return [(0.0, zsp(x))] + right + [(-px, pz) for px, pz in reversed(right)]
 
@@ -1555,8 +1557,8 @@ def build_delta():
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     body = new_object("body", bm, ["Paint"])
     # Arka düzlem (yandan uçtan (409.5, 305)'e) ve üstten V çentik (uçlardan çentiğe)
-    def back(z):
-        return NOTCH + (TIP - NOTCH) * (305.0 - z) / (305.0 - TIPZ)
+    def back(z):   # yandan arka düzlem: kanat ucunun altından (ucun arka yüzü dik kalsın) çentiğin altına
+        return NOTCH + (TIP - NOTCH) * (305.0 - z) / (305.0 - (TIPZ + 11.0))
     rear_cut = prism("_cut_rear", [(back(400.0), 400.0), (back(120.0), 120.0), (800.0, 120.0), (800.0, 400.0)],
                      "x", -400.0, 400.0)
     notch_cut = prism("_cut_notch", [(0.0, NOTCH), (122.0 * 2.0, NOTCH + 65.5 * 2.0), (244.0, 800.0),
@@ -1571,14 +1573,26 @@ def build_delta():
         bpy.data.objects.remove(cutter, do_unlink=True)
     flat(body)
 
-    # Egzoz yuvası (yandan 400-444 x 275-300) ve arka yüzünde beyaz halka, siyah ağız
-    box("exhaust_box", (w(99.5), w(44), w(25)), (0, Y(422), Z(287.5)), "Paint")
-    for r, mat, d in ((12.5, "Hub", 0.02), (8.5, "Dark", 0.03)):
+    # Egzoz yuvası: arkadan beşgen (±48.2; alt 305, yanlar 279, çatısı ortada 273), yandan 400-444;
+    # arka yüzünde beyaz halka ve siyah ağız
+    bm = bmesh.new()
+    pent = [(-48.2, 305.0), (48.2, 305.0), (48.2, 279.0), (0.0, 273.0), (-48.2, 279.0)]
+    fr = [bm.verts.new((w(X), Y(400.0), Z(z))) for X, z in pent]
+    bk = [bm.verts.new((w(X), Y(444.0), Z(z))) for X, z in pent]
+    bm.faces.new(fr)
+    bm.faces.new(list(reversed(bk)))
+    for i in range(5):
+        j = (i + 1) % 5
+        bm.faces.new((fr[i], fr[j], bk[j], bk[i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    eb = new_object("exhaust_box", bm, ["Paint"])
+    flat(eb)
+    for r, mat, d in ((11.6, "Hub", 0.02), (8.2, "Dark", 0.03)):
         bm = bmesh.new()
         bmesh.ops.create_cone(bm, cap_ends=True, segments=20, radius1=w(r), radius2=w(r), depth=d)
         bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "X"), cent=(0, 0, 0))
         ob = new_object("exhaust", bm, [mat])
-        ob.location = (0, Y(444) - d * 0.5, Z(287.5))
+        ob.location = (0, Y(444) - d * 0.5, Z(292.5))
         flat(ob)
 
     # Kokpit: yatık elipsoit (yandan 55.5 boy, 16.65° arkaya doğru yükselir), alt yarısı gövdede. Çizimde
@@ -1590,7 +1604,7 @@ def build_delta():
         v.co = Vector((v.co.x * w(22.0), v.co.y * w(55.5), v.co.z * w(24.0)))
     canopy = new_object("canopy", bm, ["Glass"])
     canopy.rotation_euler = (math.radians(-16.65) - math.atan((222.0 - TIPZ) / (TIP - NOSE)), 0, 0)
-    canopy.location = (0, Y(306.55), Z(272.15 - lift(306.55)))
+    canopy.location = (0, Y(306.55), Z(272.15 + (zsp(306.55) - (295.0 - 29.0 * 170.55 / (NOTCH - NOSE)))))
     flat(canopy)
 
     # Kokpitin arkasında sivri çatı: tepesi kokpitin arka üstünde (kokpite gömülmez, üstüne oturur), iki taban
@@ -1598,9 +1612,12 @@ def build_delta():
     def panel_z(x, X):
         f = min(7.0 + 57.25 * (x - NOSE) / (444.0 - NOSE), L(x) * 0.93)
         return zsp(x) + (zle(x) - zsp(x)) * min(X, f) / f
-    pts = [(0.0, 338.0, 239.5 - lift(338.0)), (0.0, 404.0, zsp(404.0) - 1.0),
+    # (yükseklikler sırta göre: sırt burunda 295, çentikte 266 iken 239.5 / 256 idi)
+    def spine_shift(x):
+        return zsp(x) - (295.0 - 29.0 * (x - NOSE) / (NOTCH - NOSE))
+    pts = [(0.0, 338.0, 239.5 + spine_shift(338.0)), (0.0, 404.0, zsp(404.0) - 1.0),
            (22.0, 352.0, panel_z(352.0, 22.0) + 0.5), (-22.0, 352.0, panel_z(352.0, 22.0) + 0.5),
-           (0.0, 342.0, 256.0 - lift(342.0)), (0.0, 404.0, zsp(404.0) + 3.0), (0.0, 352.0, zsp(352.0) + 3.0)]
+           (0.0, 342.0, 256.0 + spine_shift(342.0)), (0.0, 404.0, zsp(404.0) + 3.0), (0.0, 352.0, zsp(352.0) + 3.0)]
     bm = bmesh.new()
     vs = [bm.verts.new((w(X), Y(x), Z(z))) for X, x, z in pts]
     bmesh.ops.convex_hull(bm, input=vs)
