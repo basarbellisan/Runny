@@ -1515,7 +1515,8 @@ def build_delta():
         # Katlanma (dış panelin iç kenarı): burundan arka kenardaki katlanma noktasına (64.25; 444) düz hat
         f = min(7.0 + 57.25 * (x - NOSE) / (444.0 - NOSE), l * 0.93)
         xw = min(69.25, l)
-        wb = min(10.5 + 37.7 * min(1.0, (x - NOSE) / 116.0), xw)
+        # (egzoz yuvasından 0.7 px dar: yan yüzleri üst üste binip birbirini karartmasın)
+        wb = min(10.5 + 37.0 * min(1.0, (x - NOSE) / 116.0), xw)
         # Duvarın gövdeye indiği köşe: önde 270, arkaya doğru 278'e iner (arkadan duvar (±47.5, 278)'e iner)
         zb = max(295.0 - 25.0 * min(1.0, (x - NOSE) / 116.0) + 8.0 * min(1.0, max(0.0, x - 300.0) / (NOTCH - 300.0)), bot)
         right = [(f, top), (l, top), (l, bot), (xw, bot), (wb, zb), (wb, 305.0)]
@@ -1559,11 +1560,11 @@ def build_delta():
     # Arka düzlem (yandan uçtan (409.5, 305)'e) ve üstten V çentik (uçlardan çentiğe)
     def back(z):   # yandan arka düzlem: kanat ucunun altından (ucun arka yüzü dik kalsın) çentiğin altına
         return NOTCH + (TIP - NOTCH) * (305.0 - z) / (305.0 - (TIPZ + 11.0))
-    rear_cut = prism("_cut_rear", [(back(400.0), 400.0), (back(120.0), 120.0), (800.0, 120.0), (800.0, 400.0)],
-                     "x", -400.0, 400.0)
+    # Arka: yalnız V çentik (üstten, tam yükseklik): duvarlar arka kenar çizgisinde dümdüz iner; egzoz
+    # yuvasının arka yüzü duvarın gövdeye indiği köşeyle aynı yerde (x 435) biter, aradaki kesik yok
     notch_cut = prism("_cut_notch", [(0.0, NOTCH), (122.0 * 2.0, NOTCH + 65.5 * 2.0), (244.0, 800.0),
                                      (-244.0, 800.0), (-244.0, NOTCH + 65.5 * 2.0)], "z", 100.0, 420.0)
-    for cutter in (rear_cut, notch_cut):
+    for cutter in (notch_cut,):
         mod = body.modifiers.new("cut", "BOOLEAN")
         mod.operation = "DIFFERENCE"
         mod.object = cutter
@@ -1571,14 +1572,20 @@ def build_delta():
         bpy.context.view_layer.objects.active = body
         bpy.ops.object.modifier_apply(modifier=mod.name)
         bpy.data.objects.remove(cutter, do_unlink=True)
+    bm = bmesh.new()
+    bm.from_mesh(body.data)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(body.data)
+    bm.free()
     flat(body)
 
-    # Egzoz yuvası: arkadan beşgen (±48.2; alt 305, yanlar 279, çatısı ortada 273), yandan 400-444;
+    # Egzoz yuvası: arkadan beşgen (±48.2; alt 305, yanlar 279, çatısı ortada 273), yandan 400-435;
     # arka yüzünde beyaz halka ve siyah ağız
     bm = bmesh.new()
     pent = [(-48.2, 305.0), (48.2, 305.0), (48.2, 279.0), (0.0, 273.0), (-48.2, 279.0)]
     fr = [bm.verts.new((w(X), Y(400.0), Z(z))) for X, z in pent]
-    bk = [bm.verts.new((w(X), Y(444.0), Z(z))) for X, z in pent]
+    EXH = NOTCH + 65.5 * 47.5 / 122.0   # duvarın gövdeye indiği köşede arka kenar (x ≈ 435)
+    bk = [bm.verts.new((w(X), Y(EXH), Z(z))) for X, z in pent]
     bm.faces.new(fr)
     bm.faces.new(list(reversed(bk)))
     for i in range(5):
@@ -1592,7 +1599,7 @@ def build_delta():
         bmesh.ops.create_cone(bm, cap_ends=True, segments=20, radius1=w(r), radius2=w(r), depth=d)
         bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "X"), cent=(0, 0, 0))
         ob = new_object("exhaust", bm, [mat])
-        ob.location = (0, Y(444) - d * 0.5, Z(292.5))
+        ob.location = (0, Y(EXH) - d * 0.5, Z(292.5))
         flat(ob)
 
     # Kokpit: yatık elipsoit (yandan 55.5 boy, 16.65° arkaya doğru yükselir), alt yarısı gövdede. Çizimde
