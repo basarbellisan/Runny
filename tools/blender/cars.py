@@ -35,8 +35,8 @@ COLORS = {
     "Green": ((0.624, 0.878, 0.165), 0.5, 0.0),
     # Antrasit jant (oyun "Hub" malzemesini beyazla değiştirir; bu ad modeldeki renkte kalır)
     "Rim": ((0.15, 0.16, 0.18), 0.55, 0.0),
-    # İkinci gövde rengi (üst yüzeyler: kaput, tavan, kanat); oyun bu malzemeyi değiştirmez
-    "Peach": ((0.988, 0.765, 0.47), 0.55, 0.0),
+    # Sarı jant (oyun "Hub"ı beyazla değiştirir; bu ad modeldeki renkte kalır)
+    "Yellow": ((1.0, 0.82, 0.2), 0.5, 0.0),
 }
 
 
@@ -1310,11 +1310,101 @@ def stretch_y(k):
 A3_MID = 277.0       # Latte (Araba 3): yan görünüşte arabanın ortası (burun 140.5, arka 414)
 A5_MID = 301.2       # GEM (Araba 5): yan görünüşte arabanın ortası (burun 142.5, arka 460)
 A4_MID = 291.0       # Falcon (Araba 4): yan görünüşte arabanın ortası (burun 128, arka 454)
+## Kum arabasının jant tasarımı: "a" dört kol, "b" üç kollu türbin, "c" delikli disk
+BUGGY_RIM = "a"
+
+
+def flat_poly(name, pts, x0, x1, mat):
+    """Teker yüzüne paralel ince düz parça: (y, z) çokgeni x0..x1 arasında."""
+    bm = bmesh.new()
+    a = [bm.verts.new((x0, y, z)) for y, z in pts]
+    b = [bm.verts.new((x1, y, z)) for y, z in pts]
+    n = len(pts)
+    bm.faces.new(a)
+    bm.faces.new(list(reversed(b)))
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((a[i], a[j], b[j], b[i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    ob = new_object(name, bm, [mat])
+    flat(ob)
+    return ob
+
+
+def ngon(r, n=8, rot=None, c=(0.0, 0.0)):
+    rot = math.pi / n if rot is None else rot
+    return [(c[0] + r * math.cos(rot + 2 * math.pi * k / n), c[1] + r * math.sin(rot + 2 * math.pi * k / n))
+            for k in range(n)]
+
+
+def modern_rim(tire, w, R, style):
+    """Sade, modern jant (iki yanda): koyu zemin üstünde sarı dış halka, göbek ve kollar ya da delikler."""
+    parts = []
+    for side in (-1, 1):
+        x = side * (w * 0.5)
+        def lay(name, pts, depth, mat):
+            ob = flat_poly(name, pts, x, x + side * depth, mat)
+            parts.append(ob)
+        if style == "c":
+            # Delikli disk: düz sarı disk, çevresinde beş koyu altıgen delik, ortada küçük koyu göbek
+            lay("rim_disc", ngon(R), 0.012, "Yellow")
+            for k in range(5):
+                a = math.pi / 2 + 2 * math.pi * k / 5
+                lay("rim_hole", ngon(R * 0.2, 6, 0.0, (R * 0.56 * math.cos(a), R * 0.56 * math.sin(a))), 0.016, "Dark")
+            lay("rim_cap", ngon(R * 0.16), 0.016, "Dark")
+            continue
+        # Koyu zemin, sarı dış halka ve göbek
+        lay("rim_back", ngon(R), 0.006, "Dark")
+        outer, inner = ngon(R), ngon(R * 0.8)
+        for k in range(8):
+            j = (k + 1) % 8
+            lay("rim_ring", [outer[k], outer[j], inner[j], inner[k]], 0.018, "Yellow")
+        lay("rim_hub", ngon(R * 0.26), 0.022, "Yellow")
+        if style == "a":
+            # Dört düz kol (çapraz)
+            for k in range(4):
+                a = math.pi / 4 + math.pi / 2 * k
+                d, t = (math.cos(a), math.sin(a)), (-math.sin(a), math.cos(a))
+                hw, r0, r1 = R * 0.11, R * 0.2, R * 0.85
+                lay("rim_spoke", [(d[0] * r0 + t[0] * hw, d[1] * r0 + t[1] * hw), (d[0] * r1 + t[0] * hw, d[1] * r1 + t[1] * hw),
+                                  (d[0] * r1 - t[0] * hw, d[1] * r1 - t[1] * hw), (d[0] * r0 - t[0] * hw, d[1] * r0 - t[1] * hw)],
+                    0.013, "Yellow")
+        else:
+            # Üç kollu türbin: kollar göbekten halkaya yana kayarak açılır
+            for k in range(3):
+                a = math.pi / 2 + 2 * math.pi * k / 3
+                b = a + 0.55
+                p0 = (R * 0.22 * math.cos(a - 0.5), R * 0.22 * math.sin(a - 0.5))
+                p1 = (R * 0.22 * math.cos(a + 0.5), R * 0.22 * math.sin(a + 0.5))
+                p2 = (R * 0.86 * math.cos(b + 0.32), R * 0.86 * math.sin(b + 0.32))
+                p3 = (R * 0.86 * math.cos(b - 0.32), R * 0.86 * math.sin(b - 0.32))
+                lay("rim_blade", [p0, p3, p2, p1], 0.013, "Yellow")
+    for ob in parts:
+        ob.parent = tire
+        ob.matrix_parent_inverse = tire.matrix_world.inverted()
+
+
+def buggy_wheel(name, pos, r, w, rim_r, style):
+    """Kenarları pahlı sekizgen lastik (göbeksiz) ve üstüne modern jant."""
+    bm = bmesh.new()
+    bmesh.ops.create_cone(bm, cap_ends=True, segments=8, radius1=r, radius2=r, depth=w)
+    bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
+    bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 8, 3, "X"), cent=(0, 0, 0))
+    tire = new_object(name, bm, ["Tire"])
+    bevel(tire, r * 0.13, 1)
+    flat(tire)
+    modern_rim(tire, w, rim_r, style)
+    tire.location = pos
+    return tire
+
+
 def build_buggy():
     """Kum arabası (görselden): yan görünüşten boy ve yükseklikler, ön görünüşten genişlikler.
     Alçak, önü dar burun; burnun üstü öne doğru alçalır; kabinin iki yanında tekerlerin üstüne uzanan geniş
     çamurluk çıkıntıları; koyu camlı kabin ve onu örten, arkada güverteye inen tek parça tavan; arkada
-    kalın yüzgeç dikmeler üstünde tek parça geniş kanat; iri, geniş, kenarları pahlı sekizgen tekerler."""
+    kalın yüzgeç dikmeler üstünde tek parça geniş kanat; iri, kenarları pahlı sekizgen tekerler ve
+    sade modern jantlar. Renkler: gövde açık soğuk yeşil, lastik / tavan / kanat aynı mavi ("Tire"),
+    jant sarı, cam siyah."""
     # Görselin yan görünüşü (3 kat büyütülmüş kırpıntı, piksel): ön aks x 315, arka aks x 905, yer y 760;
     # teker yarıçapı 0.6 m'ye göre 1 piksel S m
     S = 0.00296
@@ -1362,12 +1452,12 @@ def build_buggy():
                    (Y(780), 0.43, 0.39, Z(290), Z(188)), (Y(840), 0.43, 0.41, Z(290), Z(262))], mat="Glass")
     # Tavan: tek parça; önü pahlı, arkada aşağı dönüp güverteye iner (ayrı direk ya da tepe plakası yok)
     side_prism("roof", [(490, 185), (515, 150), (795, 150), (880, 255), (880, 290), (835, 290), (770, 185)],
-               0.44, "Peach")
+               0.44, "Tire")
     # Kanat dikmeleri: kalın, geriye yatık yüzgeçler
     for sx in (-1, 1):
-        side_prism("wing_fin", [(860, 288), (935, 108), (1025, 108), (990, 288)], (sx * 0.49, 0.12), "Paint")
+        side_prism("wing_fin", [(860, 288), (935, 108), (1025, 108), (990, 288)], (sx * 0.49, 0.12), "Tire")
     # Kanat: tek parça kalın plaka
-    side_prism("wing", [(895, 112), (1150, 112), (1162, 40), (888, 45)], 0.71, "Peach")
+    side_prism("wing", [(895, 112), (1150, 112), (1162, 40), (888, 45)], 0.71, "Tire")
     # Farlar (önde), stop lambaları ve girintili orta panel (arkada)
     for sx in (-1, 1):
         box("headlight", (0.23, 0.03, 0.145), (sx * 0.22, Y(-18) + 0.004, Z(530)), "Light")
@@ -1382,7 +1472,7 @@ def build_buggy():
     for name, x, y in (("wheel_FL", -0.90, Y(315)), ("wheel_FR", 0.90, Y(315)),
                        ("wheel_RL", -0.90, Y(905)), ("wheel_RR", 0.90, Y(905))):
         # Görseldeki çap kenardan kenara (1.2 m): sekizgenin köşe yarıçapı 0.6 / cos(22.5°)
-        poly_wheel(name, (x, y, 0.60), 0.60 / math.cos(math.pi / 8), 0.50, hub_ratio=0.46)
+        buggy_wheel(name, (x, y, 0.60), 0.60 / math.cos(math.pi / 8), 0.50, 0.36, BUGGY_RIM)
 
 
 BUILDERS = {"kutu": build_kutu, "dragster": build_dragster, "yarisci": build_yarisci, "latte": build_latte,
@@ -1394,11 +1484,11 @@ ORTHO = {"dragster": (D_MID, 334.0), "yarisci": (300.0, 326.0), "latte": (A3_MID
 ## Modelin gövde rengi (oyun bu rengi alır)
 PAINTS = {"dragster": ((1.0, 0.549, 0.255), 0.6, 0.0), "yarisci": ((0.11, 0.11, 0.12), 0.45, 0.0),
           "latte": ((0.886, 0.776, 0.596), 0.55, 0.0), "gem": ((0.15, 0.16, 0.18), 0.55, 0.0),
-          "buggy": ((0.957, 0.502, 0.149), 0.55, 0.0)}
+          "buggy": ((0.62, 0.90, 0.79), 0.55, 0.0)}
 ## Lastik rengi (oyun bu rengi alır); yoksa koyu gri
 TIRES = {"yarisci": ((0.82, 0.16, 0.13), 0.8, 0.0), "latte": ((1.0, 0.353, 0.122), 0.8, 0.0),
          "falcon": ((0.95, 0.945, 0.93), 0.9, 0.0), "gem": ((0.624, 0.878, 0.165), 0.8, 0.0),
-         "buggy": ((0.30, 0.30, 0.31), 0.9, 0.0)}
+         "buggy": ((0.16, 0.42, 0.88), 0.7, 0.0)}
 
 
 # ---------------------------------------------------------------- çıktı
