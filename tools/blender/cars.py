@@ -1445,9 +1445,9 @@ def build_buggy():
     # Gövdenin üst yanı (gövde renginde): kabinin yanında alçak, arkaya doğru basamakla güverteye yükselir
     loft("pods", [(Y(410), 0.58, 0.54, Z(470), Z(350)), (Y(640), 0.60, 0.56, Z(470), Z(350)),
                   (Y(705), 0.60, 0.56, Z(470), Z(290)), (Y(1060), 0.60, 0.56, Z(470), Z(285))])
-    # Yan çıkıntı (mavi; lastik, tavan, kanatla aynı): iki teker arasında gövdeden dışarı taşan blok.
-    # Yalnız taşan kısım mavi görünür; üstü gövdenin üstünden biraz alçak (aynı düzlemde titreşmesin)
-    loft("bulge", mat="Tire", stations=[(Y(525), 0.60, 0.56, Z(470), Z(352)), (Y(545), 0.74, 0.68, Z(470), Z(352)),
+    # Yan çıkıntı: iki teker arasında gövdeden dışarı taşan blok (gövde renginde); üstü gövdenin üstünden
+    # biraz alçak (aynı düzlemde titreşmesin)
+    loft("bulge", stations=[(Y(525), 0.60, 0.56, Z(470), Z(352)), (Y(545), 0.74, 0.68, Z(470), Z(352)),
                                          (Y(640), 0.74, 0.68, Z(470), Z(352)), (Y(675), 0.74, 0.68, Z(470), Z(322)),
                                          (Y(695), 0.60, 0.56, Z(470), Z(301))])
     # Kabin (koyu cam): ön cam eğik, arka cam kuyruğa iner
