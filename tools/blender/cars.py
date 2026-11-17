@@ -1645,10 +1645,17 @@ def build_delta():
 
     # Arka teker: çizimde 363.75; araba dengeli dursun diye arkaya itildi (dingil mesafesi uzadı)
     REAR_X = 383.75
+    # Gövde (teker dışında her şey) öbür arabalara göre çok büyüktü: yerden ve arabanın ortasından
+    # BODY_SCALE ile küçültülür. Tekerlerin boyu aynı kalır; yerleri gövdeyle birlikte içeri / öne kayar
+    BODY_SCALE = 0.85
+    REAR_W = 88.0   # arka tekerin enine yeri (küçültmeden önceki px; çizimde 77, teker aynı boyda kalınca
+    # duvara girmesin diye dışarı)
     # Aks çubukları
     for sx in (-1, 1):
         box("rod", (w(25), w(4), w(4)), (sx * w(32.3), Y(191), Z(297.2)), "Dark")
-        box("rod", (w(12), w(5), w(5)), (sx * w(55.25), Y(REAR_X), Z(290.7)), "Dark")
+        # arka çubuk: gövdenin yanından (47.5) tekerin iç yüzüne kadar
+        r_in = (REAR_W * BODY_SCALE - 16.0 + 1.5) / BODY_SCALE
+        box("rod", (w(r_in - 46.5), w(5), w(5)), (sx * w((r_in + 46.5) / 2.0), Y(REAR_X), Z(290.7)), "Dark")
     # Tekerler: köşeleri yuvarlatılmış silindir, beyaz jant ve siyah göbek
     def wheel6(name, pos, r, tw, rim, dot):
         bm = bmesh.new()
@@ -1669,8 +1676,16 @@ def build_delta():
         tire.location = pos
     for name, x, X, zc, r, tw, rim, dot in (
             ("wheel_FL", 191.0, -56.85, 297.2, 28.2, 24.1, 16.4, 4.6), ("wheel_FR", 191.0, 56.85, 297.2, 28.2, 24.1, 16.4, 4.6),
-            ("wheel_RL", REAR_X, -77.0, 290.7, 34.7, 32.0, 20.15, 5.65), ("wheel_RR", REAR_X, 77.0, 290.7, 34.7, 32.0, 20.15, 5.65)):
-        wheel6(name, (w(X), Y(x), Z(zc)), w(r), w(tw), w(rim), w(dot))
+            ("wheel_RL", REAR_X, -REAR_W, 290.7, 34.7, 32.0, 20.15, 5.65), ("wheel_RR", REAR_X, REAR_W, 290.7, 34.7, 32.0, 20.15, 5.65)):
+        wheel6(name, (w(X) * BODY_SCALE, Y(x) * BODY_SCALE, Z(zc)), w(r), w(tw), w(rim), w(dot))
+    bpy.context.view_layer.update()
+    shrink = Matrix.Diagonal((BODY_SCALE, BODY_SCALE, BODY_SCALE, 1.0))
+    for ob in [o for o in bpy.context.scene.objects
+               if o.type == "MESH" and o.parent is None and not o.name.startswith("wheel_")]:
+        z = ob.matrix_world.translation.z
+        ob.matrix_world = shrink @ ob.matrix_world
+        if ob.name.split(".")[0] == "rod":   # aks çubuğu teker göbeğinin hizasında kalır
+            ob.location.z = z
 
 
 BUILDERS = {"kutu": build_kutu, "dragster": build_dragster, "yarisci": build_yarisci, "latte": build_latte,
