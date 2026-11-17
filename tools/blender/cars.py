@@ -1498,11 +1498,16 @@ def build_delta():
     NOSE, TIP, NOTCH = 136.0, 475.0, 409.5
     def L(x):      # kanadın ön kenarının yarı açıklığı
         return 10.3 + 111.7 * (x - NOSE) / (TIP - NOSE)
+    # Kanat ucunun yüksekliği: çizimde 222; arka tekerler kanadın altındaki duvara girmesin diye arka
+    # yukarı kaldırıldı (üst kenar yine burundan uca düz)
+    TIPZ = 182.0
+    def lift(x):   # kaldırma: burunda 0, uca doğru artar; sırt, kokpit ve çatı da aynı kalkar (V derinliği aynı)
+        return (222.0 - TIPZ) * (x - NOSE) / (TIP - NOSE)
     def zle(x):    # ön kenarın (dış panelin) üstü: yandan üst kenar
-        return 295.0 - 73.0 * (x - NOSE) / (TIP - NOSE)
+        return 295.0 - (295.0 - TIPZ) * (x - NOSE) / (TIP - NOSE)
     def zsp(x):    # sırtın üstü: burunda 295, çentikte 266 (çizimde 261.3; arkadan V biraz derin okunsun diye
         # indirildi, alttaki gövdenin üstüne (270) değmez)
-        return 295.0 - 29.0 * (x - NOSE) / (NOTCH - NOSE)
+        return 295.0 - 29.0 * (x - NOSE) / (NOTCH - NOSE) - lift(x)
     def section(x):
         l = L(x)
         top, bot = zle(x), min(zle(x) + 11.0, 305.0)
@@ -1551,7 +1556,7 @@ def build_delta():
     body = new_object("body", bm, ["Paint"])
     # Arka düzlem (yandan uçtan (409.5, 305)'e) ve üstten V çentik (uçlardan çentiğe)
     def back(z):
-        return NOTCH + (TIP - NOTCH) * (305.0 - z) / 83.0
+        return NOTCH + (TIP - NOTCH) * (305.0 - z) / (305.0 - TIPZ)
     rear_cut = prism("_cut_rear", [(back(400.0), 400.0), (back(120.0), 120.0), (800.0, 120.0), (800.0, 400.0)],
                      "x", -400.0, 400.0)
     notch_cut = prism("_cut_notch", [(0.0, NOTCH), (122.0 * 2.0, NOTCH + 65.5 * 2.0), (244.0, 800.0),
@@ -1584,8 +1589,8 @@ def build_delta():
     for v in bm.verts:
         v.co = Vector((v.co.x * w(22.0), v.co.y * w(55.5), v.co.z * w(24.0)))
     canopy = new_object("canopy", bm, ["Glass"])
-    canopy.rotation_euler = (math.radians(-16.65), 0, 0)
-    canopy.location = (0, Y(306.55), Z(272.15))
+    canopy.rotation_euler = (math.radians(-16.65) - math.atan((222.0 - TIPZ) / (TIP - NOSE)), 0, 0)
+    canopy.location = (0, Y(306.55), Z(272.15 - lift(306.55)))
     flat(canopy)
 
     # Kokpitin arkasında sivri çatı: tepesi kokpitin arka üstünde (kokpite gömülmez, üstüne oturur), iki taban
@@ -1593,9 +1598,9 @@ def build_delta():
     def panel_z(x, X):
         f = min(7.0 + 57.25 * (x - NOSE) / (444.0 - NOSE), L(x) * 0.93)
         return zsp(x) + (zle(x) - zsp(x)) * min(X, f) / f
-    pts = [(0.0, 338.0, 239.5), (0.0, 404.0, zsp(404.0) - 1.0),
+    pts = [(0.0, 338.0, 239.5 - lift(338.0)), (0.0, 404.0, zsp(404.0) - 1.0),
            (22.0, 352.0, panel_z(352.0, 22.0) + 0.5), (-22.0, 352.0, panel_z(352.0, 22.0) + 0.5),
-           (0.0, 342.0, 256.0), (0.0, 404.0, zsp(404.0) + 3.0), (0.0, 352.0, zsp(352.0) + 3.0)]
+           (0.0, 342.0, 256.0 - lift(342.0)), (0.0, 404.0, zsp(404.0) + 3.0), (0.0, 352.0, zsp(352.0) + 3.0)]
     bm = bmesh.new()
     vs = [bm.verts.new((w(X), Y(x), Z(z))) for X, x, z in pts]
     bmesh.ops.convex_hull(bm, input=vs)
