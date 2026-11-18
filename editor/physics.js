@@ -501,7 +501,7 @@
   }
   const r1v = (v) => Math.round(v * 10) / 10;
   const VARY_OPS = ['gap', 'len', 'width', 'rows', 'swap', 'rise'];
-  const VARY_TAGS = { gap: 'boşluklar', len: 'yollar uzun', width: 'genişlik', rows: 'engel düzeni', swap: 'çakıl ↔ blok', rise: 'rampa yüksekliği' };
+  const VARY_TAGS = { gap: 'boşluklar', len: 'yollar uzun', width: 'genişlik', rows: 'engel düzeni', swap: 'hava ↔ blok', rise: 'rampa yüksekliği' };
   // Bir kez çeşitle: ops listesindeki işlemler (sırayla: yerel olanlar önce, z kaydıranlar sonra)
   function varyOnce(level, rnd, ops) {
     const L = JSON.parse(JSON.stringify(level));
@@ -629,7 +629,7 @@
     return null;
   }
 
-  const KIND_NAMES = { ramp: 'Rampa', kick: 'Eğik rampa', bump: 'Tümsek', gravel: 'Çakıl', block: 'Blok', deadend: 'Çıkmaz' };
+  const KIND_NAMES = { ramp: 'Rampa', kick: 'Eğik rampa', bump: 'Tümsek', gravel: 'Hava', block: 'Blok', deadend: 'Çıkmaz' };
 
   const api = { CAR, TIERS, speedAt, vBoost, vFull, flightTime, clearEnd, clearStart, jump, rampFlight,
     analyze, crystalPreview, suggestGap, minRoadLength, mainPath, exitOf, onward, primary, lightsInfo, needsLights, successor, hostOf, isOn, hAt, pEnd, KIND_NAMES,
