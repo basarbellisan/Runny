@@ -6,15 +6,20 @@ extends Node3D
 const SAVE_PATH := "user://save.cfg"
 const GAME_SCENE := "res://scenes/main.tscn"
 ## [ad, açıklama, CarModel.variant]
+## Sıra CarModel.GARAGE ile aynı: önce açık temel arabalar (ağır, orta, hafif), sonra kilitli özel arabalar
 const MODELS := [
-	["GEZGİN", "Rock steady off-road, good steering. But the slowest: long gaps burn a lot of energy.", 2],
-	["DRAGSTER", "Fast, solid off-road and on the edges. But heavy steering makes tight spots hard.", 6],
-	["DARK ROSE", "The best steering, and fast too. But its narrow track tips over easily at the edge.", 7],
-	["LATTE", "Balanced: solid off-road and on the edges, needs just enough energy on jumps.", 8],
-	["FALCON", "The fastest: jumps on little energy, saving the rest for the wings. But slides like on ice off-road.", 9],
-	["GEM", "Fast and agile, its low body rarely tips over. But it gets shaken up off-road.", 10],
-	["DELTA", "A wing on wheels: quick and evenly balanced.", 12],
+	["GEZGİN", "Heavy: steady in the air flow and hard to tip, but flying burns a lot of energy.", 2],
+	["LATTE", "Medium: balanced in everything.", 8],
+	["DARK ROSE", "Light: flies far on little energy and turns fast, but tips over easily.", 7],
+	["DRAGSTER", "Heavy and fast.", 6],
+	["GEM", "Medium, with a great grip.", 10],
+	["FALCON", "Light and the fastest.", 9],
+	["DELTA", "A wing on wheels: the best flyer.", 12],
 ]
+## Garajda gösterilen parçalar: [Progress parçası, kart adı, çubuk adı]
+const PARTS := [["grip", "WHEELS", "GRIP"], ["tank", "TANK", "TANK"], ["flight", "WINGS", "FLIGHT"]]
+## Özellik çubuğunun renkleri: arabanın kendi değeri, alınan geliştirme
+const UP_COLOR := Color("3aa65b")
 ## Platformlar arası mesafe (m)
 const SPACING := 7.0
 ## Kaydırırken parmağın her pikseli kaç metre
@@ -45,6 +50,21 @@ var _segs: Array = []
 var _bar_tween: Tween
 var _fade: ColorRect
 var _args := {}
+var _ui: CanvasLayer
+var _pill: CoinPill
+var _chips: HBoxContainer
+var _weight_chip: PanelContainer
+var _lock_chip: PanelContainer
+var _start_btn: Button
+var _price_row: HBoxContainer
+var _price_lbl: Label
+var _lock_icon: LockIcon
+var _models: Array[CarModel] = []
+## Parça kartları: {part, root, pips: [Panel], btn, price: Label, coin: CoinIcon}
+var _cards: Array[Dictionary] = []
+var _ups_title: Label
+var _ups: Control
+var _busy := false
 ## Tutorial açıkken garaj kaydırılmaz
 var _tutorial_open := false
 ## Giriş sayfası (oyun adı, HOW TO PLAY / PLAY) oturumda bir kez, ilk açılışta gösterilir
@@ -228,6 +248,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_carousel.position.x = _drag_from + (event.position.x - _drag_start.x) * DRAG_SCALE
 	elif event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
+			KEY_1, KEY_2, KEY_3:
+				_buy(PARTS[event.keycode - KEY_1][0])
 			KEY_LEFT, KEY_A:
 				select(index - 1)
 			KEY_RIGHT, KEY_D:
@@ -254,6 +276,10 @@ func select(i: int) -> void:
 func start() -> void:
 	if _starting:
 		return
+	# Kilitli araba: düğme "UNLOCK" (parası yetiyorsa açar)
+	if not Progress.owns(MODELS[index][2]):
+		_unlock()
+		return
 	_starting = true
 	var cfg := ConfigFile.new()
 	cfg.load(SAVE_PATH)
@@ -269,11 +295,32 @@ func start() -> void:
 func _refresh(animate: bool) -> void:
 	# Özellikler ekranda kalır: çubuklar yeni arabaya göre dolar/boşalır
 	_fill_stats(MODELS[index][2], animate)
+	_fill_upgrades()
+	var v: int = MODELS[index][2]
+	var locked := not Progress.owns(v)
+	_lock_icon.visible = locked
+	_lock_icon.reset()
+	_price_row.visible = locked
+	_start_btn.text = "" if locked else "START"
+	var can := Progress.get_coins() >= Progress.car_price(v)
+	for state in ["normal", "hover", "pressed", "focus"]:
+		var sb := _start_btn.get_theme_stylebox(state) as StyleBoxFlat
+		if locked:
+			sb.bg_color = Palette.INK_DARK if can else Palette.STONE
+		else:
+			sb.bg_color = Palette.ACCENT.darkened(0.15) if state == "pressed" else Palette.ACCENT
+	_price_lbl.text = CoinPill.fmt(Progress.car_price(v))
 	var apply := func():
 		_name.text = MODELS[index][0]
-		_desc.text = MODELS[index][1]
+		_desc.text = "SPECIAL CAR\nUnlock it to drive and upgrade its wheels, tank and wings." if locked else ""
+		_weight_chip.get_child(0).text = CarModel.weight_label(v)
+		_lock_chip.visible = locked
 		for i in _dots.size():
-			_dots[i].bg_color = Palette.ACCENT if i == index else Color(Palette.INK_DARK, 0.25)
+			var mine := Progress.owns(MODELS[i][2])
+			var col := Palette.ACCENT if i == index else Color(Palette.INK_DARK, 0.25)
+			_dots[i].bg_color = col if mine else Color(0, 0, 0, 0)
+			_dots[i].border_color = col
+			_dots[i].set_border_width_all(0 if mine else 2)
 	if not animate:
 		apply.call()
 		return
@@ -316,7 +363,7 @@ func _build_world() -> void:
 	cam.position = Vector3(0, 2.7, 8.0)
 	cam.look_at(Vector3(0, 0.25, 0))
 	# Araba biraz yukarıda: altında özelliklere yer kalsın
-	cam.v_offset = -0.72
+	cam.v_offset = -2.35
 
 	# Oklar sahnede, kaidelerin arkasında: araba kayarken önlerinden geçer.
 	# Geniş açılı, ince ok başı (iki ince çubuk)
@@ -381,51 +428,74 @@ func _build_world() -> void:
 		model.variant = MODELS[i][2]
 		table.add_child(model)
 		_turntables.append(stand)
+		_models.append(model)
+		if not Progress.owns(MODELS[i][2]):
+			_set_locked_look(model, true)
 
 
 func _build_ui(best: int) -> void:
 	var ui := CanvasLayer.new()
 	add_child(ui)
-	var title := _label(ui, "SKY RUNNER", 40, 130, true)
+	_ui = ui
+	var title := _label(ui, "SKY RUNNER", 36, 120, true)
 	title.add_theme_color_override("font_color", Palette.INK_DARK)
 	if best > 0:
-		var b := _label(ui, "BEST  %d" % best, 18, 190, true)
+		var b := _label(ui, "BEST  %d" % best, 16, 168, true)
 		b.modulate.a = 0.55
+	# Sağ üstte para
+	_pill = CoinPill.new(Progress.get_coins())
+	_pill.place_top_right()
+	ui.add_child(_pill)
 
 	_info = Control.new()
 	_info.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_info.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(_info)
-	_name = _label(_info, "", 50, 782, true)
-	_desc = _label(_info, "", 20, 850, false)
-	# Açıklama iki satıra sarılır
+	_name = _label(_info, "", 46, 548, true)
+	# Ağırlık (ve kilitliyse LOCKED) etiketleri
+	_chips = HBoxContainer.new()
+	_chips.alignment = BoxContainer.ALIGNMENT_CENTER
+	_chips.add_theme_constant_override("separation", 12)
+	_chips.anchor_right = 1.0
+	_chips.offset_top = 596
+	_chips.offset_bottom = 628
+	_chips.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_info.add_child(_chips)
+	_weight_chip = _chip(true)
+	_lock_chip = _chip(false)
+	_lock_chip.get_child(0).text = "LOCKED"
+	# Açıklama (kilitli arabada: özel araba yazısı)
+	_desc = _label(_info, "", 19, 900, false)
 	_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_desc.offset_left = 90
-	_desc.offset_right = -90
-	_desc.offset_top = 826
-	_desc.offset_bottom = 886
-	_desc.modulate.a = 0.6
+	_desc.offset_left = 80
+	_desc.offset_right = -80
+	_desc.offset_top = 870
+	_desc.offset_bottom = 960
+	_desc.modulate.a = 0.7
 	_stats = Control.new()
 	_stats.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_stats.anchor_right = 1.0
-	_stats.offset_top = 910
-	_stats.offset_bottom = 1010
+	_stats.offset_top = 650
+	_stats.offset_bottom = 800
 	ui.add_child(_stats)
+	_build_upgrades(ui)
 
 	var dots := HBoxContainer.new()
 	dots.add_theme_constant_override("separation", 14)
 	dots.alignment = BoxContainer.ALIGNMENT_CENTER
 	dots.anchor_right = 1.0
-	dots.offset_top = 365
-	dots.offset_bottom = 377
+	dots.offset_top = 206
+	dots.offset_bottom = 218
 	dots.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(dots)
 	for i in MODELS.size():
 		var dot := Panel.new()
 		dot.custom_minimum_size = Vector2(12, 12)
+		dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var sb := StyleBoxFlat.new()
-		sb.set_corner_radius_all(6)
+		# Kilitli araba: içi boş kare
+		sb.set_corner_radius_all(6 if Progress.owns(MODELS[i][2]) else 2)
 		dot.add_theme_stylebox_override("panel", sb)
 		dots.add_child(dot)
 		_dots.append(sb)
@@ -437,15 +507,15 @@ func _build_ui(best: int) -> void:
 		arrow.focus_mode = Control.FOCUS_NONE
 		for st in ["normal", "hover", "pressed", "focus"]:
 			arrow.add_theme_stylebox_override(st, StyleBoxEmpty.new())
-		arrow.anchor_top = 0.5
-		arrow.anchor_bottom = 0.5
+		arrow.anchor_top = 0.0
+		arrow.anchor_bottom = 0.0
 		arrow.anchor_left = 0.0 if side < 0 else 1.0
 		arrow.anchor_right = arrow.anchor_left
 		arrow.offset_left = 10 if side < 0 else -110
 		arrow.offset_right = 110 if side < 0 else -10
 		# Platformun (elipsin) ortası hizasında
-		arrow.offset_top = -62
-		arrow.offset_bottom = 58
+		arrow.offset_top = 300
+		arrow.offset_bottom = 440
 		arrow.pressed.connect(func(): select(index + side))
 		ui.add_child(arrow)
 
@@ -470,26 +540,44 @@ func _build_ui(best: int) -> void:
 	start_btn.anchor_bottom = 1.0
 	start_btn.offset_left = -210
 	start_btn.offset_right = 210
-	start_btn.offset_top = -195
-	start_btn.offset_bottom = -90
+	start_btn.offset_top = -168
+	start_btn.offset_bottom = -72
 	start_btn.pressed.connect(start)
 	ui.add_child(start_btn)
+	_start_btn = start_btn
+	# Kilitli arabada düğmenin üstünde fiyat: jeton ve sayı
+	_price_row = HBoxContainer.new()
+	_price_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	_price_row.add_theme_constant_override("separation", 14)
+	_price_row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_price_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	start_btn.add_child(_price_row)
+	var ul := Label.new()
+	ul.text = "UNLOCK"
+	ul.add_theme_font_override("font", font)
+	ul.add_theme_font_size_override("font_size", 28)
+	ul.add_theme_color_override("font_color", Palette.SNOW)
+	_price_row.add_child(ul)
+	var pc := CoinIcon.new("coin", 34)
+	pc.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_price_row.add_child(pc)
+	_price_lbl = Label.new()
+	_price_lbl.add_theme_font_size_override("font_size", 30)
+	_price_lbl.add_theme_color_override("font_color", Palette.SNOW)
+	_price_row.add_child(_price_lbl)
+	_lock_icon = LockIcon.new()
+	_lock_icon.anchor_left = 0.5
+	_lock_icon.anchor_right = 0.5
+	_lock_icon.offset_left = -40
+	_lock_icon.offset_right = 40
+	_lock_icon.offset_top = 322
+	_lock_icon.offset_bottom = 418
+	ui.add_child(_lock_icon)
 
-	# Oyun adının altında, araçların üstünde: turuncu çerçeveli "nasıl oynanır" butonu
-	var how := _big_button("HOW TO PLAY", false)
-	how.add_theme_font_size_override("font_size", 20)
-	how.anchor_top = 0.0
-	how.anchor_bottom = 0.0
-	how.offset_left = -140
-	how.offset_right = 140
-	how.offset_top = 236
-	how.offset_bottom = 296
-	how.pressed.connect(start_lessons)
-	ui.add_child(how)
-
-	# Sağ üstte müzik aç / kapat
+	# (Nasıl oynanır giriş sayfasında; garajda yer parçalara kaldı)
+	# Sol üstte müzik aç / kapat (sağ üstte para)
 	var music := MusicButton.new()
-	music.place_top_right()
+	music.place_top_left()
 	ui.add_child(music)
 
 	var ver := Label.new()
@@ -511,42 +599,327 @@ func _build_ui(best: int) -> void:
 	ui.add_child(_fade)
 
 
-const STAT_NAMES := ["SPEED", "STEERING", "OFF-ROAD", "STABILITY"]
+## Özellik çubukları (10 kademe): hız arabanın doğası; tutuş, depo ve uçuş parçalardan
+const STAT_NAMES := ["SPEED", "GRIP", "TANK", "FLIGHT"]
+const SEGS := 10
 
 
-## Özellikler (CarModel.STATS, 1-5), 2x2: AD  ▮▮▮▮▯
+## Her satır: AD  ▮▮▮▮▮▮▯▯▯▯ — turuncu arabanın kendi değeri, yeşil alınan geliştirmeler,
+## çerçeveli boş kademeler alınabilecek geliştirmeler
 func _fill_stats(variant: int, animate := false) -> void:
-	var st: Array = CarModel.STATS.get(variant, [3, 3, 3, 3])
 	if _segs.is_empty():
-		var grid := GridContainer.new()
-		grid.columns = 2
-		grid.add_theme_constant_override("h_separation", 40)
-		grid.add_theme_constant_override("v_separation", 22)
-		_center(grid)
+		var col := VBoxContainer.new()
+		col.add_theme_constant_override("separation", 16)
+		_center(col)
 		for i in 4:
 			var row := HBoxContainer.new()
-			row.add_theme_constant_override("separation", 12)
-			row.add_child(_small(STAT_NAMES[i], 22, 0.6, 128))
-			var bar := _bar(0, Vector2(26, 13), 5)
+			row.add_theme_constant_override("separation", 14)
+			row.add_child(_small(STAT_NAMES[i], 19, 0.6, 104))
+			var bar := HBoxContainer.new()
+			bar.add_theme_constant_override("separation", 5)
+			bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var segs: Array = []
+			for k in SEGS:
+				var seg := Panel.new()
+				seg.custom_minimum_size = Vector2(36, 13)
+				seg.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+				seg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				var sb := StyleBoxFlat.new()
+				sb.set_corner_radius_all(2)
+				seg.add_theme_stylebox_override("panel", sb)
+				bar.add_child(seg)
+				segs.append(seg)
 			row.add_child(bar)
-			_segs.append(bar.get_children())
-			grid.add_child(row)
+			_segs.append(segs)
+			col.add_child(row)
+	var locked := not Progress.owns(variant)
 	if _bar_tween:
 		_bar_tween.kill()
 	_bar_tween = null
 	for i in 4:
-		for k in 5:
-			var seg: ColorRect = _segs[i][k]
-			var want := Palette.ACCENT if k < int(st[i]) else Color(Palette.INK_DARK, 0.15)
-			if not animate:
-				seg.color = want
-			elif not seg.color.is_equal_approx(want):
-				# Dolarken soldan sağa, boşalırken sağdan sola sırayla
-				var filling := k < int(st[i])
-				var delay := (k if filling else 4 - k) * 0.07
+		var base := CarModel.speed_bar(variant)
+		var up := 0
+		var slots := 0
+		if i > 0:
+			var part: String = PARTS[i - 1][0]
+			base = CarModel.part_base(variant, part)
+			up = Progress.level(variant, part)
+			slots = 0 if locked else Progress.MAX_LEVEL - up
+		for k in SEGS:
+			var seg: Panel = _segs[i][k]
+			var sb := seg.get_theme_stylebox("panel") as StyleBoxFlat
+			var want := Color(Palette.INK_DARK, 0.12)
+			var border := 0
+			if k < base:
+				want = Palette.ACCENT
+			elif k < base + up:
+				want = UP_COLOR
+			elif k < base + up + slots:
+				want = Color(0, 0, 0, 0)
+				border = 2
+			sb.border_color = Color(Palette.INK_DARK, 0.28)
+			sb.set_border_width_all(border)
+			if not animate or sb.bg_color.is_equal_approx(want):
+				sb.bg_color = want
+			else:
+				var filling := k < base + up
+				var delay := (k if filling else SEGS - 1 - k) * 0.04
 				if _bar_tween == null:
 					_bar_tween = create_tween().set_parallel()
-				_bar_tween.tween_property(seg, "color", want, 0.2).set_delay(delay)
+				_bar_tween.tween_property(sb, "bg_color", want, 0.2).set_delay(delay)
+
+
+## Etiket: dolu koyu (ağırlık) ya da çerçeveli soluk (LOCKED)
+func _chip(filled: bool) -> PanelContainer:
+	var p := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.set_corner_radius_all(16)
+	sb.content_margin_left = 16
+	sb.content_margin_right = 16
+	sb.content_margin_top = 3
+	sb.content_margin_bottom = 4
+	if filled:
+		sb.bg_color = Palette.INK_DARK
+	else:
+		sb.bg_color = Color(0, 0, 0, 0)
+		sb.set_border_width_all(2)
+		sb.border_color = Palette.STONE
+	p.add_theme_stylebox_override("panel", sb)
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var l := Label.new()
+	var f := FontVariation.new()
+	f.spacing_glyph = 4
+	l.add_theme_font_override("font", f)
+	l.add_theme_font_size_override("font_size", 15)
+	l.add_theme_color_override("font_color", Palette.PAPER if filled else Palette.SLATE)
+	p.add_child(l)
+	_chips.add_child(p)
+	return p
+
+
+## Parça kartları: simge, ad, 5 seviye işareti, fiyatlı satın alma düğmesi
+func _build_upgrades(ui: CanvasLayer) -> void:
+	_ups = Control.new()
+	_ups.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ups.anchor_right = 1.0
+	_ups.offset_top = 820
+	_ups.offset_bottom = 1040
+	ui.add_child(_ups)
+	_ups_title = _label(_ups, "UPGRADE", 15, 20, true)
+	_ups_title.modulate.a = 0.55
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 16)
+	row.anchor_right = 1.0
+	row.offset_top = 46
+	row.offset_bottom = 220
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ups.add_child(row)
+	var spaced := FontVariation.new()
+	spaced.spacing_glyph = 4
+	for p in PARTS:
+		var card := PanelContainer.new()
+		card.custom_minimum_size = Vector2(196, 0)
+		card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color.WHITE
+		sb.set_border_width_all(3)
+		sb.border_color = Palette.MIST
+		sb.set_corner_radius_all(16)
+		sb.content_margin_left = 12
+		sb.content_margin_right = 12
+		sb.content_margin_top = 12
+		sb.content_margin_bottom = 12
+		card.add_theme_stylebox_override("panel", sb)
+		row.add_child(card)
+		var col := VBoxContainer.new()
+		col.add_theme_constant_override("separation", 7)
+		col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.add_child(col)
+		var ic := CoinIcon.new(p[0], 46)
+		ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		col.add_child(ic)
+		var nm := Label.new()
+		nm.text = p[1]
+		nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		nm.add_theme_font_override("font", spaced)
+		nm.add_theme_font_size_override("font_size", 15)
+		nm.add_theme_color_override("font_color", Palette.INK_DARK)
+		col.add_child(nm)
+		var pips := HBoxContainer.new()
+		pips.alignment = BoxContainer.ALIGNMENT_CENTER
+		pips.add_theme_constant_override("separation", 5)
+		pips.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		col.add_child(pips)
+		var pl: Array = []
+		for i in Progress.MAX_LEVEL:
+			var pip := Panel.new()
+			pip.custom_minimum_size = Vector2(20, 7)
+			pip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var psb := StyleBoxFlat.new()
+			psb.set_corner_radius_all(3)
+			pip.add_theme_stylebox_override("panel", psb)
+			pips.add_child(pip)
+			pl.append(pip)
+		var btn := Button.new()
+		btn.focus_mode = Control.FOCUS_NONE
+		btn.custom_minimum_size = Vector2(0, 54)
+		for st in ["normal", "hover", "pressed", "focus", "disabled"]:
+			var bsb := StyleBoxFlat.new()
+			bsb.set_corner_radius_all(10)
+			btn.add_theme_stylebox_override(st, bsb)
+		col.add_child(btn)
+		var inner := HBoxContainer.new()
+		inner.alignment = BoxContainer.ALIGNMENT_CENTER
+		inner.add_theme_constant_override("separation", 9)
+		inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		btn.add_child(inner)
+		var coin := CoinIcon.new("coin", 24)
+		coin.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		inner.add_child(coin)
+		var price := Label.new()
+		price.add_theme_font_size_override("font_size", 22)
+		inner.add_child(price)
+		var part: String = p[0]
+		btn.pressed.connect(func(): _buy(part))
+		_cards.append({"part": part, "stat": p[2], "root": card, "pips": pl, "btn": btn, "price": price, "coin": coin})
+
+
+## Kartların seviyeleri ve fiyatları (kilitli arabada kartlar yok)
+func _fill_upgrades() -> void:
+	var v: int = MODELS[index][2]
+	var locked := not Progress.owns(v)
+	_ups.visible = not locked
+	for c in _cards:
+		var l := Progress.level(v, c.part)
+		for i in (c.pips as Array).size():
+			var psb := (c.pips[i] as Panel).get_theme_stylebox("panel") as StyleBoxFlat
+			psb.bg_color = UP_COLOR if i < l else Palette.MIST
+		var price := Progress.upgrade_price(v, c.part)
+		var maxed := price < 0
+		var poor := not maxed and Progress.get_coins() < price
+		(c.coin as CoinIcon).visible = not maxed
+		(c.price as Label).text = "MAX" if maxed else CoinPill.fmt(price)
+		var fg := UP_COLOR if maxed else (Palette.SLATE if poor else Palette.SNOW)
+		(c.price as Label).add_theme_color_override("font_color", fg)
+		for st in ["normal", "hover", "pressed", "focus", "disabled"]:
+			var bsb := (c.btn as Button).get_theme_stylebox(st) as StyleBoxFlat
+			bsb.bg_color = Color(0, 0, 0, 0) if maxed else (Palette.MIST if poor else Palette.INK_DARK)
+			bsb.set_border_width_all(3 if maxed else 0)
+			bsb.border_color = UP_COLOR
+
+
+## Parça geliştir: para düşer, seviye işareti dolar, çubuğa yeşil kademe eklenir, "+1" yükselir
+func _buy(part: String) -> void:
+	var v: int = MODELS[index][2]
+	if _busy or _starting or not Progress.owns(v):
+		return
+	var card: Dictionary = _cards.filter(func(c): return c.part == part)[0]
+	if not Progress.buy_upgrade(v, part):
+		if Progress.upgrade_price(v, part) >= 0:
+			_shake(card.btn)
+			Audio.play("hiss", -14.0)
+		return
+	var lvl := Progress.level(v, part)
+	_pill.set_value(Progress.get_coins())
+	_fill_upgrades()
+	# Yeni kademe: çubukta parlayıp yerine oturur
+	var row := 1 + PARTS.map(func(p): return p[0]).find(part)
+	var seg: Panel = _segs[row][CarModel.part_base(v, part) + lvl - 1]
+	var sb := seg.get_theme_stylebox("panel") as StyleBoxFlat
+	sb.set_border_width_all(0)
+	sb.bg_color = Palette.ENERGY
+	seg.pivot_offset = seg.size * 0.5
+	var t := create_tween()
+	t.tween_property(seg, "scale", Vector2(1.0, 2.4), 0.15)
+	t.tween_property(seg, "scale", Vector2.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.parallel().tween_property(sb, "bg_color", UP_COLOR, 0.5)
+	# Seviye işareti ve kart
+	var pip: Panel = card.pips[lvl - 1]
+	pip.pivot_offset = pip.size * 0.5
+	var tp := create_tween()
+	tp.tween_property(pip, "scale", Vector2.ONE * 1.8, 0.15)
+	tp.tween_property(pip, "scale", Vector2.ONE, 0.3)
+	var root: Control = card.root
+	root.pivot_offset = root.size * 0.5
+	var tc := create_tween()
+	tc.tween_property(root, "scale", Vector2.ONE * 1.06, 0.12)
+	tc.tween_property(root, "scale", Vector2.ONE, 0.25)
+	_float_text("+1 " + card.stat, root)
+	Audio.play("perfect", -6.0)
+
+
+## Kilitli arabayı aç: kilit sallanıp kaybolur, araba renklenir
+func _unlock() -> void:
+	var v: int = MODELS[index][2]
+	if _busy:
+		return
+	if not Progress.unlock(v):
+		_shake(_start_btn)
+		Audio.play("hiss", -14.0)
+		return
+	_busy = true
+	_pill.set_value(Progress.get_coins())
+	Audio.play("wings", -4.0)
+	var t := _lock_icon.open()
+	t.tween_callback(func():
+		_set_locked_look(_models[index], false)
+		var st := _turntables[index]
+		var tw := create_tween()
+		tw.tween_property(st, "scale", st.scale * 1.12, 0.15)
+		tw.tween_property(st, "scale", st.scale, 0.25)
+		_busy = false
+		_refresh(true)
+		for i in _dots.size():
+			var mine := Progress.owns(MODELS[i][2])
+			_dots[i].set_corner_radius_all(6 if mine else 2))
+
+
+## Kilitli araba: düz gri (kil gibi); açılınca kendi malzemeleri
+func _set_locked_look(model: CarModel, on: bool) -> void:
+	for n in model.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if on:
+			mi.set_meta("unlocked_override", mi.material_override)
+			mi.material_override = _locked_mat()
+		elif mi.has_meta("unlocked_override"):
+			mi.material_override = mi.get_meta("unlocked_override")
+			mi.remove_meta("unlocked_override")
+
+
+var _lock_mat: StandardMaterial3D
+
+
+func _locked_mat() -> StandardMaterial3D:
+	if _lock_mat == null:
+		_lock_mat = StandardMaterial3D.new()
+		_lock_mat.albedo_color = Color("c9c6be")
+		_lock_mat.roughness = 1.0
+	return _lock_mat
+
+
+func _shake(c: Control) -> void:
+	var x := c.position.x
+	var t := create_tween()
+	for d in [-10.0, 10.0, -6.0, 0.0]:
+		t.tween_property(c, "position:x", x + d, 0.05)
+
+
+## Kartın üstünde yükselip kaybolan yazı ("+1 GRIP")
+func _float_text(text: String, over: Control) -> void:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", 22)
+	l.add_theme_color_override("font_color", UP_COLOR)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ui.add_child(l)
+	l.reset_size()
+	l.position = over.global_position + Vector2(over.size.x * 0.5 - l.size.x * 0.5, -30)
+	var t := create_tween()
+	t.tween_property(l, "position:y", l.position.y - 46, 0.9).set_ease(Tween.EASE_OUT)
+	t.parallel().tween_property(l, "modulate:a", 0.0, 0.9).set_delay(0.3)
+	t.tween_callback(l.queue_free)
 
 
 ## Kabı özellik alanının ortasına yerleştirir
@@ -615,3 +988,10 @@ func _capture_shots() -> void:
 	# Test için: belirli karede bir sonraki modele geç
 	if _args.has("swipe_at") and frame == int(_args.swipe_at):
 		select(index + 1)
+	# Test: belirli karede parça al (--buy_at=40:grip) ya da arabayı aç (--unlock_at=40)
+	if _args.has("buy_at"):
+		for item in str(_args.buy_at).split(","):
+			if frame == int(item.get_slice(":", 0)):
+				_buy(item.get_slice(":", 1))
+	if _args.has("unlock_at") and frame == int(_args.unlock_at):
+		_unlock()

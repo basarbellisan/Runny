@@ -180,8 +180,8 @@ func _ready() -> void:
 		"camera": $Camera, "audio": Audio, "trail": car.trail, "speedo": hud.speedometer})
 	# Garajda seçilen araba
 	var saved_model := int(_load_save().get_value("car", "model", CarModel.GARAGE[0]))
-	if not saved_model in CarModel.GARAGE:
-		saved_model = CarModel.GARAGE[0]  # garajdan çıkan araba seçiliydi
+	if not saved_model in CarModel.GARAGE or not Progress.owns(saved_model):
+		saved_model = CarModel.GARAGE[0]  # garajdan çıkan ya da kilitli araba seçiliydi
 	car.model.variant = int(_args.get("model", saved_model))
 	# Editörde "Oyna": editör her seferinde rastgele bir araba seçer (?model=)
 	if _web_param("model") != "":
@@ -217,6 +217,7 @@ func _ready() -> void:
 	hud.gauge.color = roads.crystal_color
 	if _args.has("nohud"):
 		hud.visible = false  # tasarım taslakları için temiz arka plan
+	car.refresh_stats()  # ağırlık ve parçalar (depo büyüklüğü dahil)
 	car.speed = car.start_speed * car.speed_mul
 	car.energy = car.max_energy
 	roads.car = car
@@ -325,11 +326,11 @@ func _physics_process(delta: float) -> void:
 				multiplier += 1
 				Audio.play("multiplier")
 		Car.Mode.FLYING:
-			var burn := energy_drain * delta * (boost_drain_factor if car.climbing else 1.0)
+			var burn := energy_drain * car.k_fly_cost * delta * (boost_drain_factor if car.climbing else 1.0)
 			if car.energy > 0.0:
 				car.energy = maxf(car.energy - burn, 0.0)
 			elif not car.reserve_on:
-				car.start_reserve(wing_reserve)
+				car.start_reserve(wing_reserve * car.k_reserve)
 				hud.popup("RESERVE", true)
 				Audio.play("hiss")
 			else:
@@ -730,7 +731,15 @@ func _on_game_over(reason: String) -> void:
 	# Uçarken parçalanma uzun sürer (küpler saçılıp seksin, görülsün)
 	var wait := 3.5 if car.smashing else (2.0 if car.shattering else 1.0)
 	var real := car.shattering
-	get_tree().create_timer(wait, true, false, real).timeout.connect(hud.show_game_over.bind(reason, final, best, _start_z - car.global_position.z))
+	# Para: önce km, sonra depoda kalan kristal (enerji). Hemen kaydedilir; testlerde (otomatik pilot,
+	# tasarım testi) kazanılmaz
+	var meters := _start_z - car.global_position.z
+	var left := car.energy
+	var earned := Progress.reward(meters, left)
+	var before := Progress.get_coins()
+	if not car.autopilot and not _level_test:
+		Progress.add(earned[0] + earned[1])
+	get_tree().create_timer(wait, true, false, real).timeout.connect(hud.show_game_over.bind(reason, final, best, meters, earned, left, before))
 	get_tree().create_timer(wait, true, false, real).timeout.connect(Audio.play.bind("game_over"))
 	print("GAME_OVER reason=%s %s frame=%d" % [reason, _stats_text(), Engine.get_process_frames()])
 	if car.autopilot:
@@ -747,6 +756,13 @@ func _on_game_over(reason: String) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not game_over or _over_time < 1.6:
+		return
+	# Para sayılırken dokunmak sayımı atlar (oyun hemen yeniden başlamaz)
+	if not hud.tally_done:
+		var t: bool = (event is InputEventScreenTouch and event.pressed) or (event is InputEventKey and event.pressed and not event.echo)
+		if t:
+			hud.skip_tally()
+			get_viewport().set_input_as_handled()
 		return
 	var tapped: bool = event is InputEventScreenTouch and event.pressed
 	var key: bool = event is InputEventKey and event.pressed and not event.echo

@@ -30,6 +30,18 @@ func place_top_right(margin := 24.0, top := 36.0, size_px := 84.0) -> void:
 	offset_bottom = top + size_px
 
 
+## Sol üst köşeye
+func place_top_left(margin := 24.0, top := 36.0, size_px := 84.0) -> void:
+	anchor_left = 0.0
+	anchor_right = 0.0
+	anchor_top = 0.0
+	anchor_bottom = 0.0
+	offset_left = margin
+	offset_right = margin + size_px
+	offset_top = top
+	offset_bottom = top + size_px
+
+
 func _draw() -> void:
 	var s := size
 	var c := s * 0.5

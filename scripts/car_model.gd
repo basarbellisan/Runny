@@ -40,8 +40,9 @@ static var glb_models := {6: "res://models/cars/dragster.glb", 7: "res://models/
 	8: "res://models/cars/latte.glb", 9: "res://models/cars/falcon.glb",
 	10: "res://models/cars/gem.glb", 11: "res://models/cars/buggy.glb", 12: "res://models/cars/delta.glb"}
 
-## Garajdaki arabalar (sırayla). Kutu, Konsept, Roadster ve Buggy garajdan çıktı (kodları duruyor).
-const GARAGE := [2, 6, 7, 8, 9, 10, 12]
+## Garajdaki arabalar (sırayla): önce açık temel arabalar (ağır, orta, hafif), sonra kilitli özel
+## arabalar (Progress). Kutu, Konsept, Roadster ve Buggy garajdan çıktı (kodları duruyor).
+const GARAGE := [2, 8, 7, 6, 10, 9, 12]
 ## Arabaların özellikleri, 1-5 (3 = standart): [hız, tutuş, çakıl, denge]
 ## (garajda SPEED, STEERING, OFF-ROAD, STABILITY).
 ## Hız: başlangıç/en yüksek/tavan hız -%8..+%8. Tutuş: direksiyon tepkisi -%20..+%20,
@@ -59,6 +60,48 @@ const STATS := {
 	11: [3, 4, 4, 2],  # Buggy: standart hız, iyi direksiyon ve çakıl; yüksek kanadıyla kenarda kolay devrilir
 	12: [4, 3, 3, 3],  # Delta: hızlı, geri kalanı standart (şimdilik)
 }
+
+
+## Yeni sistem: arabanın doğası ve parçaları. [ağırlık 0 (hafif) .. 1 (ağır), tutuş, depo, uçuş];
+## tutuş (tekerlek), depo ve uçuş (kanat) 1-10 ölçeğinde başlangıç değeri, parça her geliştirildiğinde
+## 1 artar (Progress, en çok 5). Hız (STATS[0]) arabanın doğası: değişmez.
+## Ağırlık: ağır araba hava engelinde az sallanır ve zor devrilir, ama roket ve uçuş daha çok enerji
+## yakar ve daha zor döner; hafif araba tersi.
+const SPEC := {
+	2: [1.0, 5, 6, 2],   # Gezgin: ağır, büyük depo, uçuşu zayıf
+	8: [0.5, 4, 4, 4],   # Latte: orta, her şey standart
+	7: [0.0, 5, 2, 5],   # Dark Rose: hafif, küçük depo, iyi uçar, kolay devrilir
+	6: [0.85, 3, 5, 3],  # Dragster: ağır ve hızlı
+	10: [0.45, 5, 4, 4], # GEM: orta, iyi tutuş
+	9: [0.2, 4, 3, 6],   # Falcon: hafif, en hızlı, iyi uçar
+	12: [0.15, 3, 3, 7], # Delta: hafif, uçuşu en iyi
+}
+const PART_INDEX := {"grip": 1, "tank": 2, "flight": 3}
+
+
+## Ağırlık 0 (hafif) .. 1 (ağır)
+static func weight_of(v: int) -> float:
+	return float(SPEC.get(v, [0.5, 4, 4, 4])[0])
+
+
+static func weight_label(v: int) -> String:
+	var w := weight_of(v)
+	return "HEAVY" if w >= 0.7 else ("LIGHT" if w <= 0.3 else "MEDIUM")
+
+
+## Parçanın başlangıç değeri (1-10)
+static func part_base(v: int, part: String) -> int:
+	return int(SPEC.get(v, [0.5, 4, 4, 4])[PART_INDEX[part]])
+
+
+## Parçanın şimdiki değeri: başlangıç + alınan geliştirmeler
+static func part_value(v: int, part: String) -> int:
+	return part_base(v, part) + Progress.level(v, part)
+
+
+## Hız 10'luk ölçekte (garajdaki çubuk)
+static func speed_bar(v: int) -> int:
+	return int(STATS.get(v, [3, 3, 3, 3])[0]) * 2
 
 
 ## Arabanın özelliği: -1 (1) .. 0 (3) .. +1 (5); i: 0 hız, 1 tutuş, 2 çakıl, 3 denge

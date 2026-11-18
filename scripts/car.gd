@@ -265,6 +265,14 @@ var _k_after := 1.0
 ## Tümsek sarsıntısı katı (OFF-ROAD): fırlama yüksekliği aynı (yol üretici ona göre hesaplar)
 var _k_bump := 1.0
 var _tip_deg := 50.0
+## Yeni sistem katları (_refresh_stats): hava engelinin gücü ve üstündeki tutuş, roket ve uçuş enerjisi,
+## uçuş manevrası, kanat yedeği
+var k_air := 1.0
+var k_air_grip := 1.0
+var k_boost_cost := 1.0
+var k_fly_cost := 1.0
+var k_fly_steer := 1.0
+var k_reserve := 1.0
 ## Uzun yolda son hıza eklenen (m/s, standart araba; oyun mesafeyle çok yavaş artırır)
 var extra_top := 0.0
 ## Hız katı: bu araba standart arabadan ne kadar hızlı
@@ -1159,7 +1167,7 @@ func _drive(delta: float) -> void:
 			on_gravel = roads != null and roads.gravel_at(global_position)
 		if air_flow:
 			if on_gravel:
-				control *= AIR_GRIP * AirDifficulty.k("grip")
+				control *= AIR_GRIP * AirDifficulty.k("grip") * k_air_grip
 		elif on_gravel:
 			control *= gravel_grip
 			# Taşlar arabayı sağa sola savurur (her ~0.25 sn yön değişir), gövdeyi sarsar
@@ -1336,7 +1344,7 @@ func _flying(delta: float) -> void:
 	velocity.y = move_toward(velocity.y, clampf(dy * 2.0, -dive_speed, climb_speed), 40.0 * delta)
 	var forward := speed * dive_forward_scale if diving else speed
 	velocity.z = move_toward(velocity.z, -forward, 20.0 * delta)
-	velocity.x = move_toward(velocity.x, _steer * flight_steer_speed, flight_steer_accel * delta)
+	velocity.x = move_toward(velocity.x, _steer * flight_steer_speed, flight_steer_accel * k_fly_steer * delta)
 	var vy_before := velocity.y
 	move_and_slide()
 	_keep_out_of_walls()
@@ -1562,7 +1570,7 @@ func _update_boost(delta: float) -> void:
 	if mode == Mode.DRIVE:
 		if burning:
 			fuel = maxf(fuel - delta / boost_burn_time, 0.0)
-			energy = maxf(energy - boost_energy_rate * delta, 0.0)
+			energy = maxf(energy - boost_energy_rate * k_boost_cost * delta, 0.0)
 		elif not boosting:
 			fuel = minf(fuel + delta / boost_recharge_time, 1.0)
 		if boosting and energy <= 0.0 and not on_ramp and not _empty_signaled:
@@ -1692,12 +1700,13 @@ func _air_lift(delta: float) -> void:
 		if _air_exit > 0.0:
 			_air_exit -= delta
 			var k := clampf(_air_exit / AIR_WOBBLE_TIME, 0.0, 1.0)
-			velocity.x += sin(_air_exit * AIR_WOBBLE_HZ * TAU) * AIR_SWAY * AirDifficulty.k("wobble") * k * delta
+			velocity.x += sin(_air_exit * AIR_WOBBLE_HZ * TAU) * AIR_SWAY * AirDifficulty.k("wobble") * _k_after * k * delta
 		return
 	_air_exit = AIR_WOBBLE_TIME
 	# Oyun ilerledikçe hava güçlenir (AirDifficulty)
-	var gain := _gravel_gain() * AirDifficulty.k("power")
-	var power := AirDifficulty.k("power")
+	# Ağır araba az kalkar ve az savrulur (k_air); savrulmayı tekerlek de azaltır (_k_shove)
+	var gain := _gravel_gain() * AirDifficulty.k("power") * _k_shove
+	var power := AirDifficulty.k("power") * k_air
 	# Teker sırası: 0 ön sol, 1 ön sağ, 2 arka sol, 3 arka sağ
 	var total := lift[0] + lift[1] + lift[2] + lift[3]
 	# Gövdeyi kaldıran kuvvet: bir yanın havası da arabayı yerden koparır (hızla giderken kalkan yan
@@ -1988,19 +1997,41 @@ func _update_attitude(delta: float) -> void:
 		pitch = clampf(pitch, -AIR_TILT_MAX, AIR_TILT_MAX)
 
 
-## Arabanın özellikleri (CarModel.STATS): hız, tutuş, çakıl, denge katları
+## Arabanın özellikleri: hız (CarModel.STATS), ağırlık ve parçalar (CarModel.SPEC, Progress)
+func refresh_stats() -> void:
+	_stats_variant = -1
+	_refresh_stats()
+
+
 func _refresh_stats() -> void:
 	if model == null or model.variant == _stats_variant:
 		return
 	var v := model.variant
 	_stats_variant = v
 	_k_speed = CarModel.speed_mul_of(v)
-	_k_steer = 1.0 + 0.2 * CarModel.stat(v, 1)
-	_k_grip = 1.0 - 0.4 * CarModel.stat(v, 1)
-	_k_shove = 1.0 - 0.4 * CarModel.stat(v, 2)
-	_k_after = 1.0 - 0.3 * CarModel.stat(v, 2)
-	_k_bump = 1.0 - 0.4 * CarModel.stat(v, 2)
-	_tip_deg = 50.0 + 10.0 * CarModel.stat(v, 3)
+	# Yeni sistem (CarModel.SPEC): ağırlık arabanın doğası; tutuş, depo ve uçuş parçalardan (1-10)
+	var hk := CarModel.weight_of(v) - 0.5          # -0.5 hafif .. +0.5 ağır
+	var g := float(CarModel.part_value(v, "grip"))
+	var t := float(CarModel.part_value(v, "tank"))
+	var f := float(CarModel.part_value(v, "flight"))
+	# Direksiyon: ağır daha zor döner; tekerlek tutuşu artırır
+	_k_steer = (1.0 - 0.3 * hk) * (0.8 + 0.04 * g)
+	_k_grip = 1.4 - 0.08 * g
+	k_air_grip = 0.6 + 0.08 * g
+	# Hava engeli: ağır az kalkar ve az savrulur; iyi tekerlek savrulmayı da azaltır
+	k_air = 1.0 - 0.6 * hk
+	_k_shove = (1.0 - 0.6 * hk) * (1.2 - 0.04 * g)
+	_k_after = 1.0 - 0.6 * hk
+	_k_bump = 1.0 - 0.6 * hk
+	# Devrilme: ağır 57°, hafif 43°
+	_tip_deg = 50.0 + 14.0 * hk
+	# Enerji: ağır roket ve uçuşta daha çok yakar; kanat uçuşu ucuzlatır, manevrayı ve yedeği artırır
+	k_boost_cost = 1.0 + 0.5 * hk
+	k_fly_cost = (1.0 + 0.45 * hk) * (1.25 - 0.05 * f)
+	k_fly_steer = (1.0 - 0.2 * hk) * (0.8 + 0.04 * f)
+	k_reserve = 0.6 + 0.08 * f
+	# Depo: 4'te 100 (eski standart), her kademe 12
+	max_energy = 100.0 + 12.0 * (t - 4.0)
 
 
 ## Çarpışma omurgası ince bir kapsül; görünen gövde ise yerdeki orta noktasının

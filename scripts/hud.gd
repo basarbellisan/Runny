@@ -162,11 +162,29 @@ func _build_game_over() -> void:
 	_over.visible = false
 
 
+## Para sistemi (Progress): oyun sonunda önce km, sonra depoda kalan kristal paraya dönüşür
+var coin_mode := true
+## Sayaçlar bitti mi (bitmeden dokunmak sayımı atlar)
+var tally_done := true
+var _pill: CoinPill
+var _rows: Array[Control] = []
+var _row_vals: Array[Label] = []
+var _earn_lbl: Label
+var _earn_icon: CoinIcon
+var _btns: Array[Button] = []
+var _tally_tw: Tween
+var _tally := {}
+var _last_tick := 0
+
+
 ## Tasarımı kurar (show_game_over çağırır; over_style seçildikten sonra)
 func _layout_game_over() -> void:
 	for ch in _over.get_children():
 		if ch != _over_bg:
 			ch.queue_free()
+	if coin_mode:
+		_layout_coins()
+		return
 	# Sağ üstte müzik aç / kapat (oyun sonu ekranında; beyaz)
 	var music := MusicButton.new()
 	music.color = Palette.SNOW
@@ -463,7 +481,225 @@ func popup(text: String, accent := false) -> void:
 	_popup_tween.tween_property(_popup, "modulate:a", 0.0, 0.3)
 
 
-func show_game_over(reason: String, score: int, best: int, meters := 0.0) -> void:
+## Para düzeni: sağ üstte toplam para, ortada iki sayaç (km, kristal) ve kazanılan para, altta düğmeler
+func _layout_coins() -> void:
+	var ink := Palette.INK_DARK
+	_over_bg.color = Color(Palette.PAPER, 0.88)
+	var music := MusicButton.new()
+	music.place_top_left()
+	_over.add_child(music)
+	_pill = CoinPill.new(0)
+	_pill.place_top_right()
+	_over.add_child(_pill)
+	_over_reason = _over_label(26, 200, true, Palette.ACCENT)
+	_over_score = _over_label(16, 246, true, Color(ink, 0.55))
+	_over_new = _badge("NEW BEST", 288)
+	_rows.clear()
+	_row_vals.clear()
+	for r in [["DISTANCE", "1 km = %d" % int(Progress.COIN_PER_KM), false, 330.0],
+			["CRYSTALS LEFT", "1     = %d" % int(Progress.COIN_PER_CRYSTAL), true, 480.0]]:
+		_tally_row(r[0], r[1], r[2], r[3])
+	var cap := _over_label(15, 668, true, Color(ink, 0.55))
+	cap.text = "EARNED"
+	var box := HBoxContainer.new()
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 26)
+	box.anchor_right = 1.0
+	box.offset_top = 690
+	box.offset_bottom = 810
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_over.add_child(box)
+	_earn_icon = CoinIcon.new("coin", 72)
+	_earn_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	box.add_child(_earn_icon)
+	_earn_lbl = Label.new()
+	_earn_lbl.add_theme_font_size_override("font_size", 96)
+	_earn_lbl.add_theme_color_override("font_color", ink)
+	_earn_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(_earn_lbl)
+	var before := _over.get_child_count()
+	_buttons(960, Color(0, 0, 0, 0))
+	_btns.clear()
+	for i in range(before, _over.get_child_count()):
+		_btns.append(_over.get_child(i) as Button)
+
+
+## Sayaç satırı: beyaz kart; solda başlık ve büyük değer, sağda dönüşüm oranı (jetonla)
+func _tally_row(caption: String, rate: String, gem: bool, y: float) -> void:
+	var ink := Palette.INK_DARK
+	var card := Panel.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(1, 1, 1, 0.8)
+	sb.set_corner_radius_all(16)
+	card.add_theme_stylebox_override("panel", sb)
+	card.anchor_left = 0.5
+	card.anchor_right = 0.5
+	card.offset_left = -310
+	card.offset_right = 310
+	card.offset_top = y
+	card.offset_bottom = y + 130
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_over.add_child(card)
+	var c := Label.new()
+	c.text = caption
+	c.add_theme_font_override("font", _spaced)
+	c.add_theme_font_size_override("font_size", 15)
+	c.add_theme_color_override("font_color", Color(ink, 0.55))
+	c.position = Vector2(26, 16)
+	card.add_child(c)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	row.position = Vector2(26, 40)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(row)
+	if gem:
+		var g := CoinIcon.new("gem", 40)
+		g.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(g)
+	var v := Label.new()
+	v.add_theme_font_size_override("font_size", 56)
+	v.add_theme_color_override("font_color", ink)
+	row.add_child(v)
+	var rr := HBoxContainer.new()
+	rr.add_theme_constant_override("separation", 7)
+	rr.anchor_left = 1.0
+	rr.anchor_right = 1.0
+	rr.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	rr.offset_right = -24
+	rr.offset_left = -24
+	rr.offset_top = 16
+	rr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(rr)
+	var rl := Label.new()
+	rl.text = rate
+	rl.add_theme_font_size_override("font_size", 16)
+	rl.add_theme_color_override("font_color", Color(ink, 0.55))
+	rr.add_child(rl)
+	if gem:
+		# "1 ◆ = 1": kristal simgesi oranın içinde
+		var gi := CoinIcon.new("gem", 16)
+		gi.position = Vector2(14, 4)
+		rl.add_child(gi)
+	var ci := CoinIcon.new("coin", 19)
+	ci.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	rr.add_child(ci)
+	_rows.append(card)
+	_row_vals.append(v)
+
+
+## Para sayımı: earned [km parası, kristal parası], crystals depoda kalan enerji, total_before önceki para
+func _start_tally(meters: float, crystals: float, earned: Array, total_before: int) -> void:
+	tally_done = false
+	_tally = {"m": meters, "c": crystals, "a": int(earned[0]), "b": int(earned[1]), "t0": total_before}
+	_pill.set_value(total_before, false)
+	_set_km(1.0)
+	_set_cr(1.0)
+	_set_earn(0.0)
+	_rows[1].modulate.a = 0.4
+	for b in _btns:
+		b.visible = false
+		b.modulate.a = 0.0
+	_tally_tw = create_tween().set_ignore_time_scale(true)
+	_tally_tw.tween_interval(0.9)
+	# 1. km sıfıra iner, para artar
+	_tally_tw.tween_method(func(k: float):
+		_set_km(1.0 - k)
+		_set_earn(_tally.a * k)
+		_tick(1.0 + 0.4 * k), 0.0, 1.0, 1.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_tally_tw.tween_interval(0.25)
+	# 2. kristal satırı öne çıkar, kristal sıfıra iner
+	_tally_tw.tween_property(_rows[0], "modulate:a", 0.4, 0.25)
+	_tally_tw.parallel().tween_property(_rows[1], "modulate:a", 1.0, 0.25)
+	_tally_tw.tween_method(func(k: float):
+		_set_cr(1.0 - k)
+		_set_earn(_tally.a + _tally.b * k)
+		_tick(1.5 + 0.3 * k), 0.0, 1.0, 1.0 if _tally.c >= 1.0 else 0.2)
+	_tally_tw.tween_interval(0.2)
+	# 3. kazanç jetonları sağ üstteki paraya uçar, para eklenir
+	_tally_tw.tween_callback(_fly_coins)
+	_tally_tw.tween_interval(0.75)
+	_tally_tw.tween_callback(func():
+		_pill.set_value(_tally.t0 + _tally.a + _tally.b, true, 0.6)
+		Audio.play("return", -6.0))
+	_tally_tw.tween_interval(0.7)
+	_tally_tw.tween_callback(_show_buttons)
+
+
+## Sayımı atla (dokununca): hepsi son haline gelir
+func skip_tally() -> void:
+	if tally_done:
+		return
+	if _tally_tw:
+		_tally_tw.kill()
+	_set_km(0.0)
+	_set_cr(0.0)
+	_set_earn(_tally.a + _tally.b)
+	_rows[0].modulate.a = 0.4
+	_rows[1].modulate.a = 0.4
+	_pill.set_value(_tally.t0 + _tally.a + _tally.b, true, 0.3)
+	_show_buttons()
+
+
+func _show_buttons() -> void:
+	tally_done = true
+	for b in _btns:
+		b.visible = true
+		create_tween().set_ignore_time_scale(true).tween_property(b, "modulate:a", 1.0, 0.35)
+
+
+func _set_km(k: float) -> void:
+	_row_vals[0].text = km_text(_tally.m * k)
+
+
+func _set_cr(k: float) -> void:
+	_row_vals[1].text = str(int(round(_tally.c * k)))
+
+
+func _set_earn(v: float) -> void:
+	_earn_lbl.text = CoinPill.fmt(int(round(v)))
+
+
+## Sayarken tıkırtı (sık değil)
+func _tick(pitch: float) -> void:
+	var now := Time.get_ticks_msec()
+	if now - _last_tick < 90:
+		return
+	_last_tick = now
+	Audio.play("multiplier", -20.0, pitch)
+
+
+## Kazanılan paranın jetonları sağ üstteki toplama uçar
+func _fly_coins() -> void:
+	var from := _earn_icon.global_position + _earn_icon.size * 0.5
+	var to := _pill.icon.global_position + _pill.icon.size * 0.5
+	for i in 8:
+		var c := CoinIcon.new("coin", 40)
+		c.position = from - c.size * 0.5
+		_over.add_child(c)
+		var t := create_tween().set_ignore_time_scale(true)
+		t.tween_interval(i * 0.06)
+		t.tween_property(c, "position", to - c.size * 0.5, 0.55).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		t.parallel().tween_property(c, "scale", Vector2.ONE * 0.8, 0.55)
+		t.tween_callback(c.queue_free)
+
+
+## Para düzeninde oyun sonu: earned [km parası, kristal parası]; crystals depoda kalan enerji
+func show_game_over(reason: String, score: int, best: int, meters := 0.0, earned := [], crystals := 0.0, total_before := 0) -> void:
+	if coin_mode and earned.size() == 2:
+		_layout_game_over()
+		for l: Label in [_score, _dist]:
+			l.visible = false
+		for c in _captions:
+			c.visible = false
+		_over_reason.text = reason.trim_suffix("!")
+		_over_score.text = "SCORE  %d      BEST  %d" % [score, best]
+		_over_new.visible = score >= best and score > 0
+		_over.visible = true
+		_over.modulate.a = 0.0
+		create_tween().set_ignore_time_scale(true).tween_property(_over, "modulate:a", 1.0, 0.4)
+		_start_tally(meters, crystals, earned, total_before)
+		return
+	coin_mode = false
 	_layout_game_over()
 	# Üstteki mesafe ve puan oyun sonu ekranında yok (ekranın kendi bilgileri var)
 	for l: Label in [_score, _dist]:
