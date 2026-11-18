@@ -70,7 +70,27 @@
 
   // ------------------------------------------------------------------ parçalar
   const tierOf = (h) => (h <= -2 ? 'low' : h >= 1.5 ? 'high' : 'mid');
-  const ROAD_COLOR = { low: '#3b3d42', mid: '#55585e', high: '#767a81' };
+  // Oyunun düz dünyası (scripts/flat_style.gd): yol üstü siyah, yan duvarlar ve çizgiler beyaz, yol
+  // üstündeki işaretler (rampa okları) beyaz, yol sonunda kırmızı, hava engeli mavi noktalar.
+  // Yükseklik kademeleri tasarımcıda siyahın tonlarıyla ayrılır (oyunda hepsi siyah)
+  const ROAD_COLOR = { low: '#0b0b0c', mid: '#161618', high: '#37373c' };
+  const COL = {
+    line: '#f7f6f2', red: '#ff2414', block: '#ffca4a', blockHot: '#ff6b00',
+    air: ['#1d4cc4', '#2f6ae0', '#4a8cf2', '#a8d0ff'],
+    grid: '#a9a897', grid50: '#9c9b8a', label: '#56564c',
+  };
+  // Hava noktaları: oyundaki ızgara (DOT_CELL 0.75 x 0.85 m), parlaklık sözde rastgele
+  const airDots = (x, y, w, h, cellX, cellY, rr) => {
+    const out = [];
+    const nx = Math.max(1, Math.floor(w / cellX)), ny = Math.max(1, Math.floor(h / cellY));
+    const sx = Math.max(1, Math.ceil(nx * ny / 900));
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i += sx) {
+      const k = ((i * 7 + j * 13 + ((i * j) % 5)) % 9);
+      const c = COL.air[k < 3 ? 0 : k < 6 ? 1 : k < 8 ? 2 : 3];
+      out.push(`<circle cx="${x + (i + 0.5) * w / nx}" cy="${y + (j + 0.5) * h / ny}" r="${rr}" fill="${c}"/>`);
+    }
+    return out.join('');
+  };
   const PALETTE = {
     roads: [
       { key: 'low', name: 'Alçak yol', make: () => ({ w: 8, len: 80, h0: -4, h1: -4 }) },
@@ -84,7 +104,7 @@
       { key: 'ramp', name: 'Rampa', make: () => ({ kind: 'ramp', w: 4, len: 8, rise: 1.6 }) },
       { key: 'kick', name: 'Eğik rampa', make: () => ({ kind: 'kick', w: 3, len: 7, rise: 1.4, dir: 1, dx: 8 }) },
       { key: 'bump', name: 'Tümsek', make: () => ({ kind: 'bump', w: 8, len: 12, rise: 1 }) },
-      { key: 'gravel', name: 'Çakıl', make: () => ({ kind: 'gravel', w: 3.5, len: 12 }) },
+      { key: 'gravel', name: 'Hava', make: () => ({ kind: 'gravel', w: 3.5, len: 12 }) },
       { key: 'block', name: 'Blok', make: () => ({ kind: 'block', w: 2, len: 1.2 }) },
       { key: 'deadend', name: 'Çıkmaz', make: () => ({ kind: 'deadend', w: 8, len: 1.2 }) },
       // Boşluk: yolun yakın kenarını kırpar (yolu parçalara böler); dar yolda boydan boya keser
@@ -96,25 +116,27 @@
     ],
   };
   const ICON = (() => {
-    const road = (c) => `<rect x="4" y="9" width="56" height="12" rx="1.5" fill="${c}"/><line x1="8" y1="15" x2="56" y2="15" stroke="#fff" stroke-width="1" stroke-dasharray="4 3" opacity=".7"/>`;
-    const base = `<rect x="4" y="9" width="56" height="12" fill="#55585e"/>`;
-    const gr = [...Array(14)].map((_, i) => `<circle cx="${20 + (i * 7) % 25}" cy="${11.5 + (i * 3) % 8}" r=".9" fill="#7d6f5a"/>`).join('');
+    const L = COL.line, M = ROAD_COLOR.mid;
+    const edges = (y0, y1) => `<line x1="5" y1="${y0}" x2="59" y2="${y0}" stroke="${L}" stroke-width=".8"/><line x1="5" y1="${y1}" x2="59" y2="${y1}" stroke="${L}" stroke-width=".8"/>`;
+    const road = (c) => `<rect x="4" y="9" width="56" height="12" rx="1" fill="${c}"/>` + edges(10.5, 19.5) + `<line x1="8" y1="15" x2="56" y2="15" stroke="${L}" stroke-width=".8" stroke-dasharray="4 3"/>`;
+    const base = `<rect x="4" y="9" width="56" height="12" fill="${M}"/>` + edges(10.5, 19.5);
+    const chev = (x) => `<path d="M${x} 18 l4 -5 l4 5" stroke="${L}" fill="none" stroke-width="1.5"/>`;
     return {
-      low: road('#3b3d42'), mid: road('#55585e'), high: road('#767a81'),
-      slope: `<polygon points="4,21 60,21 60,9 4,17" fill="#55585e"/><path d="M26 18 l6 -5 l6 5" stroke="#ff5a1f" fill="none" stroke-width="1.4"/>`,
-      bank: `<polygon points="4,12 60,9 60,21 4,18" fill="#55585e"/><line x1="4" y1="12" x2="60" y2="9" stroke="#fff" stroke-width="1.2"/>`,
-      narrow: `<rect x="4" y="12" width="56" height="6" rx="1" fill="#55585e"/>`,
-      ramp: base + `<rect x="22" y="10" width="20" height="10" fill="#f4d9a8"/><path d="M28 18 l4 -6 l4 6" stroke="#ff5a1f" fill="none" stroke-width="1.6"/>`,
-      kick: base + `<rect x="22" y="10" width="20" height="10" fill="#f4d9a8"/><path d="M27 18 l9 -6 m0 0 l-5 0 m5 0 l0 4" stroke="#ff5a1f" fill="none" stroke-width="1.6"/>`,
-      bump: base + `<rect x="34" y="10" width="16" height="10" fill="#e9e3d6"/><line x1="42" y1="10" x2="42" y2="20" stroke="#c9c5bd"/>`,
-      gravel: base + `<rect x="18" y="10" width="28" height="10" fill="#b9a98f"/>` + gr,
-      block: base + `<rect x="28" y="11" width="8" height="8" fill="#232529"/><rect x="28" y="11" width="8" height="2" fill="#ff5a1f"/>`,
-      cut: `<rect x="4" y="9" width="18" height="12" fill="#55585e"/><rect x="22" y="9" width="20" height="6" fill="#55585e"/><rect x="42" y="9" width="18" height="12" fill="#55585e"/><rect x="22" y="15" width="20" height="6" fill="none" stroke="#ff5a1f" stroke-width="1" stroke-dasharray="2 2"/>`,
-      deadend: `<rect x="4" y="9" width="40" height="12" fill="#55585e"/><rect x="44" y="9" width="4" height="12" fill="#232529"/><rect x="44" y="9" width="4" height="3" fill="#ff5a1f"/>`,
-      stairs: `<rect x="4" y="8" width="18" height="6" fill="#767a81"/><rect x="23" y="13" width="18" height="6" fill="#55585e"/><rect x="42" y="18" width="18" height="6" fill="#3b3d42"/>`,
-      islands: [6, 20, 34, 48].map((x, i) => `<rect x="${x}" y="${10 + (i % 2) * 4}" width="10" height="7" fill="#55585e"/>`).join(''),
-      slalom: base + [12, 26, 40, 54].map((x, i) => `<rect x="${x - 4}" y="${i % 2 ? 15 : 10}" width="7" height="5" fill="#f4d9a8"/>`).join(''),
-      fork: `<rect x="4" y="12" width="22" height="7" fill="#55585e"/><polygon points="26,12 60,5 60,11 26,17" fill="#767a81"/><polygon points="26,14 60,19 60,25 26,19" fill="#3b3d42"/>`,
+      low: road(ROAD_COLOR.low), mid: road(M), high: road(ROAD_COLOR.high),
+      slope: `<polygon points="4,21 60,21 60,9 4,17" fill="${M}"/><path d="M26 18 l6 -5 l6 5" stroke="${L}" fill="none" stroke-width="1.4"/>`,
+      bank: `<polygon points="4,12 60,9 60,21 4,18" fill="${M}"/><line x1="4" y1="12.6" x2="60" y2="9.6" stroke="${COL.red}" stroke-width="1.4" stroke-dasharray="3 3"/>`,
+      narrow: `<rect x="4" y="12" width="56" height="6" rx="1" fill="${M}"/><line x1="5" y1="12.8" x2="59" y2="12.8" stroke="${L}" stroke-width=".7"/><line x1="5" y1="17.2" x2="59" y2="17.2" stroke="${L}" stroke-width=".7"/>`,
+      ramp: base + `<rect x="22" y="10" width="20" height="10" fill="${ROAD_COLOR.low}" stroke="${L}" stroke-width=".8"/>` + chev(28),
+      kick: base + `<rect x="22" y="10" width="20" height="10" fill="${ROAD_COLOR.low}" stroke="${L}" stroke-width=".8"/><path d="M27 18 l9 -6 m0 0 l-5 0 m5 0 l0 4" stroke="${L}" fill="none" stroke-width="1.5"/>`,
+      bump: base + `<rect x="34" y="10" width="16" height="10" fill="${ROAD_COLOR.low}"/><line x1="38" y1="10" x2="38" y2="20" stroke="${L}" stroke-width="1"/><line x1="46" y1="10" x2="46" y2="20" stroke="${L}" stroke-width="1"/>`,
+      gravel: base + `<rect x="18" y="10" width="28" height="10" fill="${ROAD_COLOR.low}"/>` + airDots(18, 10, 28, 10, 3.5, 3.3, 1.1),
+      block: base + `<rect x="28" y="11" width="8" height="8" fill="${COL.block}"/><rect x="28" y="11" width="8" height="2" fill="${COL.blockHot}"/>`,
+      cut: `<rect x="4" y="9" width="18" height="12" fill="${M}"/><rect x="22" y="9" width="20" height="6" fill="${M}"/><rect x="42" y="9" width="18" height="12" fill="${M}"/><rect x="22" y="15" width="20" height="6" fill="none" stroke="${L}" stroke-width="1" stroke-dasharray="2 2"/>`,
+      deadend: `<rect x="4" y="9" width="40" height="12" fill="${M}"/><rect x="44" y="9" width="4" height="12" fill="${L}"/><rect x="44" y="9" width="4" height="3" fill="${COL.red}"/>`,
+      stairs: `<rect x="4" y="8" width="18" height="6" fill="${ROAD_COLOR.high}"/><rect x="23" y="13" width="18" height="6" fill="${M}"/><rect x="42" y="18" width="18" height="6" fill="${ROAD_COLOR.low}"/>`,
+      islands: [6, 20, 34, 48].map((x, i) => `<rect x="${x}" y="${10 + (i % 2) * 4}" width="10" height="7" fill="${M}"/>`).join(''),
+      slalom: base + [12, 26, 40, 54].map((x, i) => `<rect x="${x - 4}" y="${i % 2 ? 15 : 10}" width="7" height="5" fill="${ROAD_COLOR.low}" stroke="${L}" stroke-width=".7"/>`).join(''),
+      fork: `<rect x="4" y="12" width="22" height="7" fill="${M}"/><polygon points="26,12 60,5 60,11 26,17" fill="${ROAD_COLOR.high}"/><polygon points="26,14 60,19 60,25 26,19" fill="${ROAD_COLOR.low}"/>`,
     };
   })();
 
@@ -188,12 +210,12 @@
     const step = view.sz < 1 ? 50 : 10;
     for (let z = Math.floor(zBot / step) * step; z <= zTop; z += step) {
       const y = pz(z);
-      s.push(`<line x1="52" y1="${y}" x2="${W}" y2="${y}" stroke="${z % 50 ? '#ebe8e1' : '#dcd8d0'}"/>`);
-      if (z % (view.sz < 1 ? 100 : 50) === 0) s.push(`<text x="10" y="${y + 4}" font-size="11" fill="#7c8087">${z} m</text>`);
+      s.push(`<line x1="52" y1="${y}" x2="${W}" y2="${y}" stroke="${z % 50 ? COL.grid : COL.grid50}"/>`);
+      if (z % (view.sz < 1 ? 100 : 50) === 0) s.push(`<text x="10" y="${y + 4}" font-size="11" fill="${COL.label}">${z} m</text>`);
     }
     for (let x = Math.floor(toWorld(52, 0).x / 10) * 10; x <= toWorld(W, 0).x; x += 10)
-      s.push(`<line x1="${px(x)}" y1="0" x2="${px(x)}" y2="${H}" stroke="#ebe8e1"/>`);
-    if (level.pieces.length) s.push(`<text x="${px(level.pieces[0].x) - 18}" y="${pz(Math.min(...level.pieces.map((p) => p.z0))) + 18}" font-size="10.5" fill="#7c8087">giriş</text>`);
+      s.push(`<line x1="${px(x)}" y1="0" x2="${px(x)}" y2="${H}" stroke="${COL.grid}"/>`);
+    if (level.pieces.length) s.push(`<text x="${px(level.pieces[0].x) - 18}" y="${pz(Math.min(...level.pieces.map((p) => p.z0))) + 18}" font-size="10.5" fill="${COL.label}">giriş</text>`);
 
     const zones = analysis ? analysis.zones : [];
     // Yollar (alçaktan yükseğe: yüksek yol üstte görünsün)
@@ -204,7 +226,7 @@
       if (J.bad) continue;
       const B = J.B;
       const z0 = Math.max(J.landNear, B.z0), z1 = Math.min(J.landFar, P.pEnd(B));
-      if (z1 > z0) s.push(`<rect x="${px(B.x - B.w / 2)}" y="${pz(z1)}" width="${B.w * view.sx}" height="${(z1 - z0) * view.sz}" fill="rgba(58,166,91,.32)" pointer-events="none"/>`);
+      if (z1 > z0) s.push(`<rect x="${px(B.x - B.w / 2)}" y="${pz(z1)}" width="${B.w * view.sx}" height="${(z1 - z0) * view.sz}" fill="rgba(110,214,128,.30)" pointer-events="none"/>`);
     }
     // Pist ışıkları (yolun sonunda gaz bölgesi)
     for (const zn of zones) {
@@ -212,7 +234,7 @@
       const p = findPiece(zn.id);
       if (!p) continue;
       for (let z = zn.z1 - 0.8, k = 0; z > zn.z0 && k < 40; k++) {
-        for (const sx of [-1, 1]) s.push(`<circle cx="${px(p.x + sx * (p.w / 2 - 0.4))}" cy="${pz(z)}" r="${Math.max(1.4, view.sx * 0.12)}" fill="#e23c30" opacity=".75" pointer-events="none"/>`);
+        for (const sx of [-1, 1]) s.push(`<circle cx="${px(p.x + sx * (p.w / 2 - 0.4))}" cy="${pz(z)}" r="${Math.max(1.4, view.sx * 0.12)}" fill="${COL.red}" opacity=".9" pointer-events="none"/>`);
         z -= 1 + 4 * ((zn.z1 - z) / Math.max(zn.z1 - zn.z0, 1));
       }
     }
@@ -251,7 +273,7 @@
     if (guide) s.push(`<line x1="0" y1="${pz(guide.z)}" x2="${W}" y2="${pz(guide.z)}" stroke="#ff5a1f" stroke-dasharray="6 5" pointer-events="none"/><text x="${W - 230}" y="${pz(guide.z) - 6}" font-size="11" font-weight="600" fill="#ff5a1f">${esc(guide.text)}</text>`);
     if (ghostItem) s.push(ghostSVG(ghostItem));
     // Yön oku
-    s.push(`<g transform="translate(${W - 36},34)" pointer-events="none"><path d="M0 16 L0 -12 M-6 -5 L0 -12 L6 -5" stroke="#7c8087" stroke-width="2" fill="none"/><text x="0" y="30" text-anchor="middle" font-size="10" fill="#7c8087">ileri</text></g>`);
+    s.push(`<g transform="translate(${W - 36},34)" pointer-events="none"><path d="M0 16 L0 -12 M-6 -5 L0 -12 L6 -5" stroke="${COL.label}" stroke-width="2" fill="none"/><text x="0" y="30" text-anchor="middle" font-size="10" fill="${COL.label}">ileri</text></g>`);
     svgTop.innerHTML = s.join('');
   }
 
@@ -264,10 +286,20 @@
     if (c0 !== c1) out.push(`<defs><linearGradient id="${id}" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="${c0}"/><stop offset="1" stop-color="${c1}"/></linearGradient></defs>`);
     const fill = c0 !== c1 ? `url(#${id})` : c0;
     out.push(`<g data-type="piece" data-id="${p.id}" style="cursor:move" opacity="${ghost ? 0.55 : 1}">`);
-    out.push(`<rect x="${x + 3}" y="${y + 4}" width="${w}" height="${h}" fill="rgba(0,0,0,.10)" rx="2"/>`);
-    out.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" rx="2"/>`);
-    if (w > 10) for (const ex of [x + 3, x + w - 3])
-      out.push(`<line x1="${ex}" y1="${y + 2}" x2="${ex}" y2="${y + h - 2}" stroke="#fff" stroke-width="1.3" stroke-dasharray="7 5" opacity=".85"/>`);
+    // Gölge ve beyaz yan duvar (oyunda yolun yanları beyaz); üstü siyah, kenarlarda düz, arada kesik beyaz çizgiler
+    out.push(`<rect x="${x + 3}" y="${y + 4}" width="${w}" height="${h}" fill="rgba(0,0,0,.16)" rx="1"/>`);
+    out.push(`<rect x="${x - 1}" y="${y - 1}" width="${w + 2}" height="${h + 2}" fill="${COL.line}" rx="1.5"/>`);
+    out.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" rx="1"/>`);
+    if (w > 10) {
+      const ins = Math.min(Math.max(0.35 * view.sx, 2), w * 0.12);
+      for (const ex of [x + ins, x + w - ins])
+        out.push(`<line x1="${ex}" y1="${y + 1}" x2="${ex}" y2="${y + h - 1}" stroke="${COL.line}" stroke-width="1.2"/>`);
+      const lanes = Math.max(1, Math.round(p.w / 3));
+      if (w > 24) for (let k = 1; k < lanes; k++) {
+        const lx = x + ins + (w - 2 * ins) * k / lanes;
+        out.push(`<line x1="${lx}" y1="${y + 2}" x2="${lx}" y2="${y + h - 2}" stroke="${COL.line}" stroke-width="1" stroke-dasharray="${Math.max(4, 3 * view.sz)} ${Math.max(5, 4 * view.sz)}"/>`);
+      }
+    }
     if (p.bank) {
       // Yatık yol (oyundaki gibi): boydan boya yatık, başta ve uçta kısa geçiş. Alçak kenarda
       // kırmızı-beyaz bordür; yüzeyde alçak kenara doğru koyulaşan gölge. bank > 0: sağ kenar yukarı
@@ -282,14 +314,14 @@
       const step = Math.max(1.6, 5 / view.sz);
       for (let z = zA, k = 0; z < zB; z += step, k++) {
         const z1 = Math.min(z + step, zB);
-        out.push(`<rect x="${kx}" y="${pz(z1)}" width="${kw}" height="${(z1 - z) * view.sz}" fill="${k % 2 ? '#fff' : '#e23c30'}" pointer-events="none"/>`);
+        out.push(`<rect x="${kx}" y="${pz(z1)}" width="${kw}" height="${(z1 - z) * view.sz}" fill="${k % 2 ? COL.line : COL.red}" pointer-events="none"/>`);
       }
     }
     if (Math.abs(h1 - h0) > 0.05) {
       const cx = x + w / 2, dir = h1 > h0 ? -1 : 1;
       for (let k = 0; k < 3; k++) {
         const cy = y + h * (0.3 + k * 0.2);
-        out.push(`<path d="M${cx - 6} ${cy - dir * 4} l6 ${dir * 6} l6 ${-dir * 6}" stroke="#ff5a1f" stroke-width="2" fill="none" transform="rotate(180 ${cx} ${cy})"/>`);
+        out.push(`<path d="M${cx - 6} ${cy - dir * 4} l6 ${dir * 6} l6 ${-dir * 6}" stroke="${COL.line}" stroke-width="2" fill="none" transform="rotate(180 ${cx} ${cy})"/>`);
       }
     }
     // Yükseklik etiketi
@@ -305,20 +337,30 @@
     const x = px(o.x - o.w / 2), y = pz(o.z0 + o.len), w = Math.max(o.w * view.sx, 4), h = Math.max(o.len * view.sz, 3);
     const out = [`<g data-type="obstacle" data-id="${o.id}" style="cursor:move" opacity="${ghost ? 0.6 : 1}">`];
     if (o.kind === 'ramp' || o.kind === 'kick') {
-      out.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#f4d9a8"/>`);
+      // Rampa: üstü yol gibi siyah, kenarı ve okları beyaz (oyundaki işaretler gibi)
+      out.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${ROAD_COLOR.low}" stroke="${COL.line}" stroke-width="1.4"/>`);
       const cx = x + w / 2, cy = y + h / 2;
-      if (o.kind === 'ramp') out.push(`<path d="M${cx - 6} ${cy + 4} l6 -8 l6 8" stroke="#ff5a1f" stroke-width="2" fill="none"/>`);
-      else { const d = Math.sign(o.dir || 1); out.push(`<path d="M${cx - d * 8} ${cy + 5} l${d * 15} -9 m0 0 l${-d * 7} 0 m${d * 7} 0 l0 6" stroke="#ff5a1f" stroke-width="2" fill="none"/>`); }
+      if (o.kind === 'ramp') {
+        const n = clamp(Math.floor(h / 9), 1, 4);
+        for (let k = 0; k < n; k++) {
+          const yy = y + h * (k + 0.5) / n + 3;
+          out.push(`<path d="M${cx - Math.min(6, w * 0.35)} ${yy} l${Math.min(6, w * 0.35)} -6 l${Math.min(6, w * 0.35)} 6" stroke="${COL.line}" stroke-width="2" fill="none"/>`);
+        }
+      } else { const d = Math.sign(o.dir || 1); out.push(`<path d="M${cx - d * 8} ${cy + 5} l${d * 15} -9 m0 0 l${-d * 7} 0 m${d * 7} 0 l0 6" stroke="${COL.line}" stroke-width="2" fill="none"/>`); }
     } else if (o.kind === 'gravel') {
-      out.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#b9a98f"/>`);
-      const n = Math.min(Math.floor(w * h / 40), 60);
-      for (let i = 0; i < n; i++) out.push(`<circle cx="${x + 2 + (i * 11.3) % Math.max(w - 4, 1)}" cy="${y + 2 + (i * 7.7) % Math.max(h - 4, 1)}" r="1.1" fill="#7d6f5a"/>`);
+      // Hava: siyah zeminde mavi noktalar (en zayıf koyu mavi, en güçlü açık mavi)
+      out.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${ROAD_COLOR.low}"/>`);
+      // (tuvalde enine ve boyuna ölçek farklı: noktalar ekranda eşit aralıklı, yuvarlak)
+      const cell = clamp(0.8 * Math.min(view.sx, Math.max(view.sz, 6)), 5, 12);
+      out.push(airDots(x, y, w, h, cell, cell, cell * 0.32));
     } else if (o.kind === 'block') {
-      out.push(`<rect x="${x}" y="${y - 3}" width="${w}" height="${h + 6}" fill="#232529"/><rect x="${x}" y="${y - 3}" width="${w}" height="3" fill="#ff5a1f"/>`);
+      // Blok: sarı ışık bariyeri
+      out.push(`<rect x="${x}" y="${y - 3}" width="${w}" height="${h + 6}" fill="${COL.block}"/><rect x="${x}" y="${y - 3}" width="${w}" height="3" fill="${COL.blockHot}"/>`);
     } else if (o.kind === 'bump') {
-      out.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#e9e3d6" opacity=".95"/><line x1="${x}" y1="${y + h / 2}" x2="${x + w}" y2="${y + h / 2}" stroke="#c9c5bd" stroke-width="2"/>`);
+      out.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${ROAD_COLOR.low}"/>`);
+      for (const f of [0.3, 0.7]) out.push(`<line x1="${x}" y1="${y + h * f}" x2="${x + w}" y2="${y + h * f}" stroke="${COL.line}" stroke-width="2"/>`);
     } else if (o.kind === 'deadend') {
-      out.push(`<rect x="${x}" y="${y - 3}" width="${w}" height="${h + 6}" fill="#232529"/><rect x="${x}" y="${y - 3}" width="${w}" height="3" fill="#ff5a1f"/><text x="${x + w + 6}" y="${y + 8}" font-size="10" font-weight="700" fill="#232529">çıkmaz</text>`);
+      out.push(`<rect x="${x}" y="${y - 3}" width="${w}" height="${h + 6}" fill="${COL.line}"/><rect x="${x}" y="${y - 3}" width="${w}" height="3" fill="${COL.red}"/><text x="${x + w + 6}" y="${y + 8}" font-size="10" font-weight="700" fill="#232529">çıkmaz</text>`);
     }
     out.push('</g>');
     return out.join('');
@@ -373,9 +415,9 @@
       const host = P.hostOf(level, o);
       if (!host) continue;
       const hh = P.hAt(host, o.z0);
-      if (o.kind === 'ramp' || o.kind === 'kick') s.push(`<polygon points="${qx(o.z0)},${qy(hh)} ${qx(o.z0 + o.len)},${qy(hh)} ${qx(o.z0 + o.len)},${qy(hh + o.rise)}" fill="#f4d9a8" stroke="#e0b878"/>`);
-      if (o.kind === 'bump') s.push(`<polygon points="${qx(o.z0)},${qy(hh)} ${qx(o.z0 + o.len / 2)},${qy(hh + o.rise)} ${qx(o.z0 + o.len)},${qy(hh)}" fill="#e9e3d6" stroke="#c9c5bd"/>`);
-      if (o.kind === 'block' || o.kind === 'deadend') s.push(`<rect x="${qx(o.z0) - 2}" y="${qy(hh + 0.9)}" width="4" height="${0.9 * sy}" fill="#232529"/>`);
+      if (o.kind === 'ramp' || o.kind === 'kick') s.push(`<polygon points="${qx(o.z0)},${qy(hh)} ${qx(o.z0 + o.len)},${qy(hh)} ${qx(o.z0 + o.len)},${qy(hh + o.rise)}" fill="${ROAD_COLOR.low}" stroke="${COL.line}"/>`);
+      if (o.kind === 'bump') s.push(`<polygon points="${qx(o.z0)},${qy(hh)} ${qx(o.z0 + o.len / 2)},${qy(hh + o.rise)} ${qx(o.z0 + o.len)},${qy(hh)}" fill="${ROAD_COLOR.low}" stroke="${COL.line}"/>`);
+      if (o.kind === 'block' || o.kind === 'deadend') s.push(`<rect x="${qx(o.z0) - 2}" y="${qy(hh + 0.9)}" width="4" height="${0.9 * sy}" fill="${o.kind === 'block' ? COL.block : '#8a8a80'}"/>`);
     }
     // Atlama yayları: gazsız (gri) ve roketle (yeşil/kırmızı)
     for (const J of analysis ? analysis.jumps : []) {
@@ -443,7 +485,7 @@
       out.push(`<div class="lights ${li.lit ? 'on' : ''}"><b>${li.lit ? 'Pist ışıkları var' : 'Işık yok'}:</b> ${esc(li.text)}</div>`);
     } else {
       const host = P.hostOf(level, it);
-      out.push(`<div class="sel"><div class="dot" style="background:${it.kind === 'gravel' ? '#b9a98f' : it.kind === 'block' || it.kind === 'deadend' ? '#232529' : '#f4d9a8'}"></div>${P.KIND_NAMES[it.kind]} #${it.id}<button class="dup" data-act="dup" title="Aynı boyda kopyası ardına (Ctrl+D)">Çoğalt</button><button class="del" data-act="delete">Sil</button></div>`);
+      out.push(`<div class="sel"><div class="dot" style="background:${it.kind === 'gravel' ? COL.air[2] : it.kind === 'block' ? COL.block : it.kind === 'deadend' ? COL.red : ROAD_COLOR.low}"></div>${P.KIND_NAMES[it.kind]} #${it.id}<button class="dup" data-act="dup" title="Aynı boyda kopyası ardına (Ctrl+D)">Çoğalt</button><button class="del" data-act="delete">Sil</button></div>`);
       if (it.kind !== 'deadend') {
         if (it.kind !== 'block') out.push(numRow('Uzunluk', 'len', it.len, 'm', 0.5, 1));
         if (it.kind !== 'bump') out.push(numRow('Genişlik', 'w', it.w, 'm', 0.5, 0.8));
@@ -943,7 +985,7 @@
       out.push(`<rect x="${X(p.x - p.w / 2)}" y="${Y(P.pEnd(p))}" width="${p.w * sx}" height="${p.len * sz}" fill="${ROAD_COLOR[t]}" rx="1"${hi(p.id, 1.6)}/>`);
     }
     for (const o of l.obstacles) {
-      const c = o.kind === 'gravel' ? '#b9a98f' : o.kind === 'block' || o.kind === 'deadend' ? '#e23b3b' : '#f4d9a8';
+      const c = o.kind === 'gravel' ? COL.air[2] : o.kind === 'block' ? COL.block : o.kind === 'deadend' ? COL.red : COL.line;
       const len = Math.max(o.len || 1, 3 / sz);
       out.push(`<rect x="${X(o.x - o.w / 2)}" y="${Y(o.z0 + len)}" width="${Math.max(o.w * sx, 2)}" height="${len * sz}" fill="${c}"${hi(o.id, 1.1)}/>`);
     }

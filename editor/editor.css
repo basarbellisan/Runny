@@ -3,7 +3,9 @@
   --asphalt: #2a2c30; --ink: #232529; --muted: #7c8087; --accent: #ff5a1f;
   --energy: #9fe02a; --danger: #e23b3b; --warn: #e8a317; --ok: #3aa65b;
   --line: #dcd8d0; --road-low: #3b3d42; --road-mid: #55585e; --road-high: #767a81;
-  --ramp: #f4d9a8; --gravel: #b9a98f;
+  --ramp: #121214; --gravel: #4a8cf2; --ground: #b7b6a5;
+  /* oyunun düz dünyası: siyah yol, beyaz çizgi, kırmızı yol sonu, mavi hava */
+  --road-low: #0b0b0c; --road-mid: #161618; --road-high: #37373c; --red: #ff2414;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
@@ -60,7 +62,7 @@ input { font: inherit; color: inherit; }
 .hint { color: var(--muted); font-size: 11.5px; line-height: 1.45; margin: 4px 4px; }
 
 .center { position: relative; display: grid; grid-template-rows: 1fr 168px; min-width: 0; }
-.canvas { position: relative; overflow: hidden; background: var(--paper); cursor: default; }
+.canvas { position: relative; overflow: hidden; background: var(--ground); cursor: default; }
 .canvas.panning { cursor: grabbing; }
 .canvas.alt [data-type] { cursor: copy !important; }
 .canvas svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }

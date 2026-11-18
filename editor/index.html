@@ -6,7 +6,7 @@
 <title>Runny Bölüm Tasarımcısı</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="editor.css">
+<link rel="stylesheet" href="editor.css?v=20261118">
 </head>
 <body>
 <div class="top">
@@ -55,7 +55,8 @@
         <span><i style="background:var(--road-high)"></i>yüksek</span>
         <span><i style="background:rgba(58,166,91,.45)"></i>iniş bölgesi</span>
         <span><i style="background:var(--energy)"></i>kristal</span>
-        <span><i style="background:#e23c30"></i>pist ışıkları</span>
+        <span><i style="background:var(--gravel)"></i>hava</span>
+        <span><i style="background:var(--red)"></i>pist ışıkları</span>
       </div>
       <div class="zoom"><button id="zoomOut">−</button><button id="zoomFit" title="Tümünü göster">⤢</button><button id="zoomIn">+</button></div>
       <div class="vbanner" id="variantBanner"><span id="variantBannerText"></span><button id="vbBack">Asıl kalıba dön</button><button id="vbOpen">Ayrı kalıp olarak aç</button></div>
@@ -102,7 +103,7 @@
 </div>
 <input type="file" id="fileInput" accept=".json,application/json" hidden>
 
-<script src="physics.js"></script>
-<script src="editor.js"></script>
+<script src="physics.js?v=20261118"></script>
+<script src="editor.js?v=20261118"></script>
 </body>
 </html>
