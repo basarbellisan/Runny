@@ -7,7 +7,8 @@ extends RefCounted
 ## Garajda harcanır: parça geliştirme (tekerlek, depo, kanat; her biri 5 seviye) ve kilitli arabalar.
 ## Geliştirmeler kalıcıdır, geri alınmaz.
 ##
-## Deneme için: --coins=N (komut satırı) ya da ?coins=N (web) parayı o değere ayarlar.
+## Deneme için: --coins=N (komut satırı) ya da ?coins=N (web) parayı o değere ayarlar;
+## ?reset=1 (web) ya da --reset her şeyi sıfırlar.
 
 const PATH := "user://progress.cfg"
 ## Başta açık temel arabalar (ağır, orta, hafif)
@@ -35,6 +36,11 @@ static func _ensure() -> void:
 	_loaded = true
 	var cfg := ConfigFile.new()
 	cfg.load(PATH)
+	# Sıfırlama (deneme): ?reset=1 (web) ya da --reset (komut satırı): para, açılan arabalar ve
+	# geliştirmeler silinir. Web'de parametre adresten kaldırılır (sayfa yenilenince yeniden silinmesin)
+	if _reset_asked():
+		cfg = ConfigFile.new()
+		cfg.save(PATH)
 	coins = int(cfg.get_value("wallet", "coins", 0))
 	for v in cfg.get_value("cars", "owned", []):
 		_owned[int(v)] = true
@@ -115,6 +121,21 @@ static func add(n: int) -> void:
 	_ensure()
 	coins += n
 	save()
+
+
+static func _reset_asked() -> bool:
+	if OS.get_cmdline_user_args().has("--reset"):
+		return true
+	if not OS.has_feature("web"):
+		return false
+	var r: Variant = JavaScriptBridge.eval("""(function () {
+		var u = new URL(location.href);
+		if (!u.searchParams.has('reset')) return '';
+		u.searchParams.delete('reset');
+		history.replaceState(null, '', u.pathname + u.search + u.hash);
+		return '1';
+	})()""")
+	return r != null and str(r) == "1"
 
 
 static func _forced_coins() -> int:
