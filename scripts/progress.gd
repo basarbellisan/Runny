@@ -7,8 +7,8 @@ extends RefCounted
 ## Garajda harcanır: parça geliştirme (tekerlek, depo, kanat; her biri 5 seviye) ve kilitli arabalar.
 ## Geliştirmeler kalıcıdır, geri alınmaz.
 ##
-## Deneme için: --coins=N (komut satırı) ya da ?coins=N (web) parayı o değere ayarlar;
-## ?reset=1 (web) ya da --reset her şeyi sıfırlar.
+## Deneme için (bir kez uygulanır ve kaydedilir): ?coins=N parayı N yapar, ?reset=1 geliştirmeleri
+## sıfırlar (para ve açılan arabalar kalır), ?reset=all her şeyi siler (komut satırında --coins=N, --reset).
 
 const PATH := "user://progress.cfg"
 ## Başta açık temel arabalar (ağır, orta, hafif)
@@ -36,20 +36,26 @@ static func _ensure() -> void:
 	_loaded = true
 	var cfg := ConfigFile.new()
 	cfg.load(PATH)
-	# Sıfırlama (deneme): ?reset=1 (web) ya da --reset (komut satırı): para, açılan arabalar ve
-	# geliştirmeler silinir. Web'de parametre adresten kaldırılır (sayfa yenilenince yeniden silinmesin)
-	if _reset_asked():
-		cfg = ConfigFile.new()
-		cfg.save(PATH)
 	coins = int(cfg.get_value("wallet", "coins", 0))
 	for v in cfg.get_value("cars", "owned", []):
 		_owned[int(v)] = true
 	var lv: Dictionary = cfg.get_value("cars", "levels", {})
 	for k in lv:
 		_levels[int(k)] = (lv[k] as Dictionary).duplicate()
-	var forced := _forced_coins()
-	if forced >= 0:
-		coins = forced
+	# Deneme araçları (adresten bir kez okunur, sonra adresten silinir; sayfa yenilenince tekrarlanmaz):
+	# ?reset=1 geliştirmeleri sıfırlar (para ve açılan arabalar kalır), ?reset=all her şeyi siler,
+	# ?coins=N parayı N yapar. Komut satırında: --reset, --reset=all, --coins=N
+	var reset := _take_param("reset")
+	var forced := _take_param("coins")
+	if reset == "all":
+		coins = 0
+		_owned.clear()
+	if reset != "":
+		_levels.clear()
+	if forced.is_valid_int():
+		coins = int(forced)
+	if reset != "" or forced.is_valid_int():
+		save()
 
 
 static func save() -> void:
@@ -123,27 +129,21 @@ static func add(n: int) -> void:
 	save()
 
 
-static func _reset_asked() -> bool:
-	if OS.get_cmdline_user_args().has("--reset"):
-		return true
+## Deneme parametresi: web'de adresten okunur ve adresten kaldırılır; komut satırında --ad ya da --ad=değer
+static func _take_param(name: String) -> String:
+	for a in OS.get_cmdline_user_args():
+		if a == "--" + name:
+			return "1"
+		if a.begins_with("--" + name + "="):
+			return a.get_slice("=", 1)
 	if not OS.has_feature("web"):
-		return false
+		return ""
 	var r: Variant = JavaScriptBridge.eval("""(function () {
 		var u = new URL(location.href);
-		if (!u.searchParams.has('reset')) return '';
-		u.searchParams.delete('reset');
+		if (!u.searchParams.has('%s')) return '';
+		var v = u.searchParams.get('%s') || '1';
+		u.searchParams.delete('%s');
 		history.replaceState(null, '', u.pathname + u.search + u.hash);
-		return '1';
-	})()""")
-	return r != null and str(r) == "1"
-
-
-static func _forced_coins() -> int:
-	var v := ""
-	if OS.has_feature("web"):
-		var r: Variant = JavaScriptBridge.eval("new URLSearchParams(location.search).get('coins') || ''")
-		v = "" if r == null else str(r)
-	for a in OS.get_cmdline_user_args():
-		if a.begins_with("--coins="):
-			v = a.get_slice("=", 1)
-	return int(v) if v.is_valid_int() else -1
+		return v;
+	})()""" % [name, name, name])
+	return "" if r == null else str(r)
