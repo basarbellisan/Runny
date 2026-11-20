@@ -1,5 +1,5 @@
 extends Control
-## Açılış introsu (OLLO, intro/ollo-intro.ogv; dikey, koyu zemin #0F0E11, ~2 sn): oyun ilk açılınca bir kez
+## Açılış introsu (OLLO, intro/ollo-intro-N.ogv, her açılışta rastgele biri; dikey, koyu zemin #0F0E11, ~2 sn): oyun ilk açılınca bir kez
 ## oynar, sonra kâğıt rengine yumuşakça geçip giriş sayfasına (garaj sahnesi) gider. Dokunmak ya da bir tuş
 ## introyu atlar. Video ekranı esnetmez: genişliğe sığar, üst ve alt boşluk zemin rengiyle dolar.
 ## Testler (otomatik pilot, ekran görüntüsü) ve --nointro introyu atlar. Web'de intro sayfada oynar (tools/web_intro.py).
@@ -29,7 +29,8 @@ func _ready() -> void:
 	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(box)
 	_video = VideoStreamPlayer.new()
-	_video.stream = load("res://intro/ollo-intro.ogv")
+	# Her açılışta rastgele bir intro (4 seçenek; web'de de aynı: tools/web_intro.py)
+	_video.stream = load("res://intro/ollo-intro-%d.ogv" % randi_range(1, 4))
 	_video.expand = true
 	box.add_child(_video)
 	_fade = ColorRect.new()

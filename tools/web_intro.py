@@ -1,4 +1,4 @@
-"""Web dışa aktarımından sonra: açılış introsu (intro/ollo-intro.webm, Safari için .mp4) sayfanın kendisinde oynar.
+"""Web dışa aktarımından sonra: açılış introsu (intro/ollo-intro-N.webm, Safari için .mp4; her açılışta rastgele biri) sayfanın kendisinde oynar.
 
 Godot'nun web sürümü videoyu işlemcide (yazılımla) çözer; telefonda 1080x1920 / 60 fps video takılır.
 Tarayıcı ise MP4'ü donanımla çözer: akıcı oynar. Üstelik intro oyun yüklenirken oynar (yükleme ekranındaki
@@ -12,8 +12,11 @@ import os, shutil, sys
 
 web = sys.argv[1] if len(sys.argv) > 1 else "build/web"
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-for ext in ("mp4", "webm"):
-    shutil.copy(os.path.join(root, "intro", "ollo-intro." + ext), os.path.join(web, "intro." + ext))
+## Intro seçenekleri (intro/ollo-intro-N.*): her açılışta rastgele biri oynar (deneme: ?intro=N)
+COUNT = 4
+for n in range(1, COUNT + 1):
+    for ext in ("mp4", "webm"):
+        shutil.copy(os.path.join(root, "intro", "ollo-intro-%d.%s" % (n, ext)), os.path.join(web, "intro-%d.%s" % (n, ext)))
 html_path = os.path.join(web, "index.html")
 html = open(html_path, encoding="utf-8").read()
 if 'id="intro"' in html:
@@ -24,8 +27,6 @@ OVERLAY = """
 		<div id="intro" style="position:fixed;top:0;left:0;width:100vw;height:100vh;height:100dvh;z-index:10;background:#0f0e11;transition:background-color .4s ease;touch-action:none">
 			<video id="intro-video" muted playsinline webkit-playsinline autoplay preload="auto"
 				style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .15s ease">
-				<source src="intro.webm" type="video/webm">
-				<source src="intro.mp4" type="video/mp4">
 			</video>
 			<div id="intro-bar" style="position:absolute;left:50%;bottom:18%;width:120px;height:3px;margin-left:-60px;border-radius:2px;background:rgba(255,255,255,.14);opacity:0;transition:opacity .4s ease">
 				<div id="intro-fill" style="width:0;height:100%;border-radius:2px;background:rgba(255,255,255,.75);transition:width .25s linear"></div>
@@ -36,6 +37,15 @@ OVERLAY = """
 		(function () {
 			var box = document.getElementById('intro');
 			var v = document.getElementById('intro-video');
+			// Her açılışta rastgele bir intro (deneme: ?intro=N)
+			var n = parseInt(new URLSearchParams(location.search).get('intro'), 10);
+			if (!(n >= 1 && n <= __COUNT__)) n = 1 + Math.floor(Math.random() * __COUNT__);
+			['webm', 'mp4'].forEach(function (ext) {
+				var src = document.createElement('source');
+				src.src = 'intro-' + n + '.' + ext;
+				src.type = 'video/' + ext;
+				v.appendChild(src);
+			});
 			var ended = false, ready = false, gone = false;
 			if (new URLSearchParams(location.search).get('level')) {
 				box.remove();
@@ -78,6 +88,7 @@ OVERLAY = """
 		})();
 		</script>
 """
+OVERLAY = OVERLAY.replace("__COUNT__", str(COUNT))
 BODY = "\t<body>\n"
 assert html.count(BODY) == 1
 html = html.replace(BODY, BODY + OVERLAY, 1)
