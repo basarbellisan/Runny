@@ -4,7 +4,8 @@ extends RefCounted
 ## (user://progress.cfg); oyun kayıtlarından (save.cfg: seçili araba, rekor) bağımsız.
 ##
 ## Para oyun sonunda kazanılır: önce gidilen km, sonra depoda kalan kristal paraya dönüşür.
-## Garajda harcanır: parça geliştirme (tekerlek, depo, kanat; her biri 5 seviye) ve kilitli arabalar.
+## Garajda harcanır: özellik geliştirme (tekerlek, depo, kanat, çeviklik, denge; arabaya göre tavana kadar) ve
+## kilitli arabalar.
 ## Geliştirmeler kalıcıdır, geri alınmaz.
 ##
 ## Deneme için (bir kez uygulanır ve kaydedilir): ?coins=N parayı N yapar, ?reset=1 geliştirmeleri
@@ -15,9 +16,9 @@ const PATH := "user://progress.cfg"
 const BASIC := [2, 8, 7]
 ## Kilitli özel arabaların fiyatı
 const CAR_PRICE := {6: 3000, 10: 6000, 9: 10000, 12: 15000}
-## Parçalar: tekerlek (tutuş), depo (kristal kapasitesi), kanat (uçuş)
-const PARTS := ["grip", "tank", "flight"]
-const MAX_LEVEL := 5
+## Geliştirilebilir özellikler: parçalar (tekerlek: tutuş, depo: kristal kapasitesi, kanat: uçuş) ve
+## parçasız özellikler (çeviklik, denge). Geliştirme sayısı arabaya göre (CarModel.SPEC: tavan - başlangıç)
+const PARTS := ["grip", "tank", "flight", "agility", "balance"]
 ## Parçanın bir sonraki seviyesinin fiyatı (seviye 0 -> 1: ilk değer)
 const LEVEL_PRICE := [200, 400, 800, 1600, 3200]
 ## Oyun sonu: km başına ve depoda kalan kristal (enerji) başına para
@@ -86,10 +87,15 @@ static func level(v: int, part: String) -> int:
 	return int((_levels.get(v, {}) as Dictionary).get(part, 0))
 
 
-## Bir sonraki seviyenin fiyatı; en üst seviyedeyse -1
+## Bu arabada bu özelliğin kaç geliştirmesi var (tavan - başlangıç)
+static func max_level(v: int, part: String) -> int:
+	return CarModel.part_cap(v, part) - CarModel.part_base(v, part)
+
+
+## Bir sonraki seviyenin fiyatı; tavandaysa -1
 static func upgrade_price(v: int, part: String) -> int:
 	var l := level(v, part)
-	return -1 if l >= MAX_LEVEL else LEVEL_PRICE[l]
+	return -1 if l >= max_level(v, part) else LEVEL_PRICE[mini(l, LEVEL_PRICE.size() - 1)]
 
 
 static func buy_upgrade(v: int, part: String) -> bool:

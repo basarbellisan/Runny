@@ -62,26 +62,33 @@ const STATS := {
 }
 
 
-## Yeni sistem: arabanın doğası ve parçaları. [ağırlık 0 (hafif) .. 1 (ağır), tutuş, depo, uçuş];
-## tutuş (tekerlek), depo ve uçuş (kanat) 1-10 ölçeğinde başlangıç değeri, parça her geliştirildiğinde
-## 1 artar (Progress, en çok 5). Hız (STATS[0]) arabanın doğası: değişmez.
-## Ağırlık: ağır araba hava engelinde az sallanır ve zor devrilir, ama roket ve uçuş daha çok enerji
-## yakar ve daha zor döner; hafif araba tersi.
+## Yeni sistem: arabanın doğası ve geliştirilebilir özellikleri. Ağırlık 0 (hafif) .. 1 (ağır) sabit.
+## Her özellik [başlangıç, tavan] (1-10 ölçeği): her geliştirme 1 artırır, tavanı geçemez (geliştirme
+## sayısı = tavan - başlangıç, arabaya göre değişir; pahalı arabalar hem iyi başlar hem yükseğe çıkar).
+## Özellikler:
+##   agility  çeviklik (geliştirilen özellik): direksiyon hızı, havada yönlendirme, boosta tepki
+##   balance  denge (geliştirilen özellik; ağırlık da destekler): yalpalamanın sönmesi, havada düzleşme,
+##            kenarda devrilmeye direnç, hava engelinde az yatma
+##   grip     tekerlek: kaymamak, yatık yolda / kenarda tutunmak, inişte hızlı toparlanma, boostta patinaj
+##            yapmamak (çevikliğe destek); hava engelinde etkisi yok
+##   tank     depo: kristal kapasitesi
+##   flight   kanat: uçuş tüketimi, manevra, yedek yakıt
+## Hız (STATS[0]) arabanın doğası: değişmez. Ağırlık roket ve uçuş tüketimini artırır, dengeyi destekler.
 const SPEC := {
-	2: [1.0, 5, 6, 2],   # Gezgin: ağır, büyük depo, uçuşu zayıf
-	8: [0.5, 4, 4, 4],   # Latte: orta, her şey standart
-	7: [0.0, 5, 2, 5],   # Dark Rose: hafif, küçük depo, iyi uçar, kolay devrilir
-	6: [0.85, 3, 5, 3],  # Dragster: ağır ve hızlı
-	10: [0.45, 5, 4, 4], # GEM: orta, iyi tutuş
-	9: [0.2, 4, 3, 6],   # Falcon: hafif, en hızlı, iyi uçar
-	12: [0.15, 3, 3, 7], # Delta: hafif, uçuşu en iyi
+	2: {"weight": 1.0, "agility": [2, 5], "balance": [6, 8], "grip": [5, 8], "tank": [6, 9], "flight": [2, 5]},    # Gezgin
+	8: {"weight": 0.5, "agility": [4, 7], "balance": [4, 7], "grip": [4, 7], "tank": [4, 7], "flight": [4, 7]},    # Latte
+	7: {"weight": 0.0, "agility": [6, 8], "balance": [2, 5], "grip": [5, 8], "tank": [2, 5], "flight": [5, 8]},    # Dark Rose
+	6: {"weight": 0.85, "agility": [3, 6], "balance": [6, 9], "grip": [3, 7], "tank": [5, 8], "flight": [3, 6]},   # Dragster
+	10: {"weight": 0.45, "agility": [5, 8], "balance": [5, 8], "grip": [5, 9], "tank": [4, 7], "flight": [4, 8]},  # GEM
+	9: {"weight": 0.2, "agility": [7, 9], "balance": [3, 7], "grip": [4, 8], "tank": [3, 7], "flight": [6, 9]},    # Falcon
+	12: {"weight": 0.15, "agility": [6, 9], "balance": [4, 8], "grip": [3, 7], "tank": [3, 7], "flight": [7, 10]}, # Delta
 }
-const PART_INDEX := {"grip": 1, "tank": 2, "flight": 3}
+const DEFAULT_SPEC := {"weight": 0.5, "agility": [4, 7], "balance": [4, 7], "grip": [4, 7], "tank": [4, 7], "flight": [4, 7]}
 
 
 ## Ağırlık 0 (hafif) .. 1 (ağır)
 static func weight_of(v: int) -> float:
-	return float(SPEC.get(v, [0.5, 4, 4, 4])[0])
+	return float(SPEC.get(v, DEFAULT_SPEC).weight)
 
 
 static func weight_label(v: int) -> String:
@@ -89,14 +96,19 @@ static func weight_label(v: int) -> String:
 	return "HEAVY" if w >= 0.7 else ("LIGHT" if w <= 0.3 else "MEDIUM")
 
 
-## Parçanın başlangıç değeri (1-10)
+## Özelliğin başlangıç değeri (1-10)
 static func part_base(v: int, part: String) -> int:
-	return int(SPEC.get(v, [0.5, 4, 4, 4])[PART_INDEX[part]])
+	return int(SPEC.get(v, DEFAULT_SPEC)[part][0])
 
 
-## Parçanın şimdiki değeri: başlangıç + alınan geliştirmeler
+## Özelliğin tavanı (1-10)
+static func part_cap(v: int, part: String) -> int:
+	return int(SPEC.get(v, DEFAULT_SPEC)[part][1])
+
+
+## Özelliğin şimdiki değeri: başlangıç + alınan geliştirmeler
 static func part_value(v: int, part: String) -> int:
-	return part_base(v, part) + Progress.level(v, part)
+	return mini(part_base(v, part) + Progress.level(v, part), part_cap(v, part))
 
 
 ## Hız 10'luk ölçekte (garajdaki çubuk)

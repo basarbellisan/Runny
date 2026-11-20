@@ -269,6 +269,15 @@ var _tip_deg := 50.0
 ## uçuş manevrası, kanat yedeği
 var k_air := 1.0
 var k_air_grip := 1.0
+## Çeviklik: havada yatma (yönlendirme) hızı, boostun tam güce çıkma hızı
+var k_air_lean := 1.0
+var k_boost_rise := 1.0
+## Tutuş: kenarda boşluğa çekilme, sert inişten sonra sendeleme süresi
+var k_tip_pull := 1.0
+var k_land := 1.0
+## Denge: hava engelinin yatırma gücü, havada kendiliğinden düzleşme hızı (1/sn; direksiyon bırakılınca)
+var k_tilt := 1.0
+var k_level := 0.0
 var k_boost_cost := 1.0
 var k_fly_cost := 1.0
 var k_fly_steer := 1.0
@@ -1190,7 +1199,7 @@ func _drive(delta: float) -> void:
 			control *= 1.0 - 0.8 * _stumble
 			velocity.x += randf_range(-1.0, 1.0) * 18.0 * _stumble * delta
 		if _tip != 0.0:
-			velocity.x += _tip * tip_pull * delta + randf_range(-3.0, 3.0) * absf(_tip) * delta
+			velocity.x += _tip * tip_pull * k_tip_pull * delta + randf_range(-3.0, 3.0) * absf(_tip) * delta
 		# Son üstünde olunan yol (yolun ucunu geçerken sorgu boş dönebilir; eskisi kalsın)
 		var under: RoadGenerator.Segment = roads.segment_under(global_position) if roads else null
 		if under:
@@ -1456,12 +1465,12 @@ func _touchdown(vy_before: float) -> bool:
 	roll_rate *= 0.3
 	if quality > 0.05:
 		_stumble = quality
-		_stumble_time = 0.35 + 0.9 * quality
+		_stumble_time = (0.35 + 0.9 * quality) * k_land
 		# İlk değen (alçak) yana doğru savrul
 		var side := -signf(roll) if absf(roll) > 0.05 else (1.0 if randf() < 0.5 else -1.0)
 		velocity.x += side * 5.0 * quality
 		boost_level *= 1.0 - quality
-		roll_rate += -side * 3.0 * quality
+		roll_rate += -side * 3.0 * quality * _k_bump  # sert iniş sarsıntısı; denge azaltır
 	_landing_fx(impact, quality)
 	landed.emit(air_time, quality, impact)
 	air_time = 0.0
@@ -1584,7 +1593,7 @@ func _update_boost(delta: float) -> void:
 		_bounce_v -= 0.6
 		boosted.emit()
 	if burning:
-		boost_level = minf(boost_level + delta / boost_rise_time, 1.0)
+		boost_level = minf(boost_level + delta * k_boost_rise / boost_rise_time, 1.0)
 	else:
 		boost_level = maxf(boost_level - delta / boost_fall_time, 0.0)
 	if fx:
@@ -1707,6 +1716,8 @@ func _air_lift(delta: float) -> void:
 	# Ağır araba az kalkar ve az savrulur (k_air); savrulmayı tekerlek de azaltır (_k_shove)
 	var gain := _gravel_gain() * AirDifficulty.k("power") * _k_shove
 	var power := AirDifficulty.k("power") * k_air
+	# Denge: yatırma ve burun kaldırma daha az (kaldırma kuvveti ağırlığa bağlı kalır)
+	var tilt := power * k_tilt
 	# Teker sırası: 0 ön sol, 1 ön sağ, 2 arka sol, 3 arka sağ
 	var total := lift[0] + lift[1] + lift[2] + lift[3]
 	# Gövdeyi kaldıran kuvvet: bir yanın havası da arabayı yerden koparır (hızla giderken kalkan yan
@@ -1718,8 +1729,8 @@ func _air_lift(delta: float) -> void:
 	# Zemine yapışma kalksın (yoksa yukarı itiş tutunmaya yenilir)
 	_snap_off = maxf(_snap_off, 0.12)
 	# Hava gövdeyi sert yatırır ama devirmez: yatma / burun kalkması AIR_TILT_MAX'ı geçince o yöne itmez
-	var dp := AIR_PITCH * power * ((lift[0] + lift[1]) - (lift[2] + lift[3])) * 0.5 * delta
-	var dr := AIR_ROLL * power * ((lift[1] + lift[3]) - (lift[0] + lift[2])) * 0.5 * delta
+	var dp := AIR_PITCH * tilt * ((lift[0] + lift[1]) - (lift[2] + lift[3])) * 0.5 * delta
+	var dr := AIR_ROLL * tilt * ((lift[1] + lift[3]) - (lift[0] + lift[2])) * 0.5 * delta
 	if absf(pitch + signf(dp) * 0.01) < AIR_TILT_MAX or signf(dp) != signf(pitch):
 		pitch_rate += dp
 	if absf(roll + signf(dr) * 0.01) < AIR_TILT_MAX or signf(dr) != signf(roll):
@@ -1977,11 +1988,14 @@ func _update_attitude(delta: float) -> void:
 	else:
 		# Havada: önceki dönme sürer; direksiyon yatırır, bırakınca yatma söner
 		var lean_target := -_steer * deg_to_rad(air_lean_deg)
-		var new_lean := lerpf(_air_lean, lean_target, 1.0 - exp(-delta / maxf(air_lean_time, 0.01)))
+		var new_lean := lerpf(_air_lean, lean_target, 1.0 - exp(-delta * k_air_lean / maxf(air_lean_time, 0.01)))
 		roll += new_lean - _air_lean
 		_air_lean = new_lean
 		if mode == Mode.DRIVE:
 			roll = lerp_angle(roll, 0.0, 1.0 - exp(-air_self_level * delta))
+			# Denge: direksiyon bırakılınca gövde kendiliğinden düzleşir (oyuncunun yatırması sürer)
+			if absf(_steer) < 0.05 and k_level > 0.0:
+				roll = lerp_angle(roll, _air_lean, 1.0 - exp(-k_level * delta))
 			# Burun: kalkıştaki dönme hava direnciyle söner, araba gidişine hafifçe uyar
 			# (oyuncu burnu kontrol edemediği için burada daha cömertiz)
 			pitch_rate *= exp(-1.5 * delta)
@@ -2009,22 +2023,35 @@ func _refresh_stats() -> void:
 	var v := model.variant
 	_stats_variant = v
 	_k_speed = CarModel.speed_mul_of(v)
-	# Yeni sistem (CarModel.SPEC): ağırlık arabanın doğası; tutuş, depo ve uçuş parçalardan (1-10)
+	# Yeni sistem (CarModel.SPEC): ağırlık arabanın doğası; çeviklik, denge, tutuş, depo ve uçuş geliştirilir (1-10)
 	var hk := CarModel.weight_of(v) - 0.5          # -0.5 hafif .. +0.5 ağır
+	var a := float(CarModel.part_value(v, "agility"))
+	var b := float(CarModel.part_value(v, "balance"))
 	var g := float(CarModel.part_value(v, "grip"))
 	var t := float(CarModel.part_value(v, "tank"))
 	var f := float(CarModel.part_value(v, "flight"))
-	# Direksiyon: ağır daha zor döner; tekerlek tutuşu artırır
-	_k_steer = (1.0 - 0.3 * hk) * (0.8 + 0.04 * g)
+	var ka := 0.75 + 0.05 * a                      # çeviklik katı (5'te 1)
+	var kg := 0.75 + 0.05 * g                      # tutuş katı (5'te 1)
+	var kb := (0.75 + 0.05 * b) * (1.0 + 0.4 * hk) # denge katı; ağırlık destekler
+	# Çeviklik: direksiyon hızı (tutuş destekler, ağırlık biraz yavaşlatır), havada yönlendirme, boosta tepki
+	_k_steer = ka * (0.9 + 0.1 * kg) * (1.0 - 0.1 * hk)
+	k_air_lean = ka
+	k_boost_rise = (0.7 + 0.06 * a) * (0.85 + 0.15 * kg)
+	# Tutuş: boştaki tekerde ve yatık yolda kaymamak, kenarda boşluğa çekilmemek, inişte çabuk toparlanmak.
+	# Hava engelinde etkisi yok (araba aşağıdan itilir, tekerler yerden kesilir)
 	_k_grip = 1.4 - 0.08 * g
-	k_air_grip = 0.6 + 0.08 * g
-	# Hava engeli: ağır az kalkar ve az savrulur; iyi tekerlek savrulmayı da azaltır
+	k_tip_pull = 1.3 - 0.06 * g
+	k_land = 1.25 - 0.05 * g
+	k_air_grip = 1.0
+	# Hava engeli: ağır az kalkar ve yana az itilir; denge daha az yatırır ve yalpalamayı söndürür
 	k_air = 1.0 - 0.6 * hk
-	_k_shove = (1.0 - 0.6 * hk) * (1.2 - 0.04 * g)
-	_k_after = 1.0 - 0.6 * hk
-	_k_bump = 1.0 - 0.6 * hk
-	# Devrilme: ağır 57°, hafif 43°
-	_tip_deg = 50.0 + 14.0 * hk
+	_k_shove = 1.0 - 0.6 * hk
+	k_tilt = 1.0 / kb
+	_k_after = 1.0 / kb
+	_k_bump = 1.0 / kb
+	# Denge: kenarda devrilme açısı (ağır ve dengeli araba geç devrilir), havada kendiliğinden düzleşme
+	_tip_deg = clampf(50.0 + 14.0 * hk + 3.0 * (b - 5.0), 38.0, 66.0)
+	k_level = clampf((kb - 0.8) * 3.0, 0.0, 3.0)
 	# Enerji: ağır roket ve uçuşta daha çok yakar; kanat uçuşu ucuzlatır, manevrayı ve yedeği artırır
 	k_boost_cost = 1.0 + 0.5 * hk
 	k_fly_cost = (1.0 + 0.45 * hk) * (1.25 - 0.05 * f)

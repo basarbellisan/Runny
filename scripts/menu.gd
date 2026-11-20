@@ -16,8 +16,12 @@ const MODELS := [
 	["FALCON", "Light and the fastest.", 9],
 	["DELTA", "A wing on wheels: the best flyer.", 12],
 ]
-## Garajda gösterilen parçalar: [Progress parçası, kart adı, çubuk adı]
-const PARTS := [["grip", "WHEELS", "GRIP"], ["tank", "TANK", "TANK"], ["flight", "WINGS", "FLIGHT"]]
+## Geliştirme kartları: [özellik, kart adı, çubuk adı]; üst satır parçalar, alt satır parçasız özellikler
+const PARTS := [["grip", "WHEELS", "GRIP"], ["tank", "TANK", "TANK"], ["flight", "WINGS", "FLIGHT"],
+	["agility", "AGILITY", "AGILITY"], ["balance", "BALANCE", "BALANCE"]]
+const CARD_ROWS := [["grip", "tank", "flight"], ["agility", "balance"]]
+## Özellik çubukları (SPEED'den sonra; 10 kademe)
+const STAT_PARTS := ["agility", "balance", "grip", "tank", "flight"]
 ## Özellik çubuğunun renkleri: arabanın kendi değeri, alınan geliştirme
 const UP_COLOR := Color("3aa65b")
 ## Platformlar arası mesafe (m)
@@ -60,7 +64,7 @@ var _price_row: HBoxContainer
 var _price_lbl: Label
 var _lock_icon: LockIcon
 var _models: Array[CarModel] = []
-## Parça kartları: {part, root, pips: [Panel], btn, price: Label, coin: CoinIcon}
+## Geliştirme kartları: {part, stat, root, btn, price: Label, coin: CoinIcon}
 var _cards: Array[Dictionary] = []
 var _ups_title: Label
 var _ups: Control
@@ -248,7 +252,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_carousel.position.x = _drag_from + (event.position.x - _drag_start.x) * DRAG_SCALE
 	elif event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
-			KEY_1, KEY_2, KEY_3:
+			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5:
 				_buy(PARTS[event.keycode - KEY_1][0])
 			KEY_LEFT, KEY_A:
 				select(index - 1)
@@ -312,7 +316,7 @@ func _refresh(animate: bool) -> void:
 	_price_lbl.text = CoinPill.fmt(Progress.car_price(v))
 	var apply := func():
 		_name.text = MODELS[index][0]
-		_desc.text = "SPECIAL CAR\nUnlock it to drive and upgrade its wheels, tank and wings." if locked else ""
+		_desc.text = "SPECIAL CAR\nUnlock it to drive and upgrade. Outlined steps show how far each stat can go." if locked else ""
 		_weight_chip.get_child(0).text = CarModel.weight_label(v)
 		_lock_chip.visible = locked
 		for i in _dots.size():
@@ -363,7 +367,7 @@ func _build_world() -> void:
 	cam.position = Vector3(0, 2.7, 8.0)
 	cam.look_at(Vector3(0, 0.25, 0))
 	# Araba biraz yukarıda: altında özelliklere yer kalsın
-	cam.v_offset = -2.35
+	cam.v_offset = -2.6
 
 	# Oklar sahnede, kaidelerin arkasında: araba kayarken önlerinden geçer.
 	# Geniş açılı, ince ok başı (iki ince çubuk)
@@ -451,14 +455,14 @@ func _build_ui(best: int) -> void:
 	_info.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_info.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(_info)
-	_name = _label(_info, "", 46, 548, true)
+	_name = _label(_info, "", 44, 516, true)
 	# Ağırlık (ve kilitliyse LOCKED) etiketleri
 	_chips = HBoxContainer.new()
 	_chips.alignment = BoxContainer.ALIGNMENT_CENTER
 	_chips.add_theme_constant_override("separation", 12)
 	_chips.anchor_right = 1.0
-	_chips.offset_top = 596
-	_chips.offset_bottom = 628
+	_chips.offset_top = 560
+	_chips.offset_bottom = 592
 	_chips.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_info.add_child(_chips)
 	_weight_chip = _chip(true)
@@ -469,13 +473,13 @@ func _build_ui(best: int) -> void:
 	_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_desc.offset_left = 80
 	_desc.offset_right = -80
-	_desc.offset_top = 870
-	_desc.offset_bottom = 960
+	_desc.offset_top = 850
+	_desc.offset_bottom = 940
 	_desc.modulate.a = 0.7
 	_stats = Control.new()
 	_stats.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_stats.anchor_right = 1.0
-	_stats.offset_top = 650
+	_stats.offset_top = 600
 	_stats.offset_bottom = 800
 	ui.add_child(_stats)
 	_build_upgrades(ui)
@@ -514,8 +518,8 @@ func _build_ui(best: int) -> void:
 		arrow.offset_left = 10 if side < 0 else -110
 		arrow.offset_right = 110 if side < 0 else -10
 		# Platformun (elipsin) ortası hizasında
-		arrow.offset_top = 300
-		arrow.offset_bottom = 440
+		arrow.offset_top = 270
+		arrow.offset_bottom = 410
 		arrow.pressed.connect(func(): select(index + side))
 		ui.add_child(arrow)
 
@@ -540,8 +544,8 @@ func _build_ui(best: int) -> void:
 	start_btn.anchor_bottom = 1.0
 	start_btn.offset_left = -210
 	start_btn.offset_right = 210
-	start_btn.offset_top = -168
-	start_btn.offset_bottom = -72
+	start_btn.offset_top = -154
+	start_btn.offset_bottom = -64
 	start_btn.pressed.connect(start)
 	ui.add_child(start_btn)
 	_start_btn = start_btn
@@ -570,8 +574,8 @@ func _build_ui(best: int) -> void:
 	_lock_icon.anchor_right = 0.5
 	_lock_icon.offset_left = -40
 	_lock_icon.offset_right = 40
-	_lock_icon.offset_top = 322
-	_lock_icon.offset_bottom = 418
+	_lock_icon.offset_top = 296
+	_lock_icon.offset_bottom = 392
 	ui.add_child(_lock_icon)
 
 	# (Nasıl oynanır giriş sayfasında; garajda yer parçalara kaldı)
@@ -600,28 +604,31 @@ func _build_ui(best: int) -> void:
 
 
 ## Özellik çubukları (10 kademe): hız arabanın doğası; tutuş, depo ve uçuş parçalardan
-const STAT_NAMES := ["SPEED", "GRIP", "TANK", "FLIGHT"]
+const STAT_NAMES := ["SPEED", "AGILITY", "BALANCE", "GRIP", "TANK", "FLIGHT"]
 const SEGS := 10
+## Bu arabanın tavanının üstündeki kademeler (hiç çıkılamaz): çok soluk
+const CAP_COLOR := Color(0.137, 0.145, 0.161, 0.05)
 
 
-## Her satır: AD  ▮▮▮▮▮▮▯▯▯▯ — turuncu arabanın kendi değeri, yeşil alınan geliştirmeler,
-## çerçeveli boş kademeler alınabilecek geliştirmeler
+## Her satır: AD  ▮▮▮▮▮▮▯▯▯▯ — turuncu arabanın kendi değeri, yeşil alınan geliştirmeler, çerçeveli boş
+## kademeler tavana kadar alınabilecekler, en soluk kademeler tavanın üstü. Kilitli arabada da görünür
+## (oyuncu almadan önce arabanın nereye kadar gelişebileceğini bilir). Hız sabit
 func _fill_stats(variant: int, animate := false) -> void:
 	if _segs.is_empty():
 		var col := VBoxContainer.new()
-		col.add_theme_constant_override("separation", 16)
+		col.add_theme_constant_override("separation", 10)
 		_center(col)
-		for i in 4:
+		for i in STAT_NAMES.size():
 			var row := HBoxContainer.new()
 			row.add_theme_constant_override("separation", 14)
-			row.add_child(_small(STAT_NAMES[i], 19, 0.6, 104))
+			row.add_child(_small(STAT_NAMES[i], 17, 0.6, 112))
 			var bar := HBoxContainer.new()
 			bar.add_theme_constant_override("separation", 5)
 			bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			var segs: Array = []
 			for k in SEGS:
 				var seg := Panel.new()
-				seg.custom_minimum_size = Vector2(36, 13)
+				seg.custom_minimum_size = Vector2(36, 12)
 				seg.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 				seg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 				var sb := StyleBoxFlat.new()
@@ -632,23 +639,24 @@ func _fill_stats(variant: int, animate := false) -> void:
 			row.add_child(bar)
 			_segs.append(segs)
 			col.add_child(row)
-	var locked := not Progress.owns(variant)
 	if _bar_tween:
 		_bar_tween.kill()
 	_bar_tween = null
-	for i in 4:
+	for i in STAT_NAMES.size():
 		var base := CarModel.speed_bar(variant)
 		var up := 0
 		var slots := 0
+		var cap := SEGS
 		if i > 0:
-			var part: String = PARTS[i - 1][0]
+			var part: String = STAT_PARTS[i - 1]
 			base = CarModel.part_base(variant, part)
 			up = Progress.level(variant, part)
-			slots = 0 if locked else Progress.MAX_LEVEL - up
+			cap = CarModel.part_cap(variant, part)
+			slots = cap - base - up
 		for k in SEGS:
 			var seg: Panel = _segs[i][k]
 			var sb := seg.get_theme_stylebox("panel") as StyleBoxFlat
-			var want := Color(Palette.INK_DARK, 0.12)
+			var want := Color(Palette.INK_DARK, 0.12) if k < cap else CAP_COLOR
 			var border := 0
 			if k < base:
 				want = Palette.ACCENT
@@ -657,7 +665,7 @@ func _fill_stats(variant: int, animate := false) -> void:
 			elif k < base + up + slots:
 				want = Color(0, 0, 0, 0)
 				border = 2
-			sb.border_color = Color(Palette.INK_DARK, 0.28)
+			sb.border_color = Color(Palette.INK_DARK, 0.3)
 			sb.set_border_width_all(border)
 			if not animate or sb.bg_color.is_equal_approx(want):
 				sb.bg_color = want
@@ -702,115 +710,101 @@ func _build_upgrades(ui: CanvasLayer) -> void:
 	_ups = Control.new()
 	_ups.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_ups.anchor_right = 1.0
-	_ups.offset_top = 820
-	_ups.offset_bottom = 1040
+	_ups.offset_top = 806
+	_ups.offset_bottom = 1088
 	ui.add_child(_ups)
-	_ups_title = _label(_ups, "UPGRADE", 15, 20, true)
+	_ups_title = _label(_ups, "UPGRADE", 14, 16, true)
 	_ups_title.modulate.a = 0.55
-	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 16)
-	row.anchor_right = 1.0
-	row.offset_top = 46
-	row.offset_bottom = 220
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_ups.add_child(row)
+	var rows := VBoxContainer.new()
+	rows.add_theme_constant_override("separation", 10)
+	rows.anchor_right = 1.0
+	rows.offset_top = 34
+	rows.offset_bottom = 282
+	rows.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ups.add_child(rows)
 	var spaced := FontVariation.new()
 	spaced.spacing_glyph = 4
-	for p in PARTS:
-		var card := PanelContainer.new()
-		card.custom_minimum_size = Vector2(196, 0)
-		card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color.WHITE
-		sb.set_border_width_all(3)
-		sb.border_color = Palette.MIST
-		sb.set_corner_radius_all(16)
-		sb.content_margin_left = 12
-		sb.content_margin_right = 12
-		sb.content_margin_top = 12
-		sb.content_margin_bottom = 12
-		card.add_theme_stylebox_override("panel", sb)
-		row.add_child(card)
-		var col := VBoxContainer.new()
-		col.add_theme_constant_override("separation", 7)
-		col.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		card.add_child(col)
-		var ic := CoinIcon.new(p[0], 46)
-		ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		col.add_child(ic)
-		var nm := Label.new()
-		nm.text = p[1]
-		nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		nm.add_theme_font_override("font", spaced)
-		nm.add_theme_font_size_override("font_size", 15)
-		nm.add_theme_color_override("font_color", Palette.INK_DARK)
-		col.add_child(nm)
-		var pips := HBoxContainer.new()
-		pips.alignment = BoxContainer.ALIGNMENT_CENTER
-		pips.add_theme_constant_override("separation", 5)
-		pips.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		col.add_child(pips)
-		var pl: Array = []
-		for i in Progress.MAX_LEVEL:
-			var pip := Panel.new()
-			pip.custom_minimum_size = Vector2(20, 7)
-			pip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			var psb := StyleBoxFlat.new()
-			psb.set_corner_radius_all(3)
-			pip.add_theme_stylebox_override("panel", psb)
-			pips.add_child(pip)
-			pl.append(pip)
-		var btn := Button.new()
-		btn.focus_mode = Control.FOCUS_NONE
-		btn.custom_minimum_size = Vector2(0, 54)
-		for st in ["normal", "hover", "pressed", "focus", "disabled"]:
-			var bsb := StyleBoxFlat.new()
-			bsb.set_corner_radius_all(10)
-			btn.add_theme_stylebox_override(st, bsb)
-		col.add_child(btn)
-		var inner := HBoxContainer.new()
-		inner.alignment = BoxContainer.ALIGNMENT_CENTER
-		inner.add_theme_constant_override("separation", 9)
-		inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		btn.add_child(inner)
-		var coin := CoinIcon.new("coin", 24)
-		coin.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		inner.add_child(coin)
-		var price := Label.new()
-		price.add_theme_font_size_override("font_size", 22)
-		inner.add_child(price)
-		var part: String = p[0]
-		btn.pressed.connect(func(): _buy(part))
-		_cards.append({"part": part, "stat": p[2], "root": card, "pips": pl, "btn": btn, "price": price, "coin": coin})
+	for keys in CARD_ROWS:
+		var row := HBoxContainer.new()
+		row.alignment = BoxContainer.ALIGNMENT_CENTER
+		row.add_theme_constant_override("separation", 14)
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		rows.add_child(row)
+		for key in keys:
+			var p: Array = PARTS.filter(func(x): return x[0] == key)[0]
+			var card := PanelContainer.new()
+			card.custom_minimum_size = Vector2(196, 0)
+			card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var sb := StyleBoxFlat.new()
+			sb.bg_color = Color.WHITE
+			sb.set_border_width_all(3)
+			sb.border_color = Palette.MIST
+			sb.set_corner_radius_all(16)
+			sb.content_margin_left = 12
+			sb.content_margin_right = 12
+			sb.content_margin_top = 9
+			sb.content_margin_bottom = 10
+			card.add_theme_stylebox_override("panel", sb)
+			row.add_child(card)
+			var col := VBoxContainer.new()
+			col.add_theme_constant_override("separation", 5)
+			col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			card.add_child(col)
+			var ic := CoinIcon.new(key, 32)
+			ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+			col.add_child(ic)
+			var nm := Label.new()
+			nm.text = p[1]
+			nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			nm.add_theme_font_override("font", spaced)
+			nm.add_theme_font_size_override("font_size", 14)
+			nm.add_theme_color_override("font_color", Palette.INK_DARK)
+			col.add_child(nm)
+			var btn := Button.new()
+			btn.focus_mode = Control.FOCUS_NONE
+			btn.custom_minimum_size = Vector2(0, 44)
+			for st in ["normal", "hover", "pressed", "focus", "disabled"]:
+				var bsb := StyleBoxFlat.new()
+				bsb.set_corner_radius_all(10)
+				btn.add_theme_stylebox_override(st, bsb)
+			col.add_child(btn)
+			var inner := HBoxContainer.new()
+			inner.alignment = BoxContainer.ALIGNMENT_CENTER
+			inner.add_theme_constant_override("separation", 8)
+			inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			btn.add_child(inner)
+			var coin := CoinIcon.new("coin", 22)
+			coin.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			inner.add_child(coin)
+			var price := Label.new()
+			price.add_theme_font_size_override("font_size", 20)
+			inner.add_child(price)
+			btn.pressed.connect(func(): _buy(key))
+			_cards.append({"part": key, "stat": p[2], "root": card, "btn": btn, "price": price, "coin": coin})
 
 
-## Kartların seviyeleri ve fiyatları (kilitli arabada kartlar yok)
+## Kartların fiyatları; tavana gelen özelliğin düğmesi pasif (MAX). Kilitli arabada kartlar yok
 func _fill_upgrades() -> void:
 	var v: int = MODELS[index][2]
 	var locked := not Progress.owns(v)
 	_ups.visible = not locked
 	for c in _cards:
-		var l := Progress.level(v, c.part)
-		for i in (c.pips as Array).size():
-			var psb := (c.pips[i] as Panel).get_theme_stylebox("panel") as StyleBoxFlat
-			psb.bg_color = UP_COLOR if i < l else Palette.MIST
 		var price := Progress.upgrade_price(v, c.part)
 		var maxed := price < 0
 		var poor := not maxed and Progress.get_coins() < price
+		(c.btn as Button).disabled = maxed
 		(c.coin as CoinIcon).visible = not maxed
 		(c.price as Label).text = "MAX" if maxed else CoinPill.fmt(price)
-		var fg := UP_COLOR if maxed else (Palette.SLATE if poor else Palette.SNOW)
+		var fg := Palette.STONE if maxed else (Palette.SLATE if poor else Palette.SNOW)
 		(c.price as Label).add_theme_color_override("font_color", fg)
 		for st in ["normal", "hover", "pressed", "focus", "disabled"]:
 			var bsb := (c.btn as Button).get_theme_stylebox(st) as StyleBoxFlat
-			bsb.bg_color = Color(0, 0, 0, 0) if maxed else (Palette.MIST if poor else Palette.INK_DARK)
-			bsb.set_border_width_all(3 if maxed else 0)
-			bsb.border_color = UP_COLOR
+			bsb.bg_color = Color(Palette.INK_DARK, 0.05) if maxed else (Palette.MIST if poor else Palette.INK_DARK)
+		(c.root as Control).modulate.a = 0.6 if maxed else 1.0
 
 
-## Parça geliştir: para düşer, seviye işareti dolar, çubuğa yeşil kademe eklenir, "+1" yükselir
+## Özellik geliştir: para düşer, çubuğa yeşil kademe eklenir, kart zıplar, "+1" yükselir
 func _buy(part: String) -> void:
 	var v: int = MODELS[index][2]
 	if _busy or _starting or not Progress.owns(v):
@@ -825,7 +819,7 @@ func _buy(part: String) -> void:
 	_pill.set_value(Progress.get_coins())
 	_fill_upgrades()
 	# Yeni kademe: çubukta parlayıp yerine oturur
-	var row := 1 + PARTS.map(func(p): return p[0]).find(part)
+	var row := 1 + STAT_PARTS.find(part)
 	var seg: Panel = _segs[row][CarModel.part_base(v, part) + lvl - 1]
 	var sb := seg.get_theme_stylebox("panel") as StyleBoxFlat
 	sb.set_border_width_all(0)
@@ -835,12 +829,7 @@ func _buy(part: String) -> void:
 	t.tween_property(seg, "scale", Vector2(1.0, 2.4), 0.15)
 	t.tween_property(seg, "scale", Vector2.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	t.parallel().tween_property(sb, "bg_color", UP_COLOR, 0.5)
-	# Seviye işareti ve kart
-	var pip: Panel = card.pips[lvl - 1]
-	pip.pivot_offset = pip.size * 0.5
-	var tp := create_tween()
-	tp.tween_property(pip, "scale", Vector2.ONE * 1.8, 0.15)
-	tp.tween_property(pip, "scale", Vector2.ONE, 0.3)
+	# Kart
 	var root: Control = card.root
 	root.pivot_offset = root.size * 0.5
 	var tc := create_tween()
