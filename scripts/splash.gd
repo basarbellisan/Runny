@@ -2,7 +2,7 @@ extends Control
 ## Açılış introsu (OLLO, intro/ollo-intro.ogv; dikey, koyu zemin #0F0E11, ~2 sn): oyun ilk açılınca bir kez
 ## oynar, sonra kâğıt rengine yumuşakça geçip giriş sayfasına (garaj sahnesi) gider. Dokunmak ya da bir tuş
 ## introyu atlar. Video ekranı esnetmez: genişliğe sığar, üst ve alt boşluk zemin rengiyle dolar.
-## Testler (otomatik pilot, ekran görüntüsü), bölüm tasarımcısından açılış (?level=) ve --nointro introyu atlar.
+## Testler (otomatik pilot, ekran görüntüsü) ve --nointro introyu atlar. Web'de intro sayfada oynar (tools/web_intro.py).
 
 const NEXT_SCENE := "res://scenes/menu.tscn"
 const BG := Color("0f0e11")
@@ -66,8 +66,8 @@ func _skip_intro() -> bool:
 		if a == "--autopilot" or a == "--nointro" or a.begins_with("--shots") or a.begins_with("--car=") \
 				or a.begins_with("--lesson") or a.begins_with("--level"):
 			return true
+	# Web'de intro sayfanın kendisinde oynar (tools/web_intro.py: tarayıcı videoyu donanımla çözer, oyun
+	# yüklenirken oynar); oyun içindeki video web'de takılıyordu
 	if OS.has_feature("web"):
-		var r: Variant = JavaScriptBridge.eval("new URLSearchParams(location.search).get('level') || ''")
-		if r != null and str(r) != "":
-			return true
+		return true
 	return false
