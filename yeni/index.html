@@ -102,8 +102,6 @@ body {
 		<div id="intro" style="position:fixed;top:0;left:0;width:100vw;height:100vh;height:100dvh;z-index:10;background:#0f0e11;transition:background-color .4s ease;touch-action:none">
 			<video id="intro-video" muted playsinline webkit-playsinline autoplay preload="auto"
 				style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .15s ease">
-				<source src="intro.webm" type="video/webm">
-				<source src="intro.mp4" type="video/mp4">
 			</video>
 			<div id="intro-bar" style="position:absolute;left:50%;bottom:18%;width:120px;height:3px;margin-left:-60px;border-radius:2px;background:rgba(255,255,255,.14);opacity:0;transition:opacity .4s ease">
 				<div id="intro-fill" style="width:0;height:100%;border-radius:2px;background:rgba(255,255,255,.75);transition:width .25s linear"></div>
@@ -114,6 +112,15 @@ body {
 		(function () {
 			var box = document.getElementById('intro');
 			var v = document.getElementById('intro-video');
+			// Her açılışta rastgele bir intro (deneme: ?intro=N)
+			var n = parseInt(new URLSearchParams(location.search).get('intro'), 10);
+			if (!(n >= 1 && n <= 4)) n = 1 + Math.floor(Math.random() * 4);
+			['webm', 'mp4'].forEach(function (ext) {
+				var src = document.createElement('source');
+				src.src = 'intro-' + n + '.' + ext;
+				src.type = 'video/' + ext;
+				v.appendChild(src);
+			});
 			var ended = false, ready = false, gone = false;
 			if (new URLSearchParams(location.search).get('level')) {
 				box.remove();
@@ -171,7 +178,7 @@ body {
 
 		<script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":5258540,"index.wasm":39514754,"index.pck?v=7eb2457188":5258540},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"mainPack":"index.pck?v=7eb2457188"};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":5258572,"index.wasm":39514754,"index.pck?v=dd564b507a":5258572},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"mainPack":"index.pck?v=dd564b507a"};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
