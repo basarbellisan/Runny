@@ -64,7 +64,7 @@ var _price_row: HBoxContainer
 var _price_lbl: Label
 var _lock_icon: LockIcon
 var _models: Array[CarModel] = []
-## Geliştirme kartları: {part, stat, root, btn, price: Label, coin: CoinIcon}
+## Geliştirme kartları: {part, stat, root, btn, price: Label, coin: CoinIcon, have / max: seviye yazıları}
 var _cards: Array[Dictionary] = []
 var _ups_title: Label
 var _ups: Control
@@ -710,47 +710,44 @@ func _build_upgrades(ui: CanvasLayer) -> void:
 	_ups = Control.new()
 	_ups.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_ups.anchor_right = 1.0
-	_ups.offset_top = 806
-	_ups.offset_bottom = 1088
+	_ups.offset_top = 820
+	_ups.offset_bottom = 1100
 	ui.add_child(_ups)
 	_ups_title = _label(_ups, "UPGRADE", 14, 16, true)
 	_ups_title.modulate.a = 0.55
-	var rows := VBoxContainer.new()
-	rows.add_theme_constant_override("separation", 10)
-	rows.anchor_right = 1.0
-	rows.offset_top = 34
-	rows.offset_bottom = 282
-	rows.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_ups.add_child(rows)
+	# Beş dik kart tek sırada: soldan parçalar (WHEELS, TANK, WINGS), sonra AGILITY, BALANCE
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 12)
+	row.anchor_right = 1.0
+	row.offset_top = 40
+	row.offset_bottom = 276
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ups.add_child(row)
 	var spaced := FontVariation.new()
-	spaced.spacing_glyph = 4
+	spaced.spacing_glyph = 2
 	for keys in CARD_ROWS:
-		var row := HBoxContainer.new()
-		row.alignment = BoxContainer.ALIGNMENT_CENTER
-		row.add_theme_constant_override("separation", 14)
-		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		rows.add_child(row)
 		for key in keys:
 			var p: Array = PARTS.filter(func(x): return x[0] == key)[0]
 			var card := PanelContainer.new()
-			card.custom_minimum_size = Vector2(196, 0)
+			card.custom_minimum_size = Vector2(124, 236)
 			card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			var sb := StyleBoxFlat.new()
 			sb.bg_color = Color.WHITE
 			sb.set_border_width_all(3)
 			sb.border_color = Palette.MIST
-			sb.set_corner_radius_all(16)
-			sb.content_margin_left = 12
-			sb.content_margin_right = 12
-			sb.content_margin_top = 9
-			sb.content_margin_bottom = 10
+			sb.set_corner_radius_all(20)
+			sb.content_margin_left = 8
+			sb.content_margin_right = 8
+			sb.content_margin_top = 18
+			sb.content_margin_bottom = 12
 			card.add_theme_stylebox_override("panel", sb)
 			row.add_child(card)
 			var col := VBoxContainer.new()
-			col.add_theme_constant_override("separation", 5)
+			col.add_theme_constant_override("separation", 10)
 			col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			card.add_child(col)
-			var ic := CoinIcon.new(key, 32)
+			var ic := CoinIcon.new(key, 48)
 			ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 			col.add_child(ic)
 			var nm := Label.new()
@@ -760,28 +757,49 @@ func _build_upgrades(ui: CanvasLayer) -> void:
 			nm.add_theme_font_size_override("font_size", 14)
 			nm.add_theme_color_override("font_color", Palette.INK_DARK)
 			col.add_child(nm)
+			# Seviye: alınan (yeşil) / bu arabadaki geliştirme sayısı
+			var lv := HBoxContainer.new()
+			lv.alignment = BoxContainer.ALIGNMENT_CENTER
+			lv.add_theme_constant_override("separation", 0)
+			lv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			col.add_child(lv)
+			var lv_have := Label.new()
+			lv_have.add_theme_font_size_override("font_size", 17)
+			lv_have.add_theme_color_override("font_color", UP_COLOR)
+			lv.add_child(lv_have)
+			var lv_max := Label.new()
+			lv_max.add_theme_font_size_override("font_size", 17)
+			lv_max.add_theme_color_override("font_color", Color(Palette.INK_DARK, 0.45))
+			lv.add_child(lv_max)
+			var gap := Control.new()
+			gap.size_flags_vertical = Control.SIZE_EXPAND_FILL
+			gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			col.add_child(gap)
 			var btn := Button.new()
 			btn.focus_mode = Control.FOCUS_NONE
-			btn.custom_minimum_size = Vector2(0, 44)
+			btn.custom_minimum_size = Vector2(0, 70)
 			for st in ["normal", "hover", "pressed", "focus", "disabled"]:
 				var bsb := StyleBoxFlat.new()
-				bsb.set_corner_radius_all(10)
+				bsb.set_corner_radius_all(12)
 				btn.add_theme_stylebox_override(st, bsb)
 			col.add_child(btn)
-			var inner := HBoxContainer.new()
+			# Düğmede jeton üstte, fiyat altta
+			var inner := VBoxContainer.new()
 			inner.alignment = BoxContainer.ALIGNMENT_CENTER
-			inner.add_theme_constant_override("separation", 8)
+			inner.add_theme_constant_override("separation", 2)
 			inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 			inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			btn.add_child(inner)
-			var coin := CoinIcon.new("coin", 22)
-			coin.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			var coin := CoinIcon.new("coin", 24)
+			coin.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 			inner.add_child(coin)
 			var price := Label.new()
-			price.add_theme_font_size_override("font_size", 20)
+			price.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			price.add_theme_font_size_override("font_size", 21)
 			inner.add_child(price)
 			btn.pressed.connect(func(): _buy(key))
-			_cards.append({"part": key, "stat": p[2], "root": card, "btn": btn, "price": price, "coin": coin})
+			_cards.append({"part": key, "stat": p[2], "root": card, "btn": btn, "price": price, "coin": coin,
+				"have": lv_have, "max": lv_max})
 
 
 ## Kartların fiyatları; tavana gelen özelliğin düğmesi pasif (MAX). Kilitli arabada kartlar yok
@@ -802,6 +820,8 @@ func _fill_upgrades() -> void:
 			var bsb := (c.btn as Button).get_theme_stylebox(st) as StyleBoxFlat
 			bsb.bg_color = Color(Palette.INK_DARK, 0.05) if maxed else (Palette.MIST if poor else Palette.INK_DARK)
 		(c.root as Control).modulate.a = 0.6 if maxed else 1.0
+		(c.have as Label).text = str(Progress.level(v, c.part))
+		(c.max as Label).text = "/%d" % Progress.max_level(v, c.part)
 
 
 ## Özellik geliştir: para düşer, çubuğa yeşil kademe eklenir, kart zıplar, "+1" yükselir
