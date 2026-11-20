@@ -21,9 +21,9 @@ if 'id="intro"' in html:
     sys.exit(0)
 
 OVERLAY = """
-		<div id="intro" style="position:fixed;inset:0;z-index:10;background:#0f0e11;transition:background-color .4s ease;touch-action:none">
-			<video id="intro-video" muted playsinline autoplay preload="auto"
-				style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;transition:opacity .3s ease">
+		<div id="intro" style="position:fixed;top:0;left:0;width:100vw;height:100vh;height:100dvh;z-index:10;background:#0f0e11;transition:background-color .4s ease;touch-action:none">
+			<video id="intro-video" muted playsinline webkit-playsinline autoplay preload="auto"
+				style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .15s ease">
 				<source src="intro.webm" type="video/webm">
 				<source src="intro.mp4" type="video/mp4">
 			</video>
@@ -64,6 +64,8 @@ OVERLAY = """
 				}
 			}, 200);
 			function end() { ended = true; finish(); }
+			// Video oynamaya başlayınca görünür (boyutu yerleşmeden küçük bir kutuda görünmesin)
+			v.addEventListener('playing', function () { if (!gone) v.style.opacity = '1'; });
 			v.addEventListener('ended', function () { setTimeout(end, 250); });
 			v.addEventListener('error', end);
 			var srcs = v.querySelectorAll('source');
