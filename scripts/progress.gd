@@ -23,7 +23,7 @@ const PARTS := ["grip", "tank", "flight", "agility", "balance"]
 const LEVEL_PRICE := [200, 400, 800, 1600, 3200]
 ## Oyun sonu: km başına ve toplanan kristal başına para
 const COIN_PER_KM := 100.0
-const COIN_PER_CRYSTAL := 1.0
+const COIN_PER_CRYSTAL := 5.0
 
 static var coins := 0
 static var _owned := {}
