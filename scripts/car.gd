@@ -1170,6 +1170,8 @@ func _drive(delta: float) -> void:
 			for i in 4:
 				wheel_contact[i] = true
 	var control := 1.0 if on_floor else air_control
+	if tumbling:
+		control = 0.0  # takla: tekerler yerde değil
 	if on_floor:
 		# Boşluktaki tekerler: tutuş azalır, araba boş tarafa doğru yatar ve çekilir
 		var left_off := int(not wheel_contact[0]) + int(not wheel_contact[2])
@@ -1463,16 +1465,40 @@ func has_perk(perk: String) -> bool:
 	return perk in _perks
 
 
-## Kalkan (flipproof): yan ya da ters değince patlamaz. Kendini düzelten bir mekanizma yok: gövde
-## çarptığı yerden seker, dönmesi sürer (çarpma dönmeyi biraz da artırır); doğru açıyla tekerlerine
-## gelirse toparlanır, yoldan çıkarsa düşer. Her sekişte biraz hız kaybeder
+## Kalkan (flipproof): yan ya da ters değince patlamaz. Kendini düzelten bir mekanizma yok: çarpma
+## dönmeyi sürtünmeyle azaltır (artırmaz), araba ancak sert çarpınca hafifçe seker. Yerdeyken ağırlık
+## merkezi hangi yana düşüyorsa o yana devrilir (yan duruşta tekerlere ya da tavana; tavanda kalabilir).
+## Takla sürerken direksiyon, boost ve havada düzleşme yok. Her sert çarpmada biraz hız kaybeder
+const TUMBLE_TIP := 7.0        # yan duruşta devrilme ivmesi (rad/sn²)
+const TUMBLE_FRICTION := 1.6   # yerde sürtünerek dönmenin sönmesi (1/sn)
+var tumbling := false
+
+
+## Takla sırasında gövde yola dayanıyor (tekerler, yan ya da tavan): ağırlık merkezi devirir, sürtünme söndürür
+func _tumble_contact(tn: Vector3, delta: float) -> void:
+	var rel := wrapf(roll - atan2(-tn.x, tn.y), -PI, PI)
+	# Yan duruş (±90°) kararsız; tekerlerde ve tavanda durur
+	roll_rate += -TUMBLE_TIP * sin(2.0 * rel) * delta
+	roll_rate *= exp(-TUMBLE_FRICTION * delta)
+	# Yola sürten gövde yana da kayar ama sürtünmeyle yavaşlar
+	velocity.x *= exp(-2.5 * delta)
+	pitch_rate += (suspension_stiffness * 0.3 * (atan2(tn.z, tn.y) - pitch) - suspension_damping * pitch_rate) * delta
+	# Tavanda kayarken yavaşlar
+	if absf(rel) > 2.4:
+		speed *= exp(-0.35 * delta)
+	# Tekerlerinin üstüne geldi ve dönmesi söndü: takla bitti
+	if absf(rel) < 0.35 and absf(roll_rate) < 2.5:
+		tumbling = false
+
+
 func _shield_bounce(impact: float) -> void:
-	velocity.y = clampf(impact * 0.35, 3.0, 9.0)
-	var dir := signf(roll_rate) if absf(roll_rate) > 0.3 else (signf(wrapf(roll, -PI, PI)) if absf(roll) > 0.05 else 1.0)
-	roll_rate = dir * maxf(absf(roll_rate) * 0.8, 3.5 + impact * 0.12)
+	tumbling = true
+	if impact > 2.0:
+		velocity.y = minf(impact * 0.3, 6.0)
+		speed *= 0.95
+	roll_rate *= 0.8
 	pitch_rate *= 0.6
-	speed *= 0.92
-	_snap_off = maxf(_snap_off, 0.15)
+	_snap_off = maxf(_snap_off, 0.1)
 	shield_hit.emit(impact)
 	if OS.get_cmdline_user_args().has("--crashtrace"):
 		print("SHIELD frame=%d impact=%.1f roll=%.2f rate=%.1f z=%.0f" % [Engine.get_process_frames(), impact, roll, roll_rate, global_position.z])
@@ -1613,7 +1639,7 @@ func _update_boost(delta: float) -> void:
 	var was_burning := burning
 	# Yol üstü rampalar gaz istemez: üstlerinde roket ateşlenmez
 	var on_ramp := _last_segment != null and _last_segment.ramp
-	burning = boosting and mode == Mode.DRIVE and fuel > 0.0 and energy > 0.0 and not on_ramp
+	burning = boosting and mode == Mode.DRIVE and fuel > 0.0 and energy > 0.0 and not on_ramp and not tumbling
 	if mode == Mode.DRIVE:
 		if burning:
 			fuel = maxf(fuel - delta / boost_burn_time, 0.0)
@@ -1963,6 +1989,7 @@ func _update_visual(delta: float) -> void:
 ## Kanatlar açılınca (ve portaldan çıkınca) araba kendini düzeltir.
 func _update_attitude(delta: float) -> void:
 	if mode == Mode.FLYING or mode == Mode.LAUNCH:
+		tumbling = false
 		roll = wrapf(roll, -PI, PI)
 		pitch = wrapf(pitch, -PI, PI)
 		var w := 1.0 - exp(-5.0 * delta)
@@ -1984,7 +2011,10 @@ func _update_attitude(delta: float) -> void:
 		pitch_rate = 0.0
 		_air_lean = 0.0
 		return
-	if mode == Mode.DRIVE and is_on_floor():
+	if mode == Mode.DRIVE and is_on_floor() and tumbling:
+		_air_lean = 0.0
+		_tumble_contact(get_floor_normal(), delta)
+	elif mode == Mode.DRIVE and is_on_floor():
 		_air_lean = 0.0
 		var n := get_floor_normal()
 		var surface := atan2(n.z, n.y)
@@ -2024,12 +2054,12 @@ func _update_attitude(delta: float) -> void:
 		_air_lean = 0.0
 		return
 	else:
-		# Havada: önceki dönme sürer; direksiyon yatırır, bırakınca yatma söner
-		var lean_target := -_steer * deg_to_rad(air_lean_deg)
+		# Havada: önceki dönme sürer; direksiyon yatırır, bırakınca yatma söner (takladayken yatırmaz)
+		var lean_target := 0.0 if tumbling else -_steer * deg_to_rad(air_lean_deg)
 		var new_lean := lerpf(_air_lean, lean_target, 1.0 - exp(-delta * k_air_lean / maxf(air_lean_time, 0.01)))
 		roll += new_lean - _air_lean
 		_air_lean = new_lean
-		if mode == Mode.DRIVE:
+		if mode == Mode.DRIVE and not tumbling:
 			roll = lerp_angle(roll, 0.0, 1.0 - exp(-air_self_level * delta))
 			# Denge: direksiyon bırakılınca gövde kendiliğinden düzleşir (oyuncunun yatırması sürer)
 			if absf(_steer) < 0.05 and k_level > 0.0:
@@ -2133,8 +2163,12 @@ func _keep_hull_out(delta: float) -> void:
 			var pitch_err := absf(wrapf(pitch - atan2(n.z, n.y), -PI, PI))
 			if rad_to_deg(maxf(roll_err, pitch_err * 0.5)) > crash_landing_deg:
 				if has_perk("flipproof"):
-					if velocity.y <= 0.0:
+					# İlk değiş (ya da sert çarpma): kalkan; takla sürüyorsa gövde (tavan / yan) yola dayanır
+					if not tumbling or velocity.y < -2.5:
 						_shield_bounce(maxf(-velocity.y, 0.0))
+					else:
+						velocity.y = maxf(velocity.y, 0.0)
+						_tumble_contact(n, delta)
 				else:
 					crash("FLIPPED!" if roll_err > pitch_err else "CRASHED!")
 					return
