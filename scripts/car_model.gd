@@ -63,7 +63,7 @@ const STATS := {
 
 
 ## Yeni sistem: arabanın doğası ve geliştirilebilir özellikleri. Ağırlık 0 (hafif) .. 1 (ağır) sabit.
-## Her özellik [başlangıç, tavan] (1-10 ölçeği): her geliştirme 1 artırır, tavanı geçemez (geliştirme
+## Her özellik [başlangıç, tavan] (1-10 ölçeği; her özellikte 5 eski standart araba): her geliştirme 1 artırır, tavanı geçemez (geliştirme
 ## sayısı = tavan - başlangıç, arabaya göre değişir; pahalı arabalar hem iyi başlar hem yükseğe çıkar).
 ## Özellikler:
 ##   agility  çeviklik (geliştirilen özellik): direksiyon hızı, havada yönlendirme, boosta tepki
@@ -77,15 +77,15 @@ const STATS := {
 const SPEC := {
 	# Temel arabalar zayıf başlar (hız hariç her özellik 1-2 aşağıda; tavanlar aynı, geliştirecek çok yer var):
 	# açılan özel arabalar belirgin fark yaratsın
-	2: {"weight": 1.0, "agility": [1, 5], "balance": [4, 8], "grip": [3, 8], "tank": [4, 9], "flight": [1, 5]},    # Gezgin
-	8: {"weight": 0.5, "agility": [2, 7], "balance": [2, 7], "grip": [2, 7], "tank": [2, 7], "flight": [2, 7]},    # Latte
-	7: {"weight": 0.0, "agility": [4, 8], "balance": [1, 5], "grip": [3, 8], "tank": [1, 5], "flight": [3, 8]},    # Dark Rose
-	6: {"weight": 0.85, "agility": [3, 6], "balance": [6, 9], "grip": [3, 7], "tank": [5, 8], "flight": [3, 6]},   # Dragster
-	10: {"weight": 0.45, "agility": [5, 8], "balance": [5, 8], "grip": [5, 9], "tank": [4, 7], "flight": [4, 8]},  # GEM
-	9: {"weight": 0.2, "agility": [7, 9], "balance": [3, 7], "grip": [4, 8], "tank": [3, 7], "flight": [6, 9]},    # Falcon
-	12: {"weight": 0.15, "agility": [6, 9], "balance": [4, 8], "grip": [3, 7], "tank": [3, 7], "flight": [7, 10]}, # Delta
+	2: {"weight": 1.0, "agility": [1, 5], "balance": [4, 8], "grip": [3, 8], "tank": [5, 10], "flight": [1, 5]},    # Gezgin
+	8: {"weight": 0.5, "agility": [2, 7], "balance": [2, 7], "grip": [2, 7], "tank": [3, 8], "flight": [2, 7]},    # Latte
+	7: {"weight": 0.0, "agility": [4, 8], "balance": [1, 5], "grip": [3, 8], "tank": [2, 6], "flight": [3, 8]},    # Dark Rose
+	6: {"weight": 0.85, "agility": [3, 6], "balance": [6, 9], "grip": [3, 7], "tank": [6, 9], "flight": [3, 6]},   # Dragster
+	10: {"weight": 0.45, "agility": [5, 8], "balance": [5, 8], "grip": [5, 9], "tank": [5, 8], "flight": [4, 8]},  # GEM
+	9: {"weight": 0.2, "agility": [7, 9], "balance": [3, 7], "grip": [4, 8], "tank": [4, 8], "flight": [6, 9]},    # Falcon
+	12: {"weight": 0.15, "agility": [6, 9], "balance": [4, 8], "grip": [3, 7], "tank": [4, 8], "flight": [7, 10]}, # Delta
 }
-const DEFAULT_SPEC := {"weight": 0.5, "agility": [4, 7], "balance": [4, 7], "grip": [4, 7], "tank": [4, 7], "flight": [4, 7]}
+const DEFAULT_SPEC := {"weight": 0.5, "agility": [5, 8], "balance": [5, 8], "grip": [5, 8], "tank": [5, 8], "flight": [5, 8]}
 
 
 ## Ağırlık 0 (hafif) .. 1 (ağır)

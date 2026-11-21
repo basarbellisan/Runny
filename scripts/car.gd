@@ -2059,8 +2059,8 @@ func _refresh_stats() -> void:
 	k_fly_cost = (1.0 + 0.45 * hk) * (1.25 - 0.05 * f)
 	k_fly_steer = (1.0 - 0.2 * hk) * (0.8 + 0.04 * f)
 	k_reserve = 0.6 + 0.08 * f
-	# Depo: 4'te 100 (eski standart), her kademe 12
-	max_energy = 100.0 + 12.0 * (t - 4.0)
+	# Depo: 5'te 100 (eski standart; öbür özellikler gibi), her kademe 12
+	max_energy = 100.0 + 12.0 * (t - 5.0)
 
 
 ## Çarpışma omurgası ince bir kapsül; görünen gövde ise yerdeki orta noktasının
