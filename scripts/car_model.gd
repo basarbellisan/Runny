@@ -75,9 +75,11 @@ const STATS := {
 ##   flight   kanat: uçuş tüketimi, manevra, yedek yakıt
 ## Hız (STATS[0]) arabanın doğası: değişmez. Ağırlık roket ve uçuş tüketimini artırır, dengeyi destekler.
 const SPEC := {
-	2: {"weight": 1.0, "agility": [2, 5], "balance": [6, 8], "grip": [5, 8], "tank": [6, 9], "flight": [2, 5]},    # Gezgin
-	8: {"weight": 0.5, "agility": [4, 7], "balance": [4, 7], "grip": [4, 7], "tank": [4, 7], "flight": [4, 7]},    # Latte
-	7: {"weight": 0.0, "agility": [6, 8], "balance": [2, 5], "grip": [5, 8], "tank": [2, 5], "flight": [5, 8]},    # Dark Rose
+	# Temel arabalar zayıf başlar (hız hariç her özellik 1-2 aşağıda; tavanlar aynı, geliştirecek çok yer var):
+	# açılan özel arabalar belirgin fark yaratsın
+	2: {"weight": 1.0, "agility": [1, 5], "balance": [4, 8], "grip": [3, 8], "tank": [4, 9], "flight": [1, 5]},    # Gezgin
+	8: {"weight": 0.5, "agility": [2, 7], "balance": [2, 7], "grip": [2, 7], "tank": [2, 7], "flight": [2, 7]},    # Latte
+	7: {"weight": 0.0, "agility": [4, 8], "balance": [1, 5], "grip": [3, 8], "tank": [1, 5], "flight": [3, 8]},    # Dark Rose
 	6: {"weight": 0.85, "agility": [3, 6], "balance": [6, 9], "grip": [3, 7], "tank": [5, 8], "flight": [3, 6]},   # Dragster
 	10: {"weight": 0.45, "agility": [5, 8], "balance": [5, 8], "grip": [5, 9], "tank": [4, 7], "flight": [4, 8]},  # GEM
 	9: {"weight": 0.2, "agility": [7, 9], "balance": [3, 7], "grip": [4, 8], "tank": [3, 7], "flight": [6, 9]},    # Falcon

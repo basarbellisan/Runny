@@ -2036,7 +2036,9 @@ func _refresh_stats() -> void:
 	# Çeviklik: direksiyon hızı (tutuş destekler, ağırlık biraz yavaşlatır), havada yönlendirme, boosta tepki
 	_k_steer = ka * (0.9 + 0.1 * kg) * (1.0 - 0.1 * hk)
 	k_air_lean = ka
-	k_boost_rise = (0.7 + 0.06 * a) * (0.85 + 0.15 * kg)
+	# Boosta tepki hiçbir zaman bugünkü standarttan yavaş değil (yavaşlarsa araba rampaya geç hızlanır, zıplama
+	# kısalır; yollar standart tepkiye göre üretiliyor). Yüksek çeviklik ve tutuş daha çabuk tepki verir
+	k_boost_rise = maxf(1.0, (0.7 + 0.06 * a) * (0.85 + 0.15 * kg))
 	# Tutuş: boştaki tekerde ve yatık yolda kaymamak, kenarda boşluğa çekilmemek, inişte çabuk toparlanmak.
 	# Hava engelinde etkisi yok (araba aşağıdan itilir, tekerler yerden kesilir)
 	_k_grip = 1.4 - 0.08 * g
