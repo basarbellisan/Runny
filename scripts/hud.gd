@@ -162,7 +162,8 @@ func _build_game_over() -> void:
 	_over.visible = false
 
 
-## Para sistemi (Progress): oyun sonunda önce km, sonra depoda kalan kristal paraya dönüşür
+## Para sistemi (Progress): oyun sonunda önce km, sonra bu oyunda toplanan kristaller paraya dönüşür
+## (kristal sayısı oyun sırasında gösterilmez)
 var coin_mode := true
 ## Sayaçlar bitti mi (bitmeden dokunmak sayımı atlar)
 var tally_done := true
@@ -497,7 +498,7 @@ func _layout_coins() -> void:
 	_rows.clear()
 	_row_vals.clear()
 	for r in [["DISTANCE", "1 km = %d" % int(Progress.COIN_PER_KM), false, 330.0],
-			["CRYSTALS LEFT", "1     = %d" % int(Progress.COIN_PER_CRYSTAL), true, 480.0]]:
+			["COLLECTED CRYSTALS", "1     = %d" % int(Progress.COIN_PER_CRYSTAL), true, 480.0]]:
 		_tally_row(r[0], r[1], r[2], r[3])
 	var cap := _over_label(15, 668, true, Color(ink, 0.55))
 	cap.text = "EARNED"
@@ -587,7 +588,7 @@ func _tally_row(caption: String, rate: String, gem: bool, y: float) -> void:
 	_row_vals.append(v)
 
 
-## Para sayımı: earned [km parası, kristal parası], crystals depoda kalan enerji, total_before önceki para
+## Para sayımı: earned [km parası, kristal parası], crystals toplanan kristal sayısı, total_before önceki para
 func _start_tally(meters: float, crystals: float, earned: Array, total_before: int) -> void:
 	tally_done = false
 	_tally = {"m": meters, "c": crystals, "a": int(earned[0]), "b": int(earned[1]), "t0": total_before}
@@ -683,7 +684,7 @@ func _fly_coins() -> void:
 		t.tween_callback(c.queue_free)
 
 
-## Para düzeninde oyun sonu: earned [km parası, kristal parası]; crystals depoda kalan enerji
+## Para düzeninde oyun sonu: earned [km parası, kristal parası]; crystals bu oyunda toplanan kristal sayısı
 func show_game_over(reason: String, score: int, best: int, meters := 0.0, earned := [], crystals := 0.0, total_before := 0) -> void:
 	if coin_mode and earned.size() == 2:
 		_layout_game_over()

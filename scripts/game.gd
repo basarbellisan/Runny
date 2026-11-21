@@ -731,10 +731,10 @@ func _on_game_over(reason: String) -> void:
 	# Uçarken parçalanma uzun sürer (küpler saçılıp seksin, görülsün)
 	var wait := 3.5 if car.smashing else (2.0 if car.shattering else 1.0)
 	var real := car.shattering
-	# Para: önce km, sonra depoda kalan kristal (enerji). Hemen kaydedilir; testlerde (otomatik pilot,
+	# Para: önce km, sonra bu oyunda toplanan kristal sayısı. Hemen kaydedilir; testlerde (otomatik pilot,
 	# tasarım testi) kazanılmaz
 	var meters := _start_z - car.global_position.z
-	var left := car.energy
+	var left := float(_stats.crystals)
 	var earned := Progress.reward(meters, left)
 	var before := Progress.get_coins()
 	if not car.autopilot and not _level_test:

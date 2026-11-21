@@ -3,7 +3,7 @@ extends RefCounted
 ## Oyuncunun birikimi: para, açılan arabalar ve her arabanın parça seviyeleri. Ayrı dosyada saklanır
 ## (user://progress.cfg); oyun kayıtlarından (save.cfg: seçili araba, rekor) bağımsız.
 ##
-## Para oyun sonunda kazanılır: önce gidilen km, sonra depoda kalan kristal paraya dönüşür.
+## Para oyun sonunda kazanılır: önce gidilen km, sonra bu oyunda toplanan kristaller paraya dönüşür.
 ## Garajda harcanır: özellik geliştirme (tekerlek, depo, kanat, çeviklik, denge; arabaya göre tavana kadar) ve
 ## kilitli arabalar.
 ## Geliştirmeler kalıcıdır, geri alınmaz.
@@ -21,7 +21,7 @@ const CAR_PRICE := {6: 3000, 10: 6000, 9: 10000, 12: 15000}
 const PARTS := ["grip", "tank", "flight", "agility", "balance"]
 ## Parçanın bir sonraki seviyesinin fiyatı (seviye 0 -> 1: ilk değer)
 const LEVEL_PRICE := [200, 400, 800, 1600, 3200]
-## Oyun sonu: km başına ve depoda kalan kristal (enerji) başına para
+## Oyun sonu: km başına ve toplanan kristal başına para
 const COIN_PER_KM := 100.0
 const COIN_PER_CRYSTAL := 1.0
 
