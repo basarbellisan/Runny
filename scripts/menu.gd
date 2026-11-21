@@ -17,7 +17,7 @@ const MODELS := [
 	["DELTA", "A wing on wheels: the best flyer.", 12],
 ]
 ## Geliştirme kartları: [özellik, kart adı, çubuk adı]; üst satır parçalar, alt satır parçasız özellikler
-const PARTS := [["grip", "WHEELS", "GRIP"], ["tank", "TANK", "TANK"], ["flight", "WINGS", "FLIGHT"],
+const PARTS := [["grip", "GRIP", "GRIP"], ["tank", "TANK", "TANK"], ["flight", "WINGS", "WINGS"],
 	["agility", "AGILITY", "AGILITY"], ["balance", "BALANCE", "BALANCE"]]
 const CARD_ROWS := [["grip", "tank", "flight"], ["agility", "balance"]]
 ## Özellik çubukları (SPEED'den sonra; 10 kademe)
@@ -604,7 +604,7 @@ func _build_ui(best: int) -> void:
 
 
 ## Özellik çubukları (10 kademe): hız arabanın doğası; tutuş, depo ve uçuş parçalardan
-const STAT_NAMES := ["SPEED", "AGILITY", "BALANCE", "GRIP", "TANK", "FLIGHT"]
+const STAT_NAMES := ["SPEED", "AGILITY", "BALANCE", "GRIP", "TANK", "WINGS"]
 const SEGS := 10
 ## Bu arabanın tavanının üstündeki kademeler (hiç çıkılamaz): çok soluk
 const CAP_COLOR := Color(0.137, 0.145, 0.161, 0.05)
@@ -715,7 +715,7 @@ func _build_upgrades(ui: CanvasLayer) -> void:
 	ui.add_child(_ups)
 	_ups_title = _label(_ups, "UPGRADE", 14, 16, true)
 	_ups_title.modulate.a = 0.55
-	# Beş dik kart tek sırada: soldan parçalar (WHEELS, TANK, WINGS), sonra AGILITY, BALANCE
+	# Beş dik kart tek sırada: soldan parçalar (GRIP: tekerlek, TANK, WINGS), sonra AGILITY, BALANCE
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 12)
