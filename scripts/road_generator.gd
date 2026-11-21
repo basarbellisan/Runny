@@ -4020,6 +4020,9 @@ const LEVEL_DIR := "res://levels"
 ## levels/ klasöründeki tasarımları yükler
 func load_levels() -> void:
 	custom_levels.clear()
+	# Klasör boşsa pakete hiç girmez (şu an bütün kalıplar levels_drafts/ içinde): yollar yalnız üreticiden
+	if not DirAccess.dir_exists_absolute(LEVEL_DIR):
+		return
 	for f in DirAccess.get_files_at(LEVEL_DIR):
 		if not f.ends_with(".json"):
 			continue
