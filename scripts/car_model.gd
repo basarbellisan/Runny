@@ -85,6 +85,9 @@ const SPEC := {
 	9: {"weight": 0.2, "agility": [7, 9], "balance": [3, 7], "grip": [4, 8], "tank": [4, 8], "flight": [6, 9]},    # Falcon
 	12: {"weight": 0.15, "agility": [6, 9], "balance": [4, 8], "grip": [3, 7], "tank": [4, 8], "flight": [7, 10]}, # Delta
 }
+## Özel arabaların yetenekleri. "flipproof": ters ya da yan inince patlamaz (yalnız burnuyla yolun ön
+## yüzüne girerse ve uçarken parçalara çarparsa patlar); kendini düzeltmez, fizik sürer
+const PERKS := {}
 const DEFAULT_SPEC := {"weight": 0.5, "agility": [5, 8], "balance": [5, 8], "grip": [5, 8], "tank": [5, 8], "flight": [5, 8]}
 
 

@@ -90,6 +90,7 @@ var boost_drain_factor := 2.5
 var score := 0.0
 var multiplier := 1
 var game_over := false
+var _tumbled := {}
 var _mult_timer := 0.0
 var _over_time := 0.0
 var _mood := -1.0
@@ -274,6 +275,15 @@ func _physics_process(delta: float) -> void:
 		var d := roads.to_design(car.global_position)
 		print("TR z=%.1f x=%.2f y=%.3f vy=%.2f roll=%.3f pitch=%.3f floor=%s seg=%s" % [d.y, d.x, car.global_position.y, car.velocity.y, car.roll, car.pitch, car.is_on_floor(), roads.segment_under(car.global_position).get_instance_id() % 10000 if roads.segment_under(car.global_position) else -1])
 		print("TW climb=%s res=%s grav=%s wc=%s tip=%.3f nose=%.3f bounce=%.3f part=%s ramp=%s mpos=%s" % [car.climbing, car.reserve_on, car.on_gravel, car.wheel_contact, car._tip, car._nose, car._bounce, car._partial != null, car._ramp_lift, car.model.position if car.model else Vector3.ZERO])
+	# Test (kalkan videosu): --tumble_at=F1,F2,...: o karelerde araba yoldaysa havaya fırlar ve döner
+	if _args.has("tumble_at") and not game_over and car.mode == Car.Mode.DRIVE and car.is_on_floor():
+		var frames: Array = Array(str(_args.tumble_at).split(",")).map(func(f): return int(f))
+		var fr := Engine.get_process_frames()
+		for f in frames:
+			if fr >= f and fr < f + 30 and not _tumbled.has(f):
+				_tumbled[f] = true
+				car.velocity.y = 9.0
+				car.roll_rate = (1.0 if _tumbled.size() % 2 == 1 else -1.0) * float(_args.get("tumble_spin", "7"))
 	if _args.has("force_over") and not game_over and Engine.get_process_frames() == int(_args.force_over):
 		car.crash("CRASHED!")  # test: oyun sonu ekranının görüntüsü için
 	if game_over:

@@ -15,6 +15,8 @@ extends CharacterBody3D
 signal landed(air_time: float, quality: float, impact: float)
 ## Yolun sonundan havaya fırladık
 signal jumped
+## Kalkanlı araba ters / yan değdi, patlamadı (çarpma hızı)
+signal shield_hit(impact: float)
 ## Bir yere çarpıp patladık
 signal exploded
 ## Roket gaz ateşlendi (yakıt varken gaza basıldı)
@@ -1146,6 +1148,9 @@ func _update_scan() -> void:
 
 
 func crash(reason: String) -> void:
+	if OS.get_cmdline_user_args().has("--crashtrace"):
+		print("CRASH %s roll=%.2f pitch=%.2f vel=%v" % [reason, roll, pitch, velocity])
+		print_stack()
 	if mode == Mode.DEAD:
 		return
 	# Çarpma (uçarken ve yolda; ışık bariyeri hariç, o kesilir): iri küplere ayrılır, gerçek fizikle saçılır
@@ -1443,6 +1448,36 @@ func _back_on_road(vy_before: float) -> void:
 	_touchdown(vy_before)
 
 
+## Özel arabaların yetenekleri (CarModel.PERKS; deneme: --perk=flipproof)
+var _perks: Array = []
+var _perks_variant := -1
+
+
+func has_perk(perk: String) -> bool:
+	if model != null and model.variant != _perks_variant:
+		_perks_variant = model.variant
+		_perks = (CarModel.PERKS.get(model.variant, []) as Array).duplicate()
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--perk="):
+				_perks.append(a.get_slice("=", 1))
+	return perk in _perks
+
+
+## Kalkan (flipproof): yan ya da ters değince patlamaz. Kendini düzelten bir mekanizma yok: gövde
+## çarptığı yerden seker, dönmesi sürer (çarpma dönmeyi biraz da artırır); doğru açıyla tekerlerine
+## gelirse toparlanır, yoldan çıkarsa düşer. Her sekişte biraz hız kaybeder
+func _shield_bounce(impact: float) -> void:
+	velocity.y = clampf(impact * 0.35, 3.0, 9.0)
+	var dir := signf(roll_rate) if absf(roll_rate) > 0.3 else (signf(wrapf(roll, -PI, PI)) if absf(roll) > 0.05 else 1.0)
+	roll_rate = dir * maxf(absf(roll_rate) * 0.8, 3.5 + impact * 0.12)
+	pitch_rate *= 0.6
+	speed *= 0.92
+	_snap_off = maxf(_snap_off, 0.15)
+	shield_hit.emit(impact)
+	if OS.get_cmdline_user_args().has("--crashtrace"):
+		print("SHIELD frame=%d impact=%.1f roll=%.2f rate=%.1f z=%.0f" % [Engine.get_process_frames(), impact, roll, roll_rate, global_position.z])
+
+
 ## Tekerler yere değdi: duruşa ve çarpma hızına göre iniş kalitesi.
 ## Yan ya da ters inersek patlarız (false döner).
 func _touchdown(vy_before: float) -> bool:
@@ -1454,6 +1489,9 @@ func _touchdown(vy_before: float) -> bool:
 	# Burun/kuyruk sapması yan yatmadan daha az önemli (önce bir aks değer, öbürü iner)
 	var err := rad_to_deg(maxf(roll_err, pitch_err * 0.5))
 	if err > crash_landing_deg:
+		if has_perk("flipproof"):
+			_shield_bounce(impact)
+			return true
 		crash("FLIPPED!" if roll_err > pitch_err else "CRASHED!")
 		return false
 	var quality := clampf((err - clean_landing_deg) / 40.0, 0.0, 1.0) \
@@ -2094,8 +2132,12 @@ func _keep_hull_out(delta: float) -> void:
 			var roll_err := absf(wrapf(roll - atan2(-n.x, n.y), -PI, PI))
 			var pitch_err := absf(wrapf(pitch - atan2(n.z, n.y), -PI, PI))
 			if rad_to_deg(maxf(roll_err, pitch_err * 0.5)) > crash_landing_deg:
-				crash("FLIPPED!" if roll_err > pitch_err else "CRASHED!")
-				return
+				if has_perk("flipproof"):
+					if velocity.y <= 0.0:
+						_shield_bounce(maxf(-velocity.y, 0.0))
+				else:
+					crash("FLIPPED!" if roll_err > pitch_err else "CRASHED!")
+					return
 	want = minf(want, 2.0)
 	# Hemen kalkar, yavaşça iner (titremesin)
 	_hull_lift = maxf(want, move_toward(_hull_lift, want, 4.0 * delta))
