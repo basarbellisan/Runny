@@ -1462,6 +1462,11 @@ func has_perk(perk: String) -> bool:
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--perk="):
 				_perks.append(a.get_slice("=", 1))
+		# Deneme (web): ?kalkan=1 seçili arabaya kalkanı açar
+		if OS.has_feature("web"):
+			var r: Variant = JavaScriptBridge.eval("new URLSearchParams(location.search).get('kalkan') || ''")
+			if r != null and str(r) != "" and str(r) != "0":
+				_perks.append("flipproof")
 	return perk in _perks
 
 

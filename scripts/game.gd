@@ -794,9 +794,24 @@ func _capture_shots() -> void:
 ## Komut satırı: -- --autopilot --dive=12 --seed=42 --shots=120,600 --shot_dir=/tmp
 ## Tasarım testi: --level=dosya.json ya da web'de ?level=test (tasarım tarayıcı hafızasında).
 ## Tasarım başlangıç pistinden hemen sonra gelir; araba tasarımın hızıyla başlar.
+## Kalkan denemesi parkuru (?parkur=takla / --parkur=takla): geniş düz yol, kenarına binilecek rampalar
+## (bir yanın tekerleri rampada kalınca araba yana dönerek fırlar); bitince oyun normal devam eder
+const TAKLA_PARKUR := {"format": "runny-level", "version": 1, "name": "Takla parkuru", "at": 0, "crystals": true,
+	"pieces": [{"id": 1, "x": 0, "w": 30, "z0": 0, "len": 1300, "h0": 0, "h1": 0}],
+	"obstacles": [
+		{"id": 2, "kind": "ramp", "x": -3, "w": 4, "z0": 140, "len": 10.8, "rise": 2.2},
+		{"id": 3, "kind": "ramp", "x": 3, "w": 4, "z0": 330, "len": 10.8, "rise": 2.2},
+		{"id": 4, "kind": "ramp", "x": -3, "w": 4, "z0": 520, "len": 10.8, "rise": 2.2},
+		{"id": 5, "kind": "ramp", "x": 3, "w": 4, "z0": 710, "len": 10.8, "rise": 2.2},
+		{"id": 6, "kind": "ramp", "x": -3, "w": 4, "z0": 900, "len": 10.8, "rise": 2.2},
+		{"id": 7, "kind": "ramp", "x": 3, "w": 4, "z0": 1090, "len": 10.8, "rise": 2.2}]}
+
+
 func _setup_level_test() -> void:
 	var text := ""
-	if _args.has("level"):
+	if str(_args.get("parkur", "")) == "takla" or _web_param("parkur") == "takla":
+		text = JSON.stringify(TAKLA_PARKUR)
+	elif _args.has("level"):
 		text = FileAccess.get_file_as_string(_args.level)
 	elif _web_param("level") != "":
 		text = str(JavaScriptBridge.eval("localStorage.getItem('%s') || ''" % LEVEL_KEY))
