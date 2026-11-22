@@ -1470,21 +1470,27 @@ func has_perk(perk: String) -> bool:
 ## merkezi hangi yana düşüyorsa o yana devrilir (yan duruşta tekerlere ya da tavana; tavanda kalabilir).
 ## Takla sürerken direksiyon, boost ve havada düzleşme yok. Her sert çarpmada biraz hız kaybeder
 const TUMBLE_TIP := 7.0        # yan duruşta devrilme ivmesi (rad/sn²)
+## Yuvarlak kafes (buggy): tavanında dengede duramaz; yavaşça bir yana yatar, yan duruştan tekerlerine
+## devrilir (kafesin şekli; yay ya da düzeltme değil). 2 * TUMBLE_TIP'ten biraz büyük: tavanda yavaş başlar
+const TUMBLE_DOME := 16.0
 const TUMBLE_FRICTION := 1.6   # yerde sürtünerek dönmenin sönmesi (1/sn)
 var tumbling := false
+var _tumble_boost_test := OS.get_cmdline_user_args().has("--tumble_boost")
 
 
 ## Takla sırasında gövde yola dayanıyor (tekerler, yan ya da tavan): ağırlık merkezi devirir, sürtünme söndürür
 func _tumble_contact(tn: Vector3, delta: float) -> void:
 	var rel := wrapf(roll - atan2(-tn.x, tn.y), -PI, PI)
-	# Yan duruş (±90°) kararsız; tekerlerde ve tavanda durur
-	roll_rate += -TUMBLE_TIP * sin(2.0 * rel) * delta
+	# Kutu gövde: yan duruş (±90°) kararsız, tekerlerde ve tavanda durur. Yuvarlak kafes tavanı da
+	# kararsız yapar: tavandan yavaşça yana, yandan tekerlere devrilir
+	var dome := TUMBLE_DOME if has_perk("flipproof") else 0.0
+	roll_rate += (-TUMBLE_TIP * sin(2.0 * rel) - dome * sin(rel)) * delta
 	roll_rate *= exp(-TUMBLE_FRICTION * delta)
 	# Yola sürten gövde yana da kayar ama sürtünmeyle yavaşlar
 	velocity.x *= exp(-2.5 * delta)
 	pitch_rate += (suspension_stiffness * 0.3 * (atan2(tn.z, tn.y) - pitch) - suspension_damping * pitch_rate) * delta
-	# Tavanda kayarken yavaşlar
-	if absf(rel) > 2.4:
+	# Tavanda kayarken yavaşlar (roket yanıyorsa ileri fırlar)
+	if absf(rel) > 2.4 and not burning:
 		speed *= exp(-0.35 * delta)
 	# Tekerlerinin üstüne geldi ve dönmesi söndü: takla bitti
 	if absf(rel) < 0.35 and absf(roll_rate) < 2.5:
@@ -1634,12 +1640,17 @@ func _dead_motion(delta: float) -> void:
 
 ## Yerde ve uçarken basılı tuttukça gaz dolar; yoldan havalanınca olduğu gibi kalır
 func _update_boost(delta: float) -> void:
-	if mode == Mode.DRIVE and not is_on_floor():
+	# Havadayken gaz değişmez; takla atan araba gövdesiyle yola dayanır, roketi yine yanar
+	if mode == Mode.DRIVE and not is_on_floor() and not tumbling:
 		return
 	var was_burning := burning
 	# Yol üstü rampalar gaz istemez: üstlerinde roket ateşlenmez
 	var on_ramp := _last_segment != null and _last_segment.ramp
-	burning = boosting and mode == Mode.DRIVE and fuel > 0.0 and energy > 0.0 and not on_ramp and not tumbling
+	# Test (kalkan videosu): --tumble_boost: ters / yan dururken roketi yak
+	if tumbling and _tumble_boost_test and absf(wrapf(roll, -PI, PI)) > 1.2:
+		boosting = true
+	# Takla sırasında da roket yanar: ters / yan duran araba ileri fırlar
+	burning = boosting and mode == Mode.DRIVE and fuel > 0.0 and energy > 0.0 and not on_ramp
 	if mode == Mode.DRIVE:
 		if burning:
 			fuel = maxf(fuel - delta / boost_burn_time, 0.0)
