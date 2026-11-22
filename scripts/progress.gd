@@ -15,7 +15,9 @@ const PATH := "user://progress.cfg"
 ## Başta açık temel arabalar (ağır, orta, hafif)
 const BASIC := [2, 8, 7]
 ## Kilitli özel arabaların fiyatı
-const CAR_PRICE := {6: 3000, 10: 6000, 9: 10000, 12: 15000}
+const CAR_PRICE := {6: 3000, 10: 6000, 9: 10000, 12: 15000, 11: 20000}
+## Denemede açık arabalar (yalnız test sayfası; fiyatı ve açılma hedefi sonra)
+const TEST_OPEN := [11]
 ## Geliştirilebilir özellikler: parçalar (tekerlek: tutuş, depo: kristal kapasitesi, kanat: uçuş) ve
 ## parçasız özellikler (çeviklik, denge). Geliştirme sayısı arabaya göre (CarModel.SPEC: tavan - başlangıç)
 const PARTS := ["grip", "tank", "flight", "agility", "balance"]
@@ -74,7 +76,7 @@ static func get_coins() -> int:
 
 static func owns(v: int) -> bool:
 	_ensure()
-	return v in BASIC or _owned.has(v)
+	return v in BASIC or v in TEST_OPEN or _owned.has(v)
 
 
 static func car_price(v: int) -> int:

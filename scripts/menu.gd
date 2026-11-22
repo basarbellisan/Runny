@@ -15,6 +15,7 @@ const MODELS := [
 	["GEM", "Medium, with a great grip.", 10],
 	["FALCON", "Light and the fastest.", 9],
 	["DELTA", "A wing on wheels: the best flyer.", 12],
+	["BUGGY", "Special: flip-proof shield. Lands on its side or roof without exploding.", 11],
 ]
 ## Geliştirme kartları: [özellik, kart adı, çubuk adı]; üst satır parçalar, alt satır parçasız özellikler
 const PARTS := [["grip", "GRIP", "GRIP"], ["tank", "TANK", "TANK"], ["flight", "WINGS", "WINGS"],
