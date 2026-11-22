@@ -1470,39 +1470,78 @@ func has_perk(perk: String) -> bool:
 	return perk in _perks
 
 
-## Kalkan (flipproof): yan ya da ters değince patlamaz. Kendini düzelten bir mekanizma yok: çarpma
-## dönmeyi sürtünmeyle azaltır (artırmaz), araba ancak sert çarpınca hafifçe seker. Yerdeyken ağırlık
-## merkezi hangi yana düşüyorsa o yana devrilir (yan duruşta tekerlere ya da tavana; tavanda kalabilir).
-## Takla sürerken direksiyon, boost ve havada düzleşme yok. Her sert çarpmada biraz hız kaybeder
+## Kalkan (flipproof): yan ya da ters değince patlamaz. Kendini düzelten bir mekanizma yok: kutu gibi
+## davranır. Çarpma dönmeyi sürtünmeyle azaltır (artırmaz), araba ancak sert çarpınca hafifçe seker.
+## Yerdeyken ağırlık merkezi hangi yana düşüyorsa o yana devrilir (yan duruşta tekerlere ya da tavana);
+## tavanına düşerse tavanında kalır ve sürterek yavaşlar. Roket yakılırsa ileri fırlar (bir yerden düşer
+## ya da sekip döner); duruncaya kadar ters kalırsa oyun biter (STUCK!).
+## Takla sürerken direksiyon ve havada düzleşme yok. Her sert çarpmada biraz hız kaybeder
 const TUMBLE_TIP := 7.0        # yan duruşta devrilme ivmesi (rad/sn²)
-## Yuvarlak kafes (buggy): tavanında dengede duramaz; yavaşça bir yana yatar, yan duruştan tekerlerine
-## devrilir (kafesin şekli; yay ya da düzeltme değil). 2 * TUMBLE_TIP'ten biraz büyük: tavanda yavaş başlar
-const TUMBLE_DOME := 16.0
 const TUMBLE_FRICTION := 1.6   # yerde sürtünerek dönmenin sönmesi (1/sn)
+const ROOF_DRAG := 10.0        # tavanında kayarken yavaşlama (m/sn²; motorun ivmesini de yener)
+const STUCK_SPEED := 4.0       # tavanında bu hızın altında ...
+const STUCK_TIME := 1.5        # ... bu kadar kalırsa oyun biter
 var tumbling := false
+var _tumble_face := 0          # yola değen yüz: 0 tekerler, ±1 yanlar, 2 tavan (yüz değişince "takır" sesi)
+var _knock_frame := -100
+var _roof_time := 0.0
+var _stuck := false
 var _tumble_boost_test := OS.get_cmdline_user_args().has("--tumble_boost")
 
 
 ## Takla sırasında gövde yola dayanıyor (tekerler, yan ya da tavan): ağırlık merkezi devirir, sürtünme söndürür
 func _tumble_contact(tn: Vector3, delta: float) -> void:
 	var rel := wrapf(roll - atan2(-tn.x, tn.y), -PI, PI)
-	# Kutu gövde: yan duruş (±90°) kararsız, tekerlerde ve tavanda durur. Yuvarlak kafes tavanı da
-	# kararsız yapar: tavandan yavaşça yana, yandan tekerlere devrilir
-	var dome := TUMBLE_DOME if has_perk("flipproof") else 0.0
-	roll_rate += (-TUMBLE_TIP * sin(2.0 * rel) - dome * sin(rel)) * delta
+	# Kutu gövde: yan duruş (±90°) kararsız, tekerlerde ve tavanda durur
+	roll_rate += -TUMBLE_TIP * sin(2.0 * rel) * delta
 	roll_rate *= exp(-TUMBLE_FRICTION * delta)
+	# Başka bir yüzü yola vurdu (tekerden yana, yandan tavana...): takır
+	var face := int(round(rel / (PI * 0.5)))
+	if face == -2:
+		face = 2
+	if face != _tumble_face:
+		_tumble_face = face
+		_knock(2.0 + absf(roll_rate) * 1.6 + maxf(-velocity.y, 0.0))
 	# Yola sürten gövde yana da kayar ama sürtünmeyle yavaşlar
 	velocity.x *= exp(-2.5 * delta)
 	pitch_rate += (suspension_stiffness * 0.3 * (atan2(tn.z, tn.y) - pitch) - suspension_damping * pitch_rate) * delta
-	# Tavanda kayarken yavaşlar (roket yanıyorsa ileri fırlar)
+	# Tavanda kayarken sürterek yavaşlar (roket yanıyorsa ileri fırlar); durursa sıkıştı: oyun biter
 	if absf(rel) > 2.4 and not burning:
-		speed *= exp(-0.35 * delta)
+		speed = move_toward(speed, 0.0, (ROOF_DRAG + acceleration * _k_speed) * delta)
+		_roof_time = _roof_time + delta if speed < STUCK_SPEED else 0.0
+		if _roof_time > STUCK_TIME:
+			_stuck_out()
+			return
+	else:
+		_roof_time = 0.0
 	# Tekerlerinin üstüne geldi ve dönmesi söndü: takla bitti
 	if absf(rel) < 0.35 and absf(roll_rate) < 2.5:
 		tumbling = false
 
 
+## Gövde yola vurdu: ses (çarpma hızına göre); art arda çok sık vuruşlar tek ses
+func _knock(impact: float) -> void:
+	var f := Engine.get_physics_frames()
+	if f - _knock_frame < 5:
+		return
+	_knock_frame = f
+	shield_hit.emit(impact)
+
+
+## Tavanında durdu, kalkamıyor: oyun biter (patlamaz, olduğu yerde kalır)
+func _stuck_out() -> void:
+	_stuck = true
+	velocity = Vector3.ZERO
+	speed = 0.0
+	roll_rate = 0.0
+	pitch_rate = 0.0
+	_die("STUCK!")
+
+
 func _shield_bounce(impact: float) -> void:
+	if not tumbling:
+		_tumble_face = 0
+		_roof_time = 0.0
 	tumbling = true
 	if impact > 2.0:
 		velocity.y = minf(impact * 0.3, 6.0)
@@ -1510,7 +1549,7 @@ func _shield_bounce(impact: float) -> void:
 	roll_rate *= 0.8
 	pitch_rate *= 0.6
 	_snap_off = maxf(_snap_off, 0.1)
-	shield_hit.emit(impact)
+	_knock(impact)
 	if OS.get_cmdline_user_args().has("--crashtrace"):
 		print("SHIELD frame=%d impact=%.1f roll=%.2f rate=%.1f z=%.0f" % [Engine.get_process_frames(), impact, roll, roll_rate, global_position.z])
 
@@ -1592,6 +1631,8 @@ func _die(reason: String) -> void:
 
 
 func _dead_motion(delta: float) -> void:
+	if _stuck:
+		return
 	if smashing:
 		_smash_motion(delta)
 		return

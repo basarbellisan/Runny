@@ -144,6 +144,7 @@ func _ready() -> void:
 	car.landed.connect(_on_landed)
 	car.mode_changed.connect(_on_mode_changed)
 	car.died.connect(_on_game_over)
+	car.shield_hit.connect(_on_shield_hit)
 	hud.garage_pressed.connect(_to_garage)
 	hud.again_pressed.connect(func(): get_tree().reload_current_scene())
 	if _args.has("over_style"):
@@ -492,6 +493,13 @@ func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 			_flight_hint()
 		Car.Mode.LAUNCH:
 			Audio.play("portal")
+
+
+## Kalkanlı arabanın gövdesi yola vurdu (takla): takır tukur, çarpma hızına göre
+func _on_shield_hit(impact: float) -> void:
+	Audio.play("tumble", clampf(-10.0 + impact * 1.2, -10.0, 0.0), randf_range(0.85, 1.15))
+	if impact > 6.0:
+		$Camera.shake(clampf(impact / 60.0, 0.0, 0.25))
 
 
 func _on_landed(air_time: float, quality: float, impact: float) -> void:
