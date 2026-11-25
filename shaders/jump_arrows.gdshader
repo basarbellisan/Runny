@@ -24,8 +24,6 @@ float lit(float a) {
 
 void vertex() {
 	along = INSTANCE_CUSTOM.g;
-	// Yanan ok bir an büyür (patlar)
-	VERTEX.xz *= 1.0 + 0.22 * lit(along);
 }
 
 void fragment() {
