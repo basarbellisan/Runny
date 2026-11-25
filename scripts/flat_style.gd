@@ -305,8 +305,8 @@ func _convert_new(m: Material) -> Variant:
 			(m as ShaderMaterial).set_shader_parameter("dim", 0.85)
 			return m
 		"kerb":
-			# Yatık yolun kenarındaki ince çizgiler: zıplama oklarıyla aynı canlı kırmızı, düz renk
-			return _flat(Color("ff2414"))
+			# Yatık yolun kenarındaki ince çizgiler: zıplama oklarıyla aynı canlı sarı (#FFA200), düz renk
+			return _flat(Color("ffa200"))
 		"unshade":
 			(m as StandardMaterial3D).shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			return m
