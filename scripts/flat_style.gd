@@ -95,7 +95,7 @@ static func _read() -> int:
 
 
 ## Işık bariyerinin sönük ve yanan rengi (uyarıcı kırmızı). Deneme: ?bar=DIM,LIT / --bar=DIM,LIT (hex)
-const BARRIER := ["ff0000", "ff6a5c"]
+const BARRIER := ["ff0000", "ff5e20"]
 
 
 static func barrier_colors() -> Array:
