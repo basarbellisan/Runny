@@ -376,6 +376,8 @@ func _process(delta: float) -> void:
 		# test: araba tasarımın bu x'ine (tasarım koordinatı) alınır, düz sürülür
 		_start_x_done = true
 		car.global_position.x = float(roads.custom_log[0].ox) + float(_args.start_x)
+	if _args.has("freeze_at") and car.is_physics_processing() and _start_z - car.global_position.z > float(_args.freeze_at):
+		car.set_physics_process(false)  # test (renk denemesi): araba bu mesafede durur, yol ışıkları sürer
 	var target := clampf(inverse_lerp(MOOD_HEIGHTS.x, MOOD_HEIGHTS.y, car.global_position.y), 0.0, 1.0)
 	var m := lerpf(_mood, target, 1.0 - exp(-3.0 * delta))
 	_mood = m
