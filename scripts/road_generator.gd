@@ -3430,6 +3430,12 @@ func _net_high(s: Segment, side: float, v: float, z0: float, z_last: float, busy
 	return end
 
 
+## Rampa üstündeki ok ve kenar çizgilerinin yüzeyden yüksekliği. Yana eğik (kick) rampanın yüzeyi boyuna
+## dönerek eğildiği için dörtgenleri düzlem değil; çizgi 3 cm'de kalınca yüzeyin altına girip kesik
+## görünüyordu
+const MARK_LIFT := 0.08
+
+
 ## Bir yolun üstüne rampa: yakın ucu yolla aynı hizada, uzak ucu rise kadar yüksek.
 ## kick != 0 ise rampa o yana eğik (fırlattığı yönün tersi tarafı yüksek) ve kalkışta
 ## arabayı o yana atar. Üstünde turuncu oklar fırlatma yönünü gösterir.
@@ -3499,7 +3505,7 @@ func _add_ramp(host: Segment, x: float, width: float, z_start: float, length: fl
 			var q := [p0, p1, p1 - notch, p0 - notch]
 			var pts: Array = []
 			for v2 in q:
-				pts.append(at.call(v2.x, v2.y / length * rows, 0.03))
+				pts.append(at.call(v2.x, v2.y / length * rows, MARK_LIFT))
 			_quad(arrows, unused, pts[0], pts[1], pts[2], pts[3], Vector3.UP)
 	# Kenar çizgileri: rampa boyunca iki yanda (yol gibi okunsun), okların renginde
 	var lw := 0.14
@@ -3507,10 +3513,10 @@ func _add_ramp(host: Segment, x: float, width: float, z_start: float, length: fl
 	for side in [-1.0, 1.0]:
 		var xo: float = side * (hw - inset)
 		for i in rows:
-			var e0: Vector3 = at.call(xo - lw * 0.5, i, 0.03)
-			var e1: Vector3 = at.call(xo + lw * 0.5, i, 0.03)
-			var e2: Vector3 = at.call(xo + lw * 0.5, i + 1, 0.03)
-			var e3: Vector3 = at.call(xo - lw * 0.5, i + 1, 0.03)
+			var e0: Vector3 = at.call(xo - lw * 0.5, i, MARK_LIFT)
+			var e1: Vector3 = at.call(xo + lw * 0.5, i, MARK_LIFT)
+			var e2: Vector3 = at.call(xo + lw * 0.5, i + 1, MARK_LIFT)
+			var e3: Vector3 = at.call(xo - lw * 0.5, i + 1, MARK_LIFT)
 			_quad(arrows, unused, e0, e1, e2, e3, Vector3.UP)
 	_apply_ramp_style()
 	for pair in [[top_st, _ramp_top_mat], [side_st, _wall_material(host)], [arrows, _ramp_arrow_mat]]:
