@@ -4,9 +4,10 @@ render_mode unshaded, shadows_disabled;
 // parlak bir bant oklar boyunca yolun ucuna akar. INSTANCE_CUSTOM.g: okun dizideki yeri
 // (0 bölgenin başı, 1 yolun ucu).
 
-// Sönük hal en canlı kırmızı, yanan hal ondan açılan parlak kırmızı-pembe
-uniform vec4 color : source_color = vec4(1.0, 0.04, 0.02, 1.0);
-uniform vec4 lit_color : source_color = vec4(1.0, 0.55, 0.47, 1.0);
+// Sönük hal en parlak sarı-turuncu (#FFA200), yanan hal ondan açılan açık sarı (#FFE08C)
+// (eskiden ışık bariyerinin renkleri; bariyer kırmızı oldu)
+uniform vec4 color : source_color = vec4(1.0, 0.635, 0.0, 1.0);
+uniform vec4 lit_color : source_color = vec4(1.0, 0.88, 0.55, 1.0);
 uniform float rate = 1.4;
 uniform float band = 0.3;
 // Sönük okun parlaklığı (rengin bu kadarı)

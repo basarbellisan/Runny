@@ -94,6 +94,24 @@ static func _read() -> int:
 	return clampi(int(v), 0, STYLES.size() - 1) if explicit else DEFAULT
 
 
+## Işık bariyerinin sönük ve yanan rengi (uyarıcı kırmızı). Deneme: ?bar=DIM,LIT / --bar=DIM,LIT (hex)
+const BARRIER := ["ff0000", "ff6a5c"]
+
+
+static func barrier_colors() -> Array:
+	var v := ""
+	if OS.has_feature("web"):
+		var r: Variant = JavaScriptBridge.eval("new URLSearchParams(location.search).get('bar') || ''")
+		v = "" if r == null else str(r)
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--bar="):
+			v = a.get_slice("=", 1)
+	var p := v.split(",") if v != "" else PackedStringArray(BARRIER)
+	if p.size() < 2 or not Color.html_is_valid(p[0]) or not Color.html_is_valid(p[1]):
+		p = PackedStringArray(BARRIER)
+	return [Color(p[0]), Color(p[1])]
+
+
 static func _col(key: String) -> Color:
 	return Color(cfg()[key])
 
@@ -301,6 +319,9 @@ func _convert_new(m: Material) -> Variant:
 			"block_fx.gdshader":
 				# Işık bariyeri: animasyon (yukarıdan aşağı akan yanma) kalır, parıltısız düz renk
 				sm.set_shader_parameter("flat_mode", true)
+				var bc := barrier_colors()
+				sm.set_shader_parameter("flat_dim", bc[0])
+				sm.set_shader_parameter("flat_lit", bc[1])
 				return sm
 			"block_neon.gdshader":
 				return _flat(_desat(sm.get_shader_parameter("c_main")))

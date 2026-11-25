@@ -22,6 +22,9 @@ uniform float phase_step = 0.28;
 uniform float dim_keep = 0.0;
 // Düz dünya denemesi: parıltı (kenara doğru açılan öz) yok, yalnız sönük ve yanan düz renk
 uniform bool flat_mode = false;
+// Düz stilde sırayla yanan çubuğun sönük ve yanan rengi (ışık bariyeri)
+uniform vec4 flat_dim : source_color = vec4(1.0, 0.635, 0.0, 1.0);
+uniform vec4 flat_lit : source_color = vec4(1.0, 0.88, 0.55, 1.0);
 
 varying vec3 lp;
 varying vec3 hs;
@@ -93,8 +96,8 @@ void fragment() {
 		float k = cascade(seed);
 		// Kısılan lamba grileşmez, koyu turuncu-kızıla kayar; parlarken özü beyaza yakın
 		vec3 dim = mix(c_main.rgb * vec3(0.55, 0.32, 0.18), c_main.rgb, dim_keep);
-		// Düz stil: sönük çubuk en parlak sarı-turuncu (#FFA200), yanan ondan açılan açık sarı (#FFE08C)
-		col = flat_mode ? mix(vec3(1.0, 0.635, 0.0), vec3(1.0, 0.88, 0.55), k)
+		// Düz stil: sönük çubuk flat_dim, yanan flat_lit (FlatStyle.BARRIER)
+		col = flat_mode ? mix(flat_dim.rgb, flat_lit.rgb, k)
 			: mix(dim, c_main.rgb, k) + c_hot.rgb * pow(ndv, 1.2) * k * k * 0.8;
 	} else {
 		col = c_main.rgb * flick(seed);
