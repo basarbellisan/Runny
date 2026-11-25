@@ -42,7 +42,7 @@ static var glb_models := {6: "res://models/cars/dragster.glb", 7: "res://models/
 
 ## Garajdaki arabalar (sırayla): önce açık temel arabalar (ağır, orta, hafif), sonra kilitli özel
 ## arabalar (Progress). Kutu, Konsept, Roadster ve Buggy garajdan çıktı (kodları duruyor).
-const GARAGE := [2, 8, 7, 6, 10, 9, 12, 11]
+const GARAGE := [2, 8, 7, 6, 10, 9, 12]
 ## Arabaların özellikleri, 1-5 (3 = standart): [hız, tutuş, çakıl, denge]
 ## (garajda SPEED, STEERING, OFF-ROAD, STABILITY).
 ## Hız: başlangıç/en yüksek/tavan hız -%8..+%8. Tutuş: direksiyon tepkisi -%20..+%20,
@@ -57,7 +57,7 @@ const STATS := {
 	8: [3, 3, 4, 4],  # Latte: dengeli (standart hız)
 	9: [5, 3, 1, 5],  # Falcon: en hızlı, en zor devrilen, çakılda buz pateni
 	10: [4, 4, 2, 4],  # GEM: hızlı, virajda iyi, zor devrilir; çakılda zorlanır
-	11: [4.5, 4, 4, 2],  # Buggy (ilk özel araba, deneme modeli): çok hızlı (garajda 9)
+	11: [3, 4, 4, 2],  # Buggy: standart hız, iyi direksiyon ve çakıl; yüksek kanadıyla kenarda kolay devrilir
 	12: [4, 3, 3, 3],  # Delta: hızlı, geri kalanı standart (şimdilik)
 }
 
@@ -84,12 +84,7 @@ const SPEC := {
 	10: {"weight": 0.45, "agility": [5, 8], "balance": [5, 8], "grip": [5, 9], "tank": [5, 8], "flight": [4, 8]},  # GEM
 	9: {"weight": 0.2, "agility": [7, 9], "balance": [3, 7], "grip": [4, 8], "tank": [4, 8], "flight": [6, 9]},    # Falcon
 	12: {"weight": 0.15, "agility": [6, 9], "balance": [4, 8], "grip": [3, 7], "tank": [4, 8], "flight": [7, 10]}, # Delta
-	# Buggy: tavanlar istenen değerler (çeviklik 10, denge 7, tutuş 8, depo 7, kanat 10); başlangıçlar şimdilik 3 aşağıda
-	11: {"weight": 0.35, "agility": [7, 10], "balance": [4, 7], "grip": [5, 8], "tank": [4, 7], "flight": [7, 10]}, # Buggy
 }
-## Özel arabaların yetenekleri. "flipproof": ters ya da yan inince patlamaz (yalnız burnuyla yolun ön
-## yüzüne girerse ve uçarken parçalara çarparsa patlar); kendini düzeltmez, fizik sürer
-const PERKS := {11: ["flipproof"]}
 const DEFAULT_SPEC := {"weight": 0.5, "agility": [5, 8], "balance": [5, 8], "grip": [5, 8], "tank": [5, 8], "flight": [5, 8]}
 
 
@@ -120,7 +115,7 @@ static func part_value(v: int, part: String) -> int:
 
 ## Hız 10'luk ölçekte (garajdaki çubuk)
 static func speed_bar(v: int) -> int:
-	return roundi(float(STATS.get(v, [3, 3, 3, 3])[0]) * 2.0)
+	return int(STATS.get(v, [3, 3, 3, 3])[0]) * 2
 
 
 ## Arabanın özelliği: -1 (1) .. 0 (3) .. +1 (5); i: 0 hız, 1 tutuş, 2 çakıl, 3 denge

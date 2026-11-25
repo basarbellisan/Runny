@@ -522,23 +522,6 @@ def sfx_bounce():
     return bd.b4_dijital_tok()
 
 
-def sfx_tumble():
-    """Kalkanlı araba takla atarken gövde / kafes yola vurdu: "takır tukur". Tok bir gövde vuruşu
-    (alçak, hızla sönen), üstüne kafesin kısa metal tıngırtısı (uyumsuz kısmi tonlar) ve asfalt
-    sürtünmesinin pütürlü gürültüsü; ikinci, daha hafif bir sekme vuruşu. Oyunda çarpma hızına göre
-    ses yüksekliği ve rastgele perdeyle çalınır."""
-    dur = 0.42
-    buf = np.zeros(n_of(dur))
-    for k, (t0, g) in enumerate([(0.0, 1.0), (0.085, 0.45)]):
-        d = 0.22
-        body = (sine(95.0 - 10 * k, d) + 0.5 * sine(150.0, d)) * env(d, 0.001, 0.07)
-        clank = sum(a * sine(f * (1.0 + 0.04 * k), d) for f, a in [(820.0, 0.5), (1310.0, 0.35), (1975.0, 0.25), (2760.0, 0.15)])
-        clank = clank * env(d, 0.0008, 0.035)
-        grit = filt(noise(d), lo=600.0, hi=5000.0) * env(d, 0.001, 0.05)
-        place(buf, g * (0.9 * body + 0.35 * clank + 0.45 * grit), t0)
-    return room(buf, 0.08, 0.35)
-
-
 def sfx_energy_low():
     buf = np.zeros(n_of(0.4))
     f = 880.0
@@ -863,7 +846,7 @@ def main():
         ("sfx_climb.wav", sfx_climb), ("sfx_boost.wav", sfx_boost), ("sfx_empty.wav", sfx_empty),
         ("sfx_hiss.wav", sfx_hiss), ("sfx_shatter.wav", sfx_shatter),
         ("sfx_drain.wav", sfx_drain), ("sfx_debris.wav", sfx_debris),
-        ("sfx_smash.wav", sfx_smash), ("sfx_bounce.wav", sfx_bounce), ("sfx_tumble.wav", sfx_tumble),
+        ("sfx_smash.wav", sfx_smash), ("sfx_bounce.wav", sfx_bounce),
         ("loop_engine_gezgin.ogg", loop_engine_gezgin), ("loop_engine_latte.ogg", loop_engine_latte),
         ("loop_engine_gem.ogg", loop_engine_gem), ("loop_engine_dragster.ogg", loop_engine_dragster),
         ("loop_engine_dark_rose.ogg", loop_engine_dark_rose), ("loop_engine_falcon.ogg", loop_engine_falcon), ("loop_road.ogg", loop_road), ("loop_wind.ogg", loop_wind),

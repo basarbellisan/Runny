@@ -23,7 +23,6 @@ var collect_crystals := true
 ## Tasarım testi: engelin yanında temiz geçit yoksa rampanın tam üstünden geç
 ## (yarım rampa devirir; tasarımcı rampayı kullanılsın diye koymuştur)
 var full_ramps := false
-var _halframp := OS.get_cmdline_user_args().has("--halframp")
 ## Yan yoldan ana yola dönüş sayısı
 var side_trips := 0
 var _on_side := false
@@ -334,12 +333,6 @@ func _dodge(seg: RoadGenerator.Segment, pos: Vector3) -> float:
 				if b1 < iv.y:
 					next_free.append(Vector2(b1, iv.y))
 			free = next_free
-		# Test (kalkan videosu): --halframp: rampanın kenarına bin; bir yanın tekerleri rampada (yarım rampa devirir)
-		if _halframp:
-			for o in row:
-				if o.get("ramp", false):
-					var edge: float = o.x1 + 0.5 if pos.x >= (o.x0 + o.x1) * 0.5 else o.x0 - 0.5
-					return clampf(edge, row_seg.x - row_seg.width * 0.5 + 0.3, row_seg.x + row_seg.width * 0.5 - 0.3)
 		if free.is_empty() and avoid_gravel and full_ramps:
 			# Temiz geçit yok ama rampa var: yarım rampa arabayı devirir, tam üstüne çık
 			for o in row:

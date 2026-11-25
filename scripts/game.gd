@@ -90,7 +90,6 @@ var boost_drain_factor := 2.5
 var score := 0.0
 var multiplier := 1
 var game_over := false
-var _tumbled := {}
 var _mult_timer := 0.0
 var _over_time := 0.0
 var _mood := -1.0
@@ -144,7 +143,6 @@ func _ready() -> void:
 	car.landed.connect(_on_landed)
 	car.mode_changed.connect(_on_mode_changed)
 	car.died.connect(_on_game_over)
-	car.shield_hit.connect(_on_shield_hit)
 	hud.garage_pressed.connect(_to_garage)
 	hud.again_pressed.connect(func(): get_tree().reload_current_scene())
 	if _args.has("over_style"):
@@ -276,15 +274,6 @@ func _physics_process(delta: float) -> void:
 		var d := roads.to_design(car.global_position)
 		print("TR z=%.1f x=%.2f y=%.3f vy=%.2f roll=%.3f pitch=%.3f floor=%s seg=%s" % [d.y, d.x, car.global_position.y, car.velocity.y, car.roll, car.pitch, car.is_on_floor(), roads.segment_under(car.global_position).get_instance_id() % 10000 if roads.segment_under(car.global_position) else -1])
 		print("TW climb=%s res=%s grav=%s wc=%s tip=%.3f nose=%.3f bounce=%.3f part=%s ramp=%s mpos=%s" % [car.climbing, car.reserve_on, car.on_gravel, car.wheel_contact, car._tip, car._nose, car._bounce, car._partial != null, car._ramp_lift, car.model.position if car.model else Vector3.ZERO])
-	# Test (kalkan videosu): --tumble_at=F1,F2,...: o karelerde araba yoldaysa havaya fırlar ve döner
-	if _args.has("tumble_at") and not game_over and car.mode == Car.Mode.DRIVE and car.is_on_floor():
-		var frames: Array = Array(str(_args.tumble_at).split(",")).map(func(f): return int(f))
-		var fr := Engine.get_process_frames()
-		for f in frames:
-			if fr >= f and fr < f + 30 and not _tumbled.has(f):
-				_tumbled[f] = true
-				car.velocity.y = 9.0
-				car.roll_rate = (1.0 if _tumbled.size() % 2 == 1 else -1.0) * float(_args.get("tumble_spin", "7"))
 	if _args.has("force_over") and not game_over and Engine.get_process_frames() == int(_args.force_over):
 		car.crash("CRASHED!")  # test: oyun sonu ekranının görüntüsü için
 	if game_over:
@@ -493,13 +482,6 @@ func _on_mode_changed(mode: Car.Mode, previous: Car.Mode) -> void:
 			_flight_hint()
 		Car.Mode.LAUNCH:
 			Audio.play("portal")
-
-
-## Kalkanlı arabanın gövdesi yola vurdu (takla): takır tukur, çarpma hızına göre
-func _on_shield_hit(impact: float) -> void:
-	Audio.play("tumble", clampf(-10.0 + impact * 1.2, -10.0, 0.0), randf_range(0.85, 1.15))
-	if impact > 6.0:
-		$Camera.shake(clampf(impact / 60.0, 0.0, 0.25))
 
 
 func _on_landed(air_time: float, quality: float, impact: float) -> void:
@@ -802,24 +784,9 @@ func _capture_shots() -> void:
 ## Komut satırı: -- --autopilot --dive=12 --seed=42 --shots=120,600 --shot_dir=/tmp
 ## Tasarım testi: --level=dosya.json ya da web'de ?level=test (tasarım tarayıcı hafızasında).
 ## Tasarım başlangıç pistinden hemen sonra gelir; araba tasarımın hızıyla başlar.
-## Kalkan denemesi parkuru (?parkur=takla / --parkur=takla): geniş düz yol, kenarına binilecek rampalar
-## (bir yanın tekerleri rampada kalınca araba yana dönerek fırlar); bitince oyun normal devam eder
-const TAKLA_PARKUR := {"format": "runny-level", "version": 1, "name": "Takla parkuru", "at": 0, "crystals": true,
-	"pieces": [{"id": 1, "x": 0, "w": 30, "z0": 0, "len": 1300, "h0": 0, "h1": 0}],
-	"obstacles": [
-		{"id": 2, "kind": "ramp", "x": -3, "w": 4, "z0": 140, "len": 10.8, "rise": 2.2},
-		{"id": 3, "kind": "ramp", "x": 3, "w": 4, "z0": 330, "len": 10.8, "rise": 2.2},
-		{"id": 4, "kind": "ramp", "x": -3, "w": 4, "z0": 520, "len": 10.8, "rise": 2.2},
-		{"id": 5, "kind": "ramp", "x": 3, "w": 4, "z0": 710, "len": 10.8, "rise": 2.2},
-		{"id": 6, "kind": "ramp", "x": -3, "w": 4, "z0": 900, "len": 10.8, "rise": 2.2},
-		{"id": 7, "kind": "ramp", "x": 3, "w": 4, "z0": 1090, "len": 10.8, "rise": 2.2}]}
-
-
 func _setup_level_test() -> void:
 	var text := ""
-	if str(_args.get("parkur", "")) == "takla" or _web_param("parkur") == "takla":
-		text = JSON.stringify(TAKLA_PARKUR)
-	elif _args.has("level"):
+	if _args.has("level"):
 		text = FileAccess.get_file_as_string(_args.level)
 	elif _web_param("level") != "":
 		text = str(JavaScriptBridge.eval("localStorage.getItem('%s') || ''" % LEVEL_KEY))
