@@ -39,9 +39,10 @@ COLORS = {
     "Yellow": ((1.0, 0.82, 0.2), 0.5, 0.0),
     # Kum arabası 2: turuncu parçalar ve kafes (oyun bu adları değiştirmez, modeldeki renkte kalır)
     "Orange": ((0.96, 0.45, 0.08), 0.5, 0.0),
-    "Cage": ((0.29, 0.27, 0.25), 0.7, 0.0),
-    # DUNE jantı (oyun bu adı değiştirmez)
-    "Rim2": ((0.93, 0.80, 0.68), 0.6, 0.0),
+    # DUNE: krem ayrıntılar (şerit, yan panel, kanat, koltuk), yeşil kafes, krem jant (oyun bu adları değiştirmez)
+    "Accent": ((0.953, 0.894, 0.784), 0.6, 0.0),
+    "Cage": ((0.18, 0.47, 0.33), 0.6, 0.0),
+    "Rim2": ((0.953, 0.894, 0.784), 0.6, 0.0),
 }
 
 
@@ -1706,8 +1707,9 @@ def build_kum():
     MID, GROUND = 314.5, 397.0
     def Y(x):
         return (MID - x) * KS
+    LIFT = 12.0   # gövde tekerlere göre bu kadar (px) yukarıda: sekizgen lastiğin köşeleri çamurluğa girmesin
     def Z(y):
-        return (GROUND - y) * KS
+        return (GROUND - y + LIFT) * KS
     def W(px):
         return px * KS
 
@@ -1801,10 +1803,10 @@ def build_kum():
         zt = lerp_tab(top, max(x, 66)) - 0.4
         w = 22.0 + 30.0 * (x - 64) / (225 - 64)
         stripe.append((x, [(0, zt - 1.6), (w, zt - 1.6), (w, zt + 2.0), (0, zt + 2.0), (-w, zt + 2.0), (-w, zt - 1.6)]))
-    ring_loft("stripe", stripe, "Orange")
+    ring_loft("stripe", stripe, "Accent")
     for sx in (-1, 1):
         # Turuncu paralelkenar panel (yan duvarın dış yüzünde)
-        side_plate("panel", [(245, 268), (410, 240), (371, 301), (262, 308)], sx * 116.0, sx * 118.5, "Orange")
+        side_plate("panel", [(245, 268), (410, 240), (371, 301), (262, 308)], sx * 116.0, sx * 118.5, "Accent")
         # Teker yuvaları (koyu, köşeli): kaputun / güvertenin altından tekerin çevresine
         side_plate("well", [(66, 252), (150, 226), (214, 228), (262, 307), (262, 326), (236, 268), (154, 226),
                             (78, 262), (66, 290)], sx * 50.0, sx * 113.0, "Dark")
@@ -1817,7 +1819,7 @@ def build_kum():
     for x, t, b in ((476, 172, 176), (522, 162, 222), (553, 156, 172)):
         w = lerp_tab(wid, x) + 0.6
         wing.append((x, sym([(0, t), (w, t), (w, b), (0, b)])))
-    ring_loft("wing", wing, "Orange")
+    ring_loft("wing", wing, "Accent")
     # Kanadın altındaki koyu arka parça (yanı gövdeyle aynı düzlemde)
     rear = []
     for x, t, b in ((498, 213, 236), (522, 222, 252), (546, 196, 212)):
@@ -1895,7 +1897,7 @@ def build_kum():
     bmesh.ops.create_cube(bm, size=1.0)
     for v in bm.verts:
         v.co = Vector((v.co.x * W(60), v.co.y * W(27), v.co.z * d.length))
-    seat = new_object("seat", bm, ["Orange"])
+    seat = new_object("seat", bm, ["Accent"])
     seat.rotation_euler = (math.atan2(-d.y, d.z), 0, 0)
     seat.location = (seat_a + seat_b) / 2
     flat(seat)
@@ -1903,7 +1905,7 @@ def build_kum():
     # --- Aks çubukları: teker merkezinin hizasında, alt gövdeden lastiğin iç yüzüne
     for sx in (-1, 1):
         for x in (154.0, 475.0):
-            box("rod", (W(30), W(12), W(12)), (sx * W(49), Y(x), Z(315)), "Dark")
+            box("rod", (W(30), W(12), W(12)), (sx * W(49), Y(x), W(82.0)), "Dark")   # teker merkezinde
 
     # --- Tekerler: sekizgen, düz yüzlü iri lastik (pah yok; bir kenarı yere oturur); iki yanda düz sekizgen jant
     R, TW = W(82.0) / math.cos(math.pi / 8), W(103.0)
@@ -1937,11 +1939,11 @@ ORTHO = {"dragster": (D_MID, 334.0), "yarisci": (300.0, 326.0), "latte": (A3_MID
 ## Modelin gövde rengi (oyun bu rengi alır)
 PAINTS = {"dragster": ((1.0, 0.549, 0.255), 0.6, 0.0), "yarisci": ((0.11, 0.11, 0.12), 0.45, 0.0),
           "latte": ((0.886, 0.776, 0.596), 0.55, 0.0), "gem": ((0.15, 0.16, 0.18), 0.55, 0.0),
-          "buggy": ((0.25, 0.88, 0.82), 0.55, 0.0), "kum": ((0.93, 0.80, 0.68), 0.6, 0.0)}
+          "buggy": ((0.25, 0.88, 0.82), 0.55, 0.0), "kum": ((0.122, 0.639, 0.612), 0.6, 0.0)}
 ## Lastik rengi (oyun bu rengi alır); yoksa koyu gri
 TIRES = {"yarisci": ((0.82, 0.16, 0.13), 0.8, 0.0), "latte": ((1.0, 0.353, 0.122), 0.8, 0.0),
          "falcon": ((0.95, 0.945, 0.93), 0.9, 0.0), "gem": ((0.624, 0.878, 0.165), 0.8, 0.0),
-         "buggy": ((0.16, 0.42, 0.88), 0.7, 0.0), "kum": ((0.22, 0.20, 0.18), 0.9, 0.0)}
+         "buggy": ((0.16, 0.42, 0.88), 0.7, 0.0), "kum": ((1.0, 0.78, 0.17), 0.9, 0.0)}
 
 
 # ---------------------------------------------------------------- çıktı
