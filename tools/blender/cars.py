@@ -37,6 +37,9 @@ COLORS = {
     "Rim": ((0.15, 0.16, 0.18), 0.55, 0.0),
     # Sarı jant (oyun "Hub"ı beyazla değiştirir; bu ad modeldeki renkte kalır)
     "Yellow": ((1.0, 0.82, 0.2), 0.5, 0.0),
+    # Kum arabası 2: turuncu parçalar ve kafes (oyun bu adları değiştirmez, modeldeki renkte kalır)
+    "Orange": ((0.96, 0.45, 0.08), 0.5, 0.0),
+    "Cage": ((0.29, 0.27, 0.25), 0.7, 0.0),
 }
 
 
@@ -1688,9 +1691,259 @@ def build_delta():
             ob.location.z = z
 
 
+def build_kum():
+    """Kum arabası 2 (görselden, 4 görünüş: yan, ön, arka, üst). Ölçüler görselin pikselinden: yan / ön /
+    arka görünüş aynı ölçekte (1 px = KS m), üstten görünüş %88.5 küçük çizilmiş. Yandan (burun solda):
+    yer y 397, ön teker merkezi (154, 315), arka (475, 315), yarıçap 82; burun x 66, arka kanat ucu 553.
+    Önden (orta x 800): lastikler ±62..167, kaputun dış kenarı ±117, gövde altı (koyu) ±55..33.
+    Parçalar: krem gövde (kaput, kabinin iki yanında yan duvarlar, arka güverte), kaputun ortasında burna
+    doğru daralan turuncu şerit, yan duvarlarda turuncu paralelkenar panel, arkada turuncu kama kanat,
+    koyu alt gövde ve iki beyaz far, koyu dört bacaklı kafes (ön bacaklar öne yatık), turuncu koltuk,
+    direksiyon, iri pahlı lastikler ve krem düz jantlar."""
+    KS = 0.0075
+    MID, GROUND = 314.5, 397.0
+    def Y(x):
+        return (MID - x) * KS
+    def Z(y):
+        return (GROUND - y) * KS
+    def W(px):
+        return px * KS
+
+    def ring_loft(name, rings, mat, closed=True):
+        """rings: [(x, [(X, y), ...])] her kesit aynı sayıda nokta (yan görünüş x'inde, ön görünüş X / y)."""
+        bm = bmesh.new()
+        vs = [[bm.verts.new((W(X), Y(x), Z(yy))) for X, yy in pts] for x, pts in rings]
+        n = len(vs[0])
+        for a, b in zip(vs, vs[1:]):
+            for i in range(n):
+                j = (i + 1) % n
+                bm.faces.new((a[i], a[j], b[j], b[i]))
+        if closed:
+            bm.faces.new(vs[0])
+            bm.faces.new(list(reversed(vs[-1])))
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        ob = new_object(name, bm, [mat])
+        flat(ob)
+        return ob
+
+    def sym(half):
+        """Sağ yarı (ortadan üstte başlayıp altta ortada biten) -> tam kesit."""
+        left = [(-X, yy) for X, yy in reversed(half[1:-1])]
+        return half + left
+
+    def lerp_tab(tab, x):
+        for (x0, v0), (x1, v1) in zip(tab, tab[1:]):
+            if x0 <= x <= x1:
+                return v0 + (v1 - v0) * (x - x0) / (x1 - x0)
+        return tab[0][1] if x < tab[0][0] else tab[-1][1]
+
+    def side_plate(name, pts, X0, X1, mat):
+        """Yan görünüş çokgeni (x, y px) X0..X1 (px) arasında ince plaka."""
+        bm = bmesh.new()
+        a = [bm.verts.new((W(X0), Y(x), Z(yy))) for x, yy in pts]
+        b = [bm.verts.new((W(X1), Y(x), Z(yy))) for x, yy in pts]
+        n = len(pts)
+        bm.faces.new(a)
+        bm.faces.new(list(reversed(b)))
+        for i in range(n):
+            j = (i + 1) % n
+            bm.faces.new((a[i], a[j], b[j], b[i]))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        ob = new_object(name, bm, [mat])
+        flat(ob)
+        return ob
+
+    def bar(name, p0, p1, t, mat):
+        """İki nokta (metre) arasında kare kesitli çubuk (kenar t m)."""
+        a, b = Vector(p0), Vector(p1)
+        d = b - a
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=1.0)
+        for v in bm.verts:
+            v.co = Vector((v.co.x * t, v.co.y * t, v.co.z * (d.length + t * 0.6)))
+        ob = new_object(name, bm, [mat])
+        ob.rotation_mode = "QUATERNION"
+        ob.rotation_quaternion = d.to_track_quat("Z", "Y")
+        ob.location = (a + b) / 2
+        flat(ob)
+        return ob
+
+    # --- Kaput: burundan kabinin önüne; üstü yan görünüşün üst kenarı, altı teker kemerinin üstü,
+    # üstten burunda ±40, kabinin önünde ±117 (dış üst köşe pahlı)
+    top = [(66, 248), (90, 238), (120, 222), (150, 209), (180, 200), (210, 193), (226, 191)]
+    bot = [(66, 252), (100, 246), (140, 229), (190, 225), (226, 226)]
+    hood = []
+    for x in (66, 78, 92, 108, 124, 140, 158, 176, 194, 212, 226):
+        zt, zb = lerp_tab(top, x), lerp_tab(bot, x)
+        w = 40.0 + (117.0 - 40.0) * (x - 66) / (226 - 66)
+        c = min(8.0, (zb - zt) * 0.4)
+        hood.append((x, sym([(0, zt), (w - c, zt), (w, zt + c), (w, zb), (0, zb)])))
+    ring_loft("body", hood, "Paint")
+    # Kaputun ortasındaki turuncu şerit: burunda ±22, kabinin önünde ±52 (kaputun üstünde ince katman)
+    stripe = []
+    for x in (64, 92, 124, 158, 194, 227):
+        zt = lerp_tab(top, max(x, 66)) - 0.4
+        w = 22.0 + 30.0 * (x - 64) / (227 - 64)
+        stripe.append((x, [(0, zt - 1.6), (w, zt - 1.6), (w, zt + 2.0), (0, zt + 2.0), (-w, zt + 2.0), (-w, zt - 1.6)]))
+    ring_loft("stripe", stripe, "Orange")
+
+    # --- Yan duvarlar (kabinin iki yanında, iç X 95, dış 115): üstü (eşik) kaputtan aşağı iner, ortada
+    # düz, arkada güverteye yükselir; altı turuncu panelin altında, önde ve arkada kemer boyunca çapraz
+    xs = [226, 245, 262, 300, 340, 370, 390, 410, 430, 442]
+    tops = [200, 213, 221, 237, 236, 231, 228, 221, 207, 192]
+    bots = [214, 270, 308, 306, 303, 301, 270, 240, 224, 222]
+    for sx in (-1, 1):
+        rings = []
+        for x, t, b in zip(xs, tops, bots):
+            c = min(6.0, (b - t) * 0.3)
+            pts = [(95, t), (115 - c, t), (115, t + c), (115, b), (95, b)]
+            rings.append((x, [(sx * X, yy) for X, yy in pts]))
+        if sx < 0:
+            rings = [(x, list(reversed(p))) for x, p in rings]
+        ring_loft("pod", rings, "Paint")
+        # Kabin ağzının koyu çerçevesi (üstten görünüşte krem kenarın içinde koyu gri bant)
+        rim = []
+        for x, t, b in zip(xs[1:-1], tops[1:-1], bots[1:-1]):
+            pts = [(84, t + 1.0), (96, t + 1.0), (96, t + 14.0), (84, t + 14.0)]
+            rim.append((x, [(sx * X, yy) for X, yy in pts]))
+        if sx < 0:
+            rim = [(x, list(reversed(p))) for x, p in rim]
+        ring_loft("rim", rim, "Cage")
+        # Turuncu paralelkenar panel (yan duvarın dış yüzünde)
+        side_plate("panel", [(245, 268), (410, 240), (371, 301), (262, 308)], sx * 115.0, sx * 117.5, "Orange")
+
+    # --- Arka güverte: koltuğun arkasından kanadın altına; üstten arkaya doğru daralır
+    deck = []
+    for x, t, b, w in ((404, 214, 238, 113), (420, 196, 230, 115), (440, 183, 222, 115), (460, 176, 218, 108),
+                       (478, 171, 214, 100), (505, 185, 213, 86), (526, 197, 213, 74)):
+        c = min(8.0, (b - t) * 0.35)
+        deck.append((x, sym([(0, t), (w - c, t), (w, t + c), (w, b - 3), (w - 4, b), (0, b)])))
+    ring_loft("deck", deck, "Paint")
+
+    # --- Arka kanat (turuncu kama): yandan üst kenar (478, 171) -> uç (553, 156), arka alt köşe (522, 214);
+    # üstten önde ±62, arkada ±80; üst kenarları pahlı (arkadan altıgen)
+    wing = []
+    for x, t, b, w in ((476, 172, 176, 62), (500, 167, 200, 68), (522, 162, 222, 74), (538, 159, 214, 78),
+                       (553, 156, 172, 80)):
+        c = min(16.0, (b - t) * 0.45)
+        wing.append((x, sym([(0, t), (w - c, t), (w, t + c), (w, b - c * 0.6), (w - c * 0.8, b), (0, b)])))
+    ring_loft("wing", wing, "Orange")
+
+    # --- Alt gövde (koyu): burnun altından arkaya; önden üstte ±55, altta ±33; önde farların yuvası
+    chassis = []
+    for x, zt, zb, ht, hb in ((66, 249, 286, 52, 44), (80, 247, 318, 55, 36), (120, 245, 328, 55, 33),
+                              (240, 250, 328, 58, 34), (390, 240, 318, 60, 36), (500, 214, 300, 62, 40),
+                              (536, 212, 252, 58, 44)):
+        chassis.append((x, [(0, zt), (ht, zt), (ht + 2, zt + (zb - zt) * 0.55), (hb, zb), (0, zb),
+                            (-hb, zb), (-ht - 2, zt + (zb - zt) * 0.55), (-ht, zt)]))
+    ring_loft("chassis", chassis, "Dark")
+    # Kabin tabanı (koyu, yan duvarların arasında)
+    box("tub", (W(190), W(200), W(10)), (0, Y(318), Z(292)), "Dark")
+    # Farlar: önden iki beyaz yarık (y 262-276), alt gövdenin ön yüzünde
+    for sx in (-1, 1):
+        bm = bmesh.new()
+        q = [(sx * 49, 262), (sx * 7, 264), (sx * 4, 276), (sx * 43, 276)]
+        a = [bm.verts.new((W(X), Y(68.0), Z(yy))) for X, yy in q]
+        b = [bm.verts.new((W(X), Y(72.5), Z(yy))) for X, yy in q]
+        bm.faces.new(a)
+        bm.faces.new(list(reversed(b)))
+        for i in range(4):
+            j = (i + 1) % 4
+            bm.faces.new((a[i], a[j], b[j], b[i]))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        ob = new_object("headlight", bm, ["Light"])
+        flat(ob)
+
+    # --- Kafes (koyu, dört bacak): yandan ön bacak (232, 200) -> tepe (312, 99), tepe rayı -> (418, 96),
+    # arka bacak -> (462, 182). Önden ve arkadan bacaklar altta ±70, tepede ±40 (iki görünüşte genişlik farklı
+    # çizilmiş, ortası alındı; ön ve arka çember aynı genişlikte ki önden tek Π görünsün). Çubuk ~22 px
+    T = W(21.0)
+    fb, ft, rt, rb = (232.0, 199.0), (312.0, 99.0), (418.0, 96.0), (462.0, 182.0)
+    for sx in (-1, 1):
+        P = lambda X, p: (sx * W(X), Y(p[0]), Z(p[1]))
+        bar("cage", P(70, fb), P(40, ft), T, "Cage")
+        bar("cage", P(40, ft), P(40, rt), T, "Cage")
+        bar("cage", P(40, rt), P(70, rb), T, "Cage")
+    bar("cage", (-W(40), Y(ft[0]), Z(ft[1])), (W(40), Y(ft[0]), Z(ft[1])), T, "Cage")
+    bar("cage", (-W(40), Y(rt[0]), Z(rt[1])), (W(40), Y(rt[0]), Z(rt[1])), T, "Cage")
+
+    # --- Koltuk: turuncu sırt (yandan (372, 236) -> (396, 158), arkaya yatık), önünde koyu minder
+    seat_a, seat_b = Vector((0, Y(372), Z(236))), Vector((0, Y(396), Z(158)))
+    d = seat_b - seat_a
+    nrm = Vector((0, d.z, -d.y)).normalized()   # koltuğun ön yüzü (öne-yukarı)
+    for name, hw, t, off, k, mat in (("seat", 30.0, 27.0, 0.0, 1.0, "Orange"), ("seat_pad", 21.0, 6.0, 14.0, 0.7, "Dark")):
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=1.0)
+        for v in bm.verts:
+            v.co = Vector((v.co.x * W(hw * 2), v.co.y * W(t), v.co.z * d.length * k))
+        ob = new_object(name, bm, [mat])
+        ob.rotation_euler = (math.atan2(-d.y, d.z), 0, 0)   # sırt arkaya yatık (genişlik X'te kalır)
+        ob.location = (seat_a + seat_b) / 2 + nrm * W(off) - d.normalized() * W(8.0) * (1.0 - k) * 2.0
+        flat(ob)
+    box("seat_base", (W(56), W(46), W(14)), (0, Y(352), Z(250)), "Dark")
+
+    # --- Direksiyon: koyu halka (merkez (286, 203), yarıçap 27 px, yandan (268,175)-(305,232) çizgisi)
+    # ve torpidodan gelen kolon
+    bm = bmesh.new()
+    ring_r, tube = W(26.0), W(7.0)
+    segs = 12
+    rings = []
+    for k in range(segs):
+        a = 2 * math.pi * k / segs
+        c = Vector((ring_r * math.cos(a), ring_r * math.sin(a), 0))
+        rr = []
+        for m in range(4):
+            b = 2 * math.pi * m / 4 + math.pi / 4
+            off = Vector((math.cos(a), math.sin(a), 0)) * tube * math.cos(b) + Vector((0, 0, tube * math.sin(b)))
+            rr.append(bm.verts.new(c + off))
+        rings.append(rr)
+    for k in range(segs):
+        a, b = rings[k], rings[(k + 1) % segs]
+        for m in range(4):
+            n2 = (m + 1) % 4
+            bm.faces.new((a[m], a[n2], b[n2], b[m]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    sw = new_object("steer", bm, ["Dark"])
+    # halkanın düzlemi: X ekseni ve yandan (268,175)->(305,232) doğrultusu
+    tilt = math.atan2((305 - 268) * KS, (232 - 175) * KS)
+    sw.rotation_euler = (math.pi / 2 - tilt, 0, 0)
+    sw.rotation_euler = (-(math.pi / 2) + tilt, 0, 0)
+    sw.location = (0, Y(286), Z(203))
+    flat(sw)
+    bar("steer_col", (0, Y(236), Z(214)), (0, Y(286), Z(204)), W(9), "Dark")
+
+    # --- Aks çubukları: alt gövdenin alt köşesinden lastiğin iç yüzüne
+    for sx in (-1, 1):
+        for x in (154.0, 475.0):
+            bar("rod", (sx * W(36), Y(x), Z(328)), (sx * W(64), Y(x), Z(338)), W(10), "Dark")
+
+    # --- Tekerler: 16 kenarlı, omuzları pahlı iri lastik; dış yüzde krem düz jant (r 38 px)
+    R, TW = W(82.0) / math.cos(math.pi / 16), W(103.0)
+    for name, X, x in (("wheel_FL", -114.5, 154.0), ("wheel_FR", 114.5, 154.0),
+                       ("wheel_RL", -114.5, 475.0), ("wheel_RR", 114.5, 475.0)):
+        bm = bmesh.new()
+        bmesh.ops.create_cone(bm, cap_ends=True, segments=16, radius1=R, radius2=R, depth=TW)
+        bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
+        bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 16, 3, "X"), cent=(0, 0, 0))
+        tire = new_object(name, bm, ["Tire"])
+        bevel(tire, W(16.0), 1)
+        flat(tire)
+        for side in (-1, 1):
+            bm = bmesh.new()
+            bmesh.ops.create_cone(bm, cap_ends=True, segments=16, radius1=W(38.0), radius2=W(38.0), depth=0.012)
+            bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
+            bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 16, 3, "X"), cent=(0, 0, 0))
+            bmesh.ops.translate(bm, verts=bm.verts, vec=(side * (TW * 0.5 + 0.004), 0, 0))
+            hub = new_object(name + "_rim", bm, ["Paint"])
+            hub.parent = tire
+            flat(hub)
+        tire.location = (W(X), Y(x), W(82.0))
+
+
 BUILDERS = {"kutu": build_kutu, "dragster": build_dragster, "yarisci": build_yarisci, "latte": build_latte,
             "falcon": build_falcon, "gem": build_gem, "buggy": build_buggy,
-            "delta": build_delta}
+            "delta": build_delta, "kum": build_kum}
 ## Figma çizimli arabalar: yan görünüşte arabanın ortası ve yer çizgisi (piksel)
 ## (isteğe bağlı 3. değer: yan görünüşte kameranın baktığı x; yoksa 296.5)
 ORTHO = {"dragster": (D_MID, 334.0), "yarisci": (300.0, 326.0), "latte": (A3_MID, 326.0, 284.5),
@@ -1698,11 +1951,11 @@ ORTHO = {"dragster": (D_MID, 334.0), "yarisci": (300.0, 326.0), "latte": (A3_MID
 ## Modelin gövde rengi (oyun bu rengi alır)
 PAINTS = {"dragster": ((1.0, 0.549, 0.255), 0.6, 0.0), "yarisci": ((0.11, 0.11, 0.12), 0.45, 0.0),
           "latte": ((0.886, 0.776, 0.596), 0.55, 0.0), "gem": ((0.15, 0.16, 0.18), 0.55, 0.0),
-          "buggy": ((0.25, 0.88, 0.82), 0.55, 0.0)}
+          "buggy": ((0.25, 0.88, 0.82), 0.55, 0.0), "kum": ((0.93, 0.80, 0.68), 0.6, 0.0)}
 ## Lastik rengi (oyun bu rengi alır); yoksa koyu gri
 TIRES = {"yarisci": ((0.82, 0.16, 0.13), 0.8, 0.0), "latte": ((1.0, 0.353, 0.122), 0.8, 0.0),
          "falcon": ((0.95, 0.945, 0.93), 0.9, 0.0), "gem": ((0.624, 0.878, 0.165), 0.8, 0.0),
-         "buggy": ((0.16, 0.42, 0.88), 0.7, 0.0)}
+         "buggy": ((0.16, 0.42, 0.88), 0.7, 0.0), "kum": ((0.22, 0.20, 0.18), 0.9, 0.0)}
 
 
 # ---------------------------------------------------------------- çıktı
