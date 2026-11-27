@@ -40,6 +40,8 @@ COLORS = {
     # Kum arabası 2: turuncu parçalar ve kafes (oyun bu adları değiştirmez, modeldeki renkte kalır)
     "Orange": ((0.96, 0.45, 0.08), 0.5, 0.0),
     "Cage": ((0.29, 0.27, 0.25), 0.7, 0.0),
+    # DUNE jantı (oyun bu adı değiştirmez)
+    "Rim2": ((0.93, 0.80, 0.68), 0.6, 0.0),
 }
 
 
@@ -1692,14 +1694,14 @@ def build_delta():
 
 
 def build_kum():
-    """Kum arabası 2 (görselden, 4 görünüş: yan, ön, arka, üst). Ölçüler görselin pikselinden: yan / ön /
-    arka görünüş aynı ölçekte (1 px = KS m), üstten görünüş %88.5 küçük çizilmiş. Yandan (burun solda):
-    yer y 397, ön teker merkezi (154, 315), arka (475, 315), yarıçap 82; burun x 66, arka kanat ucu 553.
-    Önden (orta x 800): lastikler ±62..167, kaputun dış kenarı ±117, gövde altı (koyu) ±55..33.
-    Parçalar: krem gövde (kaput, kabinin iki yanında yan duvarlar, arka güverte), kaputun ortasında burna
-    doğru daralan turuncu şerit, yan duvarlarda turuncu paralelkenar panel, arkada turuncu kama kanat,
-    koyu alt gövde ve iki beyaz far, koyu dört bacaklı kafes (ön bacaklar öne yatık), turuncu koltuk,
-    direksiyon, iri pahlı lastikler ve krem düz jantlar."""
+    """DUNE (kum arabası, görselden; 4 görünüş: yan, ön, arka, üst). Öbür arabalar gibi sert, köşeli low-poly:
+    her hat birkaç düz parçadan, köşeler tek seferde döner (pah, yuvarlatma yok), ayrıntı az.
+    Ölçüler görselin pikselinden (yan / ön / arka aynı ölçek, 1 px = KS m; yan görünüşte burun solda, yer y 397,
+    ön teker merkezi (154, 315), arka (475, 315), yarıçap 82; önden orta x 800).
+    Parçalar: krem gövde tek parça (kaput, kabin yanları, arka güverte; kabin boyunca ağız), kaputta burna
+    daralan turuncu şerit, yanlarda turuncu paralelkenar panel, gövdeyle aynı genişlikte turuncu kama kanat ve
+    altında koyu arka parça, koyu alt gövde ve teker yuvaları, iki beyaz far, koyu kafes (yan bacaklar eğik,
+    tepe düz çerçeve), turuncu koltuk, sekizgen lastikler ve düz jantlar."""
     KS = 0.0075 * 0.85   # görseldeki ölçüden %15 küçük (oyunda fazla büyüktü)
     MID, GROUND = 314.5, 397.0
     def Y(x):
@@ -1729,8 +1731,7 @@ def build_kum():
 
     def sym(half):
         """Sağ yarı (ortadan üstte başlayıp altta ortada biten) -> tam kesit."""
-        left = [(-X, yy) for X, yy in reversed(half[1:-1])]
-        return half + left
+        return half + [(-X, yy) for X, yy in reversed(half[1:-1])]
 
     def lerp_tab(tab, x):
         for (x0, v0), (x1, v1) in zip(tab, tab[1:]):
@@ -1739,7 +1740,7 @@ def build_kum():
         return tab[0][1] if x < tab[0][0] else tab[-1][1]
 
     def side_plate(name, pts, X0, X1, mat):
-        """Yan görünüş çokgeni (x, y px) X0..X1 (px) arasında ince plaka."""
+        """Yan görünüş çokgeni (x, y px) X0..X1 (px) arasında plaka."""
         bm = bmesh.new()
         a = [bm.verts.new((W(X0), Y(x), Z(yy))) for x, yy in pts]
         b = [bm.verts.new((W(X1), Y(x), Z(yy))) for x, yy in pts]
@@ -1754,48 +1755,41 @@ def build_kum():
         flat(ob)
         return ob
 
-    def bar(name, p0, p1, t, mat):
-        """İki nokta (metre) arasında kare kesitli çubuk (kenar t m)."""
-        a, b = Vector(p0), Vector(p1)
-        d = b - a
+    def solid(name, bottom, top, mat):
+        """Alt ve üst dörtgenden (aynı sırada 4'er nokta, metre) katı (kaykık prizma)."""
         bm = bmesh.new()
-        bmesh.ops.create_cube(bm, size=1.0)
-        for v in bm.verts:
-            v.co = Vector((v.co.x * t, v.co.y * t, v.co.z * (d.length + t * 0.6)))
+        a = [bm.verts.new(p) for p in bottom]
+        b = [bm.verts.new(p) for p in top]
+        bm.faces.new(a)
+        bm.faces.new(list(reversed(b)))
+        for i in range(4):
+            j = (i + 1) % 4
+            bm.faces.new((a[i], a[j], b[j], b[i]))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         ob = new_object(name, bm, [mat])
-        ob.rotation_mode = "QUATERNION"
-        ob.rotation_quaternion = d.to_track_quat("Z", "Y")
-        ob.location = (a + b) / 2
         flat(ob)
         return ob
 
-    # --- Krem gövde tek parça: kaput, kabinin iki yanındaki duvarlar ve arka güverte aynı yüzeyden. Yandaki
-    # üst kenar burundan kaputun yanından kabinin eşiğine iner, güverteye ve kanadın altına yükselir (tek,
-    # kesintisiz hat); alt kenar teker kemerinin üstünden turuncu panelin altına, oradan güverteye.
-    # Kesit: dış üst köşe pahlı; kabin boyunca ortada ağız (iç duvar X 95, taban), kaputta ve güvertede ağız
-    # kapalı (iç noktalar üst ortada toplanır)
-    top = [(66, 248), (90, 238), (120, 222), (150, 209), (180, 200), (210, 193), (226, 191), (245, 203),
-           (270, 220), (300, 235), (340, 236), (370, 232), (390, 228), (410, 214), (430, 196), (442, 187),
-           (460, 177), (478, 171), (505, 185), (526, 197)]
-    bot = [(66, 252), (100, 246), (140, 229), (190, 225), (214, 228), (234, 246), (250, 274), (262, 307),
-           (370, 301), (390, 270), (410, 241), (430, 225), (442, 222), (478, 214), (505, 213), (526, 213)]
-    wid = [(66, 40), (226, 116), (440, 116), (478, 104), (505, 96), (526, 90), (553, 86)]
+    # --- Krem gövde tek parça. Yandaki üst hat düz parçalardan: burundan kabinin önüne tek eğim, eşiğe tek
+    # kırımla iner, düz gider, güverteye tek eğimle çıkar, kanadın altına iner. Alt hat da öyle. Kesit köşeli
+    # (pah yok); kabin boyunca ağız (iç duvar X 95, taban), kaputta ve güvertede kapalı
+    top = [(66, 248), (226, 191), (288, 236), (372, 233), (478, 171), (526, 197)]
+    bot = [(66, 252), (150, 226), (214, 228), (262, 307), (370, 301), (432, 224), (526, 213)]
+    wid = [(66, 40), (226, 116), (440, 116), (526, 90), (553, 86)]
     OPEN0, OPEN1 = 226.0, 404.0
-    xs = sorted(set([66, 78, 92, 108, 124, 140, 158, 176, 194, 212, 226, 226.6, 236, 245, 255, 262, 270, 285, 300,
-                     320, 340, 355, 370, 380, 390, 400, 403.4, 404, 410, 420, 430, 442, 460, 478, 492, 505, 516, 526]))
+    xs = sorted(set([66, 150, 214, 226, 226.6, 262, 288, 370, 372, 403.4, 404, 432, 440, 478, 526]))
     shell = []
     for x in xs:
         t, b, w = lerp_tab(top, x), lerp_tab(bot, x), lerp_tab(wid, x)
-        c = min(7.0, (b - t) * 0.3)
         if OPEN0 < x < OPEN1:
             wi, fl = 95.0, min(290.0, b - 3.0)
         else:
             wi, fl = 0.0, t
-        right = [(wi, t), (w - c, t), (w, t + c), (w, b)]
+        right = [(wi, t), (w, t), (w, b)]
         left = [(-X, yy) for X, yy in reversed(right)]
         shell.append((x, right + left + [(-wi, fl), (wi, fl)]))
     ring_loft("body", shell, "Paint")
-    # Kabin tabanı koyu (gövdenin tabanının hemen üstünde ince katman)
+    # Kabin tabanı koyu
     floor = []
     for x in [x for x in xs if OPEN0 < x < OPEN1]:
         fl = min(290.0, lerp_tab(bot, x) - 3.0) - 1.2
@@ -1803,250 +1797,135 @@ def build_kum():
     ring_loft("floor", floor, "Dark")
     # Kaputun ortasındaki turuncu şerit: burunda ±22, kabinin önünde ±52 (kaputun üstünde ince katman)
     stripe = []
-    for x in (64, 92, 124, 158, 194, 225):
+    for x in (64, 225):
         zt = lerp_tab(top, max(x, 66)) - 0.4
         w = 22.0 + 30.0 * (x - 64) / (225 - 64)
         stripe.append((x, [(0, zt - 1.6), (w, zt - 1.6), (w, zt + 2.0), (0, zt + 2.0), (-w, zt + 2.0), (-w, zt - 1.6)]))
     ring_loft("stripe", stripe, "Orange")
     for sx in (-1, 1):
-        # Kabin ağzının koyu çerçevesi (üstten görünüşte krem kenarın içinde koyu gri bant)
-        rim = []
-        for x in [x for x in xs if OPEN0 < x < OPEN1]:
-            t = lerp_tab(top, x)
-            pts = [(84, t + 1.0), (95.5, t + 1.0), (95.5, t + 14.0), (84, t + 14.0)]
-            rim.append((x, [(sx * X, yy) for X, yy in pts]))
-        if sx < 0:
-            rim = [(x, list(reversed(p))) for x, p in rim]
-        ring_loft("rim", rim, "Cage")
         # Turuncu paralelkenar panel (yan duvarın dış yüzünde)
         side_plate("panel", [(245, 268), (410, 240), (371, 301), (262, 308)], sx * 116.0, sx * 118.5, "Orange")
-        # Teker yuvaları (koyu): kaputun / güvertenin altından tekerin çevresine (tekerden biraz açıkta),
-        # yandan bakınca tekerin üstünde ve arkasında boşluk görünmesin
-        def arch_pts(cx, x0, x1, r=90.0, n=10):
-            out = []
-            a0 = math.acos(max(-1.0, min(1.0, (x0 - cx) / r)))
-            a1 = math.acos(max(-1.0, min(1.0, (x1 - cx) / r)))
-            for k in range(n + 1):
-                a = a0 + (a1 - a0) * k / n
-                out.append((cx + r * math.cos(a), 315.0 - r * math.sin(a)))
-            return out
-        front_well = [(78, 252), (100, 246), (140, 229), (190, 225), (214, 228), (234, 246), (250, 274), (262, 307),
-                      (262, 326)] + arch_pts(154.0, 243.0, 66.0) + [(66, 290)]
-        side_plate("well", front_well, sx * 50.0, sx * 113.0, "Dark")
-        rear_well = [(370, 301), (390, 270), (410, 241), (430, 225), (442, 222), (478, 214), (505, 213)] + \
-            arch_pts(475.0, 505.0, 388.0)
-        side_plate("well", rear_well, sx * 50.0, sx * 113.0, "Dark")
-    # Kabin ağzının çerçevesinin önü ve arkası (yanlarla köşede birleşir)
-    t0, t1 = lerp_tab(top, 226.6), lerp_tab(top, 403.4)
-    box("rim", (W(191), W(10), W(13)), (0, Y(231.6), Z(t0 + 7.5)), "Cage")
-    box("rim", (W(191), W(10), W(13)), (0, Y(398.4), Z(t1 + 7.5)), "Cage")
+        # Teker yuvaları (koyu, köşeli): kaputun / güvertenin altından tekerin çevresine
+        side_plate("well", [(66, 252), (150, 226), (214, 228), (262, 307), (262, 326), (236, 268), (154, 226),
+                            (78, 262), (66, 290)], sx * 50.0, sx * 113.0, "Dark")
+        side_plate("well", [(370, 301), (432, 224), (505, 213), (520, 248), (475, 228), (400, 262), (388, 300)],
+                   sx * 50.0, sx * 113.0, "Dark")
 
-    # --- Arka kanat (turuncu kama): yandan üst kenar (478, 171) -> uç (553, 156), arka alt köşe (522, 214);
-    # üstten önde ±62, arkada ±80; üst kenarları pahlı (arkadan altıgen)
+    # --- Arka kanat (turuncu kama): yandan üst kenar (478, 171) -> uç (553, 156), arka alt köşe (522, 222);
+    # yanları gövdeyle aynı hizada, kesit köşeli
     wing = []
-    # Yanları gövdenin yan yüzüyle aynı hizada (gövdeyle aynı genişlik): yandan krem yan duvar, kanadın yanı
-    # ve altındaki koyu arka parça tek düzlem
-    for x, t, b in ((476, 172, 176), (500, 167, 200), (522, 162, 222), (538, 159, 214), (553, 156, 172)):
+    for x, t, b in ((476, 172, 176), (522, 162, 222), (553, 156, 172)):
         w = lerp_tab(wid, x) + 0.6
-        c = min(7.0, (b - t) * 0.3)
-        wing.append((x, sym([(0, t), (w - c, t), (w, t + c), (w, b), (0, b)])))
+        wing.append((x, sym([(0, t), (w, t), (w, b), (0, b)])))
     ring_loft("wing", wing, "Orange")
-    # Kanadın altındaki koyu arka parça (yanı gövdeyle aynı düzlemde): güvertenin / kanadın altından arka
-    # tekerin üstüne çapraz iner
+    # Kanadın altındaki koyu arka parça (yanı gövdeyle aynı düzlemde)
     rear = []
-    for x, t, b in ((498, 213, 236), (512, 213, 248), (522, 220, 250), (538, 213, 234), (546, 196, 212)):
+    for x, t, b in ((498, 213, 236), (522, 222, 252), (546, 196, 212)):
         w = lerp_tab(wid, x)
         rear.append((x, sym([(0, t), (w, t), (w, b), (0, b)])))
     ring_loft("rear_panel", rear, "Dark")
 
-    # --- Alt gövde (koyu): burnun altından arkaya; önden üstte ±55, altta ±33; önde farların yuvası
+    # --- Alt gövde (koyu, yamuk kesit): önden üstte ±55, altta ±34
     chassis = []
-    for x, zt, zb, ht, hb in ((66, 249, 286, 52, 44), (80, 247, 318, 55, 36), (120, 245, 328, 55, 33),
-                              (240, 250, 328, 58, 34), (390, 240, 320, 60, 36), (505, 214, 320, 62, 38),
-                              (536, 212, 252, 58, 44)):
-        chassis.append((x, [(0, zt), (ht, zt), (ht + 2, zt + (zb - zt) * 0.55), (hb, zb), (0, zb),
-                            (-hb, zb), (-ht - 2, zt + (zb - zt) * 0.55), (-ht, zt)]))
+    for x, zt, zb, ht, hb in ((66, 249, 290, 52, 42), (90, 247, 328, 55, 34), (390, 240, 320, 60, 36),
+                              (505, 214, 320, 62, 38), (536, 212, 252, 58, 44)):
+        chassis.append((x, [(0, zt), (ht, zt), (hb, zb), (0, zb), (-hb, zb), (-ht, zt)]))
     ring_loft("chassis", chassis, "Dark")
     # Farlar: önden iki beyaz yarık (y 262-276), alt gövdenin ön yüzünde
     for sx in (-1, 1):
-        bm = bmesh.new()
         q = [(sx * 49, 262), (sx * 7, 264), (sx * 4, 276), (sx * 43, 276)]
-        a = [bm.verts.new((W(X), Y(68.0), Z(yy))) for X, yy in q]
-        b = [bm.verts.new((W(X), Y(72.5), Z(yy))) for X, yy in q]
-        bm.faces.new(a)
-        bm.faces.new(list(reversed(b)))
-        for i in range(4):
-            j = (i + 1) % 4
-            bm.faces.new((a[i], a[j], b[j], b[i]))
-        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-        ob = new_object("headlight", bm, ["Light"])
-        flat(ob)
+        solid("headlight", [(W(X), Y(68.0), Z(yy)) for X, yy in q], [(W(X), Y(72.5), Z(yy)) for X, yy in q], "Light")
 
-    # --- Kafes (koyu, dört bacak): yandan ön bacak (232, 200) -> tepe (312, 99), tepe rayı -> (418, 96),
-    # arka bacak -> (462, 182). Önden ve arkadan bacaklar altta ±70, tepede ±40 (iki görünüşte genişlik farklı
-    # çizilmiş, ortası alındı; ön ve arka çember aynı genişlikte ki önden tek Π görünsün). Çubuk ~22 px
-    T = W(21.0)
-    fb, ft, rt, rb = (232.0, 199.0), (312.0, 99.0), (418.0, 96.0), (462.0, 182.0)
-
-    def tube(name, pts, t, mat, cap0=None, cap1=None, normal=None):
-        """Köşeleri birleşik kare kesitli boru (pts metre). Köşelerde iki çubuk açıortay düzleminde kesilir
-        (dışarı taşan uç yok); uçlar cap0 / cap1 düzlemlerinde (nokta, normal), yoksa çubuğa dik."""
-        P = [Vector(p) for p in pts]
-        n = len(P)
-        D = [(P[k + 1] - P[k]).normalized() for k in range(n - 1)]
-        # Kesitin yönü köşeden köşeye döndürülerek taşınır (köşede iki çubuğun kesit köşeleri üst üste gelir,
-        # sivri uç çıkmaz). Ortadaki çubuğun yüzleri yatay / dikey
-        r = (n - 1) // 2
-        U = [None] * (n - 1)
-        if normal is not None:
-            U[r] = Vector(normal).normalized()   # düzlemsel çember: kesitin bir ekseni düzlemin normali
-        else:
-            ref = Vector((0, 0, 1)) if abs(D[r].z) < 0.9 else Vector((0, 1, 0))
-            U[r] = D[r].cross(ref).normalized()
-        for k in range(r + 1, n - 1):
-            U[k] = (D[k - 1].rotation_difference(D[k]) @ U[k - 1]).normalized()
-        for k in range(r - 1, -1, -1):
-            U[k] = (D[k + 1].rotation_difference(D[k]) @ U[k + 1]).normalized()
-        bm = bmesh.new()
-        for k in range(n - 1):
-            a, b = P[k], P[k + 1]
-            d = D[k]
-            u = U[k]
-            v = u.cross(d).normalized()
-            def plane(i, end):
-                if end == 0:
-                    if k == 0:
-                        return cap0 if cap0 else (a, d)
-                    return (a, (P[k] - P[k - 1]).normalized() + d)
-                if k == n - 2:
-                    return cap1 if cap1 else (b, d)
-                return (b, d + (P[k + 2] - P[k + 1]).normalized())
-            rings = []
-            for end, base in ((0, a), (1, b)):
-                pc, pn = plane(k, end)
-                pn = pn.normalized()
-                ring = []
-                # Sekizgen kesit (düz yüzleri üst / alt / yanlarda; yüzden yüze t): köşelerde ve kırımlarda
-                # kesit dönse de dışarı kulak / çentik çıkmaz, köşeler yumuşak okunur
-                rr = t / 2 / math.cos(math.pi / 8)
-                for m in range(8):
-                    ang = math.pi / 8 + m * math.pi / 4
-                    o = base + u * (rr * math.cos(ang)) + v * (rr * math.sin(ang))
-                    s_ = (pc - o).dot(pn) / d.dot(pn)
-                    ring.append(bm.verts.new(o + d * s_))
-                rings.append(ring)
-            r0, r1 = rings
-            bm.faces.new(r0)
-            bm.faces.new(list(reversed(r1)))
-            for m in range(8):
-                m2 = (m + 1) % 8
-                bm.faces.new((r0[m], r0[m2], r1[m2], r1[m]))
-        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-        ob = new_object(name, bm, [mat])
-        flat(ob)
-        return ob
-
-    # İki yan çember (ön bacak - tepe rayı - arka bacak), her biri düzlemsel tek boru; kesit çemberin düzlemine
-    # hizalı (yandan bakınca çizimdeki yamuk birebir, köşelerde çıkıntı yok). Düzlem içe yatık: bacakların altı
-    # dışarıda. Arka bacağın altı düzlem üstünde kalsın diye X'i düzlemden hesaplanır. Bacakların altı yatay
-    # kesilir (gövdeye oturur)
-    sides = {}
+    # --- Kafes (koyu, sert köşeler): iki yan çember (ön bacak - tepe rayı - arka bacak). Yandan bakınca
+    # kalınlığı T olan bükülmüş şerit; köşeleri açıortayda tek kırımla döner (yandan çizimdeki yamuk). Bacaklar
+    # yukarı doğru içe yatık: her noktanın X'i yüksekliğine göre (altta ±70, rayda ±40), yatay kesiti hep T.
+    # Tepede önde ve arkada enine çubuk (rayın ucuyla aynı kesitte). Yandan ön bacak (232, 199) -> (312, 99),
+    # arka (462, 182) -> (418, 96)
+    T = 21.0
+    hoop = [(232.0, 199.0), (312.0, 99.0), (418.0, 96.0), (462.0, 182.0)]
+    def offset_line(p0, p1, o):
+        dx, dy = p1[0] - p0[0], p1[1] - p0[1]
+        L = math.hypot(dx, dy)
+        nx, ny = dy / L, -dx / L          # sol normal (yan görünüşte, y aşağı)
+        return (p0[0] + nx * o, p0[1] + ny * o), (dx / L, dy / L)
+    def intersect(a, da, b, db):
+        den = da[0] * db[1] - da[1] * db[0]
+        t_ = ((b[0] - a[0]) * db[1] - (b[1] - a[1]) * db[0]) / den
+        return (a[0] + da[0] * t_, a[1] + da[1] * t_)
+    def side_offsets(o):
+        """Çemberin ±o ofset çizgisi: köşelerde ofset çizgilerinin kesişimi, uçlarda yatay (alt) kesim."""
+        lines = [offset_line(hoop[k], hoop[k + 1], o) for k in range(3)]
+        pts = [intersect(lines[0][0], lines[0][1], (0.0, hoop[0][1]), (1.0, 0.0))]
+        for k in range(2):
+            pts.append(intersect(lines[k][0], lines[k][1], lines[k + 1][0], lines[k + 1][1]))
+        pts.append(intersect(lines[2][0], lines[2][1], (0.0, hoop[3][1]), (1.0, 0.0)))
+        return pts
+    outer, inner = side_offsets(T / 2), side_offsets(-T / 2)
+    if min(p[1] for p in outer) > min(p[1] for p in inner):
+        outer, inner = inner, outer
+    y_rail = max(p[1] for p in inner[1:3])        # rayın alt yüzü
+    def hx(y, base_y):
+        return 40.0 + 30.0 * max(0.0, min(1.0, (y - y_rail) / (base_y - y_rail)))
     for sx in (-1, 1):
-        A = Vector((sx * W(70), Y(fb[0]), Z(fb[1])))
-        B = Vector((sx * W(40), Y(ft[0]), Z(ft[1])))
-        Cc = Vector((sx * W(40), Y(rt[0]), Z(rt[1])))
-        n = (B - A).cross(Cc - B).normalized()
-        Dd = Vector((0.0, Y(rb[0]), Z(rb[1])))
-        Dd.x = A.x - (n.y * (Dd.y - A.y) + n.z * (Dd.z - A.z)) / n.x
-        # Tepe köşeleri pahlı (iki küçük kırım; çizimdeki gibi yumuşak köşe, önden bakınca köşede kulak kalmaz)
-        r = T * 0.9
-        B1, B2 = B + (A - B).normalized() * r, B + (Cc - B).normalized() * r
-        C1, C2 = Cc + (B - Cc).normalized() * r, Cc + (Dd - Cc).normalized() * r
-        tube("cage", [A, B1, B2, C1, C2, Dd], T, "Cage", (A, Vector((0, 0, 1))), (Dd, Vector((0, 0, 1))), normal=n)
-        # enine çubuklar rayın pahtan hemen sonraki yerine (rayla aynı yükseklikte; önden bakınca köşe düz)
-        sides[sx] = (B2 + (Cc - B).normalized() * T * 0.5, C1 + (B - Cc).normalized() * T * 0.5, n)
-    # Tepedeki enine çubuklar (önde ve arkada): uçları yan çemberlerin iç yüzüne düz oturur
-    for k in (0, 1):
-        pa, pb = sides[-1][k], sides[1][k]
-        caps = []
-        for p_, sx in ((pa, -1), (pb, 1)):
-            n = sides[sx][2]
-            inward = 1.0 if n.x * (-sx) > 0 else -1.0
-            caps.append((p_ + n * inward * T * 0.5, n))
-        tube("cage", [pa, pb], T, "Cage", caps[0], caps[1])
+        for k in range(3):
+            q = [outer[k], outer[k + 1], inner[k + 1], inner[k]]
+            base_y = hoop[0][1] if k == 0 else (hoop[3][1] if k == 2 else hoop[0][1])
+            if k == 1:
+                xs_ = [40.0] * 4
+            else:
+                xs_ = [hx(p[1], base_y) for p in q]
+            lo = [(W(sx * (X - T / 2)), Y(p[0]), Z(p[1])) for X, p in zip(xs_, q)]
+            hi = [(W(sx * (X + T / 2)), Y(p[0]), Z(p[1])) for X, p in zip(xs_, q)]
+            solid("cage", lo, hi, "Cage")
+    # Enine çubuklar: rayın ön / arka ucunda, rayla aynı yükseklikte, iki çemberin iç yüzü arasında
+    for k, sgn in ((1, 1.0), (2, -1.0)):
+        a, b = outer[k], inner[k]
+        y0, y1 = min(a[1], b[1]), y_rail
+        x0 = a[0]
+        x1 = x0 + sgn * T
+        q = [(min(x0, x1), y1), (max(x0, x1), y1), (max(x0, x1), y0), (min(x0, x1), y0)]
+        lo = [(W(-40 + T / 2), Y(px), Z(py)) for px, py in q]
+        hi = [(W(40 - T / 2), Y(px), Z(py)) for px, py in q]
+        solid("cage", lo, hi, "Cage")
 
-    # --- Koltuk: turuncu sırt (yandan (372, 236) -> (396, 158), arkaya yatık), önünde koyu minder
+    # --- Koltuk: turuncu sırt (yandan (372, 236) -> (396, 158), arkaya yatık), tek blok
     seat_a, seat_b = Vector((0, Y(372), Z(236))), Vector((0, Y(396), Z(158)))
     d = seat_b - seat_a
-    nrm = Vector((0, d.z, -d.y)).normalized()   # koltuğun ön yüzü (öne-yukarı)
-    for name, hw, t, off, k, mat in (("seat", 30.0, 27.0, 0.0, 1.0, "Orange"), ("seat_pad", 21.0, 6.0, 14.0, 0.7, "Dark")):
-        bm = bmesh.new()
-        bmesh.ops.create_cube(bm, size=1.0)
-        for v in bm.verts:
-            v.co = Vector((v.co.x * W(hw * 2), v.co.y * W(t), v.co.z * d.length * k))
-        ob = new_object(name, bm, [mat])
-        ob.rotation_euler = (math.atan2(-d.y, d.z), 0, 0)   # sırt arkaya yatık (genişlik X'te kalır)
-        ob.location = (seat_a + seat_b) / 2 + nrm * W(off) - d.normalized() * W(8.0) * (1.0 - k) * 2.0
-        flat(ob)
-    box("seat_base", (W(56), W(46), W(14)), (0, Y(352), Z(250)), "Dark")
-
-    # --- Direksiyon: koyu halka (merkez (286, 203), yarıçap 27 px, yandan (268,175)-(305,232) çizgisi)
-    # ve torpidodan gelen kolon
     bm = bmesh.new()
-    ring_r, tube = W(26.0), W(7.0)
-    segs = 12
-    rings = []
-    for k in range(segs):
-        a = 2 * math.pi * k / segs
-        c = Vector((ring_r * math.cos(a), ring_r * math.sin(a), 0))
-        rr = []
-        for m in range(4):
-            b = 2 * math.pi * m / 4 + math.pi / 4
-            off = Vector((math.cos(a), math.sin(a), 0)) * tube * math.cos(b) + Vector((0, 0, tube * math.sin(b)))
-            rr.append(bm.verts.new(c + off))
-        rings.append(rr)
-    for k in range(segs):
-        a, b = rings[k], rings[(k + 1) % segs]
-        for m in range(4):
-            n2 = (m + 1) % 4
-            bm.faces.new((a[m], a[n2], b[n2], b[m]))
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    sw = new_object("steer", bm, ["Dark"])
-    # halkanın düzlemi: X ekseni ve yandan (268,175)->(305,232) doğrultusu
-    tilt = math.atan2((305 - 268) * KS, (232 - 175) * KS)
-    sw.rotation_euler = (math.pi / 2 - tilt, 0, 0)
-    sw.rotation_euler = (-(math.pi / 2) + tilt, 0, 0)
-    sw.location = (0, Y(286), Z(203))
-    flat(sw)
-    bar("steer_col", (0, Y(236), Z(214)), (0, Y(286), Z(204)), W(9), "Dark")
+    bmesh.ops.create_cube(bm, size=1.0)
+    for v in bm.verts:
+        v.co = Vector((v.co.x * W(60), v.co.y * W(27), v.co.z * d.length))
+    seat = new_object("seat", bm, ["Orange"])
+    seat.rotation_euler = (math.atan2(-d.y, d.z), 0, 0)
+    seat.location = (seat_a + seat_b) / 2
+    flat(seat)
 
-    # --- Aks çubukları: teker merkezinin hizasında, alt gövdeden lastiğin iç yüzüne düz (çoğu lastiğin arkasında)
+    # --- Aks çubukları: teker merkezinin hizasında, alt gövdeden lastiğin iç yüzüne
     for sx in (-1, 1):
         for x in (154.0, 475.0):
             box("rod", (W(30), W(12), W(12)), (sx * W(49), Y(x), Z(315)), "Dark")
 
-    # --- Tekerler: 16 kenarlı, omuzları pahlı iri lastik; dış yüzde krem düz jant (r 38 px)
-    R, TW = W(82.0) / math.cos(math.pi / 16), W(103.0)
+    # --- Tekerler: sekizgen, düz yüzlü iri lastik (pah yok; bir kenarı yere oturur); iki yanda düz sekizgen jant
+    R, TW = W(82.0) / math.cos(math.pi / 8), W(103.0)
     for name, X, x in (("wheel_FL", -114.5, 154.0), ("wheel_FR", 114.5, 154.0),
                        ("wheel_RL", -114.5, 475.0), ("wheel_RR", 114.5, 475.0)):
         bm = bmesh.new()
-        bmesh.ops.create_cone(bm, cap_ends=True, segments=16, radius1=R, radius2=R, depth=TW)
+        bmesh.ops.create_cone(bm, cap_ends=True, segments=8, radius1=R, radius2=R, depth=TW)
         bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
-        bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 16, 3, "X"), cent=(0, 0, 0))
+        bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 8, 3, "X"), cent=(0, 0, 0))
         tire = new_object(name, bm, ["Tire"])
-        bevel(tire, W(16.0), 1)
         flat(tire)
         for side in (-1, 1):
             bm = bmesh.new()
-            bmesh.ops.create_cone(bm, cap_ends=True, segments=16, radius1=W(38.0), radius2=W(38.0), depth=0.012)
+            rr = W(40.0) / math.cos(math.pi / 8)
+            bmesh.ops.create_cone(bm, cap_ends=True, segments=8, radius1=rr, radius2=rr, depth=0.012)
             bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
-            bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 16, 3, "X"), cent=(0, 0, 0))
+            bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 8, 3, "X"), cent=(0, 0, 0))
             bmesh.ops.translate(bm, verts=bm.verts, vec=(side * (TW * 0.5 + 0.004), 0, 0))
-            hub = new_object(name + "_rim", bm, ["Paint"])
+            hub = new_object(name + "_rim", bm, ["Rim2"])
             hub.parent = tire
             flat(hub)
         tire.location = (W(X), Y(x), W(82.0))
-
 
 BUILDERS = {"kutu": build_kutu, "dragster": build_dragster, "yarisci": build_yarisci, "latte": build_latte,
             "falcon": build_falcon, "gem": build_gem, "buggy": build_buggy,
