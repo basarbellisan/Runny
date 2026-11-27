@@ -1806,25 +1806,60 @@ def build_kum():
     ring_loft("stripe", stripe, "Accent")
     for sx in (-1, 1):
         # Turuncu paralelkenar panel (yan duvarın dış yüzünde)
-        side_plate("panel", [(245, 268), (410, 240), (371, 301), (262, 308)], sx * 116.0, sx * 118.5, "Accent")
+        side_plate("panel", [(240, 268), (424, 237), (372, 300), (263, 307.5)], sx * 116.0, sx * 118.5, "Accent")
         # Koyu etek: yandan gövdenin alt hattı boyunca düzgün kalınlıkta bant (burundan ön teker üstüne, kemer
-        # boyunca eşiğe, eşik boyunca, arka kemerden güvertenin altına, kanadın altına); tekerlerin üstünde düz
+        # boyunca eşiğe, eşik boyunca, arka kemerden güvertenin altına, kanadın altına); tekerlerin üstünde düz.
+        # Dışı gövdenin yanıyla aynı hizada (önde raf / çıkıntı yok), teker kemerlerinde dışarı taşar (çamurluk)
         upper = [(66, 252), (150, 226), (214, 228), (262, 307), (370, 301), (432, 224), (526, 213), (546, 200)]
-        lower = [(546, 214), (523, 244), (442, 244), (375, 320), (251, 321), (203, 241), (147, 241), (71, 265),
-                 (66, 266)]
-        side_plate("skirt", upper + lower, sx * 50.0, sx * 115.5, "Dark")
+        lower = [(66, 266), (71, 265), (147, 241), (203, 241), (251, 321), (375, 320), (442, 244), (523, 244),
+                 (546, 214)]
+        flare = [(66, 0), (110, 0), (135, 12), (225, 12), (250, 0), (395, 0), (425, 12), (530, 12), (546, 6)]
+        sk = []
+        for x in sorted(set([p_[0] for p_ in upper + lower + flare])):
+            t, b = lerp_tab(upper, x), lerp_tab(lower, x)
+            xo = lerp_tab(wid, x) - 0.4 + lerp_tab(flare, x)
+            xi = min(50.0, xo - 8.0)
+            pts = [(xi, t), (xo, t), (xo, b), (xi, b)]
+            sk.append((x, [(sx * X, yy) for X, yy in pts]))
+        if sx < 0:
+            sk = [(x, list(reversed(p_))) for x, p_ in sk]
+        ring_loft("skirt", sk, "Dark")
+        # Teker yuvası içi (koyu, tekerin iç yanında): etekle teker arasındaki aralıklardan zemin görünmesin
+        # (kabin ağzının içine girmez: önde kabinin önünde, arkada güvertenin altında biter)
+        side_plate("liner", [(62, 252), (150, 224), (224, 224), (224, 318), (90, 318), (90, 289), (62, 289)],
+                   sx * 38.0, sx * 60.0, "Dark")
+        side_plate("liner", [(405, 262), (432, 222), (546, 205), (546, 240), (405, 318)], sx * 38.0, sx * 60.0, "Dark")
 
     # --- Arka kanat (turuncu kama): yandan üst kenar (478, 171) -> uç (553, 156), arka alt köşe (522, 222);
     # yanları gövdeyle aynı hizada, kesit köşeli
+    # Uzun kama kanat: yandan üst kenar (473, 173) -> (612, 152), alt kenar güverteden (527, 214) -> (612, 165);
+    # üstten arkaya doğru genişler (gövde hizasından ±148'e), arka kenarı ortada V çentikli (yanlar 612'ye,
+    # orta 553'e kadar)
+    def wtop(x):
+        return 173.0 - 30.0 * (x - 473.0) / 146.0
+    wbot = [(473, 177), (527, 214), (612, 166)]
+    def wout(x):
+        return 116.6 + 31.4 * (x - 473.0) / 139.0
     wing = []
-    for x, t, b in ((476, 172, 176), (522, 162, 222), (553, 156, 172)):
-        w = lerp_tab(wid, x) + 0.6
+    for x in (473, 500, 527, 553):
+        t, b, w = wtop(x), lerp_tab(wbot, x), wout(x)
         wing.append((x, sym([(0, t), (w, t), (w, b), (0, b)])))
     ring_loft("wing", wing, "Accent")
+    for sx in (-1, 1):
+        tail = []
+        for x in (553, 583, 612):
+            t, b, w = wtop(x), lerp_tab(wbot, x), wout(x)
+            xi = 34.0 + 42.0 * (x - 553.0) / 59.0
+            pts = [(xi, t), (w, t), (w, b), (xi, b)]
+            tail.append((x, [(sx * X, yy) for X, yy in pts]))
+        if sx < 0:
+            tail = [(x, list(reversed(p_))) for x, p_ in tail]
+        ring_loft("wing", tail, "Accent")
     # Arka: kanadın altı koyu (eteklerin arası, arkadan bakınca tek parça)
     rear = []
-    for x, t, b in ((505, 213, 244), (523, 213, 244), (546, 200, 214)):
-        rear.append((x, sym([(0, t), (51, t), (51, b), (0, b)])))
+    for x, t, b in ((498, 206, 244), (527, 208, 244), (546, 198, 214), (556, 192, 205)):
+        w = lerp_tab(wid, x) - 1.0
+        rear.append((x, sym([(0, t), (w, t), (w, b), (0, b)])))
     ring_loft("rear_panel", rear, "Dark")
 
     # --- Alt gövde (koyu, yamuk kesit): önden üstte ±55, altta ±34
@@ -1837,8 +1872,11 @@ def build_kum():
     # açıkta), enine çamurluktan çamurluğa (±114). Kaputun altında kalan yerleri görünmez; önden bakınca üstte
     # iki çamurluk arası geniş bant ve ortada kaputun altına inen V (kaputun üstten şekli), ön yüzü tek düz yüzey.
     # Altında daralan gövde ucu (önden yamuk)
-    side_plate("front_block", [(62, 252), (150, 226), (150, 241), (110, 251), (70, 289.7), (62, 289.7)],
-               -114.0, 114.0, "Dark")
+    fb_ = []
+    for x, t, b in ((62, 252.5, 289.7), (70, 251.5, 289.7), (110, 238.5, 251.0), (150, 226.5, 241.0)):
+        w = lerp_tab(wid, max(x, 66)) - 0.6
+        fb_.append((x, sym([(0, t), (w, t), (w, b), (0, b)])))
+    ring_loft("front_block", fb_, "Dark")
     ring_loft("front_block", [(62, [(43, 289.0), (35, 329.0), (-35, 329.0), (-43, 289.0)]),
                               (90, [(43, 289.0), (35, 329.0), (-35, 329.0), (-43, 289.0)])], "Dark")
     # Farlar: önden iki beyaz yarık (y 262-276), ön bloğun yüzünde
@@ -1851,7 +1889,7 @@ def build_kum():
     # yukarı doğru içe yatık: her noktanın X'i yüksekliğine göre (altta ±70, tepede ±40), yatay kesiti hep T.
     # Tepede önde ve arkada enine çubuk (yayların bittiği yerde, rayla aynı kesitte)
     T = 21.0
-    P0, P1, P2, P3 = (232.0, 199.0), (312.0, 99.0), (418.0, 96.0), (462.0, 182.0)
+    P0, P1, P2, P3 = (222.0, 194.0), (312.0, 99.0), (418.0, 96.0), (462.0, 182.0)   # ön bacak kaputa oturur
     FR, NSEG = 40.0, 5      # köşe yayının yarıçapı (orta çizgide, px) ve parça sayısı
     def fillet(a, b, c):
         """b köşesini yarıçapı FR yayla yuvarlar: yayın noktaları (a'dan c'ye)."""
@@ -1893,8 +1931,10 @@ def build_kum():
     ytop = max(p[1] for p in inner)                     # en alçak noktası değil: rayın alt yüzü
     ytop = min(p[1] for p in inner[1:-1])
     y_rail_in = max(inner[NSEG + 1][1], inner[NSEG + 2][1])
+    y_top_out = min(p[1] for p in outer)
     def hx(y, base_y):
-        return 40.0 + 30.0 * max(0.0, min(1.0, (y - y_rail_in) / (base_y - y_rail_in)))
+        # önden bakınca bacak tepeye kadar düz: X yükseklikle doğrusal (tepede ±40, altta ±70)
+        return 40.0 + 30.0 * max(0.0, min(1.0, (y - y_top_out) / (base_y - y_top_out)))
     for sx in (-1, 1):
         for k in range(n_ - 1):
             q = [outer[k], outer[k + 1], inner[k + 1], inner[k]]
@@ -1909,11 +1949,14 @@ def build_kum():
             a, b = outer[NSEG + 1], inner[NSEG + 1]
         else:
             a, b = outer[NSEG + 2], inner[NSEG + 2]
-        y0, y1 = min(a[1], b[1]), max(a[1], b[1])
+        # aradaki bağlayıcı çubuklar yandakilerden ince (0.7 T), rayın ortasında
+        ym = (a[1] + b[1]) / 2
+        ct = T * 0.7
+        y0, y1 = ym - ct / 2, ym + ct / 2
         x0 = (a[0] + b[0]) / 2
-        q = [(x0 - T / 2, y1), (x0 + T / 2, y1), (x0 + T / 2, y0), (x0 - T / 2, y0)]
-        lo = [(W(-40 + T / 2), Y(px), Z(py)) for px, py in q]
-        hi = [(W(40 - T / 2), Y(px), Z(py)) for px, py in q]
+        q = [(x0 - ct / 2, y1), (x0 + ct / 2, y1), (x0 + ct / 2, y0), (x0 - ct / 2, y0)]
+        lo = [(W(-41), Y(px), Z(py)) for px, py in q]
+        hi = [(W(41), Y(px), Z(py)) for px, py in q]
         solid("cage", lo, hi, "Cage")
 
     # --- Koltuk: turuncu sırt (yandan (372, 236) -> (396, 158), arkaya yatık), tek blok
