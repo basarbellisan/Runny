@@ -1769,57 +1769,57 @@ def build_kum():
         flat(ob)
         return ob
 
-    # --- Kaput: burundan kabinin önüne; üstü yan görünüşün üst kenarı, altı teker kemerinin üstü,
-    # üstten burunda ±40, kabinin önünde ±117 (dış üst köşe pahlı)
-    top = [(66, 248), (90, 238), (120, 222), (150, 209), (180, 200), (210, 193), (226, 191)]
-    bot = [(66, 252), (100, 246), (140, 229), (190, 225), (226, 226)]
-    hood = []
-    for x in (66, 78, 92, 108, 124, 140, 158, 176, 194, 212, 226):
-        zt, zb = lerp_tab(top, x), lerp_tab(bot, x)
-        w = 40.0 + (117.0 - 40.0) * (x - 66) / (226 - 66)
-        c = min(8.0, (zb - zt) * 0.4)
-        hood.append((x, sym([(0, zt), (w - c, zt), (w, zt + c), (w, zb), (0, zb)])))
-    ring_loft("body", hood, "Paint")
+    # --- Krem gövde tek parça: kaput, kabinin iki yanındaki duvarlar ve arka güverte aynı yüzeyden. Yandaki
+    # üst kenar burundan kaputun yanından kabinin eşiğine iner, güverteye ve kanadın altına yükselir (tek,
+    # kesintisiz hat); alt kenar teker kemerinin üstünden turuncu panelin altına, oradan güverteye.
+    # Kesit: dış üst köşe pahlı; kabin boyunca ortada ağız (iç duvar X 95, taban), kaputta ve güvertede ağız
+    # kapalı (iç noktalar üst ortada toplanır)
+    top = [(66, 248), (90, 238), (120, 222), (150, 209), (180, 200), (210, 193), (226, 191), (245, 203),
+           (270, 220), (300, 235), (340, 236), (370, 232), (390, 228), (410, 214), (430, 196), (442, 187),
+           (460, 177), (478, 171), (505, 185), (526, 197)]
+    bot = [(66, 252), (100, 246), (140, 229), (190, 225), (214, 228), (234, 246), (250, 274), (262, 307),
+           (370, 301), (390, 270), (410, 241), (430, 225), (442, 222), (478, 214), (505, 213), (526, 213)]
+    wid = [(66, 40), (226, 116), (440, 116), (460, 108), (478, 100), (505, 86), (526, 74)]
+    OPEN0, OPEN1 = 226.0, 404.0
+    xs = sorted(set([66, 78, 92, 108, 124, 140, 158, 176, 194, 212, 226, 226.6, 236, 245, 255, 262, 270, 285, 300,
+                     320, 340, 355, 370, 380, 390, 400, 403.4, 404, 410, 420, 430, 442, 460, 478, 492, 505, 516, 526]))
+    shell = []
+    for x in xs:
+        t, b, w = lerp_tab(top, x), lerp_tab(bot, x), lerp_tab(wid, x)
+        c = min(7.0, (b - t) * 0.3)
+        if OPEN0 < x < OPEN1:
+            wi, fl = 95.0, min(290.0, b - 3.0)
+        else:
+            wi, fl = 0.0, t
+        right = [(wi, t), (w - c, t), (w, t + c), (w, b)]
+        left = [(-X, yy) for X, yy in reversed(right)]
+        shell.append((x, right + left + [(-wi, fl), (wi, fl)]))
+    ring_loft("body", shell, "Paint")
+    # Kabin tabanı koyu (gövdenin tabanının hemen üstünde ince katman)
+    floor = []
+    for x in [x for x in xs if OPEN0 < x < OPEN1]:
+        fl = min(290.0, lerp_tab(bot, x) - 3.0) - 1.2
+        floor.append((x, [(94.5, fl - 1.0), (-94.5, fl - 1.0), (-94.5, fl + 1.0), (94.5, fl + 1.0)]))
+    ring_loft("floor", floor, "Dark")
     # Kaputun ortasındaki turuncu şerit: burunda ±22, kabinin önünde ±52 (kaputun üstünde ince katman)
     stripe = []
-    for x in (64, 92, 124, 158, 194, 227):
+    for x in (64, 92, 124, 158, 194, 225):
         zt = lerp_tab(top, max(x, 66)) - 0.4
-        w = 22.0 + 30.0 * (x - 64) / (227 - 64)
+        w = 22.0 + 30.0 * (x - 64) / (225 - 64)
         stripe.append((x, [(0, zt - 1.6), (w, zt - 1.6), (w, zt + 2.0), (0, zt + 2.0), (-w, zt + 2.0), (-w, zt - 1.6)]))
     ring_loft("stripe", stripe, "Orange")
-
-    # --- Yan duvarlar (kabinin iki yanında, iç X 95, dış 115): üstü (eşik) kaputtan aşağı iner, ortada
-    # düz, arkada güverteye yükselir; altı turuncu panelin altında, önde ve arkada kemer boyunca çapraz
-    xs = [226, 245, 262, 300, 340, 370, 390, 410, 430, 442]
-    tops = [200, 213, 221, 237, 236, 231, 228, 221, 207, 192]
-    bots = [214, 270, 308, 306, 303, 301, 270, 240, 224, 222]
     for sx in (-1, 1):
-        rings = []
-        for x, t, b in zip(xs, tops, bots):
-            c = min(6.0, (b - t) * 0.3)
-            pts = [(95, t), (115 - c, t), (115, t + c), (115, b), (95, b)]
-            rings.append((x, [(sx * X, yy) for X, yy in pts]))
-        if sx < 0:
-            rings = [(x, list(reversed(p))) for x, p in rings]
-        ring_loft("pod", rings, "Paint")
         # Kabin ağzının koyu çerçevesi (üstten görünüşte krem kenarın içinde koyu gri bant)
         rim = []
-        for x, t, b in zip(xs[1:-1], tops[1:-1], bots[1:-1]):
-            pts = [(84, t + 1.0), (96, t + 1.0), (96, t + 14.0), (84, t + 14.0)]
+        for x in (236, 255, 270, 300, 340, 370, 390, 400):
+            t = lerp_tab(top, x)
+            pts = [(84, t + 1.0), (95.5, t + 1.0), (95.5, t + 14.0), (84, t + 14.0)]
             rim.append((x, [(sx * X, yy) for X, yy in pts]))
         if sx < 0:
             rim = [(x, list(reversed(p))) for x, p in rim]
         ring_loft("rim", rim, "Cage")
         # Turuncu paralelkenar panel (yan duvarın dış yüzünde)
-        side_plate("panel", [(245, 268), (410, 240), (371, 301), (262, 308)], sx * 115.0, sx * 117.5, "Orange")
-
-    # --- Arka güverte: koltuğun arkasından kanadın altına; üstten arkaya doğru daralır
-    deck = []
-    for x, t, b, w in ((404, 214, 238, 113), (420, 196, 230, 115), (440, 183, 222, 115), (460, 176, 218, 108),
-                       (478, 171, 214, 100), (505, 185, 213, 86), (526, 197, 213, 74)):
-        c = min(8.0, (b - t) * 0.35)
-        deck.append((x, sym([(0, t), (w - c, t), (w, t + c), (w, b - 3), (w - 4, b), (0, b)])))
-    ring_loft("deck", deck, "Paint")
+        side_plate("panel", [(245, 268), (410, 240), (371, 301), (262, 308)], sx * 116.0, sx * 118.5, "Orange")
 
     # --- Arka kanat (turuncu kama): yandan üst kenar (478, 171) -> uç (553, 156), arka alt köşe (522, 214);
     # üstten önde ±62, arkada ±80; üst kenarları pahlı (arkadan altıgen)
@@ -1833,13 +1833,11 @@ def build_kum():
     # --- Alt gövde (koyu): burnun altından arkaya; önden üstte ±55, altta ±33; önde farların yuvası
     chassis = []
     for x, zt, zb, ht, hb in ((66, 249, 286, 52, 44), (80, 247, 318, 55, 36), (120, 245, 328, 55, 33),
-                              (240, 250, 328, 58, 34), (390, 240, 318, 60, 36), (500, 214, 300, 62, 40),
+                              (240, 250, 328, 58, 34), (390, 240, 320, 60, 36), (505, 214, 320, 62, 38),
                               (536, 212, 252, 58, 44)):
         chassis.append((x, [(0, zt), (ht, zt), (ht + 2, zt + (zb - zt) * 0.55), (hb, zb), (0, zb),
                             (-hb, zb), (-ht - 2, zt + (zb - zt) * 0.55), (-ht, zt)]))
     ring_loft("chassis", chassis, "Dark")
-    # Kabin tabanı (koyu, yan duvarların arasında)
-    box("tub", (W(190), W(200), W(10)), (0, Y(318), Z(292)), "Dark")
     # Farlar: önden iki beyaz yarık (y 262-276), alt gövdenin ön yüzünde
     for sx in (-1, 1):
         bm = bmesh.new()
@@ -1860,13 +1858,69 @@ def build_kum():
     # çizilmiş, ortası alındı; ön ve arka çember aynı genişlikte ki önden tek Π görünsün). Çubuk ~22 px
     T = W(21.0)
     fb, ft, rt, rb = (232.0, 199.0), (312.0, 99.0), (418.0, 96.0), (462.0, 182.0)
+
+    def tube(name, pts, t, mat, cap0=None, cap1=None):
+        """Köşeleri birleşik kare kesitli boru (pts metre). Köşelerde iki çubuk açıortay düzleminde kesilir
+        (dışarı taşan uç yok); uçlar cap0 / cap1 düzlemlerinde (nokta, normal), yoksa çubuğa dik."""
+        P = [Vector(p) for p in pts]
+        n = len(P)
+        D = [(P[k + 1] - P[k]).normalized() for k in range(n - 1)]
+        # Kesitin yönü köşeden köşeye döndürülerek taşınır (köşede iki çubuğun kesit köşeleri üst üste gelir,
+        # sivri uç çıkmaz). Ortadaki çubuğun yüzleri yatay / dikey
+        r = (n - 1) // 2
+        U = [None] * (n - 1)
+        ref = Vector((0, 0, 1)) if abs(D[r].z) < 0.9 else Vector((0, 1, 0))
+        U[r] = D[r].cross(ref).normalized()
+        for k in range(r + 1, n - 1):
+            U[k] = (D[k - 1].rotation_difference(D[k]) @ U[k - 1]).normalized()
+        for k in range(r - 1, -1, -1):
+            U[k] = (D[k + 1].rotation_difference(D[k]) @ U[k + 1]).normalized()
+        bm = bmesh.new()
+        for k in range(n - 1):
+            a, b = P[k], P[k + 1]
+            d = D[k]
+            u = U[k]
+            v = u.cross(d).normalized()
+            def plane(i, end):
+                if end == 0:
+                    if k == 0:
+                        return cap0 if cap0 else (a, d)
+                    return (a, (P[k] - P[k - 1]).normalized() + d)
+                if k == n - 2:
+                    return cap1 if cap1 else (b, d)
+                return (b, d + (P[k + 2] - P[k + 1]).normalized())
+            rings = []
+            for end, base in ((0, a), (1, b)):
+                pc, pn = plane(k, end)
+                pn = pn.normalized()
+                ring = []
+                for su, sv in ((1, 1), (-1, 1), (-1, -1), (1, -1)):
+                    o = base + u * (su * t / 2) + v * (sv * t / 2)
+                    s_ = (pc - o).dot(pn) / d.dot(pn)
+                    ring.append(bm.verts.new(o + d * s_))
+                rings.append(ring)
+            r0, r1 = rings
+            bm.faces.new(r0)
+            bm.faces.new(list(reversed(r1)))
+            for m in range(4):
+                m2 = (m + 1) % 4
+                bm.faces.new((r0[m], r0[m2], r1[m2], r1[m]))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        ob = new_object(name, bm, [mat])
+        flat(ob)
+        return ob
+
+    # Ön ve arka çember (bacak - tepe - bacak) tek boru; bacakların altı yatay kesilir (gövdeye oturur)
+    for (pb, pt) in ((fb, ft), (rb, rt)):
+        pts = [(-W(70), Y(pb[0]), Z(pb[1])), (-W(40), Y(pt[0]), Z(pt[1])),
+               (W(40), Y(pt[0]), Z(pt[1])), (W(70), Y(pb[0]), Z(pb[1]))]
+        flat_cap = lambda p: (Vector(p), Vector((0, 0, 1)))
+        tube("cage", pts, T, "Cage", flat_cap(pts[0]), flat_cap(pts[-1]))
+    # Yan raylar: çemberlerin tepe köşeleri arasında; uçları çemberin orta düzleminde (çemberin içinde kalır)
     for sx in (-1, 1):
-        P = lambda X, p: (sx * W(X), Y(p[0]), Z(p[1]))
-        bar("cage", P(70, fb), P(40, ft), T, "Cage")
-        bar("cage", P(40, ft), P(40, rt), T, "Cage")
-        bar("cage", P(40, rt), P(70, rb), T, "Cage")
-    bar("cage", (-W(40), Y(ft[0]), Z(ft[1])), (W(40), Y(ft[0]), Z(ft[1])), T, "Cage")
-    bar("cage", (-W(40), Y(rt[0]), Z(rt[1])), (W(40), Y(rt[0]), Z(rt[1])), T, "Cage")
+        a = Vector((sx * W(40), Y(ft[0]), Z(ft[1])))
+        b = Vector((sx * W(40), Y(rt[0]), Z(rt[1])))
+        tube("cage", [a, b], T, "Cage", (a, Vector((0, 1, 0))), (b, Vector((0, 1, 0))))
 
     # --- Koltuk: turuncu sırt (yandan (372, 236) -> (396, 158), arkaya yatık), önünde koyu minder
     seat_a, seat_b = Vector((0, Y(372), Z(236))), Vector((0, Y(396), Z(158)))
@@ -1913,10 +1967,10 @@ def build_kum():
     flat(sw)
     bar("steer_col", (0, Y(236), Z(214)), (0, Y(286), Z(204)), W(9), "Dark")
 
-    # --- Aks çubukları: alt gövdenin alt köşesinden lastiğin iç yüzüne
+    # --- Aks çubukları: teker merkezinin hizasında, alt gövdeden lastiğin iç yüzüne düz (çoğu lastiğin arkasında)
     for sx in (-1, 1):
         for x in (154.0, 475.0):
-            bar("rod", (sx * W(36), Y(x), Z(328)), (sx * W(64), Y(x), Z(338)), W(10), "Dark")
+            box("rod", (W(30), W(12), W(12)), (sx * W(49), Y(x), Z(315)), "Dark")
 
     # --- Tekerler: 16 kenarlı, omuzları pahlı iri lastik; dış yüzde krem düz jant (r 38 px)
     R, TW = W(82.0) / math.cos(math.pi / 16), W(103.0)
