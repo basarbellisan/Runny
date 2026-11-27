@@ -38,7 +38,8 @@ extends Node3D
 ## Onaylanmamış modeller yalnız önizlemede (vitrin aracı --glb) eklenir.
 static var glb_models := {6: "res://models/cars/dragster.glb", 7: "res://models/cars/yarisci.glb",
 	8: "res://models/cars/latte.glb", 9: "res://models/cars/falcon.glb",
-	10: "res://models/cars/gem.glb", 11: "res://models/cars/buggy.glb", 12: "res://models/cars/delta.glb"}
+	10: "res://models/cars/gem.glb", 11: "res://models/cars/buggy.glb", 12: "res://models/cars/delta.glb",
+	13: "res://models/cars/kum.glb"}  # 13: yeni kum arabası (önizleme, garajda değil)
 
 ## Garajdaki arabalar (sırayla): önce açık temel arabalar (ağır, orta, hafif), sonra kilitli özel
 ## arabalar (Progress). Kutu, Konsept, Roadster ve Buggy garajdan çıktı (kodları duruyor).
