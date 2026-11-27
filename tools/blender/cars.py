@@ -1700,7 +1700,7 @@ def build_kum():
     doğru daralan turuncu şerit, yan duvarlarda turuncu paralelkenar panel, arkada turuncu kama kanat,
     koyu alt gövde ve iki beyaz far, koyu dört bacaklı kafes (ön bacaklar öne yatık), turuncu koltuk,
     direksiyon, iri pahlı lastikler ve krem düz jantlar."""
-    KS = 0.0075
+    KS = 0.0075 * 0.85   # görseldeki ölçüden %15 küçük (oyunda fazla büyüktü)
     MID, GROUND = 314.5, 397.0
     def Y(x):
         return (MID - x) * KS

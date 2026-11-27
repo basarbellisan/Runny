@@ -57,7 +57,7 @@ const SAVE_PATH := "user://save.cfg"
 ## GEZGİN, LATTE, GEM; FM ailesi: DRAGSTER, DARK ROSE, FALCON (tools/engine_land_designs.py CARS)
 ## İniş sesi (gerçekçi lastik: yumuşak konuş + hafif kayma), arabaya göre; motorun üstünde duyulsun
 const LANDS := {2: "land_gezgin", 8: "land_latte", 10: "land_gem", 6: "land_dragster", 7: "land_dark_rose", 9: "land_falcon",
-	11: "land_gezgin", 12: "land_falcon"}
+	11: "land_gezgin", 12: "land_falcon", 13: "land_gezgin"}
 const LAND_BOOST_DB := 7.0
 var _land_key := "land_latte"
 const ENGINES := {
@@ -69,6 +69,8 @@ const ENGINES := {
 	9: preload("res://audio/loop_engine_falcon.ogg"),
 	# Buggy: şimdilik GEZGİN'in motoru (arazi arabası)
 	11: preload("res://audio/loop_engine_gezgin.ogg"),
+	# DUNE (kum arabası): şimdilik GEZGİN'in motoru (arazi arabası)
+	13: preload("res://audio/loop_engine_gezgin.ogg"),
 	# Delta: şimdilik FALCON'un motoru
 	12: preload("res://audio/loop_engine_falcon.ogg"),
 }

@@ -22,6 +22,8 @@ extends Node3D
 ##             yanında çıkıntılar, yüzgeç dikmeli geniş kanat; gövde açık soğuk yeşil, lastik / tavan /
 ##             kanat mavi, delikli disk jantlar sarı
 ##
+## variant 13 – DUNE: Blender modeli (models/cars/kum.glb, görselden): kum arabası; krem gövde, turuncu kaput
+## şeridi, yan paneller ve arka kanat, koyu kafes, iri pahlı lastikler.
 ## variant 12 – DELTA: Blender modeli (models/cars/delta.glb, Figma "Araba 6"): ok biçimli delta kanat,
 ##             martı kesitli gövde, yatık siyah kokpit; ön tekerler küçük ve dışarıda, arkadakiler kanadın altında
 ##
@@ -39,11 +41,11 @@ extends Node3D
 static var glb_models := {6: "res://models/cars/dragster.glb", 7: "res://models/cars/yarisci.glb",
 	8: "res://models/cars/latte.glb", 9: "res://models/cars/falcon.glb",
 	10: "res://models/cars/gem.glb", 11: "res://models/cars/buggy.glb", 12: "res://models/cars/delta.glb",
-	13: "res://models/cars/kum.glb"}  # 13: yeni kum arabası (önizleme, garajda değil)
+	13: "res://models/cars/kum.glb"}
 
 ## Garajdaki arabalar (sırayla): önce açık temel arabalar (ağır, orta, hafif), sonra kilitli özel
 ## arabalar (Progress). Kutu, Konsept, Roadster ve Buggy garajdan çıktı (kodları duruyor).
-const GARAGE := [2, 8, 7, 6, 10, 9, 12]
+const GARAGE := [2, 8, 7, 6, 10, 13, 9, 12]
 ## Arabaların özellikleri, 1-5 (3 = standart): [hız, tutuş, çakıl, denge]
 ## (garajda SPEED, STEERING, OFF-ROAD, STABILITY).
 ## Hız: başlangıç/en yüksek/tavan hız -%8..+%8. Tutuş: direksiyon tepkisi -%20..+%20,
@@ -60,6 +62,7 @@ const STATS := {
 	10: [4, 4, 2, 4],  # GEM: hızlı, virajda iyi, zor devrilir; çakılda zorlanır
 	11: [3, 4, 4, 2],  # Buggy: standart hız, iyi direksiyon ve çakıl; yüksek kanadıyla kenarda kolay devrilir
 	12: [4, 3, 3, 3],  # Delta: hızlı, geri kalanı standart (şimdilik)
+	13: [3, 4, 5, 4],  # DUNE: standart hız, iri tekerlerle çakılda rahat, geniş iz
 }
 
 
@@ -85,6 +88,9 @@ const SPEC := {
 	10: {"weight": 0.45, "agility": [5, 8], "balance": [5, 8], "grip": [5, 9], "tank": [5, 8], "flight": [4, 8]},  # GEM
 	9: {"weight": 0.2, "agility": [7, 9], "balance": [3, 7], "grip": [4, 8], "tank": [4, 8], "flight": [6, 9]},    # Falcon
 	12: {"weight": 0.15, "agility": [6, 9], "balance": [4, 8], "grip": [3, 7], "tank": [4, 8], "flight": [7, 10]}, # Delta
+	# DUNE (kum arabası): iri, geniş lastikler (en iyi tutuş), geniş iz ve alçak gövde (sağlam denge), ağırca;
+	# kafesli kutu gövde havada iyi süzülmez (zayıf kanat), orta çeviklik ve depo
+	13: {"weight": 0.65, "agility": [4, 8], "balance": [6, 9], "grip": [6, 10], "tank": [4, 8], "flight": [2, 6]}, # DUNE
 }
 const DEFAULT_SPEC := {"weight": 0.5, "agility": [5, 8], "balance": [5, 8], "grip": [5, 8], "tank": [5, 8], "flight": [5, 8]}
 

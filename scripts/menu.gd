@@ -13,6 +13,7 @@ const MODELS := [
 	["DARK ROSE", "Light: flies far on little energy and turns fast, but tips over easily.", 7],
 	["DRAGSTER", "Heavy and fast.", 6],
 	["GEM", "Medium, with a great grip.", 10],
+	["DUNE", "Off-road buggy: huge grip and rock steady, but heavy in the air.", 13],
 	["FALCON", "Light and the fastest.", 9],
 	["DELTA", "A wing on wheels: the best flyer.", 12],
 ]
