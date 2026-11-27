@@ -1807,11 +1807,12 @@ def build_kum():
     for sx in (-1, 1):
         # Turuncu paralelkenar panel (yan duvarın dış yüzünde)
         side_plate("panel", [(245, 268), (410, 240), (371, 301), (262, 308)], sx * 116.0, sx * 118.5, "Accent")
-        # Teker yuvaları (koyu, köşeli): kaputun / güvertenin altından tekerin çevresine
-        side_plate("well", [(66, 252), (150, 226), (214, 228), (262, 307), (262, 326), (236, 268), (154, 226),
-                            (78, 262), (66, 290)], sx * 50.0, sx * 113.0, "Dark")
-        side_plate("well", [(370, 301), (432, 224), (505, 213), (520, 248), (475, 228), (400, 262), (388, 300)],
-                   sx * 50.0, sx * 113.0, "Dark")
+        # Koyu etek: yandan gövdenin alt hattı boyunca düzgün kalınlıkta bant (burundan ön teker üstüne, kemer
+        # boyunca eşiğe, eşik boyunca, arka kemerden güvertenin altına, kanadın altına); tekerlerin üstünde düz
+        upper = [(66, 252), (150, 226), (214, 228), (262, 307), (370, 301), (432, 224), (526, 213), (546, 200)]
+        lower = [(546, 214), (523, 244), (442, 244), (375, 320), (251, 321), (203, 241), (147, 241), (71, 265),
+                 (66, 266)]
+        side_plate("skirt", upper + lower, sx * 50.0, sx * 115.5, "Dark")
 
     # --- Arka kanat (turuncu kama): yandan üst kenar (478, 171) -> uç (553, 156), arka alt köşe (522, 222);
     # yanları gövdeyle aynı hizada, kesit köşeli
@@ -1820,72 +1821,97 @@ def build_kum():
         w = lerp_tab(wid, x) + 0.6
         wing.append((x, sym([(0, t), (w, t), (w, b), (0, b)])))
     ring_loft("wing", wing, "Accent")
-    # Kanadın altındaki koyu arka parça (yanı gövdeyle aynı düzlemde)
+    # Arka: kanadın altı koyu (eteklerin arası, arkadan bakınca tek parça)
     rear = []
-    for x, t, b in ((498, 213, 236), (522, 222, 252), (546, 196, 212)):
-        w = lerp_tab(wid, x)
-        rear.append((x, sym([(0, t), (w, t), (w, b), (0, b)])))
+    for x, t, b in ((505, 213, 244), (523, 213, 244), (546, 200, 214)):
+        rear.append((x, sym([(0, t), (51, t), (51, b), (0, b)])))
     ring_loft("rear_panel", rear, "Dark")
 
     # --- Alt gövde (koyu, yamuk kesit): önden üstte ±55, altta ±34
     chassis = []
-    for x, zt, zb, ht, hb in ((66, 249, 290, 52, 42), (90, 247, 328, 55, 34), (390, 240, 320, 60, 36),
-                              (505, 214, 320, 62, 38), (536, 212, 252, 58, 44)):
+    for x, zt, zb, ht, hb in ((90, 252, 318, 43, 35), (390, 240, 318, 60, 36), (505, 214, 318, 62, 38),
+                              (536, 212, 244, 58, 44)):
         chassis.append((x, [(0, zt), (ht, zt), (hb, zb), (0, zb), (-hb, zb), (-ht, zt)]))
     ring_loft("chassis", chassis, "Dark")
-    # Farlar: önden iki beyaz yarık (y 262-276), alt gövdenin ön yüzünde
+    # Ön blok (koyu, tek parça): yandan burnun altından ön tekerin üstüne (üstü kaputun alt hattı, altı tekerden
+    # açıkta), enine çamurluktan çamurluğa (±114). Kaputun altında kalan yerleri görünmez; önden bakınca üstte
+    # iki çamurluk arası geniş bant ve ortada kaputun altına inen V (kaputun üstten şekli), ön yüzü tek düz yüzey.
+    # Altında daralan gövde ucu (önden yamuk)
+    side_plate("front_block", [(62, 252), (150, 226), (150, 241), (110, 251), (70, 289.7), (62, 289.7)],
+               -114.0, 114.0, "Dark")
+    ring_loft("front_block", [(62, [(43, 289.0), (35, 329.0), (-35, 329.0), (-43, 289.0)]),
+                              (90, [(43, 289.0), (35, 329.0), (-35, 329.0), (-43, 289.0)])], "Dark")
+    # Farlar: önden iki beyaz yarık (y 262-276), ön bloğun yüzünde
     for sx in (-1, 1):
         q = [(sx * 49, 262), (sx * 7, 264), (sx * 4, 276), (sx * 43, 276)]
-        solid("headlight", [(W(X), Y(68.0), Z(yy)) for X, yy in q], [(W(X), Y(72.5), Z(yy)) for X, yy in q], "Light")
+        solid("headlight", [(W(X), Y(60.8), Z(yy)) for X, yy in q], [(W(X), Y(62.5), Z(yy)) for X, yy in q], "Light")
 
-    # --- Kafes (koyu, sert köşeler): iki yan çember (ön bacak - tepe rayı - arka bacak). Yandan bakınca
-    # kalınlığı T olan bükülmüş şerit; köşeleri açıortayda tek kırımla döner (yandan çizimdeki yamuk). Bacaklar
-    # yukarı doğru içe yatık: her noktanın X'i yüksekliğine göre (altta ±70, rayda ±40), yatay kesiti hep T.
-    # Tepede önde ve arkada enine çubuk (rayın ucuyla aynı kesitte). Yandan ön bacak (232, 199) -> (312, 99),
-    # arka (462, 182) -> (418, 96)
+    # --- Kafes (yeşil): iki yan çember (ön bacak - tepe rayı - arka bacak). Yandan bakınca kalınlığı T olan
+    # şerit; bacaklar düz, tepe köşeleri yuvarlak bir hatla aşağı döner (yay birkaç düz parçadan). Bacaklar
+    # yukarı doğru içe yatık: her noktanın X'i yüksekliğine göre (altta ±70, tepede ±40), yatay kesiti hep T.
+    # Tepede önde ve arkada enine çubuk (yayların bittiği yerde, rayla aynı kesitte)
     T = 21.0
-    hoop = [(232.0, 199.0), (312.0, 99.0), (418.0, 96.0), (462.0, 182.0)]
-    def offset_line(p0, p1, o):
-        dx, dy = p1[0] - p0[0], p1[1] - p0[1]
-        L = math.hypot(dx, dy)
-        nx, ny = dy / L, -dx / L          # sol normal (yan görünüşte, y aşağı)
-        return (p0[0] + nx * o, p0[1] + ny * o), (dx / L, dy / L)
-    def intersect(a, da, b, db):
-        den = da[0] * db[1] - da[1] * db[0]
-        t_ = ((b[0] - a[0]) * db[1] - (b[1] - a[1]) * db[0]) / den
-        return (a[0] + da[0] * t_, a[1] + da[1] * t_)
-    def side_offsets(o):
-        """Çemberin ±o ofset çizgisi: köşelerde ofset çizgilerinin kesişimi, uçlarda yatay (alt) kesim."""
-        lines = [offset_line(hoop[k], hoop[k + 1], o) for k in range(3)]
-        pts = [intersect(lines[0][0], lines[0][1], (0.0, hoop[0][1]), (1.0, 0.0))]
-        for k in range(2):
-            pts.append(intersect(lines[k][0], lines[k][1], lines[k + 1][0], lines[k + 1][1]))
-        pts.append(intersect(lines[2][0], lines[2][1], (0.0, hoop[3][1]), (1.0, 0.0)))
+    P0, P1, P2, P3 = (232.0, 199.0), (312.0, 99.0), (418.0, 96.0), (462.0, 182.0)
+    FR, NSEG = 40.0, 5      # köşe yayının yarıçapı (orta çizgide, px) ve parça sayısı
+    def fillet(a, b, c):
+        """b köşesini yarıçapı FR yayla yuvarlar: yayın noktaları (a'dan c'ye)."""
+        ux, uy = a[0] - b[0], a[1] - b[1]; lu = math.hypot(ux, uy); ux, uy = ux / lu, uy / lu
+        vx, vy = c[0] - b[0], c[1] - b[1]; lv = math.hypot(vx, vy); vx, vy = vx / lv, vy / lv
+        ang = math.acos(max(-1.0, min(1.0, ux * vx + uy * vy)))
+        tdist = FR / math.tan(ang / 2)
+        p_in = (b[0] + ux * tdist, b[1] + uy * tdist)
+        p_out = (b[0] + vx * tdist, b[1] + vy * tdist)
+        bx, by = ux + vx, uy + vy; lb = math.hypot(bx, by); bx, by = bx / lb, by / lb
+        cdist = FR / math.sin(ang / 2)
+        cc = (b[0] + bx * cdist, b[1] + by * cdist)
+        a0 = math.atan2(p_in[1] - cc[1], p_in[0] - cc[0])
+        a1 = math.atan2(p_out[1] - cc[1], p_out[0] - cc[0])
+        da = (a1 - a0 + math.pi) % (2 * math.pi) - math.pi
+        return [(cc[0] + FR * math.cos(a0 + da * k / NSEG), cc[1] + FR * math.sin(a0 + da * k / NSEG)) for k in range(NSEG + 1)]
+    f1, f2 = fillet(P0, P1, P2), fillet(P1, P2, P3)
+    line = [P0] + f1 + f2 + [P3]
+    n_ = len(line)
+    def offset_pts(o):
+        segs = []
+        for k in range(n_ - 1):
+            p0, p1 = line[k], line[k + 1]
+            dx, dy = p1[0] - p0[0], p1[1] - p0[1]; L = math.hypot(dx, dy)
+            segs.append(((p0[0] + dy / L * o, p0[1] - dx / L * o), (dx / L, dy / L)))
+        def inter(a, da, b, db):
+            den = da[0] * db[1] - da[1] * db[0]
+            if abs(den) < 1e-9:
+                return b
+            t_ = ((b[0] - a[0]) * db[1] - (b[1] - a[1]) * db[0]) / den
+            return (a[0] + da[0] * t_, a[1] + da[1] * t_)
+        pts = [inter(segs[0][0], segs[0][1], (0.0, P0[1]), (1.0, 0.0))]
+        for k in range(len(segs) - 1):
+            pts.append(inter(segs[k][0], segs[k][1], segs[k + 1][0], segs[k + 1][1]))
+        pts.append(inter(segs[-1][0], segs[-1][1], (0.0, P3[1]), (1.0, 0.0)))
         return pts
-    outer, inner = side_offsets(T / 2), side_offsets(-T / 2)
-    if min(p[1] for p in outer) > min(p[1] for p in inner):
-        outer, inner = inner, outer
-    y_rail = max(p[1] for p in inner[1:3])        # rayın alt yüzü
+    oa, ob_ = offset_pts(T / 2), offset_pts(-T / 2)
+    outer, inner = (oa, ob_) if min(p[1] for p in oa) < min(p[1] for p in ob_) else (ob_, oa)
+    ytop = max(p[1] for p in inner)                     # en alçak noktası değil: rayın alt yüzü
+    ytop = min(p[1] for p in inner[1:-1])
+    y_rail_in = max(inner[NSEG + 1][1], inner[NSEG + 2][1])
     def hx(y, base_y):
-        return 40.0 + 30.0 * max(0.0, min(1.0, (y - y_rail) / (base_y - y_rail)))
+        return 40.0 + 30.0 * max(0.0, min(1.0, (y - y_rail_in) / (base_y - y_rail_in)))
     for sx in (-1, 1):
-        for k in range(3):
+        for k in range(n_ - 1):
             q = [outer[k], outer[k + 1], inner[k + 1], inner[k]]
-            base_y = hoop[0][1] if k == 0 else (hoop[3][1] if k == 2 else hoop[0][1])
-            if k == 1:
-                xs_ = [40.0] * 4
-            else:
-                xs_ = [hx(p[1], base_y) for p in q]
+            base_y = P0[1] if k < n_ // 2 else P3[1]
+            xs_ = [hx(p[1], base_y) for p in q]
             lo = [(W(sx * (X - T / 2)), Y(p[0]), Z(p[1])) for X, p in zip(xs_, q)]
             hi = [(W(sx * (X + T / 2)), Y(p[0]), Z(p[1])) for X, p in zip(xs_, q)]
             solid("cage", lo, hi, "Cage")
-    # Enine çubuklar: rayın ön / arka ucunda, rayla aynı yükseklikte, iki çemberin iç yüzü arasında
-    for k, sgn in ((1, 1.0), (2, -1.0)):
-        a, b = outer[k], inner[k]
-        y0, y1 = min(a[1], b[1]), y_rail
-        x0 = a[0]
-        x1 = x0 + sgn * T
-        q = [(min(x0, x1), y1), (max(x0, x1), y1), (max(x0, x1), y0), (min(x0, x1), y0)]
+    # Enine çubuklar: rayın düz kısmının iki ucunda (yayın bittiği yer), rayla aynı yükseklikte
+    for k, sgn in ((NSEG + 1, 1.0), (NSEG + 1, -1.0)):
+        if sgn > 0:
+            a, b = outer[NSEG + 1], inner[NSEG + 1]
+        else:
+            a, b = outer[NSEG + 2], inner[NSEG + 2]
+        y0, y1 = min(a[1], b[1]), max(a[1], b[1])
+        x0 = (a[0] + b[0]) / 2
+        q = [(x0 - T / 2, y1), (x0 + T / 2, y1), (x0 + T / 2, y0), (x0 - T / 2, y0)]
         lo = [(W(-40 + T / 2), Y(px), Z(py)) for px, py in q]
         hi = [(W(40 - T / 2), Y(px), Z(py)) for px, py in q]
         solid("cage", lo, hi, "Cage")
@@ -1928,6 +1954,8 @@ def build_kum():
             hub.parent = tire
             flat(hub)
         tire.location = (W(X), Y(x), W(82.0))
+    # Konumlar dünya matrisine işlensin (aks çubukları tekerlere göre gruplanırken konumları okunur)
+    bpy.context.view_layer.update()
 
 BUILDERS = {"kutu": build_kutu, "dragster": build_dragster, "yarisci": build_yarisci, "latte": build_latte,
             "falcon": build_falcon, "gem": build_gem, "buggy": build_buggy,
