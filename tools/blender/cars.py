@@ -1804,9 +1804,24 @@ def build_kum():
         w = 22.0 + 30.0 * (x - 64) / (225 - 64)
         stripe.append((x, [(0, zt - 1.6), (w, zt - 1.6), (w, zt + 2.0), (0, zt + 2.0), (-w, zt + 2.0), (-w, zt - 1.6)]))
     ring_loft("stripe", stripe, "Accent")
+    def strake_out(x):
+        return 116.6 + 32.0 * (x - 240.0) / 374.0
     for sx in (-1, 1):
         # Turuncu paralelkenar panel (yan duvarın dış yüzünde)
-        side_plate("panel", [(240, 268), (424, 237), (372, 300), (263, 307.5)], sx * 116.0, sx * 118.5, "Accent")
+        # Krem yan parça ve kanat tek parça: yan panelden arkaya kanadın ucuna kadar; üstten dış kenarı dümdüz
+        # bir hat (panelin önünde gövde hizası ±116.6, kanadın ucunda ±148), yandan üstü panelin önünden düz yükselip
+        # gövdenin üst hattına (eşik / güverte) oturur, altı panelin altından arka kemer boyunca kanadın altına
+        st_top = [(240, 268), (330, 233.0)]
+        st_bot = [(240, 268), (263, 307.5), (372, 300), (432, 224), (473, 215), (530, 214)]
+        rows = []
+        for x in (240, 263, 300, 330, 372, 400, 432, 455, 473):    # kanat 473'ten sonra devam eder
+            t = max(lerp_tab(st_top, x) if x <= 330 else 0.0, lerp_tab(top, x))
+            b = max(lerp_tab(st_bot, x), t)
+            pts = [(110.0, t), (strake_out(x), t), (strake_out(x), b), (110.0, b)]
+            rows.append((x, [(sx * X, yy) for X, yy in pts]))
+        if sx < 0:
+            rows = [(x, list(reversed(p_))) for x, p_ in rows]
+        ring_loft("strake", rows, "Accent")
         # Koyu etek: yandan gövdenin alt hattı boyunca düzgün kalınlıkta bant (burundan ön teker üstüne, kemer
         # boyunca eşiğe, eşik boyunca, arka kemerden güvertenin altına, kanadın altına); tekerlerin üstünde düz.
         # Dışı gövdenin yanıyla aynı hizada (önde raf / çıkıntı yok), teker kemerlerinde dışarı taşar (çamurluk)
@@ -1837,9 +1852,9 @@ def build_kum():
     # orta 553'e kadar)
     def wtop(x):
         return 173.0 - 30.0 * (x - 473.0) / 146.0
-    wbot = [(473, 177), (527, 214), (612, 166)]
+    wbot = [(473, 215), (530, 214), (612, 166)]   # önü krem yan parçanın altıyla aynı (yan yüz kesintisiz)
     def wout(x):
-        return 116.6 + 31.4 * (x - 473.0) / 139.0
+        return strake_out(x)       # kanadın yanı krem yan parçanın dış hattının devamı
     wing = []
     for x in (473, 500, 527, 553):
         t, b, w = wtop(x), lerp_tab(wbot, x), wout(x)
@@ -1890,6 +1905,12 @@ def build_kum():
     # Tepede önde ve arkada enine çubuk (yayların bittiği yerde, rayla aynı kesitte)
     T = 21.0
     P0, P1, P2, P3 = (222.0, 194.0), (312.0, 99.0), (418.0, 96.0), (462.0, 182.0)   # ön bacak kaputa oturur
+    # Bacaklar gövdenin içine girer (alt uçları gövde yüzeyinin ~16 px altında)
+    def sink(pb, pt, d=16.0):
+        dx, dy = pb[0] - pt[0], pb[1] - pt[1]
+        L = math.hypot(dx, dy)
+        return (pb[0] + dx / L * d, pb[1] + dy / L * d)
+    P0, P3 = sink(P0, P1), sink(P3, P2)
     FR, NSEG = 40.0, 5      # köşe yayının yarıçapı (orta çizgide, px) ve parça sayısı
     def fillet(a, b, c):
         """b köşesini yarıçapı FR yayla yuvarlar: yayın noktaları (a'dan c'ye)."""
@@ -1959,17 +1980,27 @@ def build_kum():
         hi = [(W(41), Y(px), Z(py)) for px, py in q]
         solid("cage", lo, hi, "Cage")
 
-    # --- Koltuk: turuncu sırt (yandan (372, 236) -> (396, 158), arkaya yatık), tek blok
-    seat_a, seat_b = Vector((0, Y(372), Z(236))), Vector((0, Y(396), Z(158)))
-    d = seat_b - seat_a
-    bm = bmesh.new()
-    bmesh.ops.create_cube(bm, size=1.0)
-    for v in bm.verts:
-        v.co = Vector((v.co.x * W(60), v.co.y * W(27), v.co.z * d.length))
-    seat = new_object("seat", bm, ["Accent"])
-    seat.rotation_euler = (math.atan2(-d.y, d.z), 0, 0)
-    seat.location = (seat_a + seat_b) / 2
-    flat(seat)
+    # --- Koltuk (krem): kabin tabanında oturak, arkaya yatık sırt (yukarı doğru daralır), sırtın iki yanında
+    # öne çıkan yan destekler (kova koltuk)
+    seat_a, seat_b = Vector((0, Y(374), Z(286))), Vector((0, Y(398), Z(166)))
+    d = (seat_b - seat_a)
+    dn = d.normalized()
+    nrm = Vector((0, dn.z, -dn.y))                 # sırtın ön yüzü (öne-yukarı)
+    def quad_at(p, hw, th):
+        """Sırt boyunca bir kesit: p noktasında genişlik ±hw, kalınlık th (öne doğru)."""
+        return [p + Vector((-hw, 0, 0)), p + Vector((hw, 0, 0)), p + Vector((hw, 0, 0)) + nrm * th,
+                p + Vector((-hw, 0, 0)) + nrm * th]
+    solid("seat", quad_at(seat_a, W(30), W(16)), quad_at(seat_b, W(23), W(14)), "Accent")
+    for sx in (-1, 1):
+        a_ = seat_a + Vector((sx * W(25), 0, 0)) + nrm * W(14)
+        b_ = seat_a + dn * d.length * 0.62 + Vector((sx * W(25), 0, 0)) + nrm * W(14)
+        side = lambda p: [p + Vector((-W(5), 0, 0)), p + Vector((W(5), 0, 0)), p + Vector((W(5), 0, 0)) + nrm * W(12),
+                          p + Vector((-W(5), 0, 0)) + nrm * W(12)]
+        solid("seat", side(a_), side(b_), "Accent")
+    # oturak: tabandan, sırtın önünde
+    cz0, cz1 = Z(290), Z(274)
+    sq = lambda z: [(-W(30), Y(334), z), (W(30), Y(334), z), (W(30), Y(376), z), (-W(30), Y(376), z)]
+    solid("seat", sq(cz0), sq(cz1), "Accent")
 
     # --- Aks çubukları: teker merkezinin hizasında, alt gövdeden lastiğin iç yüzüne
     for sx in (-1, 1):
@@ -1977,21 +2008,22 @@ def build_kum():
             box("rod", (W(30), W(12), W(12)), (sx * W(49), Y(x), W(82.0)), "Dark")   # teker merkezinde
 
     # --- Tekerler: sekizgen, düz yüzlü iri lastik (pah yok; bir kenarı yere oturur); iki yanda düz sekizgen jant
-    R, TW = W(82.0) / math.cos(math.pi / 8), W(103.0)
+    NW = 12   # kenar sayısı (öbür arabalar gibi daha yuvarlak)
+    R, TW = W(82.0) / math.cos(math.pi / NW), W(103.0)
     for name, X, x in (("wheel_FL", -114.5, 154.0), ("wheel_FR", 114.5, 154.0),
                        ("wheel_RL", -114.5, 475.0), ("wheel_RR", 114.5, 475.0)):
         bm = bmesh.new()
-        bmesh.ops.create_cone(bm, cap_ends=True, segments=8, radius1=R, radius2=R, depth=TW)
+        bmesh.ops.create_cone(bm, cap_ends=True, segments=NW, radius1=R, radius2=R, depth=TW)
         bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
-        bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 8, 3, "X"), cent=(0, 0, 0))
+        bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / NW, 3, "X"), cent=(0, 0, 0))
         tire = new_object(name, bm, ["Tire"])
         flat(tire)
         for side in (-1, 1):
             bm = bmesh.new()
-            rr = W(40.0) / math.cos(math.pi / 8)
-            bmesh.ops.create_cone(bm, cap_ends=True, segments=8, radius1=rr, radius2=rr, depth=0.012)
+            rr = W(40.0) / math.cos(math.pi / NW)
+            bmesh.ops.create_cone(bm, cap_ends=True, segments=NW, radius1=rr, radius2=rr, depth=0.012)
             bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
-            bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 8, 3, "X"), cent=(0, 0, 0))
+            bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / NW, 3, "X"), cent=(0, 0, 0))
             bmesh.ops.translate(bm, verts=bm.verts, vec=(side * (TW * 0.5 + 0.004), 0, 0))
             hub = new_object(name + "_rim", bm, ["Rim2"])
             hub.parent = tire
