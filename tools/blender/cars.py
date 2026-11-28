@@ -1707,7 +1707,7 @@ def build_kum():
     MID, GROUND = 314.5, 397.0
     def Y(x):
         return (MID - x) * KS
-    LIFT = 12.0   # gövde tekerlere göre bu kadar (px) yukarıda: sekizgen lastiğin köşeleri çamurluğa girmesin
+    LIFT = 25.0   # gövde tekerlere göre bu kadar (px) yukarıda: lastikle çamurluk arasında belirgin boşluk (arazi duruşu)
     def Z(y):
         return (GROUND - y + LIFT) * KS
     def W(px):
@@ -2005,9 +2005,76 @@ def build_kum():
     # --- Aks çubukları: teker merkezinin hizasında, alt gövdeden lastiğin iç yüzüne
     for sx in (-1, 1):
         for x in (154.0, 475.0):
-            box("rod", (W(30), W(12), W(12)), (sx * W(49), Y(x), W(82.0)), "Dark")   # teker merkezinde
+            # alt gövdenin alt köşesinden teker göbeğine (gövde yükseldiği için eğik iner)
+            zi, zo = Z(312.0), W(82.0)
+            hh = W(6.0)
+            inner = [(sx * W(36), Y(x) - hh, zi - hh), (sx * W(36), Y(x) + hh, zi - hh),
+                     (sx * W(36), Y(x) + hh, zi + hh), (sx * W(36), Y(x) - hh, zi + hh)]
+            outer = [(sx * W(64), Y(x) - hh, zo - hh), (sx * W(64), Y(x) + hh, zo - hh),
+                     (sx * W(64), Y(x) + hh, zo + hh), (sx * W(64), Y(x) - hh, zo + hh)]
+            solid("rod", inner, outer, "Dark")
 
-    # --- Tekerler: sekizgen, düz yüzlü iri lastik (pah yok; bir kenarı yere oturur); iki yanda düz sekizgen jant
+    # --- Jant (referans: beş kollu, kolları yana kıvrılan spor jant): koyu zemin, krem dış halka, göbekten
+    # halkaya yana kıvrılarak genişleyen beş kol (halkaya yakın uçlarında küçük üçgen boşluk), krem göbek, beş
+    # koyu bijon ve koyu orta kapak. Düz katmanlar (teker yüzüne paralel), low-poly
+    def dune_rim(tire, x0, side):
+        RR = W(58.0)                # jantın dış yarıçapı (lastik iç yarıçapı 82)
+        RI = RR * 0.84              # halkanın iç kenarı
+        RH = RR * 0.24              # göbek
+        def lay(name_, pts, depth, mat):
+            bm = bmesh.new()
+            a = [bm.verts.new((x0 + side * 0.002, py, pz)) for py, pz in pts]
+            b = [bm.verts.new((x0 + side * (0.002 + depth), py, pz)) for py, pz in pts]
+            bm.faces.new(a)
+            bm.faces.new(list(reversed(b)))
+            for i in range(len(pts)):
+                j = (i + 1) % len(pts)
+                bm.faces.new((a[i], a[j], b[j], b[i]))
+            bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+            ob = new_object(name_, bm, [mat])
+            flat(ob)
+            ob.parent = tire
+        def pol(r, a):
+            return (r * math.cos(a), r * math.sin(a))
+        lay("rim_back", [pol(RR, 2 * math.pi * k / 20) for k in range(20)], 0.004, "Dark")
+        ring_o = [pol(RR, 2 * math.pi * k / 20) for k in range(20)]
+        ring_i = [pol(RI, 2 * math.pi * k / 20) for k in range(20)]
+        for k in range(20):
+            j = (k + 1) % 20
+            lay("rim_ring", [ring_o[k], ring_o[j], ring_i[j], ring_i[k]], 0.012, "Rim2")
+        # Kollar: krem disk üstünde beş büyük koyu pencere (göbekten halkaya yana kayarak genişleyen, kenarları
+        # kavisli yamuk) ve kolların halkaya yakın, ikiye ayrıldığı uçlarında küçük koyu üçgen
+        lay("rim_disc", [pol(RI * 1.01, 2 * math.pi * k / 20) for k in range(20)], 0.010, "Rim2")
+        sw = side
+        for k in range(5):
+            a = math.pi / 2 + 2 * math.pi * k / 5
+            def edge(t0, t1, r0, r1, n=4, bow=0.0):
+                out = []
+                for m in range(n + 1):
+                    u = m / n
+                    out.append(pol(r0 + (r1 - r0) * u, a + sw * (t0 + (t1 - t0) * u + bow * math.sin(math.pi * u))))
+                return out
+            r1, r2 = RR * 0.34, RR * 0.79
+            lead = edge(0.22, 0.50, r1, r2, n=3, bow=0.10)   # pencerenin bir kenarı (göbekten halkaya, kavisli)
+            trail = edge(1.00, 1.20, r1, r2, n=3, bow=0.10)  # öbür kenarı (aynı kavis: kol düzgün kalınlıkta)
+            outer = [pol(r2, a + sw * (0.50 + 0.70 * m / 3)) for m in range(1, 3)]
+            inner = [pol(r1, a + sw * (1.00 - 0.78 * m / 2)) for m in range(1, 2)]
+            win = lead + outer + list(reversed(trail)) + inner
+            if sw < 0:
+                win = list(reversed(win))
+            lay("rim_win", win, 0.014, "Dark")
+            tri = [pol(RR * 0.79, a + sw * 0.11), pol(RR * 0.79, a + sw * 0.33), pol(RR * 0.63, a + sw * 0.23)]
+            if sw < 0:
+                tri = list(reversed(tri))
+            lay("rim_tri", tri, 0.014, "Dark")
+        lay("rim_hub", [pol(RH, 2 * math.pi * k / 10) for k in range(10)], 0.016, "Rim2")
+        for k in range(5):
+            c = pol(RH * 0.62, math.pi / 2 + 2 * math.pi * k / 5)
+            lay("rim_lug", [(c[0] + RR * 0.035 * math.cos(2 * math.pi * m / 6), c[1] + RR * 0.035 * math.sin(2 * math.pi * m / 6))
+                            for m in range(6)], 0.022, "Dark")
+        lay("rim_cap", [pol(RH * 0.32, 2 * math.pi * k / 8) for k in range(8)], 0.022, "Dark")
+
+    # --- Tekerler: 12 kenarlı, düz yüzlü iri lastik (pah yok; bir kenarı yere oturur); iki yanda spor jant
     NW = 12   # kenar sayısı (öbür arabalar gibi daha yuvarlak)
     R, TW = W(82.0) / math.cos(math.pi / NW), W(103.0)
     for name, X, x in (("wheel_FL", -114.5, 154.0), ("wheel_FR", 114.5, 154.0),
@@ -2019,15 +2086,7 @@ def build_kum():
         tire = new_object(name, bm, ["Tire"])
         flat(tire)
         for side in (-1, 1):
-            bm = bmesh.new()
-            rr = W(40.0) / math.cos(math.pi / NW)
-            bmesh.ops.create_cone(bm, cap_ends=True, segments=NW, radius1=rr, radius2=rr, depth=0.012)
-            bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / 2, 3, "Y"), cent=(0, 0, 0))
-            bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(math.pi / NW, 3, "X"), cent=(0, 0, 0))
-            bmesh.ops.translate(bm, verts=bm.verts, vec=(side * (TW * 0.5 + 0.004), 0, 0))
-            hub = new_object(name + "_rim", bm, ["Rim2"])
-            hub.parent = tire
-            flat(hub)
+            dune_rim(tire, side * TW * 0.5, side)
         tire.location = (W(X), Y(x), W(82.0))
     # Konumlar dünya matrisine işlensin (aks çubukları tekerlere göre gruplanırken konumları okunur)
     bpy.context.view_layer.update()
